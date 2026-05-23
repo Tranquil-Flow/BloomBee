@@ -1,6 +1,6 @@
 <p align="center">
     <img src="figures/bloombee.jpg" alt="Bloombee Logo" /><br>
-    Run large language models in a heterogeneous decentralized environment with offloading.<br>
+    Run large language models in a heterogeneous decentralized environment over internet.<br>
     <br>
     <a href="https://pypi.org/project/bloombee/"><img src="https://img.shields.io/pypi/v/bloombee.svg?label=PyPI&color=green"></a>
     <a href="https://github.com/ai-decentralized/bloombee/actions"><img src="https://img.shields.io/github/actions/workflow/status/ai-decentralized/bloombee/pylint.yml?branch=main&label=Build"></a>
@@ -39,9 +39,9 @@ Instead of requiring a single powerful machine, BloomBee splits a model's transf
 
 ## Key Features
 
-Running an LLM across decentralized GPUs is bottlenecked by inter-node bandwidth and per-node memory. BloomBee addresses both, with a focus on communication:
+Running an LLM across decentralized GPUs is bottlenecked by inter-node bandwidth and per-node memory. BloomBee addresses both, with a focus on **multi-dimensional communication optimization** to reduce or hide communication overhead. 
 - **Tensor offloading** — reduces per-node memory consumption so each peer can host more layers, shrinking the total number of network hops.
-- **Speculative decoding** — reduces communication frequency by sending multiple draft tokens per round-trip.
+- **Speculative decoding over internet** — reduces communication frequency by sending multiple draft tokens per round-trip.
 - **Lossless compression** — shrinks the bytes transferred per activation, without accuracy loss.
 - **Micro-batch pipelining** — overlaps communication with computation to hide network latency.
 
