@@ -42,7 +42,7 @@ Instead of requiring a single powerful machine, BloomBee splits a model's transf
 Running an LLM across decentralized GPUs is bottlenecked by inter-node bandwidth and per-node memory. BloomBee addresses both, with a focus on **multi-dimensional communication optimization** to reduce or hide communication overhead. 
 - **Tensor offloading** — reduces per-node memory consumption so each peer can host more layers, shrinking the total number of network hops.
 - **Speculative decoding over internet** — reduces communication frequency by sending multiple draft tokens per round-trip.
-- **Lossless compression** — shrinks the bytes transferred per activation, without accuracy loss.
+- **Lossless activation-compression** — shrinks the bytes transferred per activation, without accuracy loss.
 - **Micro-batch pipelining** — overlaps communication with computation to hide network latency.
 
 
