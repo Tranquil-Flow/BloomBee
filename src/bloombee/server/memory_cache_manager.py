@@ -7,7 +7,6 @@ import os
 import threading
 import time
 from typing import Optional, Tuple, AsyncContextManager, Sequence
-from concurrent.futures import ThreadPoolExecutor
 
 from bloombee.server.memory_cache import MemoryCache, AdaptedKVCache, KVCacheMetadata, _is_paged_kv_enabled
 from bloombee.flexgen_utils.ExecutionEnv import ExecutionEnv
@@ -54,7 +53,6 @@ class KVCacheManager:
         # mainline. The legacy _write_kvs slab write remains the source of
         # truth in both modes.
         self._paged_kv_enabled = _is_paged_kv_enabled()
-        self._reorder_executor = ThreadPoolExecutor(max_workers=1)
         
         # [KVCACHE_OFFLOAD] Micro-batch level memory reuse state
         # Since all blocks share one KVCacheManager, staging must be keyed by:
@@ -192,6 +190,49 @@ class KVCacheManager:
         else:
             active_batch_size = min(int(actual_batch_size), slot_batch_capacity)
         return working_slot, slot_batch_start, active_batch_size, slot_batch_capacity
+
+    def _source_heads_per_batch(
+        self,
+        attention_heads: int,
+        source_bh: int,
+        full_batch_size: int = 0,
+        micro_batch_size: int = 0,
+    ) -> int:
+        """Infer how many source KV rows belong to each batch item.
+
+        The cache slab is strided by attention heads, but GQA/MQA model blocks
+        return only num_key_value_heads rows per batch. Batched writes must
+        preserve that per-batch stride instead of treating the source rows as
+        one contiguous attention-head block.
+        """
+        attention_heads = max(1, int(attention_heads))
+        source_bh = int(source_bh)
+
+        if full_batch_size > 0 and micro_batch_size > 0:
+            runtime_batch = int(micro_batch_size)
+            if runtime_batch > 0 and source_bh % runtime_batch == 0:
+                heads = source_bh // runtime_batch
+                if 0 < heads <= attention_heads:
+                    return int(heads)
+
+        kv_heads = getattr(self.block_config, "num_key_value_heads", None)
+        if kv_heads is None:
+            groups = getattr(self.block_config, "num_key_value_groups", None)
+            try:
+                groups = int(groups) if groups is not None else 1
+            except (TypeError, ValueError):
+                groups = 1
+            if groups > 1 and attention_heads % groups == 0:
+                kv_heads = attention_heads // groups
+
+        try:
+            kv_heads = int(kv_heads) if kv_heads is not None else attention_heads
+        except (TypeError, ValueError):
+            kv_heads = attention_heads
+
+        if 0 < kv_heads <= attention_heads and source_bh % kv_heads == 0:
+            return int(kv_heads)
+        return attention_heads
 
     def _get_slot_state_key_for_mb(self, mb_index: int) -> Optional[Tuple[int, int]]:
         if not self._active_cache_tensors_stack:
@@ -505,9 +546,10 @@ class KVCacheManager:
                 return [], 0
             BH, _D, s_new = key_data.shape
             H = getattr(self.block_config, "num_attention_heads", 32) or 32
-            if H <= 0 or BH % H != 0:
+            source_heads = self._source_heads_per_batch(H, BH)
+            if source_heads <= 0 or BH % source_heads != 0:
                 return [], 0
-            B = BH // H
+            B = BH // source_heads
             return list(range(B)), int(s_new)
         except Exception as e:
             logger.debug(f"[PAGED_KV] failed to infer seq ids: {e}")
@@ -749,7 +791,7 @@ class KVCacheManager:
             self._log_kv_detail(f"[MBPIPE_KV_VERIFY] Mode: FULL BATCH - reading BH[0:{BH_full}]")
 
         # Target device for computation (CPU/GPU)
-        compute_dst = self.attention_compute  # 统一在计算设备上物化
+        compute_dst = self.attention_compute  # materialize uniformly on the compute device
 
         # Path determination (whether MIXED)
         if self.offloading_policy.cpu_cache_compute and (
@@ -766,7 +808,7 @@ class KVCacheManager:
         else:
             root_position = kv_cache_position_ids[0]
             prefix_positions = list(range(root_position))  # [0, 1, 2, ..., root-1]
-            s_indices = prefix_positions + kv_cache_position_ids.tolist()  # 完整序列
+            s_indices = prefix_positions + kv_cache_position_ids.tolist()  # full sequence
             expected_continuous = list(range(len(s_indices)))
             need_reorder = False if (s_indices == expected_continuous) else True
             prefix_length = len(s_indices)
@@ -1483,6 +1525,12 @@ class KVCacheManager:
         BH_src, D_src, s_new = key_t.shape
         assert value_t.shape == (BH_src, s_new, D_src), f"value shape {value_t.shape} != (BH, s_new, D)"
         assert D_src == D_dst, f"D mismatch: src {D_src} vs dst {D_dst}"
+        source_heads = self._source_heads_per_batch(H, BH_src, full_batch_size, micro_batch_size)
+        assert BH_src % source_heads == 0, (
+            f"BH_src={BH_src} not divisible by source_heads={source_heads}"
+        )
+        source_batch_size = BH_src // source_heads
+        write_bh_span = source_batch_size * H if source_heads < H else BH_src
         
         working_slot = None
         active_batch_rows = None
@@ -1502,7 +1550,7 @@ class KVCacheManager:
                     if current_mb is not None and current_mb != mb_index:
                         self.sync_offload(current_mb)
                 BH_offset_start = slot_batch_start * H
-                BH_offset_end = BH_offset_start + BH_src
+                BH_offset_end = BH_offset_start + write_bh_span
                 self._log_kv_detail(
                     f"[MBPIPE_MULTIPLEX] _write_kvs: GPU multiplexing ACTIVE, "
                     f"mb_index={mb_index}, slot={working_slot}, writing to BH[{BH_offset_start}:{BH_offset_end}]"
@@ -1510,7 +1558,7 @@ class KVCacheManager:
             else:
                 # Legacy mode: cache holds full batch, use batch_offset for slicing
                 BH_offset_start = batch_offset * H
-                BH_offset_end = BH_offset_start + BH_src
+                BH_offset_end = BH_offset_start + write_bh_span
                 if BH_offset_end > BH_dst:
                     logger.error(f"[MBPIPE_DEBUG] BH offset out of bounds: {BH_offset_end} > {BH_dst}, "
                                 f"clamping to BH_dst={BH_dst}")
@@ -1519,24 +1567,24 @@ class KVCacheManager:
         else:
             # Full batch mode: if BH_src < BH_dst, auto-adapt by writing to first BH_src entries
             # This handles the case where request batch_size < server cache batch_size
-            if BH_src <= BH_dst:
+            if write_bh_span <= BH_dst:
                 BH_offset_start = 0
-                BH_offset_end = BH_src
-                if BH_src < BH_dst:
-                    actual_batch_src = BH_src // H
+                BH_offset_end = write_bh_span
+                if write_bh_span < BH_dst:
+                    actual_batch_src = source_batch_size
                     actual_batch_dst = BH_dst // H
                     self._log_kv_once(
                         ("kv_write_mode", "auto_adapt"),
                         "[MBPIPE_DEBUG] KV auto-adapt mode observed (request batch smaller than cache capacity)",
                     )
                     self._log_kv_detail(
-                        f"[MBPIPE_DEBUG] Auto-adapting: writing first {BH_src} of {BH_dst} BH entries "
+                        f"[MBPIPE_DEBUG] Auto-adapting: writing first {write_bh_span} of {BH_dst} BH entries "
                         f"(batch {actual_batch_src} of {actual_batch_dst})"
                     )
-                logger.debug(f"[MBPIPE] _write_kvs FULL: BH_slice=[0:{BH_src}]")
+                logger.debug(f"[MBPIPE] _write_kvs FULL: BH_slice=[0:{write_bh_span}]")
             else:
                 # This should not happen - source is larger than destination
-                raise AssertionError(f"BH mismatch: src {BH_src} > dst {BH_dst}, cannot write")
+                raise AssertionError(f"BH mismatch: src span {write_bh_span} > dst {BH_dst}, cannot write")
 
         end_position = start_position + s_new
         if not (0 <= start_position < S_total and end_position <= S_total):
@@ -1573,19 +1621,25 @@ class KVCacheManager:
         # [KVCACHE_OFFLOAD] Handle TorchMixedDevice (GPU+CPU split) properly for micro-batch slicing
         # The issue: general_copy's cut_indices uses segment boundaries on BOTH src and dst,
         # but for micro-batch, src size != dst slice size (e.g., src=128 but dst_idx spans [128:256])
-        def _write_to_cache(cache, src_tt, dst_idx, cache_name):
+        def _write_to_cache(cache, src_tt, dst_idx, cache_name, src_idx=None):
             """Write source tensor to cache, handling TorchMixedDevice segment splitting."""
             if hasattr(cache, 'device') and getattr(cache.device, 'device_type', None) == DeviceType.MIXED:
                 # TorchMixedDevice: manually split writes across segments
                 tensors, seg_points = cache.data  # ([gpu_tensor, cpu_tensor, ...], [0, seg1, seg2, ...])
                 s_slice, bh_slice, d_slice = dst_idx
+                if src_idx is None:
+                    src_s_slice = slice(0, src_tt.shape[0])
+                    src_bh_slice = slice(0, src_tt.shape[1])
+                    src_d_slice = slice(0, src_tt.shape[2])
+                else:
+                    src_s_slice, src_bh_slice, src_d_slice = src_idx
                 bh_start, bh_end = bh_slice.start, bh_slice.stop
                 
                 logger.debug(f"[KVCACHE_OFFLOAD] {cache_name} is MixedDevice, seg_points={seg_points}, "
                             f"bh_range=[{bh_start}:{bh_end}]")
                 
                 # Track position in source tensor
-                src_offset = 0
+                src_offset = src_bh_slice.start or 0
                 
                 for i, seg_tensor in enumerate(tensors):
                     if seg_tensor is None:
@@ -1613,7 +1667,7 @@ class KVCacheManager:
                                     f"dst_bh=[{dst_bh_start}:{dst_bh_end}]")
                         
                         # Slice source data
-                        src_data = src_tt.data[:, src_slice_start:src_slice_end, :]
+                        src_data = src_tt.data[src_s_slice, src_slice_start:src_slice_end, src_d_slice]
                         
                         # Get destination tensor data and write
                         if hasattr(seg_tensor, 'data'):
@@ -1625,11 +1679,32 @@ class KVCacheManager:
                         src_offset += overlap_len
             else:
                 # Non-MixedDevice: use regular general_copy
-                general_copy(cache, dst_idx, src_tt, None)
+                general_copy(cache, dst_idx, src_tt, src_idx)
         
         # Actual write with MixedDevice handling
-        _write_to_cache(k_cache, k_src_tt, dst_idx, "k_cache")
-        _write_to_cache(v_cache, v_src_tt, dst_idx, "v_cache")
+        if source_heads < H:
+            # GQA/MQA sources are packed as [batch0 kv-heads, batch1 kv-heads, ...],
+            # but the slab is laid out in attention-head strides per batch.
+            for batch_idx in range(source_batch_size):
+                src_bh_start = batch_idx * source_heads
+                src_bh_end = src_bh_start + source_heads
+                dst_bh_start = BH_offset_start + batch_idx * H
+                dst_bh_end = dst_bh_start + source_heads
+                dst_batch_idx = (
+                    slice(start_position, start_position + s_new),
+                    slice(dst_bh_start, dst_bh_end),
+                    slice(0, D_src),
+                )
+                src_batch_idx = (
+                    slice(0, s_new),
+                    slice(src_bh_start, src_bh_end),
+                    slice(0, D_src),
+                )
+                _write_to_cache(k_cache, k_src_tt, dst_batch_idx, "k_cache", src_batch_idx)
+                _write_to_cache(v_cache, v_src_tt, dst_batch_idx, "v_cache", src_batch_idx)
+        else:
+            _write_to_cache(k_cache, k_src_tt, dst_idx, "k_cache")
+            _write_to_cache(v_cache, v_src_tt, dst_idx, "v_cache")
 
         # In GPU multiplexing mode, immediately offload this micro-batch cache snapshot
         # while still inside use_cache context, so the next micro-batch can reuse GPU slots.
@@ -1683,14 +1758,14 @@ class KVCacheManager:
         kv_valid_lengths: torch.Tensor,
     ) -> None:
         """
-        Batch speculative decoding 专用：每个 batch 从不同位置写入 KV cache
+        Batched speculative decoding: each batch item writes to KV cache starting at its own position.
         """
-        # 快速路径：所有 batch 的 start_position 相同
+        # Fast path: all batch items share the same start_position
         if (kv_valid_lengths == kv_valid_lengths[0]).all():
             self._write_kvs(new_kvs, kv_valid_lengths[0].item())
             return
-        
-        # 慢速路径：逐 batch 写入
+
+        # Slow path: write per batch item
         assert self._active_cache_tensors_stack, "write called outside of use_cache context"
         cache_tensors = self._active_cache_tensors_stack[-1]
         (k_cache, v_cache), = cache_tensors
@@ -1734,7 +1809,7 @@ class KVCacheManager:
             head_start = i * H
             head_end = (i + 1) * H
             
-            # 提取第 i 个 batch 的数据并写入
+            # Extract data for batch item i and write
             k_batch = k_write[:actual_len, head_start:head_end, :].contiguous()
             v_batch = v_write[:actual_len, head_start:head_end, :].contiguous()
             
@@ -1827,7 +1902,7 @@ class KVCacheManager:
         kv_cache_position_ids: torch.Tensor,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], bool]:
         """
-        为 reorder 准备：取出所有 batch 需要的 positions 的并集
+        Prepare for reorder: read the union of positions needed across all batch items.
         """
         assert self._active_cache_tensors_stack, "select_cache called outside of use_cache"
         
@@ -1846,14 +1921,14 @@ class KVCacheManager:
         if kv_cache_position_ids.dim() == 1:
             kv_cache_position_ids = kv_cache_position_ids.unsqueeze(0)
         
-        # 找出需要的最大 position
+        # Find the largest position we need
         valid_mask = kv_cache_position_ids >= 0
         if not valid_mask.any():
             return None, None, False
-        
+
         max_position = kv_cache_position_ids[valid_mask].max().item()
-        
-        # 取 [0, max_position] 范围
+
+        # Take the range [0, max_position]
         prefix_length = int(max_position) + 1
         idx_all = (slice(0, prefix_length), slice(0, BH))
         
@@ -1868,14 +1943,14 @@ class KVCacheManager:
         k_pkv = _to_pkv(k_sbh)
         v_pkv = _to_pkv(v_sbh)
         
-        # 判断是否需要 reorder
-        need_reorder = True  # 只要有 kv_cache_position_ids 就需要
+        # Decide whether reorder is needed
+        need_reorder = True  # always needed when kv_cache_position_ids is present
         
         return k_pkv, v_pkv, need_reorder
     
     def select_cache_without_reorder(
         self,
-        kv_cache_position_ids: torch.Tensor,  # (B, max_pos_len), -1 是 padding
+        kv_cache_position_ids: torch.Tensor,  # (B, max_pos_len), -1 is padding
         batch_offset: int = 0,
         full_batch_size: int = 0,
         micro_batch_size: int = 0,
@@ -1886,7 +1961,7 @@ class KVCacheManager:
         Returns:
             k_pkv: (B, H, cache_len, D)
             v_pkv: (B, H, cache_len, D)
-            cache_len: 取出的 cache 长度
+            cache_len: length of cache read out
         """
         if cache_tensors is None:
             assert self._active_cache_tensors_stack, "select_cache called outside of use_cache"
@@ -1898,7 +1973,7 @@ class KVCacheManager:
         H = getattr(self.block_config, "num_attention_heads", None)
         full_batch_in_cache = BH_full // H
         
-        # 1. 找到需要取的 cache 范围
+        # 1. Locate the cache range to read
         valid_mask = kv_cache_position_ids >= 0  # (B, max_pos_len)
         if not valid_mask.any():
             return None, None, 0
@@ -1914,7 +1989,7 @@ class KVCacheManager:
         ).max(dim=1).values
         cache_len = int((max_positions + 1).max().item())
         
-        # 2. 计算 BH 切片范围 (与 select_cache 保持一致)
+        # 2. Compute BH slice range (consistent with select_cache)
         gpu_multiplexing = full_batch_size > 0 and full_batch_in_cache < full_batch_size
         
         if full_batch_size > 0 and micro_batch_size > 0:
@@ -1938,18 +2013,18 @@ class KVCacheManager:
                     elif pending_mb == mb_index:
                         self.sync_prefetch(mb_index)
             else:
-                # Legacy 模式: cache 存储 full batch，使用 batch_offset 切片
+                # Legacy mode: cache stores the full batch; slice with batch_offset
                 BH_offset_start = batch_offset * H
                 BH_offset_end = BH_offset_start + micro_batch_size * H
                 BH_offset_end = min(BH_offset_end, BH_full)
         else:
-            # Full batch 模式
+            # Full-batch mode
             BH_offset_start = 0
             BH_offset_end = BH_full
         
         BH = BH_offset_end - BH_offset_start
         
-        # 3. 取出 [0, cache_len) 的 cache
+        # 3. Read the cache slice [0, cache_len)
         compute_dst = self.attention_compute
         idx_all = (slice(0, cache_len), slice(BH_offset_start, BH_offset_end))
         
@@ -2011,16 +2086,15 @@ class KVCacheManager:
     def update_cache_and_async_reorder(
         self,
         new_kvs: AdaptedKVCache,
-        kv_cache_position_ids: Optional[torch.Tensor],  # (B, max_pos_len), -1 是 padding，可能为 None
+        kv_cache_position_ids: Optional[torch.Tensor],  # (B, max_pos_len), -1 is padding; may be None
         cache_tensors: Sequence[torch.Tensor],
         batch_offset: int = 0,
         full_batch_size: int = 0,
         micro_batch_size: int = 0,
     ) -> None:
         cache_manager = self
-        
-        self._reorder_executor.submit(
-            self._do_reorder_task,
+
+        self._do_reorder_task(
             new_kvs,
             kv_cache_position_ids,
             cache_tensors,
@@ -2057,7 +2131,7 @@ class KVCacheManager:
                     )
                     return
 
-                # ============ Generation 阶段 ============
+                # ============ Generation phase ============
                 valid_mask = kv_cache_position_ids >= 0
 
                 if not valid_mask.any():
@@ -2086,7 +2160,7 @@ class KVCacheManager:
                     l_acc_target=write_position, cache_tensors=cache_tensors,
                 )
 
-                # 1. 同步写入新 KV
+                # 1. Synchronously write the new KV
                 self._write_kvs(
                     new_kvs,
                     write_position,
@@ -2103,7 +2177,7 @@ class KVCacheManager:
                     cache_tensors=cache_tensors,
                 )
 
-                # 2. 准备异步重排所需的参数
+                # 2. Prepare parameters for the async reorder
                 new_kvs_data = new_kvs.kvs if hasattr(new_kvs, "kvs") else new_kvs
                 key, _ = new_kvs_data
                 key_data = key.data if hasattr(key, 'data') else key
@@ -2114,17 +2188,17 @@ class KVCacheManager:
 
                 kv_cache_position_ids_copy = kv_cache_position_ids.clone()
 
-                # 构建 extended_position_ids
+                # Build extended_position_ids
                 new_positions = torch.arange(write_position, write_position + tree_len, device=device)
                 new_positions = new_positions.unsqueeze(0).expand(B, tree_len)
                 extended_position_ids = torch.cat([kv_cache_position_ids_copy, new_positions], dim=1)
 
-                # 计算 cache 长度
+                # Compute cache length
                 ext_valid_mask = extended_position_ids >= 0
                 max_ext_position = extended_position_ids[ext_valid_mask].max().item()
                 cache_len = int(max_ext_position) + 1
 
-                # 直接调用现有的 select_cache
+                # Reuse the existing select_cache
                 k_pkv, v_pkv, _ = cache_manager.select_cache(
                     prefix_length=cache_len,
                     hypo_ids=None,
@@ -2138,7 +2212,7 @@ class KVCacheManager:
                 if k_pkv is None:
                     return
 
-                # 重排并写回
+                # Reorder and write back
                 cache_manager.reorder_and_write_cache(
                     k_pkv=k_pkv,
                     v_pkv=v_pkv,

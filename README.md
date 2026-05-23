@@ -50,6 +50,7 @@ Instead of requiring a single powerful machine, BloomBee splits a model's transf
   - [3. Run Inference or Fine-tuning](#3-run-inference-or-fine-tuning)
 - [CLI Reference](#cli-reference)
 - [Environment Switches](README.environment-switches.md)
+- [Logging Reference](README.logging.md)
 - [Python API](#python-api)
 - [Benchmarking](#benchmarking)
 - [Examples](#examples)
@@ -123,6 +124,30 @@ pip install bloombee
 git clone https://github.com/ai-decentralized/BloomBee.git
 cd BloomBee
 pip install .
+```
+
+#### Heterogeneous NVIDIA / Chameleon Hosts
+
+BloomBee is intended to run across heterogeneous GPU fleets, so avoid relying on `pip install torch` to pick a CUDA wheel. If `nvidia-smi` sees the GPU but `torch.cuda.is_available()` is `False`, or before installing BloomBee on a fresh host, let BloomBee choose a PyTorch wheel from the local NVIDIA driver CUDA version and GPU compute capability:
+
+```bash
+conda activate bb
+python scripts/install_compatible_torch.py
+pip install -e .
+```
+
+For example, Tesla P100 / Pascal hosts are kept on a CUDA 12.1 PyTorch wheel that supports SM 6.0, while newer GPUs with newer drivers can use newer CUDA wheels. You can preview the decision with:
+
+```bash
+python scripts/install_compatible_torch.py --dry-run
+```
+
+Manual overrides are available for unusual clusters:
+
+```bash
+BLOOMBEE_TORCH_SPEC='torch==2.4.1+cu121' \
+BLOOMBEE_TORCH_INDEX_URL='https://download.pytorch.org/whl/cu121' \
+python scripts/install_compatible_torch.py
 ```
 
 ---

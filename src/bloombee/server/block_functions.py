@@ -34,6 +34,7 @@ from bloombee.utils.lossless_transport import (
     transport_profile_scope,
 )
 from bloombee.utils.misc import DUMMY, DUMMY_INT64, is_dummy
+from bloombee.utils.real_activation_dumper import capture_wire_activation
 from bloombee.utils.debug_config import get_env_bool_with_debug_fallback
 from bloombee.utils.microbatch_config import (
     is_microbatch_enabled,
@@ -58,15 +59,16 @@ from bloombee.utils.microbatch_schema import (
 # [MBPIPE] Cross-stage streaming push support
 _cross_stage_push_callback = None  # Will be set by handler for cross-stage streaming
 
+logger = get_logger(__name__)
+
 
 from time import perf_counter
 from datetime import datetime, timezone
 def print_time_now(s):
-    # Get the current time in UTC
+    # Get the current time in UTC and emit it through the logger
     current_utc_datetime = datetime.now(timezone.utc)
-    # Format the datetime to the desired string format
     formatted_utc_time = current_utc_datetime.strftime('%Y-%m-%d %H:%M:%S.%f %Z')
-    print('\t\t\t'+s+" UTC Time: "+ str(formatted_utc_time) )
+    logger.debug("\t\t\t%s UTC Time: %s", s, formatted_utc_time)
 
 
 # We prioritize short inference requests and make them use a *merged* inference pool,
@@ -74,8 +76,6 @@ def print_time_now(s):
 # Note: NF4 refers to FlexGen's 4-bit group quantization, not bitsandbytes
 MAX_SHORT_INFERENCE_TOKENS = 81920
 MAX_NF4_SHORT_INFERENCE_TOKENS = 1
-
-logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from bloombee.server.speculative_pruner.pruner_manager import SpeculativePrunerManager
@@ -242,6 +242,35 @@ def _block_span_from_uids(requested_uids: Sequence[Union[ExpertUID, str]]) -> st
     start = min(indices)
     end = max(indices) + 1
     return f"{start}:{end}"
+
+
+def _dtype_name(dtype: Optional[torch.dtype]) -> str:
+    return "" if dtype is None else str(dtype).replace("torch.", "")
+
+
+def _prepare_inference_output_for_wire(
+    result: torch.Tensor,
+    proto,
+    tensor_name: str,
+) -> Tuple[torch.Tensor, Dict[str, object]]:
+    original_dtype = result.dtype if torch.is_tensor(result) else None
+    schema_dtype = getattr(proto, "dtype", None)
+    wire_tensor = result.to(schema_dtype) if torch.is_tensor(result) and schema_dtype is not None else result
+    wire_dtype = wire_tensor.dtype if torch.is_tensor(wire_tensor) else None
+    debug_fields: Dict[str, object] = {
+        "compute_dtype": _dtype_name(original_dtype),
+        "schema_dtype": _dtype_name(schema_dtype),
+        "wire_dtype": _dtype_name(wire_dtype),
+        "dtype_guard_applied": 0,
+        "upcast_suspect": int(
+            tensor_name == "hidden_states"
+            and original_dtype in (torch.float16, torch.bfloat16)
+            and schema_dtype == torch.float32
+        ),
+    }
+    if original_dtype != wire_dtype:
+        debug_fields["wire_cast"] = f"{_dtype_name(original_dtype)}_to_{_dtype_name(wire_dtype)}_server_schema"
+    return wire_tensor, debug_fields
 
 
 async def run_rpc_forward(
@@ -422,19 +451,19 @@ async def run_rpc_backward(
     
 def restore_hidden_states(
     flattened_hidden_states: torch.Tensor,  # [N_total_valid, hidden_size]
-    keep_indices: torch.Tensor,  # [B, max_keep_len]，padding 为 -1
-    original_seq_len: int,  # 原始序列长度
+    keep_indices: torch.Tensor,  # [B, max_keep_len], padded with -1
+    original_seq_len: int,  # original sequence length
 ) -> torch.Tensor:
     """
-    将铺平的 hidden states 还原为 [B, original_seq_len, hidden_size]
-    
+    Restore flattened hidden states to [B, original_seq_len, hidden_size].
+
     Args:
-        flattened_hidden_states: [N_total_valid, hidden_size] 铺平后的有效 hidden states
-        keep_indices: [B, max_keep_len] 每个 batch 的 keep indices，padding 为 -1
-        original_seq_len: 原始序列长度
-    
+        flattened_hidden_states: [N_total_valid, hidden_size] flattened valid hidden states
+        keep_indices: [B, max_keep_len] per-batch keep indices, padded with -1
+        original_seq_len: original sequence length
+
     Returns:
-        restored_hidden_states: [B, original_seq_len, hidden_size]，无效位置用 0 填充
+        restored_hidden_states: [B, original_seq_len, hidden_size], invalid positions filled with 0
     """
     batch_size, max_keep_len = keep_indices.shape
     device = flattened_hidden_states.device
@@ -490,9 +519,9 @@ def restore_hidden_states(
                 flat_hidden_local = flat_hidden_local[:expected_valid]
         return flat_hidden_local
 
-    # 处理不同维度的输入
+    # Handle different input dimensions
     if flattened_hidden_states.ndim == 2:
-        # [N_total_valid, hidden_size] -> 直接使用
+        # [N_total_valid, hidden_size] -> use directly
         flat_hidden = flattened_hidden_states
         hidden_size = flattened_hidden_states.shape[-1]
     elif flattened_hidden_states.ndim == 3:
@@ -501,31 +530,31 @@ def restore_hidden_states(
     else:
         raise ValueError(f"Unexpected flattened_hidden_states dim: {flattened_hidden_states.ndim}")
     
-    # 创建输出 tensor，用 0 填充
+    # Build output tensor, zero-filled
     restored_hidden_states = torch.zeros(
         batch_size, original_seq_len, hidden_size,
         dtype=dtype, device=device
     )
-    
-    # 创建有效 mask: [B, max_keep_len]
+
+    # Valid mask: [B, max_keep_len]
     valid_mask = keep_indices >= 0
-    
-    # 创建 batch 索引: [B, max_keep_len]
+
+    # Batch index broadcast: [B, max_keep_len]
     batch_idx = torch.arange(batch_size, device=device).unsqueeze(1).expand_as(keep_indices)
-    
-    # 取出有效部分的索引
+
+    # Extract valid index pairs
     valid_batch_idx = batch_idx[valid_mask]      # [N_total_valid]
     valid_seq_idx = keep_indices[valid_mask]     # [N_total_valid]
-    
-    # 验证维度匹配
+
+    # Verify dimensions match
     n_total_valid = valid_mask.sum().item()
     if flat_hidden.shape[0] != n_total_valid:
         raise ValueError(
             f"Dimension mismatch: flattened_hidden_states has {flat_hidden.shape[0]} elements, "
             f"but keep_indices has {n_total_valid} valid entries"
         )
-    
-    # 写入还原位置
+
+    # Scatter the valid rows back into their original positions
     restored_hidden_states[valid_batch_idx, valid_seq_idx, :] = flat_hidden
     
     return restored_hidden_states
@@ -1698,10 +1727,38 @@ async def iterate_rpc_inference(
                     requested_backends,
                     is_spec_dec=False,
                 )
+                prepared_outputs = [
+                    (
+                        *_prepare_inference_output_for_wire(
+                            result,
+                            proto,
+                            output_debug_names[idx] if idx < len(output_debug_names) else f"output_{idx}",
+                        ),
+                        proto,
+                    )
+                    for idx, (result, proto) in enumerate(zip(
+                        (merged_hidden_states, merged_keep_indices),
+                        output_schema,
+                    ))
+                ]
+                hidden_wire_tensor, hidden_dtype_debug, _ = prepared_outputs[0]
+                capture_wire_activation(
+                    hidden_wire_tensor,
+                    source="server",
+                    channel="rpc_inference_mb_merge",
+                    direction="server_to_client",
+                    phase=transport_phase,
+                    blocks=_block_span_from_uids(requested_uids),
+                    compute_dtype=str(hidden_dtype_debug.get("compute_dtype", "")),
+                    schema_dtype=str(hidden_dtype_debug.get("schema_dtype", "")),
+                    wire_dtype=str(hidden_dtype_debug.get("wire_dtype", "")),
+                    batch_size=int(merged_hidden_states.shape[0]) if merged_hidden_states.ndim >= 1 else 1,
+                    prompt_len=int(merged_hidden_states.shape[1]) if merged_hidden_states.ndim >= 2 else 1,
+                )
                 with transport_profile_scope() as merge_transport_profile:
                     output_tensors = [
                         serialize_torch_tensor(
-                            result.to(proto.dtype),
+                            wire_tensor,
                             proto.compression,
                             allow_inplace=True,
                             debug_context={
@@ -1711,14 +1768,14 @@ async def iterate_rpc_inference(
                                 "channel": "rpc_inference_mb_merge",
                                 "blocks": _block_span_from_uids(requested_uids),
                                 "batch": int(merged_hidden_states.shape[0]) if merged_hidden_states.ndim >= 1 else 1,
+                                **dtype_debug,
                             },
                         )
-                        for idx, (result, proto) in enumerate(zip(
-                            (merged_hidden_states, merged_keep_indices),
-                            output_schema,
-                        ))
+                        for idx, (wire_tensor, dtype_debug, proto) in enumerate(prepared_outputs)
                     ]
                 merge_transport_summary = summarize_transport_profile(merge_transport_profile)
+                hidden_compute_raw_bytes = tensor_raw_nbytes(merged_hidden_states)
+                hidden_wire_raw_bytes = tensor_raw_nbytes(hidden_wire_tensor)
                 log_comp_ratio_event(
                     logger,
                     source="server",
@@ -1727,12 +1784,16 @@ async def iterate_rpc_inference(
                     step_id=str(step_id),
                     batch_size=int(merged_hidden_states.shape[0]) if merged_hidden_states.ndim >= 1 else 1,
                     tensor_name="hidden_states",
-                    raw_bytes=tensor_raw_nbytes(merged_hidden_states),
+                    raw_bytes=hidden_wire_raw_bytes,
                     wire_bytes=len(output_tensors[0].buffer) if output_tensors else 0,
                     nnz_ratio=tensor_nnz_ratio(merged_hidden_states),
                     extra={
                         "phase": transport_phase,
                         "seq_tokens": int(merged_hidden_states.shape[1]) if merged_hidden_states.ndim >= 2 else 1,
+                        "raw_bytes_kind": "wire",
+                        "compute_raw_bytes": hidden_compute_raw_bytes,
+                        "wire_raw_bytes": hidden_wire_raw_bytes,
+                        **hidden_dtype_debug,
                     },
                 )
                 merge_serialize_ms = (perf_counter() - merge_serialize_start) * 1000.0
@@ -2755,10 +2816,35 @@ async def iterate_rpc_inference(
                 "draft_tokens",
             )
         )
+        prepared_outputs = [
+            (
+                *_prepare_inference_output_for_wire(
+                    result,
+                    proto,
+                    output_debug_names[idx] if idx < len(output_debug_names) else f"output_{idx}",
+                ),
+                proto,
+            )
+            for idx, (result, proto) in enumerate(zip(flat_tensors, output_schema))
+        ]
+        hidden_wire_tensor, hidden_dtype_debug, _ = prepared_outputs[0]
+        capture_wire_activation(
+            hidden_wire_tensor,
+            source="server",
+            channel="rpc_inference_final",
+            direction="server_to_client",
+            phase=transport_phase,
+            blocks=_block_span_from_uids(requested_uids),
+            compute_dtype=str(hidden_dtype_debug.get("compute_dtype", "")),
+            schema_dtype=str(hidden_dtype_debug.get("schema_dtype", "")),
+            wire_dtype=str(hidden_dtype_debug.get("wire_dtype", "")),
+            batch_size=int(hidden_states.shape[0]) if hidden_states.ndim >= 1 else 1,
+            prompt_len=int(hidden_states.shape[1]) if hidden_states.ndim >= 2 else 1,
+        )
         with transport_profile_scope() as full_serialize_profile:
             output_tensors = [
                 serialize_torch_tensor(
-                    result.to(proto.dtype),
+                    wire_tensor,
                     proto.compression,
                     allow_inplace=True,
                     debug_context={
@@ -2768,13 +2854,14 @@ async def iterate_rpc_inference(
                         "channel": "rpc_inference_final",
                         "blocks": _block_span_from_uids(requested_uids),
                         "batch": int(hidden_states.shape[0]) if hidden_states.ndim >= 1 else 1,
+                        **dtype_debug,
                     },
                 )
-                for idx, (result, proto) in enumerate(
-                    zip(flat_tensors, output_schema)
-                )
+                for idx, (wire_tensor, dtype_debug, proto) in enumerate(prepared_outputs)
             ]
         full_serialize_summary = summarize_transport_profile(full_serialize_profile)
+        hidden_compute_raw_bytes = tensor_raw_nbytes(hidden_states)
+        hidden_wire_raw_bytes = tensor_raw_nbytes(hidden_wire_tensor)
         log_comp_ratio_event(
             logger,
             source="server",
@@ -2783,12 +2870,16 @@ async def iterate_rpc_inference(
             step_id=str(step_id_for_log),
             batch_size=int(hidden_states.shape[0]) if hidden_states.ndim >= 1 else 1,
             tensor_name="hidden_states",
-            raw_bytes=tensor_raw_nbytes(hidden_states),
+            raw_bytes=hidden_wire_raw_bytes,
             wire_bytes=len(output_tensors[0].buffer) if output_tensors else 0,
             nnz_ratio=tensor_nnz_ratio(hidden_states),
             extra={
                 "phase": transport_phase,
                 "seq_tokens": int(hidden_states.shape[1]) if hidden_states.ndim >= 2 else 1,
+                "raw_bytes_kind": "wire",
+                "compute_raw_bytes": hidden_compute_raw_bytes,
+                "wire_raw_bytes": hidden_wire_raw_bytes,
+                **hidden_dtype_debug,
             },
         )
         serialize_end = perf_counter()

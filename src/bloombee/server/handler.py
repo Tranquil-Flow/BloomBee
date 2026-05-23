@@ -43,6 +43,7 @@ from bloombee.utils.lossless_transport import (
     tensor_nnz_ratio,
     tensor_raw_nbytes,
 )
+from bloombee.utils.real_activation_dumper import capture_wire_activation
 from bloombee.utils.microbatch_config import (
     is_microbatch_enabled,
     get_micro_batch_size,
@@ -415,6 +416,8 @@ class TransformerConnectionHandler(ConnectionHandler):
         self._mb_received: Dict[tuple, int] = {}
         # Key: (session_id, step_id) -> set of (mb_idx) already processed (idempotency)
         self._mb_processed: Dict[tuple, set] = {}
+        self._mb_processed_timestamps: Dict[tuple, float] = {}
+        self._MB_PROCESSED_TTL = 120  # seconds
         # Feature flag for immediate queuing - ENABLED for cross-stage pipeline overlap
         self._enable_immediate_mb_queue = os.environ.get(
             "BLOOMBEE_ENABLE_IMMEDIATE_MB_QUEUE", "1"
@@ -620,6 +623,9 @@ class TransformerConnectionHandler(ConnectionHandler):
 
     @staticmethod
     def _emit_unconditional_summary(message: str) -> None:
+        # Intentional print(): timing/paper-table summary lines must always reach
+        # stdout regardless of logger configuration so downstream parsers can
+        # grep [PAPER_TIMING_TABLE]/[TIMING_TABLE]/[PIPELINE_GPU2GPU] markers.
         print(message, flush=True)
 
     def _track_session_push_task(self, session_id: Optional[str], task: asyncio.Task) -> None:
@@ -1239,7 +1245,7 @@ class TransformerConnectionHandler(ConnectionHandler):
                         cache_manager = requested_backends[0].cache_manager
                         if cache_manager is not None and hasattr(cache_manager, 'clear_offload_state'):
                             cache_manager.clear_offload_state()
-                            logger.info(f"[MBPIPE_FIX] Cleared offload state after request completion")
+                            logger.debug(f"[MBPIPE_FIX] Cleared offload state after request completion")
                 except Exception as e:
                     logger.warning(f"[MBPIPE_FIX] Failed to clear offload state: {e}")
 
@@ -1947,6 +1953,14 @@ class TransformerConnectionHandler(ConnectionHandler):
         # [MBPIPE] Idempotency check - skip if already processed
         if mb_key not in self._mb_processed:
             self._mb_processed[mb_key] = set()
+            self._mb_processed_timestamps[mb_key] = time.monotonic()
+            # TTL cleanup: remove stale entries
+            now = time.monotonic()
+            stale_keys = [k for k, t in self._mb_processed_timestamps.items()
+                          if now - t > self._MB_PROCESSED_TTL]
+            for k in stale_keys:
+                self._mb_processed.pop(k, None)
+                self._mb_processed_timestamps.pop(k, None)
         
         if mb_idx in self._mb_processed[mb_key]:
             logger.info(
@@ -2123,6 +2137,7 @@ class TransformerConnectionHandler(ConnectionHandler):
                 self._mb_expected.pop(mb_key, None)
                 self._mb_received.pop(mb_key, None)
                 self._mb_processed.pop(mb_key, None)
+                self._mb_processed_timestamps.pop(mb_key, None)
         else:
             # ========== LEGACY PATH (wait-all-then-assemble) ==========
             logger.info(
@@ -2147,6 +2162,7 @@ class TransformerConnectionHandler(ConnectionHandler):
                     self._mb_expected.pop(mb_key, None)
                     self._mb_received.pop(mb_key, None)
                     self._mb_processed.pop(mb_key, None)
+                    self._mb_processed_timestamps.pop(mb_key, None)
         
         return runtime_pb2.ExpertResponse()
 
@@ -2363,6 +2379,25 @@ class TransformerConnectionHandler(ConnectionHandler):
             next_metadata["s2s_sender_gpu2cpu_ms"] = float(t_gpu2cpu_ms)
 
             stub = self.get_stub(self._p2p, next_peer_id)
+            if os.environ.get("BLOOMBEE_DUMP_WIRE_ACTIVATIONS", "0") == "1" and next_tensors:
+                try:
+                    push_hidden = deserialize_torch_tensor(next_tensors[0])
+                    push_hidden_dtype = str(push_hidden.dtype).replace("torch.", "") if torch.is_tensor(push_hidden) else ""
+                    capture_wire_activation(
+                        push_hidden,
+                        source="server",
+                        channel="rpc_push_full_batch",
+                        direction="server_to_server",
+                        phase=str(metadata.get("phase", "decode" if getattr(push_hidden, "ndim", 0) >= 2 and int(push_hidden.shape[1]) == 1 else "prefill")),
+                        blocks=f"{sender_blocks}->{next_start}:{next_end}",
+                        compute_dtype=push_hidden_dtype,
+                        schema_dtype=push_hidden_dtype,
+                        wire_dtype=push_hidden_dtype,
+                        batch_size=int(metadata.get("full_batch_size", push_hidden.shape[0] if torch.is_tensor(push_hidden) and push_hidden.ndim >= 1 else 1)),
+                        prompt_len=int(push_hidden.shape[1]) if torch.is_tensor(push_hidden) and push_hidden.ndim >= 2 else 1,
+                    )
+                except Exception:
+                    pass
             push_tensor_bytes = sum(len(t.buffer) for t in next_tensors)
             cpu2nic_prep_end = perf_counter()
             t_cpu2nic_ms = max(0.0, (cpu2nic_prep_end - push_start_time) * 1000.0)
@@ -2522,9 +2557,26 @@ class TransformerConnectionHandler(ConnectionHandler):
             sender_blocks_str = str(metadata.get("sender_blocks", "unknown"))
             sender_blocks = sender_blocks_str
             push_blocks = f"{sender_blocks_str}->{next_start}:{next_end}"
+            hidden_wire = mb_hidden.to(outputs_schema[0].dtype)
+            hidden_compute_dtype = str(mb_hidden.dtype).replace("torch.", "")
+            hidden_schema_dtype = str(outputs_schema[0].dtype).replace("torch.", "")
+            hidden_wire_dtype = str(hidden_wire.dtype).replace("torch.", "")
+            capture_wire_activation(
+                hidden_wire,
+                source="server",
+                channel="rpc_push_microbatch",
+                direction="server_to_server",
+                phase=transport_phase,
+                blocks=push_blocks,
+                compute_dtype=hidden_compute_dtype,
+                schema_dtype=hidden_schema_dtype,
+                wire_dtype=hidden_wire_dtype,
+                batch_size=int(mb_size),
+                prompt_len=int(mb_hidden.shape[1]) if mb_hidden.ndim >= 2 else 1,
+            )
             with transport_profile_scope() as push_transport_profile:
                 serialized_hidden = serialize_torch_tensor(
-                    mb_hidden.to(outputs_schema[0].dtype),
+                    hidden_wire,
                     _s2s_output_compression if _s2s_output_compression is not None else outputs_schema[0].compression,
                     allow_inplace=True,
                     debug_context={
@@ -2534,6 +2586,13 @@ class TransformerConnectionHandler(ConnectionHandler):
                         "channel": "rpc_push_microbatch",
                         "blocks": push_blocks,
                         "batch": int(mb_size),
+                        "compute_dtype": hidden_compute_dtype,
+                        "schema_dtype": hidden_schema_dtype,
+                        "wire_dtype": hidden_wire_dtype,
+                        "upcast_suspect": int(
+                            mb_hidden.dtype in (torch.float16, torch.bfloat16)
+                            and outputs_schema[0].dtype == torch.float32
+                        ),
                     },
                 )
                 if mb_keep_indices is not None:
