@@ -89,7 +89,7 @@ BloomBee distributes a model's transformer layers across a peer-to-peer network:
          Peers registered in DHT
 ```
 
-A **DHT (Distributed Hash Table)** keeps track of which server hosts which layers. The client automatically discovers and routes through available peers. Servers are decentralized — anyone with a compatible GPU can join and contribute capacity.
+A **Distributed Hash Table (DHT)** keeps track of which server hosts which layers. The client automatically discovers and routes through available peers. Servers are decentralized — anyone with a compatible GPU can join and contribute capacity.
 
 ---
 
