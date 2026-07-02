@@ -32,8 +32,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--server-maddr", required=True,
-                   help="One of the multiaddrs printed by the BloomBee server")
+    p.add_argument("--server-maddr", action="append", required=True,
+                   help="One or more multiaddrs printed by the BloomBee servers. "
+                        "Pass multiple times for multi-peer swarms.")
     p.add_argument("--model", required=True)
     p.add_argument("--hidden-dim", type=int, default=2048,
                    help="Override hidden_size for the test tensor (defaults to model)")
@@ -42,7 +43,9 @@ def main() -> int:
     args = p.parse_args()
 
     print(f"[direct] model={args.model}")
-    print(f"[direct] bootstrap peer: {args.server_maddr}")
+    print(f"[direct] bootstrap peers ({len(args.server_maddr)}):")
+    for m in args.server_maddr:
+        print(f"[direct]   {m}")
     print(f"[direct] requesting block range {args.block_range}")
 
     from bloombee import AutoDistributedConfig
@@ -57,20 +60,58 @@ def main() -> int:
     # manager protocol".
     MPFuture.reset_backend()
 
+    # In some sandboxed shells (notably Hermes local), torch_shm_manager is
+    # blocked at exec time so the SharedBytes shm allocation fails. Detect
+    # this once and replace SharedBytes.next() with a heap-buffer fallback.
+    # On normal terminals, the original shm-backed implementation works and
+    # we leave it alone.
+    try:
+        import torch as _t
+        _t.empty([4], dtype=_t.uint8).share_memory_()
+    except (RuntimeError, OSError, PermissionError):
+        from hivemind.utils.mpfuture import SharedBytes
+        import threading as _threading
+
+        _HEAP_BUFFER: dict = {"pid": None, "buffer": None, "index": 0}
+        _HEAP_LOCK = _threading.Lock()
+
+        def _next_heap_byte():
+            import os as _os
+            with _HEAP_LOCK:
+                if (_HEAP_BUFFER["pid"] != _os.getpid()
+                        or _HEAP_BUFFER["buffer"] is None
+                        or _HEAP_BUFFER["index"] >= len(_HEAP_BUFFER["buffer"])):
+                    size = int(_os.environ.get("HIVEMIND_SHM_BUFFER_SIZE", 16))
+                    _HEAP_BUFFER["pid"] = _os.getpid()
+                    _HEAP_BUFFER["buffer"] = _t.zeros(size, dtype=_t.uint8)
+                    _HEAP_BUFFER["index"] = 0
+                _HEAP_BUFFER["index"] += 1
+                return _HEAP_BUFFER["buffer"][_HEAP_BUFFER["index"] - 1]
+        SharedBytes.next = staticmethod(_next_heap_byte)
+        print("[direct] (sandbox detected: SharedBytes heap-buffer fallback active)")
+
     print("[direct] AutoDistributedConfig.from_pretrained...")
     t0 = time.time()
     config = AutoDistributedConfig.from_pretrained(
-        args.model, initial_peers=[args.server_maddr]
+        args.model, initial_peers=args.server_maddr
     )
     print(f"[direct]   ... {time.time() - t0:.1f}s, hidden_size={config.hidden_size}, "
           f"num_layers={config.num_hidden_layers}")
 
-    print("[direct] DHT(client_mode=True, start=True)...")
+    print("[direct] DHT(client_mode=True, start=True, daemon=False, no_listen=True)...")
     t0 = time.time()
+    # daemon=False: skip the libp2p daemon subprocess (sandbox blocks it
+    # from binding to ephemeral ports). With daemon=False, DHT runs P2P in
+    # the main process. This is fine for client-only use.
+    # no_listen=True: don't bind a host_maddr (sandbox blocks bind on
+    # 127.0.0.1:0). The client only makes outbound libp2p connections;
+    # it doesn't need to accept incoming ones for this test.
     dht = DHT(
-        initial_peers=[args.server_maddr],
+        initial_peers=args.server_maddr,
         client_mode=True,
         start=True,
+        daemon=False,
+        no_listen=True,
     )
     print(f"[direct]   ... {time.time() - t0:.1f}s")
 
@@ -119,6 +160,14 @@ def main() -> int:
         "backward_seconds": backward_s,
     }
     print("[direct] RESULT:", json.dumps(result))
+
+    # Explicit DHT shutdown so the child process pipe teardown doesn't hang
+    # the parent on exit (we run daemon=False, so cleanup is in-process).
+    try:
+        dht.shutdown()
+    except Exception as e:  # noqa: BLE001
+        print(f"[direct] (non-fatal) dht shutdown: {e}")
+
     return 0 if (finite and grad_finite) else 1
 
 
