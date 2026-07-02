@@ -1,0 +1,313 @@
+# MODEL_REGISTRY.yaml
+# ----------------------------------------------------------------------
+# Static footprint catalog for the BloomBee distributed-inference MVP.
+# Used by the routing layer to answer: "given a peer's free memory,
+# which models in the registry can it actually load?"
+#
+# Field reference:
+#   model_id               HuggingFace repo (org/name).
+#   params_b               Total parameter count, in billions (full model,
+#                          not just active). Used to compute min memory.
+#   active_params_b        Params that fire on a single token. Equals
+#                          params_b for dense models. For MoE this is
+#                          the *real* cost per token (e.g. Qwen3-30B-A3B
+#                          loads 30B but only computes ~3.3B per step).
+#   hidden_size            Embedding / residual dim.
+#   num_layers             Transformer blocks.
+#   num_heads              Attention query heads.
+#   num_kv_heads           Key/value heads. = num_heads for MHA, < num_heads
+#                          for GQA (Llama-3, Qwen2.5+, Qwen3 all use GQA).
+#   head_dim               Per-head projection size (usually hidden/heads).
+#   context_length         Max positions the model was trained for.
+#   dtype_bytes            Bytes per param at the chosen runtime dtype:
+#                            2   fp16 or bf16 (typical inference default)
+#                            1   int8 quantised
+#                            0.5 int4 quantised
+#   min_total_mem_gb       params_b * dtype_bytes + 2 GB overhead for KV
+#                          cache scratch + activations. A conservative
+#                          lower bound — actual resident memory is
+#                          usually 1.1–1.4x this once the framework's
+#                          allocator pads and CUDA/MPS graphs settle.
+#   recommended_min_free_mem_gb
+#                          free_gb the peer should have before we route
+#                          this model to it. Set ~30% above min_total_mem_gb
+#                          for dense, ~10% for MoE (loading still costs
+#                          the full params even if compute is sparse).
+#   supports_gqa           True if num_kv_heads < num_heads.
+#   supports_moe           True if the model has expert routing.
+#   hf_config_url           Direct link to the model's config.json on HF.
+# ----------------------------------------------------------------------
+
+models:
+
+  - model_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    params_b: 1.1
+    active_params_b: 1.1
+    hidden_size: 2048
+    num_layers: 22
+    num_heads: 32
+    num_kv_heads: 4
+    head_dim: 64
+    context_length: 2048
+    dtype_bytes: 2
+    min_total_mem_gb: 4.2
+    recommended_min_free_mem_gb: 6
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/blob/main/config.json
+
+  - model_id: Qwen/Qwen2.5-0.5B-Instruct
+    params_b: 0.49
+    active_params_b: 0.49
+    hidden_size: 896
+    num_layers: 24
+    num_heads: 14
+    num_kv_heads: 2
+    head_dim: 64
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 3.0
+    recommended_min_free_mem_gb: 4
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/config.json
+
+  - model_id: Qwen/Qwen2.5-1.5B-Instruct
+    params_b: 1.54
+    active_params_b: 1.54
+    hidden_size: 1536
+    num_layers: 28
+    num_heads: 12
+    num_kv_heads: 2
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 5.1
+    recommended_min_free_mem_gb: 7
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/blob/main/config.json
+
+  - model_id: Qwen/Qwen2.5-3B-Instruct
+    params_b: 3.09
+    active_params_b: 3.09
+    hidden_size: 2048
+    num_layers: 36
+    num_heads: 16
+    num_kv_heads: 2
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 8.2
+    recommended_min_free_mem_gb: 11
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/config.json
+
+  - model_id: Qwen/Qwen2.5-7B-Instruct
+    params_b: 7.62
+    active_params_b: 7.62
+    hidden_size: 3584
+    num_layers: 28
+    num_heads: 28
+    num_kv_heads: 4
+    head_dim: 128
+    context_length: 131072
+    dtype_bytes: 2
+    min_total_mem_gb: 17.2
+    recommended_min_free_mem_gb: 22
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-4B
+    params_b: 4.02
+    active_params_b: 4.02
+    hidden_size: 2560
+    num_layers: 36
+    num_heads: 20
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 10.0
+    recommended_min_free_mem_gb: 13
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-4B/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-8B
+    params_b: 8.2
+    active_params_b: 8.2
+    hidden_size: 4096
+    num_layers: 36
+    num_heads: 32
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 18.4
+    recommended_min_free_mem_gb: 23
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-8B/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-14B
+    params_b: 14.8
+    active_params_b: 14.8
+    hidden_size: 5120
+    num_layers: 40
+    num_heads: 40
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 31.6
+    recommended_min_free_mem_gb: 40
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-14B/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-32B
+    params_b: 32.8
+    active_params_b: 32.8
+    hidden_size: 5120
+    num_layers: 64
+    num_heads: 64
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 67.6
+    recommended_min_free_mem_gb: 84
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-32B/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-30B-A3B
+    params_b: 30.5
+    active_params_b: 3.3
+    hidden_size: 3072
+    num_layers: 48
+    num_heads: 32
+    num_kv_heads: 4
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 63.0
+    recommended_min_free_mem_gb: 70
+    supports_gqa: true
+    supports_moe: true
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-30B-A3B/blob/main/config.json
+
+  - model_id: Qwen/Qwen3-235B-A22B
+    params_b: 235.0
+    active_params_b: 22.0
+    hidden_size: 4096
+    num_layers: 94
+    num_heads: 64
+    num_kv_heads: 4
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 472.0
+    recommended_min_free_mem_gb: 500
+    supports_gqa: true
+    supports_moe: true
+    hf_config_url: https://huggingface.co/Qwen/Qwen3-235B-A22B/blob/main/config.json
+
+  - model_id: meta-llama/Llama-3.1-8B-Instruct
+    params_b: 8.03
+    active_params_b: 8.03
+    hidden_size: 4096
+    num_layers: 32
+    num_heads: 32
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 131072
+    dtype_bytes: 2
+    min_total_mem_gb: 18.1
+    recommended_min_free_mem_gb: 23
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/main/config.json
+
+  - model_id: mistralai/Mistral-7B-Instruct-v0.3
+    params_b: 7.25
+    active_params_b: 7.25
+    hidden_size: 4096
+    num_layers: 32
+    num_heads: 32
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 32768
+    dtype_bytes: 2
+    min_total_mem_gb: 16.5
+    recommended_min_free_mem_gb: 21
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/blob/main/config.json
+
+  - model_id: google/gemma-2-9b-it
+    params_b: 9.24
+    active_params_b: 9.24
+    hidden_size: 3584
+    num_layers: 42
+    num_heads: 16
+    num_kv_heads: 8
+    head_dim: 256
+    context_length: 8192
+    dtype_bytes: 2
+    min_total_mem_gb: 20.5
+    recommended_min_free_mem_gb: 26
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/google/gemma-2-9b-it/blob/main/config.json
+
+  - model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
+    params_b: 7.62
+    active_params_b: 7.62
+    hidden_size: 3584
+    num_layers: 28
+    num_heads: 28
+    num_kv_heads: 4
+    head_dim: 128
+    context_length: 131072
+    dtype_bytes: 2
+    min_total_mem_gb: 17.2
+    recommended_min_free_mem_gb: 22
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B/blob/main/config.json
+
+  - model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-14B
+    params_b: 14.8
+    active_params_b: 14.8
+    hidden_size: 5120
+    num_layers: 40
+    num_heads: 40
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 131072
+    dtype_bytes: 2
+    min_total_mem_gb: 31.6
+    recommended_min_free_mem_gb: 40
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B/blob/main/config.json
+
+  - model_id: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+    params_b: 32.8
+    active_params_b: 32.8
+    hidden_size: 5120
+    num_layers: 64
+    num_heads: 64
+    num_kv_heads: 8
+    head_dim: 128
+    context_length: 131072
+    dtype_bytes: 2
+    min_total_mem_gb: 67.6
+    recommended_min_free_mem_gb: 84
+    supports_gqa: true
+    supports_moe: false
+    hf_config_url: https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B/blob/main/config.json
