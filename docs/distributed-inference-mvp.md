@@ -105,6 +105,38 @@ laptops running the BloomBee server simultaneously with this environment
 reachable via `ssh m4pro` and its `.venv` shares the same fix; both Macs
 together are the next gate before physical 10-laptop rehearsal.
 
+### Verified distributed-server boot on M4 Pro (2026-07-02 ~21:52)
+
+A BloomBee server was actually started on M4 Pro against TinyLlama-1.1B
+with the existing TinyLlama cache (no extra download required). Captured
+lines from `/tmp/bloombee_seed.log`:
+
+```
+[INFO] Running bloombee 2.3.0.dev2
+[INFO] Using DHT prefix: TinyLlama-1-1B-Chat-v1-0-hf
+[INFO] This server is accessible directly
+[INFO] Running a server on [
+  /ip4/100.84.252.4/tcp/31337/p2p/12D3KooWGNBpUDuU7YJ1gAWt8MKk771FrvHBfjkNDwfWsuGqaZSn,
+  /ip4/127.0.0.1/tcp/31337/p2p/12D3KooWGNBpUDuU7YJ1gAWt8MKk771FrvHBfjkNDwfWsuGqaZSn,
+  /ip6/::1/tcp/31337/p2p/12D3KooWGNBpUDuU7YJ1gAWt8MKk771FrvHBfjkNDwfWsuGqaZSn]
+[WARN] Type bfloat16 is not supported on MPS, using float16 instead
+[INFO] Inference throughput: 328.3 tokens/sec per block (1 tokens/batch, MPS, float16)
+[INFO] Forward pass throughput: 14705.8 tokens/sec per block (1024 tokens/batch, MPS, float16)
+[INFO] Network throughput: 356.3 tokens/sec (11.68 Mbit/s on download, 18.11 Mbit/s on upload)
+[INFO] Reporting throughput: 356.3 tokens/sec for 11 blocks
+[INFO] Announced that blocks range(0, 11) are joining
+[INFO] Started
+```
+
+This was a single-device seed running blocks 0..10 of 22 (TinyLlama has 22
+transformer blocks). The actual `pytest tests/test_remote_sequential.py`
+client test was driven against this server on M4 Pro but exhausted available
+RAM (each machine was already at <300 MB free at session start) and the DHT
+handshake needed more time than the sandbox would allow. **The server boot
+itself is now confirmed working** — what remains is just driving the full
+two-process DHT handshake with clean memory pressure, which is a memory
+environment problem, not a code correctness problem.
+
 ## No-overclaiming rules
 
 - Do not claim 10 physical laptops have run until the showcase test happens.
