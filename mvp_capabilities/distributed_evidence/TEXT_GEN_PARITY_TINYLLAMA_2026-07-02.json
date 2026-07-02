@@ -1,0 +1,434 @@
+{
+  "distributed_dtype": "torch.float16",
+  "distributed_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681,
+    29889,
+    13,
+    13,
+    29906,
+    29889
+  ],
+  "distributed_next_token_id": 3681,
+  "distributed_seconds": 39.18260622024536,
+  "distributed_steps": [
+    {
+      "next_token_id": 3681,
+      "seconds": 0.2921748161315918,
+      "step": 0,
+      "top5": [
+        {
+          "logit": 13.38662052154541,
+          "token_id": 3681
+        },
+        {
+          "logit": 12.26742172241211,
+          "token_id": 5982
+        },
+        {
+          "logit": 10.239398956298828,
+          "token_id": 29901
+        },
+        {
+          "logit": 10.225192070007324,
+          "token_id": 278
+        },
+        {
+          "logit": 10.203680992126465,
+          "token_id": 29973
+        }
+      ]
+    },
+    {
+      "next_token_id": 29889,
+      "seconds": 7.910649061203003,
+      "step": 1,
+      "top5": [
+        {
+          "logit": 14.070569038391113,
+          "token_id": 29889
+        },
+        {
+          "logit": 13.688267707824707,
+          "token_id": 29892
+        },
+        {
+          "logit": 12.850940704345703,
+          "token_id": 29973
+        },
+        {
+          "logit": 12.160841941833496,
+          "token_id": 322
+        },
+        {
+          "logit": 10.717930793762207,
+          "token_id": 13
+        }
+      ]
+    },
+    {
+      "next_token_id": 13,
+      "seconds": 7.704607963562012,
+      "step": 2,
+      "top5": [
+        {
+          "logit": 12.4155855178833,
+          "token_id": 13
+        },
+        {
+          "logit": 11.944055557250977,
+          "token_id": 450
+        },
+        {
+          "logit": 11.653051376342773,
+          "token_id": 2
+        },
+        {
+          "logit": 11.451759338378906,
+          "token_id": 1724
+        },
+        {
+          "logit": 11.272638320922852,
+          "token_id": 3681
+        }
+      ]
+    },
+    {
+      "next_token_id": 13,
+      "seconds": 7.559056997299194,
+      "step": 3,
+      "top5": [
+        {
+          "logit": 13.4746675491333,
+          "token_id": 13
+        },
+        {
+          "logit": 11.80505657196045,
+          "token_id": 5618
+        },
+        {
+          "logit": 11.658957481384277,
+          "token_id": 29896
+        },
+        {
+          "logit": 11.3450288772583,
+          "token_id": 1576
+        },
+        {
+          "logit": 11.257342338562012,
+          "token_id": 29906
+        }
+      ]
+    },
+    {
+      "next_token_id": 29906,
+      "seconds": 7.5887980461120605,
+      "step": 4,
+      "top5": [
+        {
+          "logit": 13.8225736618042,
+          "token_id": 29906
+        },
+        {
+          "logit": 13.26816177368164,
+          "token_id": 29933
+        },
+        {
+          "logit": 13.187424659729004,
+          "token_id": 29896
+        },
+        {
+          "logit": 13.186278343200684,
+          "token_id": 29946
+        },
+        {
+          "logit": 12.466353416442871,
+          "token_id": 14023
+        }
+      ]
+    },
+    {
+      "next_token_id": 29889,
+      "seconds": 7.716857671737671,
+      "step": 5,
+      "top5": [
+        {
+          "logit": 14.963552474975586,
+          "token_id": 29889
+        },
+        {
+          "logit": 10.867121696472168,
+          "token_id": 29900
+        },
+        {
+          "logit": 10.84614086151123,
+          "token_id": 29897
+        },
+        {
+          "logit": 10.369049072265625,
+          "token_id": 29906
+        },
+        {
+          "logit": 10.366025924682617,
+          "token_id": 29896
+        }
+      ]
+    }
+  ],
+  "distributed_text": "The capital of France is Paris.\n\n2.",
+  "distributed_top5": [
+    {
+      "logit": 13.38662052154541,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.26742172241211,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.239398956298828,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.225192070007324,
+      "token_id": 278
+    },
+    {
+      "logit": 10.203680992126465,
+      "token_id": 29973
+    }
+  ],
+  "generated_ids_match": true,
+  "generated_text_match": true,
+  "input_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338
+  ],
+  "logits_max_abs_diff": 0.016242504119873047,
+  "logits_mean_abs_diff": 0.0030047385953366756,
+  "max_new_tokens": 6,
+  "mode": "forward-loop",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "next_token_match": true,
+  "ok": true,
+  "prompt": "The capital of France is",
+  "reference_device": "mps",
+  "reference_dtype": "torch.float16",
+  "reference_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681,
+    29889,
+    13,
+    13,
+    29906,
+    29889
+  ],
+  "reference_next_token_id": 3681,
+  "reference_seconds": 1.796363115310669,
+  "reference_steps": [
+    {
+      "next_token_id": 3681,
+      "seconds": 0.012829780578613281,
+      "step": 0,
+      "top5": [
+        {
+          "logit": 13.3828125,
+          "token_id": 3681
+        },
+        {
+          "logit": 12.265625,
+          "token_id": 5982
+        },
+        {
+          "logit": 10.234375,
+          "token_id": 29901
+        },
+        {
+          "logit": 10.2265625,
+          "token_id": 278
+        },
+        {
+          "logit": 10.2109375,
+          "token_id": 29973
+        }
+      ]
+    },
+    {
+      "next_token_id": 29889,
+      "seconds": 0.3881700038909912,
+      "step": 1,
+      "top5": [
+        {
+          "logit": 14.0703125,
+          "token_id": 29889
+        },
+        {
+          "logit": 13.6875,
+          "token_id": 29892
+        },
+        {
+          "logit": 12.859375,
+          "token_id": 29973
+        },
+        {
+          "logit": 12.1640625,
+          "token_id": 322
+        },
+        {
+          "logit": 10.71875,
+          "token_id": 13
+        }
+      ]
+    },
+    {
+      "next_token_id": 13,
+      "seconds": 0.34993696212768555,
+      "step": 2,
+      "top5": [
+        {
+          "logit": 12.4140625,
+          "token_id": 13
+        },
+        {
+          "logit": 11.9375,
+          "token_id": 450
+        },
+        {
+          "logit": 11.65625,
+          "token_id": 2
+        },
+        {
+          "logit": 11.453125,
+          "token_id": 1724
+        },
+        {
+          "logit": 11.265625,
+          "token_id": 3681
+        }
+      ]
+    },
+    {
+      "next_token_id": 13,
+      "seconds": 0.28523683547973633,
+      "step": 3,
+      "top5": [
+        {
+          "logit": 13.4765625,
+          "token_id": 13
+        },
+        {
+          "logit": 11.8046875,
+          "token_id": 5618
+        },
+        {
+          "logit": 11.6640625,
+          "token_id": 29896
+        },
+        {
+          "logit": 11.34375,
+          "token_id": 1576
+        },
+        {
+          "logit": 11.2578125,
+          "token_id": 29906
+        }
+      ]
+    },
+    {
+      "next_token_id": 29906,
+      "seconds": 0.32572507858276367,
+      "step": 4,
+      "top5": [
+        {
+          "logit": 13.8203125,
+          "token_id": 29906
+        },
+        {
+          "logit": 13.265625,
+          "token_id": 29933
+        },
+        {
+          "logit": 13.1875,
+          "token_id": 29946
+        },
+        {
+          "logit": 13.1875,
+          "token_id": 29896
+        },
+        {
+          "logit": 12.4765625,
+          "token_id": 14023
+        }
+      ]
+    },
+    {
+      "next_token_id": 29889,
+      "seconds": 0.3183469772338867,
+      "step": 5,
+      "top5": [
+        {
+          "logit": 14.96875,
+          "token_id": 29889
+        },
+        {
+          "logit": 10.8671875,
+          "token_id": 29900
+        },
+        {
+          "logit": 10.8515625,
+          "token_id": 29897
+        },
+        {
+          "logit": 10.3671875,
+          "token_id": 29906
+        },
+        {
+          "logit": 10.3671875,
+          "token_id": 29896
+        }
+      ]
+    }
+  ],
+  "reference_text": "The capital of France is Paris.\n\n2.",
+  "reference_top5": [
+    {
+      "logit": 13.3828125,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.265625,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.234375,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.2265625,
+      "token_id": 278
+    },
+    {
+      "logit": 10.2109375,
+      "token_id": 29973
+    }
+  ],
+  "server_maddrs": [
+    "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWBx9vaNYWbH3Evh8kLgU7PKEaK1jDx2qnx8vB138Z8GVz",
+    "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWCjZQ2SNtnZchWGVeqcuhWq3e59C4FnZk2pqq6y2rD45v",
+    "/ip4/192.168.178.37/tcp/31339/p2p/12D3KooWPeUfUzBQPgxRVUu9QDRaw7SaRYLDdem549RihEHKP85h"
+  ]
+}
