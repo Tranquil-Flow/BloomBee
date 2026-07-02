@@ -1,0 +1,1 @@
+{"model":"TinyLlama/TinyLlama-1.1B-Chat-v1.0","device":"mps","dtype":"bf16","prefill_tokens":64,"max_new_tokens":32,"prefill_tok_per_s":1130.33,"decode_tok_per_s":28.63,"peak_mem_gb":0.21,"params_b":1.1,"hostname":"evinova","recorded_at":"2026-07-02T19:32:00Z","source":"bench_throughput.py"}

@@ -202,6 +202,81 @@ def choose_best_route(
     )
 
 
+def explain_route(
+    peers: list[dict[str, Any]],
+    registry: list[dict[str, Any]],
+    *,
+    scenario: str | None = None,
+    requested_model: str | None = None,
+    bench_matrix: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the picked route plus full evidence for every candidate.
+
+    Consumers (UI, tests, logs) get to see WHY the router picked what it did:
+    which candidates supported, which placed how, which fell short by how much,
+    and whether measured bench data changed the outcome.
+    """
+    candidates: list[dict[str, Any]] = [
+        evaluate_model(peers, model, bench_matrix) for model in registry
+    ]
+    if requested_model:
+        for candidate in candidates:
+            if candidate.get("model_id") == requested_model:
+                return {
+                    "picked": candidate,
+                    "scenario": scenario,
+                    "peer_summary": _peer_summary(peers),
+                    "candidates": candidates,
+                }
+        return {
+            "picked": {
+                "model_id": requested_model,
+                "supported": False,
+                "placement": "unsupported",
+                "reason": "model not found in registry",
+                "mvp_target": requested_model == MVP_MODEL_ID,
+                "stretch_target": requested_model == STRETCH_MODEL_ID,
+            },
+            "scenario": scenario,
+            "peer_summary": _peer_summary(peers),
+            "candidates": candidates,
+        }
+
+    picked = choose_best_route(
+        peers,
+        registry,
+        scenario=scenario,
+        bench_matrix=bench_matrix,
+    )
+
+    supported = [c for c in candidates if c["supported"]]
+    near_miss = [
+        c for c in candidates
+        if not c["supported"]
+        and c.get("swarm_free_gb", 0) >= 0.5 * (c.get("required_free_gb") or 0)
+    ]
+
+    return {
+        "picked": picked,
+        "scenario": scenario,
+        "peer_summary": _peer_summary(peers),
+        "supported_count": len(supported),
+        "near_miss": near_miss,
+        "candidates": candidates,
+    }
+
+
+def _peer_summary(peers: list[dict[str, Any]]) -> dict[str, Any]:
+    free_by_host = {
+        peer.get("hostname", "unknown"): _peer_free_gb(peer) for peer in peers
+    }
+    return {
+        "peer_count": len(peers),
+        "swarm_free_gb": round(sum(free_by_host.values()), 2),
+        "free_by_host": free_by_host,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY))
@@ -212,6 +287,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Append N synthetic M4 laptop peers")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
     parser.add_argument("--synthetic-free-gb", type=float, default=20.0)
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="Print full candidate evidence (peer summary, near-misses, all placements).",
+    )
     args = parser.parse_args(argv)
 
     bench_matrix = None
@@ -227,6 +307,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     registry = load_registry(args.registry)
+
+    if args.explain:
+        explainable = explain_route(
+            peers,
+            registry,
+            scenario=args.scenario,
+            requested_model=args.requested_model,
+            bench_matrix=bench_matrix,
+        )
+        print(json.dumps(explainable, indent=2, sort_keys=True))
+        return 0
+
     print(
         json.dumps(
             choose_best_route(

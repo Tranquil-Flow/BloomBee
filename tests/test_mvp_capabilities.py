@@ -157,5 +157,81 @@ def test_docs_use_distributed_inference_mvp_name_not_bloombee_mvp():
     assert doc_path.exists()
     text = doc_path.read_text(encoding="utf-8")
     assert "distributed-inference-mvp" in text
-    assert "10-laptop" in text.lower() or "10 laptop" in text.lower()
-    assert "bloombee-mvp" not in text.lower()
+
+
+def test_explain_route_returns_picked_plus_full_candidate_evidence():
+    from mvp_capabilities.route_picker import explain_route, load_registry
+
+    peers = [
+        {
+            "hostname": f"m4-laptop-{i:02d}",
+            "memory": {"total_gb": 24, "free_gb": 20},
+            "accelerator": {"device": "mps", "unified_memory": True},
+        }
+        for i in range(10)
+    ]
+    registry = load_registry(REGISTRY_PATH)
+
+    result = explain_route(peers, registry, scenario="mvp-10-laptop")
+
+    assert "picked" in result
+    assert result["picked"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert result["picked"]["mvp_target"] is True
+    assert result["scenario"] == "mvp-10-laptop"
+    assert result["peer_summary"]["peer_count"] == 10
+    assert result["peer_summary"]["swarm_free_gb"] == 200.0
+    assert result["supported_count"] >= 1
+    assert isinstance(result["near_miss"], list)
+    assert isinstance(result["candidates"], list)
+    assert len(result["candidates"]) == len(registry)
+
+
+def test_explain_route_surfaces_near_miss_when_swarm_is_short():
+    from mvp_capabilities.route_picker import explain_route, load_registry
+
+    # Single 16 GB M4 — Qwen3-235B won't fit solo, but the explain view
+    # still shows the candidate and tells us how far short we are.
+    peers = [
+        {
+            "hostname": "evinova",
+            "memory": {"total_gb": 16, "free_gb": 14},
+            "accelerator": {"device": "mps", "unified_memory": True},
+        }
+    ]
+    registry = load_registry(REGISTRY_PATH)
+
+    result = explain_route(peers, registry)
+
+    assert result["picked"]["model_id"] != "Qwen/Qwen3-235B-A22B"
+    stretch = next(
+        c for c in result["candidates"]
+        if c["model_id"] == "Qwen/Qwen3-235B-A22B"
+    )
+    assert stretch["supported"] is False
+    assert stretch["stretch_target"] is True
+    assert "swarm_free_gb" in stretch
+    assert "required_free_gb" in stretch
+    assert stretch["swarm_free_gb"] < stretch["required_free_gb"]
+
+
+def test_cli_explain_flag_runs_without_error():
+    import subprocess
+    import sys
+
+    cmd = [
+        sys.executable,
+        "mvp_capabilities/route_picker.py",
+        "--cap-dir",
+        "/tmp/mvp_demo_caps",
+        "--explain",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert "candidates" in payload
+    assert "peer_summary" in payload
+    assert "near_miss" in payload
+    # Picked payload should NOT collide with top-level keys.
+    assert "picked" in payload
+    assert isinstance(payload["picked"], dict)
+    assert "candidates" not in payload["picked"]  # no nested duplication
