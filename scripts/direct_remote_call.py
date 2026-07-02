@@ -48,6 +48,14 @@ def main() -> int:
     from bloombee import AutoDistributedConfig
     from bloombee.client import RemoteSequential
     from bloombee.utils.hivemind_compat import DHT
+    from hivemind.utils.mpfuture import MPFuture
+
+    # sitecustomize.py patches MPFuture._initialization_lock = None for
+    # sandboxed environments. conftest.py calls reset_backend() to set it
+    # back to a real threading.Lock; outside pytest (i.e. this script) we
+    # have to do it ourselves or DHT() crashes with "NoneType ... context
+    # manager protocol".
+    MPFuture.reset_backend()
 
     print("[direct] AutoDistributedConfig.from_pretrained...")
     t0 = time.time()
