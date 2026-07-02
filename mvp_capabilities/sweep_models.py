@@ -46,7 +46,30 @@ def load_registry(path: str | Path = DEFAULT_REGISTRY) -> list[dict[str, Any]]:
     return (yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}).get("models") or []
 
 
+def _moe_wrapper(model_id: str) -> bool:
+    moe_hint = model_id.lower()
+    return "qwen3_moe" in moe_hint or "30b-a3b" in moe_hint or "235b-a22b" in moe_hint
+
+
 def build_bench_command(model_id: str, *, device: str = "auto", dtype: str = "auto", max_new_tokens: int = 32, prefill: int = 64) -> list[str]:
+    if _moe_wrapper(model_id):
+        # Use the dedicated BloomBee wrapper bench for MoE; the standard
+        # transformers path runs into the LazyModule Experts dispatch warnings
+        # and doesn't prove the wrapper surface.
+        return [
+            sys.executable,
+            str(Path(__file__).resolve().parents[1] / "scripts" / "bench_qwen3_moe_bloombee.py"),
+            "--model",
+            model_id,
+            "--device",
+            device,
+            "--dtype",
+            dtype,
+            "--max-new-tokens",
+            str(max_new_tokens),
+            "--prefill",
+            str(prefill),
+        ]
     return [
         sys.executable,
         str(Path(__file__).with_name("bench_throughput.py")),
