@@ -87,6 +87,28 @@ As of the current implementation slice:
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
 - Physical 10-laptop showcase remains part of MVP scope but must happen after local + two-device verification and MoE block serving are complete.
 
+### Measured M4 Pro bf16 bench (2026-07-02)
+
+Source: `bench_evidence/m4pro_bf16_2026-07-02.jsonl` (one JSON line per model).
+
+| Model | Prefill tok/s | Decode tok/s |
+|--:|--:|--:|
+| Qwen/Qwen2.5-0.5B-Instruct | 587.2 | 11.4 |
+| TinyLlama/TinyLlama-1.1B-Chat-v1.0 | 517.1 | 17.7 |
+| Qwen/Qwen2.5-1.5B-Instruct | 216.0 | 13.2 |
+| Qwen/Qwen2.5-3B-Instruct | 107.4 | 3.6 |
+| Qwen/Qwen2.5-7B-Instruct | 65.4 | 2.6 |
+
+Reproduction:
+```bash
+python mvp_capabilities/bench_matrix.py \
+  mvp_capabilities/bench_evidence/m4pro_bf16_2026-07-02.jsonl \
+  --default-host m4pro > .local/m4pro-bench-matrix.json
+python mvp_capabilities/route_picker.py \
+  --cap-dir ~/.bloombee/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json
+```
+
 ---
 
 ## Wiring into BloomBee

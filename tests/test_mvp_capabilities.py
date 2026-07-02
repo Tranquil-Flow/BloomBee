@@ -87,6 +87,35 @@ def test_synthetic_m4_laptops_have_stable_hostnames():
     assert all(peer["accelerator"]["device"] == "mps" for peer in peers)
 
 
+def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):
+    from mvp_capabilities.bench_matrix import build_matrix
+    from mvp_capabilities.route_picker import choose_best_route, load_registry
+
+    bench_path = tmp_path / "bench.jsonl"
+    bench_path.write_text(
+        '{"model": "Qwen/Qwen2.5-7B-Instruct", "device": "mps", "dtype": "bf16", '
+        '"decode_tok_per_s": 2.61, "prefill_tok_per_s": 65.4, "params_b": 7.62, "host": "m4pro"}\n'
+        '{"model": "Qwen/Qwen2.5-0.5B-Instruct", "device": "mps", "dtype": "bf16", '
+        '"decode_tok_per_s": 11.4, "prefill_tok_per_s": 587.0, "params_b": 0.49, "host": "m4pro"}\n'
+    )
+
+    matrix = build_matrix([bench_path], default_host="m4pro")
+    assert "m4pro" in matrix
+    assert matrix["m4pro"]["models"]["Qwen/Qwen2.5-7B-Instruct"]["decode_tok_per_s"] == 2.61
+
+    peers = [
+        {
+            "hostname": "m4pro",
+            "memory": {"total_gb": 48, "free_gb": 30},
+            "accelerator": {"device": "mps", "unified_memory": True},
+        }
+    ]
+    registry = load_registry(REGISTRY_PATH)
+    candidates = [choose_best_route(peers, [m], bench_matrix=matrix) for m in registry]
+    seven_b = next(c for c in candidates if c["model_id"] == "Qwen/Qwen2.5-7B-Instruct")
+    assert seven_b["measured_decode_tok_per_s"] == 2.61
+
+
 def test_route_picker_marks_235b_as_stretch_until_memory_fits():
     from mvp_capabilities.route_picker import choose_best_route, load_registry
 
