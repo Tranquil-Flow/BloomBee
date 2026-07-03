@@ -273,9 +273,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 72
-    assert report["overall_bar"] == "██████████████░░░░░░ 72%"
-    assert report["remaining_percent"] == 28
+    assert report["overall_percent"] == 73
+    assert report["overall_bar"] == "███████████████░░░░░ 73%"
+    assert report["remaining_percent"] == 27
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -285,7 +285,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████░░░░░░ 72%" in text
+    assert "███████████████░░░░░ 73%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -303,8 +303,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 72
-    assert payload["overall_bar"].endswith("72%")
+    assert payload["overall_percent"] == 73
+    assert payload["overall_bar"].endswith("73%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
@@ -578,6 +578,109 @@ def test_multi_request_load_proof_verifier_blocks_failed_or_missing_requests(tmp
     assert result["can_update_proof_status"] is False
     assert any("expected 3 successful requests, saw 1" in item for item in result["failed_checks"])
     assert any("request telemetry recorded 1 failed request" in item for item in result["failed_checks"])
+
+
+def test_full_generation_proof_plan_emits_text_generation_parity_runbook():
+    from mvp_capabilities.full_generation_proof import build_full_generation_plan
+
+    plan = build_full_generation_plan(
+        model_id="Qwen/Qwen3-8B",
+        server_maddrs=["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+        server_placements=["m4pro=0:36"],
+        prompt="The moon is",
+        max_new_tokens=4,
+        evidence_path=".local/qwen3-full-generation.json",
+    )
+
+    assert plan["claim_boundary"] == "full_generation_proof_harness_only_no_live_generation"
+    assert plan["proof_gate"] == "full_generation"
+    assert "scripts/text_generation_parity.py" in plan["parity_command"]
+    assert "--server-placement 'm4pro=0:36'" in plan["parity_command"]
+    assert "--out .local/qwen3-full-generation.json" in plan["parity_command"]
+    assert "full_generation_proof.py verify" in plan["verify_command"]
+    assert plan["proof_status_on_success"] == "full_generation: passed"
+
+
+def test_full_generation_proof_verifier_accepts_matching_parity_evidence(tmp_path: Path):
+    from mvp_capabilities.full_generation_proof import verify_full_generation_evidence
+
+    evidence = tmp_path / "qwen3-full-generation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "mode": "generate-api",
+                "model": "Qwen/Qwen3-8B",
+                "prompt": "The moon is",
+                "max_new_tokens": 4,
+                "generated_ids_match": True,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "distributed_ids": [1, 2, 3, 4],
+                "reference_ids": [1, 2, 3, 4],
+                "distributed_text": "The moon is bright",
+                "reference_text": "The moon is bright",
+                "distributed_seconds": 12.0,
+                "reference_seconds": 2.0,
+                "server_maddrs": ["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+                "server_placements": [
+                    {"host": "m4pro", "layers": [0, 36], "server_maddr": "/ip4/100.64.0.20/tcp/31337/p2p/seed"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = verify_full_generation_evidence(
+        evidence_path=evidence,
+        model_id="Qwen/Qwen3-8B",
+        min_new_tokens=4,
+        require_server_placements=True,
+    )
+
+    assert result["status"] == "passed"
+    assert result["claim_boundary"] == "verified_full_generation_evidence"
+    assert result["proof_gate"] == "full_generation"
+    assert result["can_update_proof_status"] is True
+    assert result["proof_status_update"] == {"full_generation": "passed"}
+    assert result["evidence_summary"]["generated_ids_match"] is True
+    assert result["evidence_summary"]["server_count"] == 1
+
+
+def test_full_generation_proof_verifier_blocks_mismatch_or_missing_placements(tmp_path: Path):
+    from mvp_capabilities.full_generation_proof import verify_full_generation_evidence
+
+    evidence = tmp_path / "bad-full-generation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "mode": "generate-api",
+                "model": "Qwen/Qwen3-8B",
+                "max_new_tokens": 4,
+                "generated_ids_match": False,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "distributed_ids": [1, 2, 9],
+                "reference_ids": [1, 2, 3],
+                "server_maddrs": ["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+                "server_placements": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = verify_full_generation_evidence(
+        evidence_path=evidence,
+        model_id="Qwen/Qwen3-8B",
+        min_new_tokens=4,
+        require_server_placements=True,
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert any("generated token IDs did not match" in item for item in result["failed_checks"])
+    assert any("server placements are required" in item for item in result["failed_checks"])
 
 
 def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):

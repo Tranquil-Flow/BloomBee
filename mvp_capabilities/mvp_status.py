@@ -90,10 +90,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_dense_fallbacks",
         label="Qwen3 dense fallback proof ladder: 8B then 14B",
         weight=8,
-        completion=0.50,
+        completion=0.60,
         status="partial",
-        evidence="Qwen3-8B prescan and one-block server proof passed on M4 Pro; Qwen3-14B config-only prescan passed; Qwen3-8B full-generation/cache/load gates remain pending",
-        next_step="Qwen3-8B multi-block or full-generation proof, then Qwen3-14B one-block proof if memory allows",
+        evidence="Qwen3-8B prescan and one-block server proof passed on M4 Pro; Qwen3-14B config-only prescan passed; Qwen3-8B multi-block, full-generation, and load proof harnesses now exist but live gates remain pending",
+        next_step="Run Qwen3-8B multi-block or full-generation parity proof, then Qwen3-14B one-block proof if memory allows",
     ),
     Milestone(
         id="qwen3_30b_proof_ladder",

@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 72%
+███████████████░░░░░ 73%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -99,6 +99,11 @@ Already proven:
 - One-block proof harness exists: `one_block_proof.py` emits exact server/client
   commands and verifies captured logs for the Qwen3-8B `one_block_server` gate.
   It does not itself prove inference; a live run must still pass.
+- Full-generation proof harness exists: `full_generation_proof.py` emits
+  `text_generation_parity.py` runbooks and verifies captured parity JSON before
+  any `full_generation` gate promotion. It requires exact distributed/reference
+  generated token ID and text parity plus server placement attribution; Qwen3-8B
+  full-generation remains pending until live parity evidence passes.
 - Multi-block proof harness exists: `multi_block_proof.py` emits two-or-more
   server runbooks and verifies only when every server records start,
   block-range announcement, RPC evidence, plus a combined direct-client result.

@@ -30,18 +30,19 @@ BloomBee's runtime already maintains.
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
 | 4. Proof ladder | `proof_ladder.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. This is audit state only, not inference proof. | JSON proof-ladder report |
 | 5. One-block proof harness | `one_block_proof.py` | Emits exact one-block server/client commands and verifies captured logs before a proof gate can be promoted. Planning mode is not proof. | JSON plan / verification report |
-| 6. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
-| 7. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
-| 8. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 9. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / SVG join card / QR preflight report |
-| 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
-| 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
-| 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
-| 13. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
-| 14. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
-| 15. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
-| 16. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 17. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 6. Full-generation proof harness | `full_generation_proof.py` | Emits `text_generation_parity.py` runbooks and verifies exact distributed/reference generated IDs and text before allowing `full_generation` proof promotion. Planning mode is not proof. | JSON plan / verification report |
+| 7. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
+| 8. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
+| 9. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
+| 10. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / SVG join card / QR preflight report |
+| 11. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
+| 12. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
+| 13. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
+| 14. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
+| 15. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
+| 16. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
+| 17. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 18. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layer 6 says *how much of the plan is built*. Layer 7 says *what each model actually achieves on this hardware*.
 
@@ -80,6 +81,21 @@ python mvp_capabilities/one_block_proof.py verify \
   --model Qwen/Qwen3-8B \
   --server-log .local/one-block-server.log \
   --client-log .local/one-block-client.log
+
+# 5b. Generate and verify a full-generation parity proof runbook.
+#     Plan mode is not proof; verify mode requires exact generated ID/text parity.
+python mvp_capabilities/full_generation_proof.py plan \
+  --model Qwen/Qwen3-8B \
+  --server-maddr '<PASTE_SERVER_MULTIADDR>' \
+  --server-placement 'm4pro=0:36' \
+  --prompt 'The moon is' \
+  --max-new-tokens 4 \
+  --evidence .local/qwen3-full-generation.json
+python mvp_capabilities/full_generation_proof.py verify \
+  --model Qwen/Qwen3-8B \
+  --evidence .local/qwen3-full-generation.json \
+  --min-new-tokens 4 \
+  --require-server-placements
 
 # 6. Show weighted MVP build status.
 python mvp_capabilities/mvp_status.py
@@ -223,7 +239,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████████░░░░░░ 72%` built from the plan, with claim boundary
+  `███████████████░░░░░ 73%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
@@ -237,6 +253,11 @@ As of the current implementation slice:
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is
   now passed from live M4 Pro server/client evidence; this is not full-generation
   proof.
+- Full-generation proof harness (`full_generation_proof.py`) exists. It emits
+  `text_generation_parity.py` runbooks and verifies captured parity JSON before
+  allowing the `full_generation` gate to be marked passed. It requires exact
+  generated token ID/text parity plus server placement attribution; Qwen3-8B
+  full-generation proof itself remains pending until live evidence passes.
 - Multi-block proof harness (`multi_block_proof.py`) exists. It emits two-or-more
   server runbooks, uses the verified `BLOOMBEE_INITIAL_PEERS` join pattern for
   later servers, and refuses to mark `multi_block` passed unless every server log
@@ -256,8 +277,9 @@ As of the current implementation slice:
   not auto-select them until `full_generation` passes.
 - Proof ladder audit (`proof_ladder.py`) exists. Qwen3-8B and Qwen3-14B have
   passed config-only prescan as `qwen3` dense models, and Qwen3-8B one-block
-  server proof is passed. Multi-block and full-generation gates remain pending;
-  they are experimental, not `safe-demo` selectable.
+  server proof is passed. Multi-block/full-generation/load proof harnesses now
+  exist, but the live gates remain pending; they are experimental, not
+  `safe-demo` selectable.
 - Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
   `bloombee://join?...` offers and token-scoped active heartbeat rosters.
   `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, `/active`,

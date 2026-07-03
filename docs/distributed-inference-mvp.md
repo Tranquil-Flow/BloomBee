@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 72%
+███████████████░░░░░ 73%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -108,6 +108,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   and direct-client logs contain matching finite-output evidence. Qwen3-8B
   `one_block_server` is now passed from M4 Pro evidence; full generation remains
   pending.
+- `mvp_capabilities/full_generation_proof.py` emits `text_generation_parity.py`
+  runbooks and verifies captured parity JSON before a model's `full_generation`
+  gate can be marked passed. It requires exact generated token ID/text parity and
+  server placement attribution. Planning mode is not generation proof.
 - `mvp_capabilities/multi_block_proof.py` emits two-or-more-server runbooks and
   verifies multi-block evidence only when each server records start, block-range
   announcement, RPC evidence, and a combined direct-client result. Qwen3-8B
