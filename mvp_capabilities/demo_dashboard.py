@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 try:
+    from mvp_capabilities.mvp_status import build_status_report
     from mvp_capabilities.route_picker import (
         DEFAULT_REGISTRY,
         explain_route,
@@ -30,6 +31,7 @@ try:
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster, roster_document
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/demo_dashboard.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from mvp_capabilities.mvp_status import build_status_report  # type: ignore[no-redef]
     from mvp_capabilities.route_picker import (  # type: ignore[no-redef]
         DEFAULT_REGISTRY,
         explain_route,
@@ -236,6 +238,7 @@ def build_dashboard_document(
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
+        "mvp_status": build_status_report(),
         "claim_boundaries": claim_boundaries,
     }
 
@@ -388,6 +391,39 @@ def _telemetry_panel(telemetry: dict[str, Any]) -> str:
     """
 
 
+def _status_panel(status: dict[str, Any]) -> str:
+    milestones = status.get("milestones") or []
+    rows = []
+    for item in milestones:
+        rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('label'))}</td>"
+            f"<td>{_esc(item.get('status'))}</td>"
+            f"<td>{_esc(item.get('percent'))}%</td>"
+            f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
+            "</tr>"
+        )
+    return f"""
+      <section class="card wide status">
+        <h2>MVP build status</h2>
+        <div class="progress-wrap" aria-label="Distributed Inference MVP build progress">
+          <div class="progress-bar" style="width:{_esc(status.get('overall_percent', 0))}%"></div>
+        </div>
+        <div class="grid two">
+          <div><span class="label">Built from plan</span><strong class="status-bar-text">{_esc(status.get('overall_bar'))}</strong></div>
+          <div><span class="label">Next gate</span><strong>{_esc(status.get('next_gate'))}</strong></div>
+          <div><span class="label">Remaining</span><strong>{_esc(status.get('remaining_percent'))}%</strong></div>
+          <div><span class="label">Claim boundary</span><code>{_esc(status.get('claim_boundary'))}</code></div>
+        </div>
+        <p class="muted">{_esc(status.get('interpretation'))}</p>
+        <table>
+          <thead><tr><th>Milestone</th><th>Status</th><th>Built</th><th>Evidence / next</th></tr></thead>
+          <tbody>{''.join(rows) or '<tr><td colspan="4">No status milestones loaded</td></tr>'}</tbody>
+        </table>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -440,6 +476,9 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     th, td {{ text-align:left; border-bottom:1px solid rgba(42,75,115,.7); padding:10px 9px; vertical-align:top; }}
     th {{ color:#bad0f3; background:rgba(7,17,31,.55); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }}
     .badge {{ display:inline-block; border-radius:999px; padding:3px 8px; font-weight:700; font-size:12px; }}
+    .progress-wrap {{ height:18px; background:#07111f; border:1px solid var(--line); border-radius:999px; overflow:hidden; margin:0 0 16px; }}
+    .progress-bar {{ height:100%; background:linear-gradient(90deg, #7dd3fc, #c4b5fd); border-radius:999px; }}
+    .status-bar-text {{ font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }}
     .ok {{ background:rgba(88,214,141,.18); color:var(--ok); }}
     .fail {{ background:rgba(255,107,107,.16); color:var(--fail); }}
     .warn {{ color:var(--warn); }}
@@ -460,6 +499,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     </div>
   </header>
   <main>
+    {_status_panel(document.get('mvp_status') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
     {_devices_table(document.get('roster') or {})}

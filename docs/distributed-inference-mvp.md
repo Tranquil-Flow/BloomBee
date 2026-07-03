@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████░░░░░░░░░ 57%
+████████████░░░░░░░░ 58%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -106,6 +106,8 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
 - `mvp_capabilities/one_block_proof.py` emits exact run/verify commands for the
   Qwen3-8B one-block proof and refuses to mark the gate passed unless both server
   and direct-client logs contain matching finite-output evidence.
+- `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
+  remaining percentage, and next gate beside route/evidence/telemetry panels.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from

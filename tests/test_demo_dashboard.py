@@ -106,9 +106,15 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
+    assert doc["mvp_status"]["overall_percent"] == 58
+    assert doc["mvp_status"]["next_gate"] == "Qwen3-8B one-block server proof"
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
+    assert "MVP build status" in html
+    assert "████████████░░░░░░░░ 58%" in html
+    assert "Qwen3-8B one-block server proof" in html
+    assert "weighted_plan_status_not_demo_proof" in html
     assert "unmeasured" in html
     assert "Layer placement" in html
     assert "m4pro-seed" in html
@@ -158,6 +164,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     text = out.read_text(encoding="utf-8")
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
+    assert "MVP build status" in text
+    assert "████████████░░░░░░░░ 58%" in text
     assert "auto-refreshes every 10 seconds" in text
     assert "Synthetic 10-laptop target route" not in text
 

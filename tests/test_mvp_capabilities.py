@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 57
-    assert report["overall_bar"] == "███████████░░░░░░░░░ 57%"
-    assert report["remaining_percent"] == 43
+    assert report["overall_percent"] == 58
+    assert report["overall_bar"] == "████████████░░░░░░░░ 58%"
+    assert report["remaining_percent"] == 42
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████░░░░░░░░░ 57%" in text
+    assert "████████████░░░░░░░░ 58%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +298,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 57
-    assert payload["overall_bar"].endswith("57%")
+    assert payload["overall_percent"] == 58
+    assert payload["overall_bar"].endswith("58%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 

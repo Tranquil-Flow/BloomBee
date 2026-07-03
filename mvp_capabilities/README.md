@@ -194,7 +194,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████░░░░░░░░░ 57%` built from the plan, with claim boundary
+  `████████████░░░░░░░░ 58%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
@@ -230,6 +230,8 @@ As of the current implementation slice:
   in text/data attributes and renders a deterministic visual grid. It carries
   `scanner_interop_unproven`; true QR scanner compatibility is still a future
   proof gate.
+- Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
+  gate, remaining percentage, and milestone table beside routes/evidence.
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
   `--include-launch-commands`, it adds exact BloomBee server command runbooks
