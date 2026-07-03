@@ -72,7 +72,9 @@ python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
   --evidence-dir mvp_capabilities/distributed_evidence \
-  --out .local/demo-dashboard.html
+  --out .local/demo-dashboard.html \
+  --refresh-seconds 10 \
+  --watch-seconds 2
 
 # 8. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \

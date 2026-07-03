@@ -263,7 +263,20 @@ python mvp_capabilities/demo_dashboard.py \
   --out .local/demo-dashboard.html
 ```
 
-Open `.local/demo-dashboard.html` during the demo. The dashboard labels
+Open `.local/demo-dashboard.html` during the demo. To keep the snapshot updating
+while the browser auto-refreshes, run bounded or unbounded watch mode:
+
+```bash
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --out .local/demo-dashboard.html \
+  --refresh-seconds 10 \
+  --watch-seconds 2
+```
+
+The dashboard labels
 unbenchmarked route choices as `unmeasured`, not `0 tok/s`, so fit-only routes do
 not masquerade as throughput evidence.
 

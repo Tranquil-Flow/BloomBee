@@ -14,6 +14,7 @@ import html
 import json
 import re
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -433,25 +434,49 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
     parser.add_argument("--synthetic-free-gb", type=float, default=20.0)
     parser.add_argument("--refresh-seconds", type=int, default=20, help="HTML meta-refresh interval; use 0 to disable")
+    parser.add_argument("--watch-seconds", type=float, default=0.0, help="Regenerate the dashboard every N seconds until interrupted; 0 writes once")
+    parser.add_argument("--watch-ticks", type=int, default=None, help="Bound watch mode to N writes; mainly useful for tests")
     parser.add_argument("--out", default=str(DEFAULT_OUT))
     args = parser.parse_args(argv)
 
-    doc = build_dashboard_document(
-        cap_dirs=args.cap_dir or [DEFAULT_CAP_DIR],
-        registry_path=args.registry,
-        bench_matrix_path=args.bench_matrix,
-        evidence_dir=args.evidence_dir,
-        telemetry_logs=args.telemetry_log,
-        synthetic_m4_laptops=args.synthetic_m4_laptops,
-        synthetic_total_gb=args.synthetic_total_gb,
-        synthetic_free_gb=args.synthetic_free_gb,
-    )
-    path = write_dashboard(
-        doc,
-        args.out,
-        refresh_seconds=args.refresh_seconds if args.refresh_seconds > 0 else None,
-    )
-    print(json.dumps({"ok": True, "out": str(path), "peers": doc["roster"]["summary"].get("peer_count", 0), "evidence": doc["evidence_summary"]}, indent=2, sort_keys=True))
+    def build_write_once() -> tuple[Path, dict[str, Any]]:
+        doc = build_dashboard_document(
+            cap_dirs=args.cap_dir or [DEFAULT_CAP_DIR],
+            registry_path=args.registry,
+            bench_matrix_path=args.bench_matrix,
+            evidence_dir=args.evidence_dir,
+            telemetry_logs=args.telemetry_log,
+            synthetic_m4_laptops=args.synthetic_m4_laptops,
+            synthetic_total_gb=args.synthetic_total_gb,
+            synthetic_free_gb=args.synthetic_free_gb,
+        )
+        path = write_dashboard(
+            doc,
+            args.out,
+            refresh_seconds=args.refresh_seconds if args.refresh_seconds > 0 else None,
+        )
+        return path, doc
+
+    tick = 0
+    while True:
+        tick += 1
+        path, doc = build_write_once()
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "tick": tick,
+                    "out": str(path),
+                    "peers": doc["roster"]["summary"].get("peer_count", 0),
+                    "evidence": doc["evidence_summary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        if not args.watch_seconds or (args.watch_ticks is not None and tick >= args.watch_ticks):
+            break
+        time.sleep(max(0.0, float(args.watch_seconds)))
     return 0
 
 
