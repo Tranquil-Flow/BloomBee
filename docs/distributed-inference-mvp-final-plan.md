@@ -85,6 +85,8 @@ Already proven:
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with explicit placement-only/no
   inference-proof claim boundaries.
+- Simulation harness exists: synthetic/live rosters can be rehearsed with failed
+  hosts, route selection, and layer placement while staying simulation-only.
 
 Not yet proven:
 
@@ -466,6 +468,8 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    registry entry and peer free-memory capacities. This is a placement plan, not
    inference proof.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
+   **Initial slice complete**: `swarm_simulator.py` emits a simulation-only
+   route + layer-plan report for synthetic/live rosters and failed-host lists.
 7. Qwen3 dense fallback proofs: 8B, then 14B.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
 9. Multi-request chain scheduler.

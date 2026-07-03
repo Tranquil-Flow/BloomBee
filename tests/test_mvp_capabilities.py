@@ -87,6 +87,88 @@ def test_synthetic_m4_laptops_have_stable_hostnames():
     assert all(peer["accelerator"]["device"] == "mps" for peer in peers)
 
 
+def test_swarm_simulator_filters_failed_hosts_and_replans_layers():
+    from mvp_capabilities.swarm_simulator import simulate_swarm
+
+    result = simulate_swarm(
+        scenario="mvp-10-laptop",
+        model_id="Qwen/Qwen3-30B-A3B",
+        synthetic_m4_laptops=10,
+        synthetic_total_gb=24,
+        synthetic_free_gb=20,
+        failed_hosts=["m4-laptop-01", "m4-laptop-02", "ghost-host"],
+        request_count=3,
+    )
+
+    assert result["claim_boundary"] == "simulation_only_no_inference_proof"
+    assert result["scenario"] == "mvp-10-laptop"
+    assert result["input_peer_count"] == 10
+    assert result["active_peer_count"] == 8
+    assert result["failed_hosts"] == ["m4-laptop-01", "m4-laptop-02", "ghost-host"]
+    assert result["missing_failed_hosts"] == ["ghost-host"]
+    assert result["request_count"] == 3
+    assert result["route"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert result["route"]["supported"] is True
+    assert result["layer_plan"]["supported"] is True
+    assert result["layer_plan"]["assigned_layers"] == result["layer_plan"]["num_layers"] == 48
+    assert result["layer_plan"]["claim_boundary"] == "placement_plan_only_no_inference_proof"
+
+
+def test_swarm_simulator_cli_outputs_failure_scenario_json():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/swarm_simulator.py",
+            "--scenario",
+            "mvp-10-laptop",
+            "--model",
+            "Qwen/Qwen3-30B-A3B",
+            "--synthetic-m4-laptops",
+            "10",
+            "--fail-host",
+            "m4-laptop-01",
+            "--request-count",
+            "2",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["active_peer_count"] == 9
+    assert payload["request_count"] == 2
+    assert payload["route"]["supported"] is True
+    assert payload["layer_plan"]["assigned_layers"] == 48
+    assert payload["claim_boundary"] == "simulation_only_no_inference_proof"
+
+
+def test_swarm_simulator_pure_synthetic_ignores_default_capability_dir(tmp_path: Path, monkeypatch):
+    from mvp_capabilities import swarm_simulator
+
+    cap_dir = tmp_path / "caps"
+    cap_dir.mkdir()
+    _write_peer(cap_dir / "real-peer.json", hostname="real-peer", total_gb=48, free_gb=48)
+    monkeypatch.setattr(swarm_simulator, "DEFAULT_CAP_DIR", cap_dir)
+
+    result = swarm_simulator.simulate_swarm(
+        scenario="mvp-10-laptop",
+        model_id="Qwen/Qwen3-30B-A3B",
+        synthetic_m4_laptops=2,
+        synthetic_total_gb=24,
+        synthetic_free_gb=20,
+        failed_hosts=[],
+    )
+
+    assert result["input_peer_count"] == 2
+    assert result["active_peer_count"] == 2
+    assert "real-peer" not in {peer["hostname"] for peer in result["layer_plan"]["assignments"]}
+
+
 def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):
     from mvp_capabilities.bench_matrix import build_matrix
     from mvp_capabilities.route_picker import choose_best_route, load_registry
