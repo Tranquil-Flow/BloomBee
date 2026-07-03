@@ -200,6 +200,7 @@ def build_dashboard_document(
     proof_state_path: str | Path | None = None,
     joined_layer_plan_path: str | Path | None = None,
     chain_schedule_path: str | Path | None = None,
+    handoff_bundle_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
@@ -227,6 +228,7 @@ def build_dashboard_document(
     proof_state = _read_json(proof_state_path, None)
     joined_layer_plan = _read_json(joined_layer_plan_path, None)
     chain_schedule = _read_json(chain_schedule_path, None)
+    handoff_bundle = _read_json(handoff_bundle_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -247,6 +249,7 @@ def build_dashboard_document(
         "proof_state": proof_state,
         "joined_layer_plan": joined_layer_plan,
         "chain_schedule": chain_schedule,
+        "handoff_bundle": handoff_bundle,
         "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
@@ -623,6 +626,51 @@ def _chain_schedule_panel(schedule: dict[str, Any] | None) -> str:
     """
 
 
+def _handoff_bundle_panel(bundle: dict[str, Any] | None) -> str:
+    if not bundle:
+        return """
+      <section class="card wide handoff-bundle">
+        <h2>Operator handoff bundle</h2>
+        <p class="muted">No coordinator handoff JSON supplied yet. Generate one from <code>/handoff?token=...&amp;model=auto</code>.</p>
+      </section>
+    """
+    route = bundle.get("route_decision") or {}
+    picked = route.get("picked") or {}
+    plan = bundle.get("plan") or {}
+    readiness = plan.get("launch_readiness") or {}
+    runbooks = bundle.get("proof_runbooks") or {}
+    runbook_rows = "".join(
+        "<tr>"
+        f"<td>{_esc(name)}</td>"
+        f"<td>{_esc((item or {}).get('proof_gate') or name)}</td>"
+        f"<td><code>{_esc((item or {}).get('claim_boundary') or (item or {}).get('status') or '—')}</code></td>"
+        f"<td>{_esc((item or {}).get('request_count') or (item or {}).get('max_new_tokens') or '—')}</td>"
+        "</tr>"
+        for name, item in sorted(runbooks.items())
+        if isinstance(item, dict)
+    )
+    inference_copy = "inference proven" if bundle.get("inference_proven") else "inference not proven"
+    ready_copy = "ready to start" if readiness.get("ready_to_start") else "placeholders/blockers remain"
+    return f"""
+      <section class="card wide handoff-bundle">
+        <h2>Operator handoff bundle</h2>
+        <div class="grid two">
+          <div><span class="label">Source</span><strong>{_esc(bundle.get('source') or '—')}</strong></div>
+          <div><span class="label">Selected model</span><strong>{_esc(plan.get('model_id') or picked.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Launch readiness</span><strong class="warn">{_esc(ready_copy)}</strong></div>
+          <div><span class="label">Inference claim</span><strong class="warn">{_esc(inference_copy)}</strong></div>
+          <div><span class="label">Bundle boundary</span><code>{_esc(bundle.get('claim_boundary'))}</code></div>
+          <div><span class="label">Readiness boundary</span><code>{_esc(readiness.get('claim_boundary') or '—')}</code></div>
+        </div>
+        <table>
+          <thead><tr><th>Runbook</th><th>Proof gate</th><th>Claim boundary / status</th><th>Size</th></tr></thead>
+          <tbody>{runbook_rows or '<tr><td colspan="4">No proof runbooks in handoff bundle</td></tr>'}</tbody>
+        </table>
+        <p class="muted">Handoff bundles are operator checklists only: they do not start servers, send traffic, or update proof status.</p>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -702,6 +750,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_proof_state_panel(document.get('proof_state'))}
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_chain_schedule_panel(document.get('chain_schedule'))}
+    {_handoff_bundle_panel(document.get('handoff_bundle'))}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
@@ -739,6 +788,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-state", default=None, help="Optional JSON from proof_state.py")
     parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
     parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
+    parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
@@ -759,6 +809,7 @@ def main(argv: list[str] | None = None) -> int:
             proof_state_path=args.proof_state,
             joined_layer_plan_path=args.joined_layer_plan,
             chain_schedule_path=args.chain_schedule,
+            handoff_bundle_path=args.handoff_bundle,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,

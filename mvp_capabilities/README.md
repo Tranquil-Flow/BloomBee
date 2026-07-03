@@ -206,6 +206,7 @@ python mvp_capabilities/demo_dashboard.py \
   --proof-state .local/proof-state.json \
   --joined-layer-plan .local/joined-layer-plan.json \
   --chain-schedule .local/chain-schedule.json \
+  --handoff-bundle .local/handoff-bundle.json \
   --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
@@ -324,8 +325,8 @@ As of the current implementation slice:
   It does not generate/decode QR artifacts and does not replace the visual grid.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans,
-  chain-scheduler rehearsals, request telemetry, and milestone table beside
-  routes/evidence.
+  coordinator handoff bundles, chain-scheduler rehearsals, request telemetry,
+  and milestone table beside routes/evidence.
 - Proof-state observability (`proof_state.py`) parses retained status/log/cache
   facts from long-running proof prep, distinguishes complete snapshots from stale
   `.incomplete` leftovers, emits ETA fields, and feeds the dashboard without
@@ -348,8 +349,8 @@ As of the current implementation slice:
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, joined layer
-  plans, chain-scheduler waves/peer health, live telemetry counters, and claim
-  boundaries. Synthetic 10-laptop planning is hidden by
+  plans, coordinator handoff/runbook bundles, chain-scheduler waves/peer health,
+  live telemetry counters, and claim boundaries. Synthetic 10-laptop planning is hidden by
   default and appears only with `--synthetic-m4-laptops`.
 - Real layer-placement proof (2026-07-03): three live BloomBee server processes
   on `m4pro` served TinyLlama layers `0:8`, `8:15`, and `15:22`; a direct client

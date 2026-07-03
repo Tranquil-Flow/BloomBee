@@ -123,7 +123,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   failed at client DHT bootstrap before any RPC proof.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
-  runbooks, and chain-scheduler rehearsals beside route/evidence/telemetry panels.
+  runbooks, coordinator handoff bundles, and chain-scheduler rehearsals beside
+  route/evidence/telemetry panels.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
   facts, distinguishes complete snapshots from stale `.incomplete` leftovers,
   emits ETA fields, and feeds the dashboard while explicitly refusing to claim
@@ -366,6 +367,8 @@ python mvp_capabilities/demo_dashboard.py \
   --proof-state .local/proof-state.json \
   --joined-layer-plan .local/joined-layer-plan.json \
   --chain-schedule .local/chain-schedule.json \
+  --handoff-bundle .local/handoff-bundle.json \
+  --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10
 ```

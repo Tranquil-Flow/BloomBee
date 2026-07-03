@@ -190,6 +190,39 @@ def _write_chain_schedule(path: Path) -> None:
     )
 
 
+def _write_handoff_bundle(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "coordinator_handoff_bundle_only_no_server_started",
+                "source": "coordinator_http_handoff_endpoint",
+                "token": "moon-token",
+                "inference_proven": False,
+                "can_update_proof_status": False,
+                "route_decision": {"picked": {"model_id": "Qwen/Qwen3-8B"}},
+                "plan": {
+                    "model_id": "Qwen/Qwen3-8B",
+                    "launch_readiness": {
+                        "ready_to_start": False,
+                        "claim_boundary": "launch_readiness_checklist_only_no_server_started",
+                    },
+                },
+                "proof_runbooks": {
+                    "multi_block": {"claim_boundary": "multi_block_proof_harness_only_no_live_inference", "proof_gate": "multi_block"},
+                    "full_generation": {"claim_boundary": "full_generation_proof_harness_only_no_live_generation", "proof_gate": "full_generation"},
+                    "cache_generation": {"claim_boundary": "cache_generation_proof_harness_only_no_live_generation", "proof_gate": "cache_generation"},
+                    "multi_request_load": {
+                        "claim_boundary": "multi_request_load_harness_only_no_live_traffic",
+                        "proof_gate": "multi_request_load",
+                        "request_count": 2,
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_request_log(path: Path) -> None:
     path.write_text(
         "[direct] model=Qwen/Qwen3-8B\n"
@@ -218,6 +251,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_joined_layer_plan(joined_layer_plan)
     chain_schedule = tmp_path / "chain-schedule.json"
     _write_chain_schedule(chain_schedule)
+    handoff_bundle = tmp_path / "handoff-bundle.json"
+    _write_handoff_bundle(handoff_bundle)
     request_log = tmp_path / "direct-client.log"
     _write_request_log(request_log)
 
@@ -228,6 +263,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         proof_state_path=proof_state,
         joined_layer_plan_path=joined_layer_plan,
         chain_schedule_path=chain_schedule,
+        handoff_bundle_path=handoff_bundle,
         request_logs=[request_log],
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
@@ -251,6 +287,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["joined_layer_plan"]["active_peer_count"] == 2
     assert doc["chain_schedule"]["scheduler_status"] == "ready_to_rehearse_no_live_requests"
     assert doc["chain_schedule"]["peer_health"]["joined-peer-b"]["utilization_fraction"] == 0.83
+    assert doc["handoff_bundle"]["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
+    assert doc["handoff_bundle"]["proof_runbooks"]["multi_block"]["proof_gate"] == "multi_block"
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
     assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
     assert "evinova" in html
@@ -284,6 +322,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "ready_to_rehearse_no_live_requests" in html
     assert "req-000, req-001" in html
     assert "planned_no_live_traffic" in html
+    assert "Operator handoff bundle" in html
+    assert "coordinator_http_handoff_endpoint" in html
+    assert "coordinator_handoff_bundle_only_no_server_started" in html
+    assert "multi_block_proof_harness_only_no_live_inference" in html
+    assert "multi_request_load_harness_only_no_live_traffic" in html
     assert "Live request telemetry" in html
     assert "request_telemetry_observability_only_no_load_proof" in html
     assert "succeeded 1 / failed 1" in html
@@ -308,6 +351,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_joined_layer_plan(joined_layer_plan)
     chain_schedule = tmp_path / "chain-schedule.json"
     _write_chain_schedule(chain_schedule)
+    handoff_bundle = tmp_path / "handoff-bundle.json"
+    _write_handoff_bundle(handoff_bundle)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -326,6 +371,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(joined_layer_plan),
             "--chain-schedule",
             str(chain_schedule),
+            "--handoff-bundle",
+            str(handoff_bundle),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -352,6 +399,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "joined-peer-b" in text
     assert "layers 18:36" in text
     assert "Chain scheduler rehearsal" in text
+    assert "Operator handoff bundle" in text
+    assert "coordinator_handoff_bundle_only_no_server_started" in text
     assert "joined-peer-a" in text
     assert "240" in text
     assert "proof_state_observability_only_no_inference_proof" in text
