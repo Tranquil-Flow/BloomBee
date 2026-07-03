@@ -101,6 +101,9 @@ hardware pool exists.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. This is bootstrap/roster state only and
   explicitly does not claim inference proof.
+- `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
+  into deterministic contiguous layer ranges. This is placement planning only;
+  real serving still requires the BloomBee server proof ladder.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and

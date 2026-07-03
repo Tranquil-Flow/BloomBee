@@ -172,6 +172,88 @@ def test_registry_includes_prepared_qwen3_30b_2507_variants_with_pending_proof()
         assert route["proof_status"]["full_generation"] == "pending"
 
 
+def test_layer_planner_assigns_contiguous_ranges_by_peer_capacity():
+    from mvp_capabilities.layer_planner import plan_layer_placement
+
+    model = {
+        "model_id": "test/TwelveLayer",
+        "num_layers": 12,
+        "recommended_min_free_mem_gb": 24,
+    }
+    peers = [
+        {"hostname": "alpha", "memory": {"free_gb": 10}, "accelerator": {"device": "mps"}},
+        {"hostname": "bravo", "memory": {"free_gb": 8}, "accelerator": {"device": "mps"}},
+        {"hostname": "charlie", "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+    ]
+
+    plan = plan_layer_placement(peers, model)
+
+    assert plan["supported"] is True
+    assert plan["model_id"] == "test/TwelveLayer"
+    assert plan["num_layers"] == 12
+    assert plan["per_layer_required_gb"] == 2.0
+    assert plan["claim_boundary"] == "placement_plan_only_no_inference_proof"
+    assert plan["assignments"] == [
+        {"hostname": "alpha", "start_layer": 0, "end_layer": 5, "layer_count": 5, "free_gb": 10.0, "capacity_layers": 5},
+        {"hostname": "bravo", "start_layer": 5, "end_layer": 9, "layer_count": 4, "free_gb": 8.0, "capacity_layers": 4},
+        {"hostname": "charlie", "start_layer": 9, "end_layer": 12, "layer_count": 3, "free_gb": 6.0, "capacity_layers": 3},
+    ]
+
+
+def test_layer_planner_reports_missing_capacity_without_overclaiming():
+    from mvp_capabilities.layer_planner import plan_layer_placement
+
+    model = {
+        "model_id": "test/FourLayer",
+        "num_layers": 4,
+        "recommended_min_free_mem_gb": 40,
+    }
+    peers = [
+        {"hostname": "tiny-a", "memory": {"free_gb": 10}, "accelerator": {}},
+        {"hostname": "tiny-b", "memory": {"free_gb": 10}, "accelerator": {}},
+    ]
+
+    plan = plan_layer_placement(peers, model)
+
+    assert plan["supported"] is False
+    assert plan["reason"] == "capacity covers 2/4 layers; missing 2"
+    assert plan["assigned_layers"] == 2
+    assert plan["missing_layers"] == 2
+    assert plan["claim_boundary"] == "placement_plan_only_no_inference_proof"
+
+
+def test_layer_planner_cli_outputs_json_for_synthetic_swarm():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/layer_planner.py",
+            "--model",
+            "Qwen/Qwen3-30B-A3B",
+            "--synthetic-m4-laptops",
+            "10",
+            "--synthetic-total-gb",
+            "24",
+            "--synthetic-free-gb",
+            "20",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert payload["supported"] is True
+    assert payload["num_layers"] == 48
+    assert payload["assigned_layers"] == 48
+    assert payload["assignments"][0]["start_layer"] == 0
+    assert payload["assignments"][-1]["end_layer"] == 48
+
+
 def test_sweep_models_dry_run_selects_feasible_models(tmp_path: Path):
     from mvp_capabilities.sweep_models import build_sweep_plan
 

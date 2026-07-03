@@ -82,6 +82,9 @@ Already proven:
   metadata and pending proof: Instruct-2507 and Thinking-2507.
 - Join-link/heartbeat foundation exists: link offers, token-scoped heartbeats,
   active-peer filtering, and explicit no-inference-proof claim boundaries.
+- Layer planner exists: selected model + live/synthetic roster becomes
+  deterministic contiguous layer ranges, with explicit placement-only/no
+  inference-proof claim boundaries.
 
 Not yet proven:
 
@@ -458,7 +461,10 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 4. QR/link join coordinator and heartbeat state. **Initial slice complete**:
    join-link offers and heartbeat state exist. QR image rendering and live
    coordinator service wiring remain future work.
-5. Layer planner from live worker capabilities.
+5. Layer planner from live worker capabilities. **Initial slice complete**:
+   `layer_planner.py` emits deterministic contiguous block ranges from a model
+   registry entry and peer free-memory capacities. This is a placement plan, not
+   inference proof.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
 7. Qwen3 dense fallback proofs: 8B, then 14B.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.

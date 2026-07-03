@@ -32,7 +32,8 @@ BloomBee's runtime already maintains.
 | 5. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
 | 6. Join | `join_coordinator.py` | Creates shareable join-link offers and records token-scoped peer heartbeats. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
 | 7. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
-| 8. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 8. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
+| 9. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *what each model actually achieves on this hardware*.
 
@@ -101,7 +102,19 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 9. Generate the local real-demo dashboard (real connected peers only).
+# 9. Plan deterministic layer placement for the selected model.
+python mvp_capabilities/layer_planner.py \
+  --cap-dir ~/.bloombee/capabilities \
+  --model Qwen/Qwen3-30B-A3B
+
+#    Or plan the synthetic 10-laptop showcase split.
+python mvp_capabilities/layer_planner.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --synthetic-m4-laptops 10 \
+  --synthetic-total-gb 24 \
+  --synthetic-free-gb 20
+
+# 10. Generate the local real-demo dashboard (real connected peers only).
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -118,7 +131,7 @@ python mvp_capabilities/demo_dashboard.py \
   --synthetic-m4-laptops 10 \
   --out .local/demo-dashboard-planning.html
 
-# 10. Plan a per-peer benchmark sweep without downloading/running models.
+# 11. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
   --peer ~/.bloombee/capabilities/$(hostname -s).json \
   --dry-run
@@ -145,6 +158,9 @@ As of the current implementation slice:
 - Join-link/heartbeat foundation (`join_coordinator.py`) exists: it emits
   `bloombee://join?...` offers and token-scoped active heartbeat rosters, with
   explicit `no_inference_proof` claim boundaries.
+- Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
+  layer ranges from a selected model and live/synthetic peer roster, with an
+  explicit placement-only/no-inference-proof claim boundary.
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, live telemetry
