@@ -168,6 +168,8 @@ python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
   --evidence-dir mvp_capabilities/distributed_evidence \
+  --proof-state .local/proof-state.json \
+  --joined-layer-plan .local/joined-layer-plan.json \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
   --watch-seconds 2
@@ -232,7 +234,8 @@ As of the current implementation slice:
   `scanner_interop_unproven`; true QR scanner compatibility is still a future
   proof gate.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
-  gate, remaining percentage, and milestone table beside routes/evidence.
+  gate, remaining percentage, proof-prep state, joined-peer layer plans, and
+  milestone table beside routes/evidence.
 - Proof-state observability (`proof_state.py`) parses retained status/log/cache
   facts from long-running proof prep and feeds the dashboard without promoting
   inference gates.

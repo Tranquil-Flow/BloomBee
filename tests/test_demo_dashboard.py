@@ -93,6 +93,51 @@ def _write_proof_state(path: Path) -> None:
     )
 
 
+def _write_joined_layer_plan(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+                "source": "coordinator_http_active",
+                "token": "moon-token",
+                "model_id": "Qwen/Qwen3-8B",
+                "active_peer_count": 2,
+                "inference_proven": False,
+                "placement": {
+                    "supported": True,
+                    "reason": "capacity covers all 36 layers across 2 peer(s)",
+                    "num_layers": 36,
+                    "assigned_layers": 36,
+                    "missing_layers": 0,
+                    "claim_boundary": "placement_plan_only_no_inference_proof",
+                    "launch_commands_claim_boundary": "launch_commands_only_no_server_started",
+                    "assignments": [
+                        {
+                            "hostname": "joined-peer-a",
+                            "block_range": "0:18",
+                            "start_layer": 0,
+                            "end_layer": 18,
+                            "layer_count": 18,
+                            "port": 41000,
+                            "launch_command": "python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 0:18 --new_swarm",
+                        },
+                        {
+                            "hostname": "joined-peer-b",
+                            "block_range": "18:36",
+                            "start_layer": 18,
+                            "end_layer": 36,
+                            "layer_count": 18,
+                            "port": 41001,
+                            "launch_command": "python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 18:36 --initial_peers '<SEED_MULTIADDR_FROM_joined-peer-a>'",
+                        },
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path: Path):
     from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
 
@@ -107,12 +152,15 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_evidence(evidence_dir / "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json")
     proof_state = tmp_path / "proof-state.json"
     _write_proof_state(proof_state)
+    joined_layer_plan = tmp_path / "joined-layer-plan.json"
+    _write_joined_layer_plan(joined_layer_plan)
 
     doc = build_dashboard_document(
         cap_dirs=[cap_dir],
         bench_matrix_path=bench_matrix,
         evidence_dir=evidence_dir,
         proof_state_path=proof_state,
+        joined_layer_plan_path=joined_layer_plan,
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
         synthetic_free_gb=20,
@@ -131,6 +179,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B one-block server proof"
     assert doc["proof_state"]["download_status"] == "running"
     assert doc["proof_state"]["inference_proven"] is False
+    assert doc["joined_layer_plan"]["source"] == "coordinator_http_active"
+    assert doc["joined_layer_plan"]["active_peer_count"] == 2
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
@@ -148,6 +198,12 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro-seed" in html
     assert "layers 0:8" in html
     assert "m4pro-tail" in html
+    assert "Joined-peer layer plan" in html
+    assert "coordinator_http_active" in html
+    assert "joined-peer-a" in html
+    assert "layers 0:18" in html
+    assert "launch_commands_only_no_server_started" in html
+    assert "joined_roster_layer_plan_only_no_inference_proof" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
@@ -163,6 +219,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_evidence(evidence_dir / "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json")
     proof_state = tmp_path / "proof-state.json"
     _write_proof_state(proof_state)
+    joined_layer_plan = tmp_path / "joined-layer-plan.json"
+    _write_joined_layer_plan(joined_layer_plan)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -177,6 +235,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(evidence_dir),
             "--proof-state",
             str(proof_state),
+            "--joined-layer-plan",
+            str(joined_layer_plan),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -199,6 +259,9 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "MVP build status" in text
     assert "████████████░░░░░░░░ 62%" in text
     assert "Live proof-prep state" in text
+    assert "Joined-peer layer plan" in text
+    assert "joined-peer-b" in text
+    assert "layers 18:36" in text
     assert "proof_state_observability_only_no_inference_proof" in text
     assert "auto-refreshes every 10 seconds" in text
     assert "Synthetic 10-laptop target route" not in text

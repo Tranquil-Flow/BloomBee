@@ -196,6 +196,7 @@ def build_dashboard_document(
     bench_matrix_path: str | Path | None = None,
     evidence_dir: str | Path = DEFAULT_EVIDENCE_DIR,
     proof_state_path: str | Path | None = None,
+    joined_layer_plan_path: str | Path | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
@@ -220,6 +221,7 @@ def build_dashboard_document(
         )
     evidence = load_evidence(evidence_dir)
     proof_state = _read_json(proof_state_path, None)
+    joined_layer_plan = _read_json(joined_layer_plan_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -238,6 +240,7 @@ def build_dashboard_document(
         "benchmarks": bench_matrix,
         "evidence": evidence,
         "proof_state": proof_state,
+        "joined_layer_plan": joined_layer_plan,
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
@@ -463,6 +466,52 @@ def _proof_state_panel(proof_state: dict[str, Any] | None) -> str:
     """
 
 
+def _joined_layer_plan_panel(plan: dict[str, Any] | None) -> str:
+    if not plan:
+        return """
+      <section class="card wide joined-layer-plan">
+        <h2>Joined-peer layer plan</h2>
+        <p class="muted">No joined-layer plan supplied yet. Generate one with <code>python mvp_capabilities/join_layer_plan.py --coordinator-url ... --include-launch-commands</code>.</p>
+      </section>
+    """
+    placement = plan.get("placement") or {}
+    rows: list[str] = []
+    for item in placement.get("assignments") or []:
+        start = item.get("start_layer")
+        end = item.get("end_layer")
+        block_range = item.get("block_range") or (f"{start}:{end}" if start is not None and end is not None else "—")
+        rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('hostname') or 'unknown')}</td>"
+            f"<td><strong>layers {_esc(block_range)}</strong></td>"
+            f"<td>{_esc(item.get('layer_count') or '—')}</td>"
+            f"<td>{_esc(item.get('port') or '—')}</td>"
+            f"<td><code>{_esc(item.get('launch_command') or '—')}</code></td>"
+            "</tr>"
+        )
+    inference_copy = "inference proven" if plan.get("inference_proven") else "inference not proven"
+    return f"""
+      <section class="card wide joined-layer-plan">
+        <h2>Joined-peer layer plan</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(plan.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Source</span><strong>{_esc(plan.get('source') or '—')}</strong></div>
+          <div><span class="label">Active peers</span><strong>{_esc(plan.get('active_peer_count') or 0)}</strong></div>
+          <div><span class="label">Supported</span><strong>{_bool_badge(placement.get('supported'))}</strong></div>
+          <div><span class="label">Assigned layers</span><strong>{_esc(placement.get('assigned_layers') or 0)}/{_esc(placement.get('num_layers') or '—')}</strong></div>
+          <div><span class="label">Inference claim</span><strong class="warn">{_esc(inference_copy)}</strong></div>
+          <div><span class="label">Plan boundary</span><code>{_esc(plan.get('claim_boundary'))}</code></div>
+          <div><span class="label">Launch boundary</span><code>{_esc(placement.get('launch_commands_claim_boundary'))}</code></div>
+        </div>
+        <p class="reason">{_esc(placement.get('reason') or plan.get('next_step') or 'Launch commands are a runbook only.')}</p>
+        <table>
+          <thead><tr><th>Joined peer</th><th>Transformer layers</th><th>Count</th><th>Port</th><th>Launch command</th></tr></thead>
+          <tbody>{''.join(rows) or '<tr><td colspan="5">No joined peer assignments yet</td></tr>'}</tbody>
+        </table>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -540,6 +589,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
   <main>
     {_status_panel(document.get('mvp_status') or {})}
     {_proof_state_panel(document.get('proof_state'))}
+    {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
     {_devices_table(document.get('roster') or {})}
@@ -574,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bench-matrix", default=None, help="JSON from bench_matrix.py")
     parser.add_argument("--evidence-dir", default=str(DEFAULT_EVIDENCE_DIR))
     parser.add_argument("--proof-state", default=None, help="Optional JSON from proof_state.py")
+    parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
@@ -591,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
             bench_matrix_path=args.bench_matrix,
             evidence_dir=args.evidence_dir,
             proof_state_path=args.proof_state,
+            joined_layer_plan_path=args.joined_layer_plan,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
             synthetic_total_gb=args.synthetic_total_gb,

@@ -77,8 +77,8 @@ Already proven:
 - TinyLlama cached `.generate()` parity.
 - TinyLlama S2S opportunistic push with client-direct fallback.
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
-  status/next gate, live proof-prep feed, telemetry, and real layer-placement
-  metadata.
+  status/next gate, live proof-prep feed, joined-peer layer-plan runbooks,
+  telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
   `/active`.
