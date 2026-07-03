@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████░░░░░░░ 65%
+█████████████░░░░░░░ 66%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -81,8 +81,9 @@ Already proven:
   chain-scheduler rehearsal panels, telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
-  `/active`, and no-execution launch-readiness checklists expose seed multiaddr
-  placeholders before any server start.
+  `/active`; operator-captured seed multiaddrs can now resolve follower launch
+  commands before no-execution launch-readiness checklists mark the runbook
+  startable.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
@@ -109,10 +110,11 @@ Already proven:
   remains unproven until a generated artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
-  launch command runbooks, launch-readiness checklists, and explicit
-  `launch_commands_only_no_server_started` / readiness claim boundaries; active
-  coordinator heartbeats can be handed into the same planner via
-  `join_layer_plan.py` from local state or HTTP `/active`.
+  launch command runbooks, operator-captured seed multiaddr substitution,
+  launch-readiness checklists, and explicit `launch_commands_only_no_server_started`
+  / `launch_multiaddr_resolution_only_no_server_started` / readiness claim
+  boundaries; active coordinator heartbeats can be handed into the same planner
+  via `join_layer_plan.py` from local state or HTTP `/active`.
 - Chain scheduler planning exists: joined layer plans become multi-request waves,
   per-peer scheduled-token estimates, and `planned_no_live_traffic` health
   reports. `demo_dashboard.py --chain-schedule ...` renders those planned waves

@@ -36,7 +36,7 @@ BloomBee's runtime already maintains.
 | 9. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / SVG join card / QR preflight report |
 | 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
-| 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
+| 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
 | 13. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
 | 14. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
 | 15. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
@@ -199,7 +199,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `█████████████░░░░░░░ 65%` built from the plan, with claim boundary
+  `█████████████░░░░░░░ 66%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
@@ -255,8 +255,10 @@ As of the current implementation slice:
   and `join_layer_plan.py` can feed active token-scoped coordinator heartbeats
   from local state or HTTP `/active` into those placements. With
   `--include-launch-readiness`, it also emits a machine-readable checklist that
-  marks unresolved seed multiaddr placeholders before any server start while
-  preserving a no-server-started claim boundary.
+  marks unresolved seed multiaddr placeholders before any server start; with
+  `--seed-multiaddr HOST=MULTIADDR`, it substitutes operator-captured seed
+  addresses into follower commands while preserving a no-server-started claim
+  boundary.
 - Simulation harness (`swarm_simulator.py`) exists: it rehearses variable-device
   rosters and failed-host scenarios, then emits route + layer-plan JSON with an
   explicit simulation-only/no-inference-proof claim boundary.

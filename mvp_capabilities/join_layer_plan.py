@@ -32,9 +32,11 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
 CLAIM_BOUNDARY = "joined_roster_layer_plan_only_no_inference_proof"
 HEARTBEAT_CLAIM_BOUNDARY = "heartbeat_roster_only_no_inference_proof"
 LAUNCH_READINESS_CLAIM_BOUNDARY = "launch_readiness_checklist_only_no_server_started"
+MULTIADDR_RESOLUTION_CLAIM_BOUNDARY = "launch_multiaddr_resolution_only_no_server_started"
 HTTP_SOURCE = "coordinator_http_active"
 LOCAL_SOURCE = "local_state_dir"
 _PLACEHOLDER_RE = re.compile(r"<[^>]+>")
+_SEED_PLACEHOLDER_RE = re.compile(r"^<SEED_MULTIADDR_FROM_(?P<hostname>.+)>$")
 
 
 def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]:
@@ -133,6 +135,7 @@ def materialize_launch_readiness(plan: dict[str, Any]) -> dict[str, Any]:
     ready_to_start = bool(assignments) and not unresolved and all(check["ready"] for check in server_checks)
     return {
         "claim_boundary": LAUNCH_READINESS_CLAIM_BOUNDARY,
+        "multiaddr_resolution_claim_boundary": placement.get("multiaddr_resolution_claim_boundary"),
         "server_count": len(assignments),
         "ready_to_start": ready_to_start,
         "unresolved_placeholders": unresolved,
@@ -142,6 +145,57 @@ def materialize_launch_readiness(plan: dict[str, Any]) -> dict[str, Any]:
         "can_update_proof_status": False,
         "next_step": "resolve placeholders, start servers manually, capture multiaddrs/logs, then run a proof harness",
     }
+
+
+def parse_seed_multiaddr(raw: str) -> tuple[str, str]:
+    """Parse a HOST=MULTIADDR CLI value without validating the libp2p address."""
+    hostname, separator, multiaddr = raw.partition("=")
+    hostname = hostname.strip()
+    multiaddr = multiaddr.strip()
+    if not separator or not hostname or not multiaddr:
+        raise argparse.ArgumentTypeError("seed multiaddr must be HOST=/ip4/.../p2p/...")
+    return hostname, multiaddr
+
+
+def resolve_launch_multiaddrs(plan: dict[str, Any], seed_multiaddrs: dict[str, str] | None) -> dict[str, Any]:
+    """Replace generated seed placeholders with operator-captured multiaddrs.
+
+    This only rewrites launch-command runbooks. It does not start a server, check
+    connectivity, or prove inference.
+    """
+    replacements = {str(host): str(addr) for host, addr in (seed_multiaddrs or {}).items() if str(host) and str(addr)}
+    if not replacements:
+        return plan
+
+    updated = dict(plan)
+    placement = dict(updated.get("placement") or {})
+    assignments: list[dict[str, Any]] = []
+    resolved_hosts: set[str] = set()
+    unresolved: list[str] = []
+    for item in placement.get("assignments") or []:
+        assignment = dict(item)
+        command = str(assignment.get("launch_command") or "")
+        for placeholder in _PLACEHOLDER_RE.findall(command):
+            match = _SEED_PLACEHOLDER_RE.match(placeholder)
+            hostname = match.group("hostname") if match else None
+            replacement = replacements.get(hostname or "")
+            if replacement:
+                command = command.replace(placeholder, replacement)
+                resolved_hosts.add(str(hostname))
+            elif placeholder not in unresolved:
+                unresolved.append(placeholder)
+        assignment["launch_command"] = command
+        assignments.append(assignment)
+
+    placement["assignments"] = assignments
+    placement["multiaddr_resolution_claim_boundary"] = MULTIADDR_RESOLUTION_CLAIM_BOUNDARY
+    placement["resolved_multiaddr_hosts"] = sorted(resolved_hosts)
+    placement["unresolved_multiaddr_placeholders"] = unresolved
+    notes = list(placement.get("launch_command_notes") or [])
+    notes.append("Seed multiaddrs were substituted from operator-captured values; no server was started by this planner.")
+    placement["launch_command_notes"] = notes
+    updated["placement"] = placement
+    return updated
 
 
 def _build_from_active_heartbeats(
@@ -157,6 +211,7 @@ def _build_from_active_heartbeats(
     dtype: str = "float16",
     base_port: int = 31337,
     dht_prefix: str | None = None,
+    seed_multiaddrs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     active = _sorted_heartbeats(active)
     peers = _capabilities_from_heartbeats(active)
@@ -184,6 +239,8 @@ def _build_from_active_heartbeats(
         "can_update_proof_status": False,
         "next_step": "start generated server commands manually, capture multiaddrs, run direct client proof, then verify with one_block_proof.py or generation parity harness",
     }
+    if include_launch_commands and seed_multiaddrs:
+        payload = resolve_launch_multiaddrs(payload, seed_multiaddrs)
     if include_launch_readiness:
         payload["launch_readiness"] = materialize_launch_readiness(payload)
     return payload
@@ -199,6 +256,7 @@ def build_join_layer_plan_from_active_payload(
     dtype: str = "float16",
     base_port: int = 31337,
     dht_prefix: str | None = None,
+    seed_multiaddrs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     active = active_payload.get("active_peers")
     if not isinstance(active, list):
@@ -215,6 +273,7 @@ def build_join_layer_plan_from_active_payload(
         dtype=dtype,
         base_port=base_port,
         dht_prefix=dht_prefix,
+        seed_multiaddrs=seed_multiaddrs,
     )
 
 
@@ -231,6 +290,7 @@ def build_join_layer_plan(
     dtype: str = "float16",
     base_port: int = 31337,
     dht_prefix: str | None = None,
+    seed_multiaddrs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     active = load_active_heartbeats(state_dir, token=token, now=now, max_age_seconds=max_age_seconds)
     return _build_from_active_heartbeats(
@@ -245,6 +305,7 @@ def build_join_layer_plan(
         dtype=dtype,
         base_port=base_port,
         dht_prefix=dht_prefix,
+        seed_multiaddrs=seed_multiaddrs,
     )
 
 
@@ -263,7 +324,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--launch-dtype", default="float16")
     parser.add_argument("--base-port", type=int, default=31337)
     parser.add_argument("--dht-prefix", default=None)
+    parser.add_argument(
+        "--seed-multiaddr",
+        action="append",
+        default=[],
+        type=parse_seed_multiaddr,
+        metavar="HOST=MULTIADDR",
+        help="Resolve <SEED_MULTIADDR_FROM_HOST> placeholders in generated follower launch commands",
+    )
     args = parser.parse_args(argv)
+    seed_multiaddrs = dict(args.seed_multiaddr)
 
     registry = load_registry(args.registry)
     model = _find_model(registry, args.model)
@@ -283,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             dtype=args.launch_dtype,
             base_port=args.base_port,
             dht_prefix=args.dht_prefix,
+            seed_multiaddrs=seed_multiaddrs,
         )
     else:
         payload = build_join_layer_plan(
@@ -297,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
             dtype=args.launch_dtype,
             base_port=args.base_port,
             dht_prefix=args.dht_prefix,
+            seed_multiaddrs=seed_multiaddrs,
         )
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0

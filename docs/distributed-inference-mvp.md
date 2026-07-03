@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████░░░░░░░ 65%
+█████████████░░░░░░░ 66%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -114,7 +114,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
 - `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
   heartbeats from local state or HTTP `/active` into deterministic layer
   placements, launch-command runbooks, and no-execution launch-readiness
-  checklists that expose unresolved seed multiaddr placeholders.
+  checklists. Operators can pass captured seed addresses with `--seed-multiaddr
+  HOST=/ip4/.../p2p/...` to resolve follower placeholders before the checklist
+  marks the runbook startable; this still carries a no-server-started claim.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from
@@ -135,8 +137,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
   launch-ready layer-placement runbooks from local state or HTTP `/active`
   without starting servers; `--include-launch-readiness` adds a checklist that
-  keeps seed multiaddr placeholders as explicit blockers before any server-start
-  claim.
+  keeps seed multiaddr placeholders as explicit blockers unless `--seed-multiaddr
+  HOST=MULTIADDR` resolves them from operator-captured values before any
+  server-start claim.
   `mvp_capabilities/chain_scheduler.py` turns a joined layer plan into
   multi-request waves, per-peer scheduled-token estimates, and no-live-traffic
   health reports. It does not send live requests or prove load behavior.
