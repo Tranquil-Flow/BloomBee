@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 66
-    assert report["overall_bar"] == "█████████████░░░░░░░ 66%"
-    assert report["remaining_percent"] == 34
+    assert report["overall_percent"] == 67
+    assert report["overall_bar"] == "█████████████░░░░░░░ 67%"
+    assert report["remaining_percent"] == 33
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "█████████████░░░░░░░ 66%" in text
+    assert "█████████████░░░░░░░ 67%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 66
-    assert payload["overall_bar"].endswith("66%")
+    assert payload["overall_percent"] == 67
+    assert payload["overall_bar"].endswith("67%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1158,6 +1158,71 @@ def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
     assert status == 200
     assert active["claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
     assert [peer["peer_id"] for peer in active["active_peers"]] == ["fresh-peer"]
+
+
+def test_join_http_server_plan_endpoint_builds_launch_ready_plan(tmp_path: Path):
+    from urllib.parse import quote
+
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    state_dir = tmp_path / "join-http-state"
+    for peer in ("peer-a", "peer-b"):
+        body = json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": peer,
+                "capabilities": {"hostname": peer, "memory": {"free_gb": 12}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8")
+        status, heartbeat = handle_post("/heartbeat", body=body, state_dir=state_dir)
+        assert status == 200
+        assert heartbeat["claim_boundary"] == "heartbeat_only_no_inference_proof"
+
+    seed = "/ip4/100.64.0.10/tcp/41000/p2p/12D3KooWseed"
+    status, plan = handle_get(
+        "/plan?"
+        "token=moon-token"
+        "&model=Qwen%2FQwen3-8B"
+        "&now=110"
+        "&max_age_seconds=60"
+        "&include_launch_commands=1"
+        "&include_launch_readiness=1"
+        "&base_port=41000"
+        f"&seed_multiaddr={quote(f'peer-a={seed}', safe='')}",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+
+    assert status == 200
+    assert plan["claim_boundary"] == "joined_roster_layer_plan_only_no_inference_proof"
+    assert plan["source"] == "coordinator_http_plan_endpoint"
+    assert plan["active_peer_count"] == 2
+    assert plan["placement"]["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
+    assert plan["placement"]["multiaddr_resolution_claim_boundary"] == "launch_multiaddr_resolution_only_no_server_started"
+    assert plan["launch_readiness"]["ready_to_start"] is True
+    assert seed in plan["placement"]["assignments"][1]["launch_command"]
+    assert plan["inference_proven"] is False
+
+
+def test_join_http_server_plan_endpoint_requires_token_and_model(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get
+
+    status, missing_token = handle_get(
+        "/plan?model=Qwen%2FQwen3-8B",
+        state_dir=tmp_path / "join-http-state",
+        coordinator="http://127.0.0.1:8787",
+    )
+    status_model, missing_model = handle_get(
+        "/plan?token=moon-token",
+        state_dir=tmp_path / "join-http-state",
+        coordinator="http://127.0.0.1:8787",
+    )
+
+    assert status == 400
+    assert missing_token == {"error": "missing token", "claim_boundary": "coordinator_error_no_inference_proof"}
+    assert status_model == 400
+    assert missing_model == {"error": "missing model", "claim_boundary": "coordinator_error_no_inference_proof"}
 
 
 def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: Path):

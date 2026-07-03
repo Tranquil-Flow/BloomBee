@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Tiny HTTP coordinator for join offers and peer heartbeats.
+"""Tiny HTTP coordinator for join offers, peer heartbeats, and joined plans.
 
-This is bootstrap/roster infrastructure only. It does not start BloomBee servers,
-does not run inference, and every response carries a no-inference-proof claim
-boundary.
+This is bootstrap/roster/planning infrastructure only. It does not start
+BloomBee servers, does not run inference, and every response carries a
+no-inference-proof claim boundary.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ try:
         load_active_heartbeats,
         record_heartbeat,
     )
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.route_picker import DEFAULT_REGISTRY, load_registry
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from mvp_capabilities.join_coordinator import (
@@ -31,9 +33,12 @@ except ModuleNotFoundError:  # direct script execution
         load_active_heartbeats,
         record_heartbeat,
     )
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.route_picker import DEFAULT_REGISTRY, load_registry
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
 ERROR_CLAIM_BOUNDARY = "coordinator_error_no_inference_proof"
+PLAN_SOURCE = "coordinator_http_plan_endpoint"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -52,11 +57,73 @@ def _as_int(value: str | None, default: int) -> int:
         return default
 
 
+def _as_bool(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any] | None:
+    for model in registry:
+        if model.get("model_id") == model_id:
+            return model
+    return None
+
+
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def handle_get(path: str, *, state_dir: str | Path, coordinator: str) -> tuple[int, dict[str, Any]]:
+def _handle_plan(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    token = _first(query, "token")
+    model_id = _first(query, "model")
+    if not token:
+        return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    if not model_id:
+        return 400, {"error": "missing model", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    model = _find_model(load_registry(registry), model_id)
+    if model is None:
+        return 404, {"error": f"model not found: {model_id}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    seed_multiaddrs: dict[str, str] = {}
+    for raw in query.get("seed_multiaddr") or []:
+        try:
+            host, multiaddr = parse_seed_multiaddr(raw)
+        except argparse.ArgumentTypeError as exc:
+            return 400, {"error": str(exc), "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        seed_multiaddrs[host] = multiaddr
+
+    payload = build_join_layer_plan(
+        state_dir=state_dir,
+        token=token,
+        model=model,
+        now=_as_int(_first(query, "now"), 0) or None,
+        max_age_seconds=_as_int(_first(query, "max_age_seconds"), 30),
+        include_launch_commands=_as_bool(_first(query, "include_launch_commands")),
+        include_launch_readiness=_as_bool(_first(query, "include_launch_readiness")),
+        device=_first(query, "launch_device", "mps") or "mps",
+        dtype=_first(query, "launch_dtype", "float16") or "float16",
+        base_port=_as_int(_first(query, "base_port"), 31337),
+        dht_prefix=_first(query, "dht_prefix"),
+        seed_multiaddrs=seed_multiaddrs,
+    )
+    payload["source"] = PLAN_SOURCE
+    return 200, payload
+
+
+def handle_get(
+    path: str,
+    *,
+    state_dir: str | Path,
+    coordinator: str,
+    registry: str | Path = DEFAULT_REGISTRY,
+) -> tuple[int, dict[str, Any]]:
     parsed = urlparse(path)
     query = parse_qs(parsed.query)
     if parsed.path == "/healthz":
@@ -82,6 +149,8 @@ def handle_get(path: str, *, state_dir: str | Path, coordinator: str) -> tuple[i
             ),
             "claim_boundary": "heartbeat_roster_only_no_inference_proof",
         }
+    if parsed.path == "/plan":
+        return _handle_plan(query, state_dir=state_dir, registry=registry)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
@@ -108,10 +177,19 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path) -> tuple[int, 
 
 
 class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
-    def __init__(self, server_address: tuple[str, int], RequestHandlerClass, *, state_dir: str | Path, coordinator: str):
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass,
+        *,
+        state_dir: str | Path,
+        coordinator: str,
+        registry: str | Path = DEFAULT_REGISTRY,
+    ):
         super().__init__(server_address, RequestHandlerClass)
         self.state_dir = Path(state_dir).expanduser()
         self.coordinator = coordinator
+        self.registry = Path(registry).expanduser()
 
 
 class JoinCoordinatorHandler(BaseHTTPRequestHandler):
@@ -134,7 +212,12 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         self._send_json(status, {"error": message, "claim_boundary": ERROR_CLAIM_BOUNDARY})
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib API
-        status, payload = handle_get(self.path, state_dir=self.server.state_dir, coordinator=self.server.coordinator)
+        status, payload = handle_get(
+            self.path,
+            state_dir=self.server.state_dir,
+            coordinator=self.server.coordinator,
+            registry=self.server.registry,
+        )
         self._send_json(status, payload)
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib API
@@ -152,8 +235,15 @@ def create_server(
     *,
     state_dir: str | Path = DEFAULT_STATE_DIR,
     coordinator: str,
+    registry: str | Path = DEFAULT_REGISTRY,
 ) -> JoinCoordinatorHTTPServer:
-    return JoinCoordinatorHTTPServer(address, JoinCoordinatorHandler, state_dir=state_dir, coordinator=coordinator)
+    return JoinCoordinatorHTTPServer(
+        address,
+        JoinCoordinatorHandler,
+        state_dir=state_dir,
+        coordinator=coordinator,
+        registry=registry,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -162,14 +252,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     parser.add_argument("--coordinator", default=None, help="Public coordinator URL embedded in join offers")
+    parser.add_argument("--registry", default=str(DEFAULT_REGISTRY), help="Model registry for /plan endpoint")
     args = parser.parse_args(argv)
 
     coordinator = args.coordinator or f"http://{args.host}:{args.port}"
-    server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator)
+    server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator, registry=args.registry)
     print(
         json.dumps(
             {
                 "listening": f"http://{args.host}:{args.port}",
+                "plan_endpoint": "/plan",
+                "registry": str(Path(args.registry).expanduser()),
                 "state_dir": str(Path(args.state_dir).expanduser()),
                 "claim_boundary": "coordinator_service_only_no_inference_proof",
             },
