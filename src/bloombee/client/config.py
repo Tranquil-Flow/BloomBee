@@ -10,9 +10,9 @@ _max_retries = os.getenv("BLOOMBEE_MAX_RETRIES")
 DEFAULT_MAX_RETRIES = int(_max_retries) if isinstance(_max_retries, str) else None
 _push_only_downstream_decode = os.getenv("BLOOMBEE_PUSH_ONLY_DOWNSTREAM_DECODE")
 DEFAULT_PUSH_ONLY_DOWNSTREAM_DECODE = (
-    _push_only_downstream_decode.strip().lower() not in {"0", "false", "no", "off"}
+    _push_only_downstream_decode.strip().lower() in {"1", "true", "yes", "on"}
     if isinstance(_push_only_downstream_decode, str)
-    else True
+    else False
 )
 
 
