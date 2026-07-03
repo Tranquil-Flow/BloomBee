@@ -108,10 +108,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="chain_scheduler",
         label="Multi-request chain scheduler and load proof",
         weight=8,
-        completion=0.25,
+        completion=0.35,
         status="partial",
-        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports",
-        next_step="send live requests through started servers and capture latency/error telemetry",
+        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards",
+        next_step="send multi-request live traffic through started servers and pass a dedicated load-proof verifier",
     ),
     Milestone(
         id="physical_showcase",

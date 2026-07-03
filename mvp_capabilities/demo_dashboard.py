@@ -22,6 +22,7 @@ from typing import Any, Iterable
 
 try:
     from mvp_capabilities.mvp_status import build_status_report
+    from mvp_capabilities.request_telemetry import build_request_telemetry
     from mvp_capabilities.route_picker import (
         DEFAULT_REGISTRY,
         explain_route,
@@ -32,6 +33,7 @@ try:
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/demo_dashboard.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from mvp_capabilities.mvp_status import build_status_report  # type: ignore[no-redef]
+    from mvp_capabilities.request_telemetry import build_request_telemetry  # type: ignore[no-redef]
     from mvp_capabilities.route_picker import (  # type: ignore[no-redef]
         DEFAULT_REGISTRY,
         explain_route,
@@ -198,6 +200,7 @@ def build_dashboard_document(
     proof_state_path: str | Path | None = None,
     joined_layer_plan_path: str | Path | None = None,
     chain_schedule_path: str | Path | None = None,
+    request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
@@ -244,6 +247,7 @@ def build_dashboard_document(
         "proof_state": proof_state,
         "joined_layer_plan": joined_layer_plan,
         "chain_schedule": chain_schedule,
+        "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
@@ -374,6 +378,43 @@ def _layer_placement_table(placements: list[dict[str, Any]]) -> str:
         </table>
       </section>
     """.format(rows="\n".join(rows) or '<tr><td colspan="5">No layer placement metadata supplied yet. Re-run the parity harness with --server-placement host=start:end.</td></tr>')
+
+
+def _request_telemetry_panel(report: dict[str, Any]) -> str:
+    counts = report.get("request_counts") or {}
+    latency = report.get("latency_seconds") or {}
+    forward = latency.get("forward") or {}
+    backward = latency.get("backward") or {}
+    models = ", ".join(f"{key} ({value})" for key, value in (report.get("models") or {}).items()) or "—"
+    block_ranges = ", ".join(f"{key} ({value})" for key, value in (report.get("block_ranges") or {}).items()) or "—"
+    error_rows = "".join(
+        "<tr>"
+        f"<td>{_esc(Path(item.get('log') or '—').name)}</td>"
+        f"<td>{_esc(item.get('message') or '—')}</td>"
+        "</tr>"
+        for item in report.get("errors") or []
+    )
+    claim_copy = "load proof claimed" if report.get("load_proof_claimed") else "no load proof claimed"
+    return f"""
+      <section class="card wide request-telemetry">
+        <h2>Live request telemetry</h2>
+        <div class="grid two">
+          <div><span class="label">Requests</span><strong>succeeded {_esc(counts.get('succeeded') or 0)} / failed {_esc(counts.get('failed') or 0)}</strong></div>
+          <div><span class="label">Total observed</span><strong>{_esc(counts.get('total') or 0)}</strong></div>
+          <div><span class="label">Forward latency</span><strong>forward avg {_fmt_num(forward.get('avg'), 2)}s · p95 {_fmt_num(forward.get('p95'), 2)}s</strong></div>
+          <div><span class="label">Backward latency</span><strong>backward avg {_fmt_num(backward.get('avg'), 2)}s · p95 {_fmt_num(backward.get('p95'), 2)}s</strong></div>
+          <div><span class="label">Models</span><strong>{_esc(models)}</strong></div>
+          <div><span class="label">Block ranges</span><strong>{_esc(block_ranges)}</strong></div>
+          <div><span class="label">Traffic claim</span><strong class="warn">{_esc(claim_copy)}</strong></div>
+          <div><span class="label">Claim boundary</span><code>{_esc(report.get('claim_boundary'))}</code></div>
+        </div>
+        <table>
+          <thead><tr><th>Log</th><th>Error / blocker</th></tr></thead>
+          <tbody>{error_rows or '<tr><td colspan="2">No request errors observed</td></tr>'}</tbody>
+        </table>
+        <p class="muted">{_esc(report.get('next_step') or 'Request telemetry is observability only.')}</p>
+      </section>
+    """
 
 
 def _telemetry_panel(telemetry: dict[str, Any]) -> str:
@@ -661,6 +702,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_proof_state_panel(document.get('proof_state'))}
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_chain_schedule_panel(document.get('chain_schedule'))}
+    {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
     {_devices_table(document.get('roster') or {})}
@@ -697,6 +739,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--proof-state", default=None, help="Optional JSON from proof_state.py")
     parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
     parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
+    parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
@@ -716,6 +759,7 @@ def main(argv: list[str] | None = None) -> int:
             proof_state_path=args.proof_state,
             joined_layer_plan_path=args.joined_layer_plan,
             chain_schedule_path=args.chain_schedule,
+            request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
             synthetic_total_gb=args.synthetic_total_gb,

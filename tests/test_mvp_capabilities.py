@@ -273,9 +273,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 70
-    assert report["overall_bar"] == "██████████████░░░░░░ 70%"
-    assert report["remaining_percent"] == 30
+    assert report["overall_percent"] == 71
+    assert report["overall_bar"] == "██████████████░░░░░░ 71%"
+    assert report["remaining_percent"] == 29
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -285,7 +285,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████░░░░░░ 70%" in text
+    assert "██████████████░░░░░░ 71%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -303,8 +303,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 70
-    assert payload["overall_bar"].endswith("70%")
+    assert payload["overall_percent"] == 71
+    assert payload["overall_bar"].endswith("71%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
@@ -442,6 +442,66 @@ def test_multi_block_proof_verifier_blocks_missing_server_rpc():
 
     assert result["status"] == "failed"
     assert any("server 1 did not record rpc evidence" in item for item in result["failed_checks"])
+
+
+def test_request_telemetry_parses_direct_client_results_and_errors(tmp_path: Path):
+    from mvp_capabilities.request_telemetry import build_request_telemetry
+
+    success_log = tmp_path / "direct-success.log"
+    success_log.write_text(
+        "[direct] model=Qwen/Qwen3-8B\n"
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0.08, "backward_seconds": 0.20, "outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+    failure_log = tmp_path / "direct-failure.log"
+    failure_log.write_text(
+        "[direct] model=Qwen/Qwen3-8B\n"
+        "Traceback (most recent call last):\n"
+        "RuntimeError: DHT bootstrap failed before RPC\n",
+        encoding="utf-8",
+    )
+
+    report = build_request_telemetry([success_log, failure_log])
+
+    assert report["claim_boundary"] == "request_telemetry_observability_only_no_load_proof"
+    assert report["live_requests_seen"] is True
+    assert report["load_proof_claimed"] is False
+    assert report["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
+    assert report["models"] == {"Qwen/Qwen3-8B": 1}
+    assert report["block_ranges"] == {"0:1": 1}
+    assert report["latency_seconds"]["forward"]["avg"] == 0.08
+    assert report["latency_seconds"]["backward"]["max"] == 0.2
+    assert report["errors"][0]["message"] == "RuntimeError: DHT bootstrap failed before RPC"
+
+
+def test_request_telemetry_cli_outputs_json(tmp_path: Path):
+    log = tmp_path / "direct.log"
+    log.write_text(
+        '[direct] RESULT: {"ok": true, "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0", '
+        '"block_range": [0, 2], "forward_seconds": 1.5, "backward_seconds": 2.5, '
+        '"outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/request_telemetry.py",
+            "--request-log",
+            str(log),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["request_counts"]["succeeded"] == 1
+    assert payload["latency_seconds"]["forward"]["max"] == 1.5
 
 
 def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):

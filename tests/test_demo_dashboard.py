@@ -190,6 +190,16 @@ def _write_chain_schedule(path: Path) -> None:
     )
 
 
+def _write_request_log(path: Path) -> None:
+    path.write_text(
+        "[direct] model=Qwen/Qwen3-8B\n"
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0.08, "backward_seconds": 0.20, "outputs_finite": true, "grad_finite": true}\n'
+        "RuntimeError: DHT bootstrap failed before RPC\n",
+        encoding="utf-8",
+    )
+
+
 def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path: Path):
     from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
 
@@ -208,6 +218,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_joined_layer_plan(joined_layer_plan)
     chain_schedule = tmp_path / "chain-schedule.json"
     _write_chain_schedule(chain_schedule)
+    request_log = tmp_path / "direct-client.log"
+    _write_request_log(request_log)
 
     doc = build_dashboard_document(
         cap_dirs=[cap_dir],
@@ -216,6 +228,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         proof_state_path=proof_state,
         joined_layer_plan_path=joined_layer_plan,
         chain_schedule_path=chain_schedule,
+        request_logs=[request_log],
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
         synthetic_free_gb=20,
@@ -230,7 +243,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 70
+    assert doc["mvp_status"]["overall_percent"] == 71
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert doc["proof_state"]["download_status"] == "complete"
     assert doc["proof_state"]["inference_proven"] is False
@@ -238,11 +251,13 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["joined_layer_plan"]["active_peer_count"] == 2
     assert doc["chain_schedule"]["scheduler_status"] == "ready_to_rehearse_no_live_requests"
     assert doc["chain_schedule"]["peer_health"]["joined-peer-b"]["utilization_fraction"] == 0.83
+    assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
+    assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "██████████████░░░░░░ 70%" in html
+    assert "██████████████░░░░░░ 71%" in html
     assert "Qwen3-8B multi-block or full-generation proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Live proof-prep state" in html
@@ -269,6 +284,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "ready_to_rehearse_no_live_requests" in html
     assert "req-000, req-001" in html
     assert "planned_no_live_traffic" in html
+    assert "Live request telemetry" in html
+    assert "request_telemetry_observability_only_no_load_proof" in html
+    assert "succeeded 1 / failed 1" in html
+    assert "forward avg 0.08s" in html
+    assert "DHT bootstrap failed before RPC" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
@@ -326,7 +346,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "██████████████░░░░░░ 70%" in text
+    assert "██████████████░░░░░░ 71%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text

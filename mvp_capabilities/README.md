@@ -38,8 +38,9 @@ BloomBee's runtime already maintains.
 | 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
 | 13. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
-| 14. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 15. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 14. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
+| 15. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 16. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layer 6 says *how much of the plan is built*. Layer 7 says *what each model actually achieves on this hardware*.
 
@@ -172,9 +173,15 @@ python mvp_capabilities/demo_dashboard.py \
   --proof-state .local/proof-state.json \
   --joined-layer-plan .local/joined-layer-plan.json \
   --chain-schedule .local/chain-schedule.json \
+  --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
   --watch-seconds 2
+
+#    Summarize direct-client request logs for the dashboard/request panel.
+#    This is observability only, not a multi-request load proof.
+python mvp_capabilities/request_telemetry.py \
+  --request-log .local/direct-client.log
 
 # Optional: add a clearly-labelled synthetic planning panel, not for live demos.
 python mvp_capabilities/demo_dashboard.py \
@@ -199,13 +206,13 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████████░░░░░░ 70%` built from the plan, with claim boundary
+  `██████████████░░░░░░ 71%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
-  request latency/error telemetry is still a future proof gate.
+  request telemetry parsing/dashboarding exists; dedicated multi-request load proof is still a future proof gate.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
   Qwen3-8B server/client commands and verifies captured logs before allowing the
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is
@@ -254,7 +261,8 @@ As of the current implementation slice:
   It does not generate/decode QR artifacts and does not replace the visual grid.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans,
-  chain-scheduler rehearsals, and milestone table beside routes/evidence.
+  chain-scheduler rehearsals, request telemetry, and milestone table beside
+  routes/evidence.
 - Proof-state observability (`proof_state.py`) parses retained status/log/cache
   facts from long-running proof prep, distinguishes complete snapshots from stale
   `.incomplete` leftovers, emits ETA fields, and feeds the dashboard without
