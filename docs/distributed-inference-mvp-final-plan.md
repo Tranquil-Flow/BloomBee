@@ -120,10 +120,11 @@ Already proven:
   metadata and pending proof: Instruct-2507 and Thinking-2507.
 - Join-flow foundation exists: shareable join-link offers, token-scoped heartbeat
   state, active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`,
-  `/active`, `/route`, and `/plan` endpoints, proof-aware auto model selection
-  for `/plan?model=auto`, physical-device `join_client.py` heartbeat posting,
-  SVG join-card rendering, QR scanner dependency preflight, and explicit
-  no-inference-proof claim boundaries. SVG visual-grid scanner interoperability
+  `/active`, `/route`, `/plan`, and `/handoff` endpoints, proof-aware auto model
+  selection for `/plan?model=auto`, no-server-start operator handoff bundles with
+  launch plans plus proof-runbook placeholders, physical-device `join_client.py`
+  heartbeat posting, SVG join-card rendering, QR scanner dependency preflight,
+  and explicit no-inference-proof claim boundaries. SVG visual-grid scanner interoperability
   remains unproven until a generated artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server

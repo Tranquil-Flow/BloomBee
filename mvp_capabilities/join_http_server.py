@@ -17,6 +17,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 try:
+    from mvp_capabilities.cache_generation_proof import build_cache_generation_plan
+    from mvp_capabilities.full_generation_proof import build_full_generation_plan
     from mvp_capabilities.join_coordinator import (
         DEFAULT_STATE_DIR,
         create_join_offer,
@@ -24,9 +26,13 @@ try:
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.multi_block_proof import build_multi_block_plan
+    from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from mvp_capabilities.cache_generation_proof import build_cache_generation_plan
+    from mvp_capabilities.full_generation_proof import build_full_generation_plan
     from mvp_capabilities.join_coordinator import (
         DEFAULT_STATE_DIR,
         create_join_offer,
@@ -34,6 +40,8 @@ except ModuleNotFoundError:  # direct script execution
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.multi_block_proof import build_multi_block_plan
+    from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
@@ -41,6 +49,8 @@ ERROR_CLAIM_BOUNDARY = "coordinator_error_no_inference_proof"
 PLAN_SOURCE = "coordinator_http_plan_endpoint"
 ROUTE_SOURCE = "coordinator_http_route_endpoint"
 ROUTE_CLAIM_BOUNDARY = "coordinator_route_only_no_inference_proof"
+HANDOFF_SOURCE = "coordinator_http_handoff_endpoint"
+HANDOFF_CLAIM_BOUNDARY = "coordinator_handoff_bundle_only_no_server_started"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -70,6 +80,151 @@ def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]
         if model.get("model_id") == model_id:
             return model
     return None
+
+
+def _parse_block_range_value(block_range: str) -> tuple[int, int]:
+    start_raw, separator, end_raw = block_range.partition(":")
+    if separator != ":":
+        raise ValueError(f"invalid block range: {block_range}")
+    start = int(start_raw)
+    end = int(end_raw)
+    if end <= start:
+        raise ValueError(f"invalid block range: {block_range}")
+    return start, end
+
+
+def _assignment_block_ranges(plan: dict[str, Any]) -> list[str]:
+    placement = plan.get("placement") or {}
+    ranges: list[str] = []
+    for assignment in placement.get("assignments") or []:
+        if not isinstance(assignment, dict):
+            continue
+        block_range = assignment.get("block_range")
+        if isinstance(block_range, str) and block_range:
+            ranges.append(block_range)
+    return ranges
+
+
+def _combined_assignment_range(block_ranges: list[str]) -> str:
+    parsed = sorted(_parse_block_range_value(item) for item in block_ranges)
+    if not parsed:
+        raise ValueError("no block ranges available")
+    cursor = parsed[0][0]
+    for start, end in parsed:
+        if start != cursor:
+            raise ValueError(f"block ranges must be contiguous: {block_ranges!r}")
+        cursor = end
+    return f"{parsed[0][0]}:{cursor}"
+
+
+def _server_maddr_placeholders(count: int) -> list[str]:
+    return [f"<PASTE_SERVER_{index}_MULTIADDR>" for index in range(count)]
+
+
+def _server_placement_strings(plan: dict[str, Any]) -> list[str]:
+    placement = plan.get("placement") or {}
+    values: list[str] = []
+    for assignment in placement.get("assignments") or []:
+        if not isinstance(assignment, dict):
+            continue
+        hostname = assignment.get("hostname")
+        block_range = assignment.get("block_range")
+        if hostname and block_range:
+            values.append(f"{hostname}={block_range}")
+    return values
+
+
+def _assignment_ports(plan: dict[str, Any]) -> list[int]:
+    placement = plan.get("placement") or {}
+    ports: list[int] = []
+    for assignment in placement.get("assignments") or []:
+        if not isinstance(assignment, dict):
+            continue
+        port = assignment.get("port")
+        if isinstance(port, int):
+            ports.append(port)
+    return ports
+
+
+def _unavailable_runbook(proof_gate: str, reason: str) -> dict[str, Any]:
+    return {
+        "proof_gate": proof_gate,
+        "status": "unavailable",
+        "reason": reason,
+        "inference_proven": False,
+        "can_update_proof_status": False,
+    }
+
+
+def _build_handoff_proof_runbooks(
+    *,
+    plan: dict[str, Any],
+    model: dict[str, Any],
+    registry_models: list[dict[str, Any]],
+    request_count: int,
+    prompt: str,
+    max_new_tokens: int,
+) -> dict[str, Any]:
+    model_id = str(plan.get("model_id") or model.get("model_id") or "")
+    block_ranges = _assignment_block_ranges(plan)
+    server_maddrs = _server_maddr_placeholders(len(block_ranges))
+    server_placements = _server_placement_strings(plan)
+    proof_runbooks: dict[str, Any] = {}
+
+    if len(block_ranges) >= 2:
+        try:
+            ports = _assignment_ports(plan)
+            proof_runbooks["multi_block"] = build_multi_block_plan(
+                model_id,
+                registry=registry_models,
+                block_ranges=block_ranges,
+                ports=ports or None,
+                server_log_prefix=f".local/{model_id.replace('/', '--')}-multi-block-server",
+                client_log=f".local/{model_id.replace('/', '--')}-multi-block-client.log",
+            )
+        except ValueError as exc:
+            proof_runbooks["multi_block"] = _unavailable_runbook("multi_block", str(exc))
+    else:
+        proof_runbooks["multi_block"] = _unavailable_runbook("multi_block", "multi_block proof requires at least two assigned block ranges")
+
+    if server_maddrs:
+        proof_runbooks["full_generation"] = build_full_generation_plan(
+            model_id=model_id,
+            server_maddrs=server_maddrs,
+            server_placements=server_placements,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+            evidence_path=f".local/{model_id.replace('/', '--')}-full-generation.json",
+        )
+        proof_runbooks["cache_generation"] = build_cache_generation_plan(
+            model_id=model_id,
+            server_maddrs=server_maddrs,
+            server_placements=server_placements,
+            prompt=prompt,
+            max_new_tokens=max_new_tokens,
+            evidence_path=f".local/{model_id.replace('/', '--')}-cache-generation.json",
+        )
+    else:
+        proof_runbooks["full_generation"] = _unavailable_runbook("full_generation", "no assigned server ranges available")
+        proof_runbooks["cache_generation"] = _unavailable_runbook("cache_generation", "no assigned server ranges available")
+
+    hidden_dim = int(model.get("hidden_size") or 0)
+    if server_maddrs and block_ranges and hidden_dim > 0:
+        try:
+            proof_runbooks["multi_request_load"] = build_multi_request_load_plan(
+                model_id=model_id,
+                block_range=_combined_assignment_range(block_ranges),
+                server_maddrs=server_maddrs,
+                request_count=request_count,
+                hidden_dim=hidden_dim,
+                client_log_prefix=f".local/{model_id.replace('/', '--')}-load-client",
+            )
+        except ValueError as exc:
+            proof_runbooks["multi_request_load"] = _unavailable_runbook("multi_request_load", str(exc))
+    else:
+        proof_runbooks["multi_request_load"] = _unavailable_runbook("multi_request_load", "requires assigned ranges, server multiaddrs, and model hidden_size")
+
+    return proof_runbooks
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -191,6 +346,79 @@ def _handle_plan(
     return 200, payload
 
 
+def _handle_handoff(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    coordinator: str,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    token = _first(query, "token")
+    if not token:
+        return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    registry_models = load_registry(registry)
+    offer = create_join_offer(
+        coordinator=_first(query, "coordinator", coordinator) or coordinator,
+        token=token,
+        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        now=_as_int(_first(query, "now"), 0) or None,
+    )
+    active = {
+        "token": token,
+        "active_peers": _active_for_query(query, state_dir=state_dir, token=token),
+        "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+    }
+
+    plan_query = {key: list(value) for key, value in query.items()}
+    plan_query.setdefault("model", ["auto"])
+    plan_query.setdefault("include_launch_commands", ["1"])
+    plan_query.setdefault("include_launch_readiness", ["1"])
+    plan_status, plan = _handle_plan(plan_query, state_dir=state_dir, registry=registry)
+    if plan_status != 200:
+        return plan_status, plan
+
+    model_id = str(plan.get("model_id") or "")
+    model = _find_model(registry_models, model_id)
+    if model is None:
+        return 404, {"error": f"model not found: {model_id}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    proof_runbooks = _build_handoff_proof_runbooks(
+        plan=plan,
+        model=model,
+        registry_models=registry_models,
+        request_count=_as_int(_first(query, "request_count"), 3),
+        prompt=_first(query, "prompt", "The moon is") or "The moon is",
+        max_new_tokens=_as_int(_first(query, "max_new_tokens"), 4),
+    )
+    route_decision = plan.get("route_decision")
+    if not isinstance(route_decision, dict):
+        route_query = {key: list(value) for key, value in query.items()}
+        route_query["model"] = [model_id]
+        route_status, route_payload = _route_from_query(route_query, state_dir=state_dir, registry=registry)
+        route_decision = route_payload if route_status == 200 else {"status": "unavailable", "error": route_payload.get("error")}
+
+    return 200, {
+        "claim_boundary": HANDOFF_CLAIM_BOUNDARY,
+        "source": HANDOFF_SOURCE,
+        "token": token,
+        "offer": offer,
+        "active": active,
+        "route_decision": route_decision,
+        "plan": plan,
+        "proof_runbooks": proof_runbooks,
+        "operator_next_steps": [
+            "share offer.join_url or join card with devices",
+            "wait for active.active_peers to match physical devices",
+            "run plan.placement.assignments launch_command values manually on assigned hosts",
+            "replace <SEED_MULTIADDR_FROM_...> / <PASTE_SERVER_..._MULTIADDR> placeholders with captured server multiaddrs",
+            "run the proof_runbooks commands and only update proof status after verify mode passes",
+        ],
+        "inference_proven": False,
+        "can_update_proof_status": False,
+    }
+
+
 def handle_get(
     path: str,
     *,
@@ -222,6 +450,8 @@ def handle_get(
         return _route_from_query(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/plan":
         return _handle_plan(query, state_dir=state_dir, registry=registry)
+    if parsed.path == "/handoff":
+        return _handle_handoff(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
@@ -332,6 +562,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "listening": f"http://{args.host}:{args.port}",
+                "handoff_endpoint": "/handoff",
                 "plan_endpoint": "/plan",
                 "registry": str(Path(args.registry).expanduser()),
                 "state_dir": str(Path(args.state_dir).expanduser()),

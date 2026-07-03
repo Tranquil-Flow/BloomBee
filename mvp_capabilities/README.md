@@ -35,7 +35,7 @@ BloomBee's runtime already maintains.
 | 8. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
 | 9. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 10. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / SVG join card / QR preflight report |
+| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan/handoff endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / operator handoff bundle / SVG join card / QR preflight report |
 | 12. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 13. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 14. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
@@ -303,11 +303,13 @@ As of the current implementation slice:
 - Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
   `bloombee://join?...` offers and token-scoped active heartbeat rosters.
   `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, `/active`,
-  `/route`, and `/plan` HTTP endpoints with explicit `no_inference_proof` claim
-  boundaries. `/route` returns proof-aware model selection for current
-  heartbeats; `/plan?model=auto` folds that selection into a joined layer plan
-  without shared filesystem access. In the Hermes sandbox, dispatch functions
-  are verified without binding a port because socket bind is blocked.
+  `/route`, `/plan`, and `/handoff` HTTP endpoints with explicit
+  `no_inference_proof` / no-server-start claim boundaries. `/route` returns
+  proof-aware model selection for current heartbeats; `/plan?model=auto` folds
+  that selection into a joined layer plan without shared filesystem access;
+  `/handoff` bundles offer, active roster, route, launch plan, and proof harness
+  placeholders for demo operators. In the Hermes sandbox, dispatch functions are
+  verified without binding a port because socket bind is blocked.
 - Physical-device join client (`join_client.py`) exists: it parses a
   `bloombee://join?...` offer, loads peer-scan capabilities, and posts a
   heartbeat to the coordinator. Dry-run mode prints the exact request without

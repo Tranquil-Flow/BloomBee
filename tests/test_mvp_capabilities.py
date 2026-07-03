@@ -1769,6 +1769,65 @@ models:
     assert plan["inference_proven"] is False
 
 
+def test_join_http_server_handoff_endpoint_bundles_operator_runbook(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: test/Tiny
+    params_b: 1
+    num_layers: 2
+    hidden_size: 64
+    recommended_min_free_mem_gb: 4
+  - model_id: test/Bigger
+    params_b: 3
+    num_layers: 6
+    hidden_size: 128
+    recommended_min_free_mem_gb: 12
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    for peer in ("peer-a", "peer-b"):
+        body = json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": peer,
+                "capabilities": {"hostname": peer, "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8")
+        status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+        assert status == 200
+
+    status, handoff = handle_get(
+        "/handoff?token=moon-token&model=auto&now=110&max_age_seconds=60&selector_mode=planning&base_port=41000&request_count=2",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert handoff["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
+    assert handoff["source"] == "coordinator_http_handoff_endpoint"
+    assert handoff["offer"]["claim_boundary"] == "link_offer_only_no_inference_proof"
+    assert handoff["active"]["claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
+    assert handoff["route_decision"]["picked"]["model_id"] == "test/Bigger"
+    assert handoff["plan"]["model_id"] == "test/Bigger"
+    assert handoff["plan"]["launch_readiness"]["ready_to_start"] is False
+    assert handoff["plan"]["placement"]["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS=")
+    assert handoff["proof_runbooks"]["multi_block"]["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
+    assert handoff["proof_runbooks"]["full_generation"]["claim_boundary"] == "full_generation_proof_harness_only_no_live_generation"
+    assert handoff["proof_runbooks"]["cache_generation"]["claim_boundary"] == "cache_generation_proof_harness_only_no_live_generation"
+    assert handoff["proof_runbooks"]["multi_request_load"]["claim_boundary"] == "multi_request_load_harness_only_no_live_traffic"
+    assert handoff["proof_runbooks"]["multi_request_load"]["request_count"] == 2
+    assert handoff["proof_runbooks"]["multi_request_load"]["hidden_dim"] == 128
+    assert handoff["inference_proven"] is False
+    assert handoff["can_update_proof_status"] is False
+
+
 def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: Path):
     from mvp_capabilities.join_coordinator import record_heartbeat
     from mvp_capabilities.join_layer_plan import build_join_layer_plan

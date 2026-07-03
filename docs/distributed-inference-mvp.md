@@ -145,10 +145,12 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   safe-demo candidates until full distributed generation passes.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
-  exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, and `/plan`
-  endpoints using Python stdlib HTTP. `/route` returns proof-aware dynamic model
-  selection for current heartbeats; `/plan?model=auto` folds that selection into
-  a no-execution joined layer plan without requiring shared filesystem access.
+  exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`, and
+  `/handoff` endpoints using Python stdlib HTTP. `/route` returns proof-aware
+  dynamic model selection for current heartbeats; `/plan?model=auto` folds that
+  selection into a no-execution joined layer plan without requiring shared
+  filesystem access; `/handoff` bundles offer, active roster, auto route, launch
+  plan, and proof harness runbooks without starting servers.
   `mvp_capabilities/join_client.py` lets physical devices
   parse a join URL and post their peer-scan heartbeat. `mvp_capabilities/join_card.py`
   renders an SVG join card with exact URL metadata and scanner interop explicitly
