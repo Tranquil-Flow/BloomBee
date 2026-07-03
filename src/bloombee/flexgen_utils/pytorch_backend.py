@@ -1125,15 +1125,19 @@ class TorchDisk:
 
         self.links = {}
 
-        # # Copy threads
-        self.copy_queue = queue.Queue()
-        self.copy_threads = [
-            threading.Thread(
-                target=copy_worker_func, args=(self.copy_queue, cuda_id)
-            ) for _ in range(num_copy_threads)
-        ]
-        for t in self.copy_threads:
-            t.start()
+        # Copy threads are CUDA-only. On CPU/MPS-only builds, torch.cuda.set_device
+        # raises from worker threads and pollutes real server logs even though disk
+        # copies can be performed synchronously.
+        self.copy_queue = queue.Queue() if torch.cuda.is_available() else None
+        self.copy_threads = []
+        if self.copy_queue is not None:
+            self.copy_threads = [
+                threading.Thread(
+                    target=copy_worker_func, args=(self.copy_queue, cuda_id)
+                ) for _ in range(num_copy_threads)
+            ]
+            for t in self.copy_threads:
+                t.start()
 
         global global_disk_device
         global_disk_device = self
@@ -1160,12 +1164,21 @@ class TorchDisk:
         return k_cache, v_cache
 
     def submit_copy(self, *args):
+        if self.copy_queue is None:
+            dst, dst_indices, src, src_indices = args
+            src_data = map_to_torch_tensor(src, src_indices)
+            dst_data = map_to_torch_tensor(dst, dst_indices)
+            dst_data.copy_(src_data)
+            return
         self.copy_queue.put_nowait(args)
 
     def synchronize(self):
-        self.copy_queue.join()
+        if self.copy_queue is not None:
+            self.copy_queue.join()
 
     def close_copy_threads(self):
+        if self.copy_queue is None:
+            return
         for _ in range(len(self.copy_threads)):
             self.copy_queue.put_nowait(None)
         for t in self.copy_threads:

@@ -238,7 +238,7 @@ ssh m4pro 'cd ~/Projects/distributed-inference-mvp && source .venv/bin/activate 
 
 If `~/.bloombee/capabilities` is unavailable in a sandboxed session, use the
 repo-local `.local/capabilities/` directory populated by fresh scans. Generate a
-self-contained dashboard snapshot:
+self-contained dashboard snapshot for real connected peers only:
 
 ```bash
 cd ~/Projects/distributed-inference-mvp
@@ -278,7 +278,30 @@ python mvp_capabilities/demo_dashboard.py \
 
 The dashboard labels
 unbenchmarked route choices as `unmeasured`, not `0 tok/s`, so fit-only routes do
-not masquerade as throughput evidence.
+not masquerade as throughput evidence. It also renders a **Layer placement**
+section from `server_placements` metadata in proof JSON, e.g. `m4pro-seed`
+serving layers `0:8`, `m4pro-mid` serving `8:15`, and `m4pro-tail` serving
+`15:22`.
+
+Synthetic 10-laptop route planning is opt-in and should not be used as the live
+demo surface:
+
+```bash
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --synthetic-m4-laptops 10 \
+  --out .local/demo-dashboard-planning.html
+```
+
+Real setup status: a physical multi-user/laptop demo is **not self-serve ready**
+yet. Verified today: three live BloomBee server processes on `m4pro` served
+TinyLlama layers `0:8`, `8:15`, and `15:22`, and a direct client call over
+`0:22` layers returned finite output and gradients. Remaining live-demo gates are
+a real laptop join script/installer, automatic layer assignment for connected
+peers, a non-sandbox client path for generate-api parity, and a physical N-laptop
+showcase run.
 
 Phone speculative-decoding analysis lives at
 `docs/phone-speculative-decoding-mvp.md`.

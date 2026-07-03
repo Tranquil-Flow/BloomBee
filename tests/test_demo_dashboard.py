@@ -64,6 +64,11 @@ def _write_evidence(path: Path) -> None:
                 "generated_text_match": True,
                 "next_token_match": True,
                 "distributed_seconds": 4.313,
+                "server_placements": [
+                    {"host": "m4pro-seed", "layers": [0, 8], "server_maddr": "/ip4/192.168.178.37/tcp/31337/p2p/seed"},
+                    {"host": "m4pro-mid", "layers": [8, 15], "server_maddr": "/ip4/192.168.178.37/tcp/31338/p2p/mid"},
+                    {"host": "m4pro-tail", "layers": [15, 22], "server_maddr": "/ip4/192.168.178.37/tcp/31339/p2p/tail"},
+                ],
             }
         ),
         encoding="utf-8",
@@ -98,10 +103,17 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["roster"]["summary"]["peer_count"] == 2
     assert doc["benchmarks"]["m4pro"]["models"]["TinyLlama/TinyLlama-1.1B-Chat-v1.0"]["decode_tok_per_s"] == 17.66
     assert doc["evidence"][0]["generated_text_match"] is True
+    assert doc["layer_placements"][0]["host"] == "m4pro-seed"
+    assert doc["layer_placements"][0]["layers"] == [0, 8]
+    assert doc["layer_placements"][2]["host"] == "m4pro-tail"
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "unmeasured" in html
+    assert "Layer placement" in html
+    assert "m4pro-seed" in html
+    assert "layers 0:8" in html
+    assert "m4pro-tail" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
@@ -147,6 +159,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "auto-refreshes every 10 seconds" in text
+    assert "Synthetic 10-laptop target route" not in text
 
 
 def test_phone_speculative_decoding_mvp_analysis_sets_honest_claim_boundaries():

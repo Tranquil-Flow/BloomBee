@@ -1,0 +1,59 @@
+{
+  "backward_seconds": 0.26585912704467773,
+  "block_range": [
+    0,
+    22
+  ],
+  "client_location": "m4pro proof client against three live server processes",
+  "forward_seconds": 0.5287899971008301,
+  "grad_finite": true,
+  "grad_norm": 147.82151794433594,
+  "input_shape": [
+    1,
+    5,
+    2048
+  ],
+  "mode": "direct-remote-call",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "ok": true,
+  "output_shape": [
+    1,
+    5,
+    2048
+  ],
+  "outputs_finite": true,
+  "outputs_unique": 6183.0,
+  "proof_host": "m4pro",
+  "raw_log": "/tmp/direct_layer_placement_proof.log",
+  "server_maddrs": [
+    "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWF3g2zDrGw272x7rtTUXwth13P7CNgbb4WEcQkUhy88yH",
+    "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWEfk8QywJTab24hKEzuX3D6PyxLwftcMwZod2UF9By1MM",
+    "/ip4/192.168.178.37/tcp/31339/p2p/12D3KooWDHgVnSVfcL5UjtQNt6ofk3x7XNe3ffqpFabSQAkCmzpw"
+  ],
+  "server_placements": [
+    {
+      "host": "m4pro-seed",
+      "layers": [
+        0,
+        8
+      ],
+      "server_maddr": "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWF3g2zDrGw272x7rtTUXwth13P7CNgbb4WEcQkUhy88yH"
+    },
+    {
+      "host": "m4pro-mid",
+      "layers": [
+        8,
+        15
+      ],
+      "server_maddr": "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWEfk8QywJTab24hKEzuX3D6PyxLwftcMwZod2UF9By1MM"
+    },
+    {
+      "host": "m4pro-tail",
+      "layers": [
+        15,
+        22
+      ],
+      "server_maddr": "/ip4/192.168.178.37/tcp/31339/p2p/12D3KooWDHgVnSVfcL5UjtQNt6ofk3x7XNe3ffqpFabSQAkCmzpw"
+    }
+  ]
+}

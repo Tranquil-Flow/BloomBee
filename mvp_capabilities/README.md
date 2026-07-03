@@ -67,7 +67,7 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 7. Generate the local demo dashboard.
+# 7. Generate the local real-demo dashboard (real connected peers only).
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -75,6 +75,14 @@ python mvp_capabilities/demo_dashboard.py \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
   --watch-seconds 2
+
+# Optional: add a clearly-labelled synthetic planning panel, not for live demos.
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --synthetic-m4-laptops 10 \
+  --out .local/demo-dashboard-planning.html
 
 # 8. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
@@ -98,8 +106,14 @@ As of the current implementation slice:
 - Real two-device roster route currently picks `google/gemma-2-9b-it` as a solo M4 Pro route when M4 Pro has enough free memory.
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
-  dark HTML dashboard with connected devices, route cards, measured throughput,
-  inference evidence, live telemetry counters, and claim boundaries.
+  dark HTML dashboard with connected devices, real-swarm route cards, measured
+  throughput, inference evidence, real layer-placement metadata, live telemetry
+  counters, and claim boundaries. Synthetic 10-laptop planning is hidden by
+  default and appears only with `--synthetic-m4-laptops`.
+- Real layer-placement proof (2026-07-03): three live BloomBee server processes
+  on `m4pro` served TinyLlama layers `0:8`, `8:15`, and `15:22`; a direct client
+  call over all `0:22` layers returned finite outputs and gradients
+  (`forward_seconds=0.529`, `backward_seconds=0.266`, `grad_finite=true`).
 - TinyLlama distributed inference has been verified through two-server,
   two-laptop, three-peer, forward-loop text parity, and cached `.generate()`
   parity evidence, including S2S-enabled cached generation with direct fallback

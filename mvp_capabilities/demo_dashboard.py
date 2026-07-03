@@ -117,9 +117,37 @@ def load_evidence(evidence_dir: str | Path = DEFAULT_EVIDENCE_DIR) -> list[dict[
                 "distributed_seconds": payload.get("distributed_seconds"),
                 "reference_seconds": payload.get("reference_seconds"),
                 "server_count": len(payload.get("server_maddrs") or []),
+                "server_placements": payload.get("server_placements") or payload.get("layer_placements") or [],
             }
         )
     return rows
+
+
+def collect_layer_placements(evidence_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collect real server/layer ownership metadata from proof evidence."""
+    placements: list[dict[str, Any]] = []
+    for row in evidence_rows:
+        for raw in row.get("server_placements") or []:
+            if not isinstance(raw, dict):
+                continue
+            layers = raw.get("layers")
+            if not (
+                isinstance(layers, list)
+                and len(layers) == 2
+                and all(isinstance(item, int) for item in layers)
+                and layers[1] > layers[0]
+            ):
+                continue
+            placements.append(
+                {
+                    "host": raw.get("host") or raw.get("hostname") or "unknown",
+                    "layers": layers,
+                    "model": row.get("model"),
+                    "evidence_file": row.get("file"),
+                    "server_maddr": raw.get("server_maddr") or raw.get("maddr"),
+                }
+            )
+    return sorted(placements, key=lambda item: (item.get("model") or "", item["layers"][0], item.get("host") or ""))
 
 
 def _parse_keyvals(line: str) -> dict[str, str]:
@@ -166,7 +194,7 @@ def build_dashboard_document(
     bench_matrix_path: str | Path | None = None,
     evidence_dir: str | Path = DEFAULT_EVIDENCE_DIR,
     telemetry_logs: Iterable[str | Path] | None = None,
-    synthetic_m4_laptops: int = 10,
+    synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
     synthetic_free_gb: float = 20.0,
 ) -> dict[str, Any]:
@@ -175,18 +203,29 @@ def build_dashboard_document(
     registry = load_registry(registry_path)
     bench_matrix = _read_json(bench_matrix_path, {})
     real_route = explain_route(real_peers, registry, bench_matrix=bench_matrix)
-    synthetic_route = explain_route(
-        make_synthetic_m4_laptops(
-            count=synthetic_m4_laptops,
-            total_gb=synthetic_total_gb,
-            free_gb=synthetic_free_gb,
-        ),
-        registry,
-        scenario="mvp-10-laptop",
-        bench_matrix=bench_matrix,
-    )
+    synthetic_route = None
+    if synthetic_m4_laptops > 0:
+        synthetic_route = explain_route(
+            make_synthetic_m4_laptops(
+                count=synthetic_m4_laptops,
+                total_gb=synthetic_total_gb,
+                free_gb=synthetic_free_gb,
+            ),
+            registry,
+            scenario="mvp-10-laptop",
+            bench_matrix=bench_matrix,
+        )
     evidence = load_evidence(evidence_dir)
+    layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
+    claim_boundaries = [
+        "TinyLlama distributed generation parity is proven by committed evidence.",
+        "Qwen3-30B-A3B is proven for one live MoE block shard, not full distributed generation yet.",
+        "Physical 10-laptop Qwen3 inference is not proven until real peers connect and run the proof harness.",
+        "Phones are capability-discovery peers until throughput and block-serving proof exist.",
+    ]
+    if synthetic_route:
+        claim_boundaries.insert(2, "Synthetic 10-laptop routing is planning only; it is hidden in real-demo mode unless explicitly requested.")
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "roster": roster_document(real_peers),
@@ -194,14 +233,10 @@ def build_dashboard_document(
         "synthetic_10_laptop_route": synthetic_route,
         "benchmarks": bench_matrix,
         "evidence": evidence,
+        "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
-        "claim_boundaries": [
-            "TinyLlama distributed generation parity is proven by committed evidence.",
-            "Qwen3-30B-A3B is proven for one live MoE block shard, not full distributed generation yet.",
-            "10-laptop Qwen3 routing is synthetic planning until physical hardware runs.",
-            "Phones are capability-discovery peers until throughput and block-serving proof exist.",
-        ],
+        "claim_boundaries": claim_boundaries,
     }
 
 
@@ -304,6 +339,31 @@ def _evidence_table(evidence: list[dict[str, Any]]) -> str:
     """.format(rows="\n".join(rows) or '<tr><td colspan="7">No evidence JSON found</td></tr>')
 
 
+def _layer_placement_table(placements: list[dict[str, Any]]) -> str:
+    rows = []
+    for item in placements:
+        start, end = item.get("layers", [None, None])
+        rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('host'))}</td>"
+            f"<td><strong>layers {start}:{end}</strong></td>"
+            f"<td>{_esc(item.get('model') or '—')}</td>"
+            f"<td>{_esc(item.get('evidence_file') or '—')}</td>"
+            f"<td><code>{_esc(item.get('server_maddr') or '—')}</code></td>"
+            "</tr>"
+        )
+    return """
+      <section class="card wide">
+        <h2>Layer placement</h2>
+        <p class="muted">Real server/layer ownership from proof metadata; no synthetic peers are shown unless explicitly requested.</p>
+        <table>
+          <thead><tr><th>Device / server</th><th>Transformer layers</th><th>Model</th><th>Evidence</th><th>Multiaddr</th></tr></thead>
+          <tbody>{rows}</tbody>
+        </table>
+      </section>
+    """.format(rows="\n".join(rows) or '<tr><td colspan="5">No layer placement metadata supplied yet. Re-run the parity harness with --server-placement host=start:end.</td></tr>')
+
+
 def _telemetry_panel(telemetry: dict[str, Any]) -> str:
     event_rows = "".join(
         f"<tr><td>{_esc(k)}</td><td>{_esc(v)}</td></tr>"
@@ -343,6 +403,9 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
         else "static snapshot"
     )
     boundaries = "".join(f"<li>{_esc(item)}</li>" for item in document.get("claim_boundaries") or [])
+    synthetic_panel = ""
+    if document.get("synthetic_10_laptop_route"):
+        synthetic_panel = _route_card('Synthetic 10-laptop target route', document.get('synthetic_10_laptop_route') or {})
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -398,8 +461,9 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
   </header>
   <main>
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
-    {_route_card('Synthetic 10-laptop target route', document.get('synthetic_10_laptop_route') or {})}
+    {synthetic_panel}
     {_devices_table(document.get('roster') or {})}
+    {_layer_placement_table(document.get('layer_placements') or [])}
     {_bench_table(document.get('benchmarks') or {})}
     {_evidence_table(document.get('evidence') or [])}
     {_telemetry_panel(document.get('telemetry') or {})}
@@ -430,7 +494,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bench-matrix", default=None, help="JSON from bench_matrix.py")
     parser.add_argument("--evidence-dir", default=str(DEFAULT_EVIDENCE_DIR))
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
-    parser.add_argument("--synthetic-m4-laptops", type=int, default=10)
+    parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
     parser.add_argument("--synthetic-free-gb", type=float, default=20.0)
     parser.add_argument("--refresh-seconds", type=int, default=20, help="HTML meta-refresh interval; use 0 to disable")

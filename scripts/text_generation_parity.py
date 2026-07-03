@@ -62,6 +62,37 @@ def _ids(ids: torch.Tensor) -> list[int]:
     return [int(x) for x in ids.detach().cpu()[0].tolist()]
 
 
+def parse_server_placements(
+    placement_args: list[str] | None,
+    server_maddrs: list[str],
+) -> list[dict[str, Any]]:
+    """Parse host/layer metadata for dashboard evidence.
+
+    Format is one entry per server, in the same order as --server-maddr:
+    ``--server-placement m4pro-seed=0:8``.
+    """
+    if not placement_args:
+        return []
+    if len(placement_args) != len(server_maddrs):
+        raise ValueError("provide one --server-placement per --server-maddr")
+    placements: list[dict[str, Any]] = []
+    for raw, maddr in zip(placement_args, server_maddrs):
+        if "=" not in raw:
+            raise ValueError("server placement must use host=start:end")
+        host, layer_range = raw.split("=", 1)
+        if not host.strip() or ":" not in layer_range:
+            raise ValueError("server placement must use host=start:end")
+        start_text, end_text = layer_range.split(":", 1)
+        try:
+            start, end = int(start_text), int(end_text)
+        except ValueError as exc:
+            raise ValueError("server placement layer range must use integer start:end") from exc
+        if start < 0 or end <= start:
+            raise ValueError("server placement layer range must use increasing start:end")
+        placements.append({"host": host.strip(), "layers": [start, end], "server_maddr": maddr})
+    return placements
+
+
 def _prepare_sandbox_hivemind_runtime() -> None:
     """Apply client-only hivemind fallbacks needed in sandboxed shells.
 
@@ -141,6 +172,8 @@ def main() -> int:
     p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     p.add_argument("--server-maddr", action="append", required=True,
                    help="BloomBee peer multiaddr. Pass once per peer.")
+    p.add_argument("--server-placement", action="append", default=None,
+                   help="Dashboard metadata in host=start:end form; pass once per --server-maddr in the same order.")
     p.add_argument("--prompt", default="The capital of France is")
     p.add_argument("--max-new-tokens", type=int, default=6)
     p.add_argument("--reference-device", default="mps",
@@ -160,6 +193,10 @@ def main() -> int:
     p.add_argument("--allow-mismatch", action="store_true",
                    help="Return 0 even when generated token IDs differ")
     args = p.parse_args()
+    try:
+        server_placements = parse_server_placements(args.server_placement, args.server_maddr)
+    except ValueError as exc:
+        p.error(str(exc))
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     _prepare_sandbox_hivemind_runtime()
@@ -173,6 +210,11 @@ def main() -> int:
     print(f"[parity] bootstrap peers ({len(args.server_maddr)}):")
     for addr in args.server_maddr:
         print(f"[parity]   {addr}")
+    if server_placements:
+        print("[parity] server placements:")
+        for placement in server_placements:
+            start, end = placement["layers"]
+            print(f"[parity]   {placement['host']} layers {start}:{end}")
 
     print("[parity] loading tokenizer...")
     t0 = time.time()
@@ -221,6 +263,7 @@ def main() -> int:
         "prompt": args.prompt,
         "max_new_tokens": args.max_new_tokens,
         "server_maddrs": args.server_maddr,
+        "server_placements": server_placements,
         "reference_device": args.reference_device,
         "reference_dtype": str(args.reference_dtype),
         "distributed_dtype": str(args.distributed_dtype),
