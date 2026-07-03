@@ -140,17 +140,23 @@ Use explicit risk modes:
 | `showcase-attempt` | multi-block or one-block proof plus operator approval | attempt stronger model live |
 | `planning` | memory/fit only | synthetic planning, never user-facing as proof |
 
-### Current candidate ladder
+### Build-ready target ladder
 
-| Tier | Model | Why | Status |
-|---|---|---|---|
-| Proven infra | TinyLlama/TinyLlama-1.1B-Chat-v1.0 | Small, fast, full proof ladder | `demo_safe` for infrastructure, low quality |
-| Strong fallback | Qwen/Qwen3-8B | Good Qwen3 dense quality, moderate memory | wrapper exists, proof needed |
-| Strong fallback | Qwen/Qwen3-14B | Better quality, plausible on M4 Pro / few laptops | wrapper exists, proof needed |
-| Primary dream | Qwen/Qwen3-30B-A3B-Instruct-2507 | Best blend of quality, Apache license, MoE efficiency, swarm story | same family as proven Qwen3-MoE block, checkpoint proof needed |
-| Existing MoE fallback | Qwen/Qwen3-30B-A3B | One-block proof already exists | full generation proof needed |
-| Reasoning stretch | Qwen/Qwen3-30B-A3B-Thinking-2507 | stronger reasoning, longer outputs | proof needed; riskier latency |
-| Post-MVP | Qwen/Qwen3-235B-A22B | flagship quality | requires far more memory / quant/backend work |
+This is the target ladder the coordinator should reason over. Each tier is a
+candidate **only after** its proof gate passes for the selected risk mode.
+
+| Tier | Model / class | Output guarantee | Why | Status / gate |
+|---|---|---|---|---|
+| Infra fallback | `TinyLlama/TinyLlama-1.1B-Chat-v1.0` | exact TinyLlama | small, fast, already proves the distributed runtime | `demo_safe` for infrastructure, low quality |
+| Quality fallback | `Qwen/Qwen3-8B` | exact Qwen3-8B | good dense Qwen3 fallback for small swarms | wrapper exists; proof needed |
+| Strong fallback | `Qwen/Qwen3-14B` | exact Qwen3-14B | better fallback if M4 Pro / few laptops can host it | wrapper exists; proof needed |
+| Core dream | `Qwen/Qwen3-30B-A3B-Instruct-2507` | exact Qwen3-30B verifier output | best practical blend of quality, Apache license, MoE efficiency, and laptop-swarm fit | same family as proven Qwen3-MoE block; checkpoint proof needed |
+| Existing MoE fallback | `Qwen/Qwen3-30B-A3B` | exact Qwen3-30B verifier output | one-block live serving already proven | full generation proof needed |
+| Reasoning stretch | `Qwen/Qwen3-30B-A3B-Thinking-2507` | exact Thinking-2507 verifier output | stronger reasoning but longer/slower outputs | proof needed; cap thinking budget |
+| High-compute exact | `Qwen/Qwen3-235B-A22B-Instruct-2507` | exact Qwen3-235B verifier output | strongest same-family Qwen3-MoE upgrade if huge memory appears | last-stage only; full proof ladder required |
+| Frontier backend experiment | `zai-org/GLM-5.2` / FP8 / quantized variants | exact GLM-5.2 only if GLM-5.2 is verifier | frontier open-weight coding/agentic target | post-core LayerExecutor/quantized-backend path; no native BloomBee wrapper yet |
+| Frontier backend experiment | `deepseek-ai/DeepSeek-V4-Flash` | exact V4 Flash only if V4 Flash is verifier | more plausible DeepSeek V4 target than Pro due to smaller total weights | post-core quantized backend path |
+| Frontier post-MVP | `deepseek-ai/DeepSeek-V4-Pro`, Kimi K2.x, giant Qwen3-Coder MoEs | exact only if those models are verifiers | highest benchmark ceiling | post-MVP unless very large hardware or expert paging exists |
 
 Gemma 3 / 27B-class models may benchmark well and support multimodal input, but
 for this BloomBee MVP they are lower priority unless their exact model family is
@@ -181,20 +187,20 @@ reason to include them in the plan is readiness: if demo day unexpectedly brings
 far more aggregate memory than our current two-laptop testbed, the coordinator
 should know which bigger models are worth attempting and which are blocked.
 
-| Model | Rough fp16/bf16 budget | Why consider it | Current blocker | When to attempt |
+| Model | Rough weight budget | Why consider it | Current blocker | When to attempt |
 |---|---:|---|---|---|
-| `Qwen/Qwen3-235B-A22B-Instruct-2507` | ~560GB+ | strongest same-family Qwen3-MoE upgrade; better benchmark class than 30B | huge memory; not cached/proven | after Qwen3-30B full-generation works and connected swarm has ~29 × 20GB-free laptops or ~12 × 48GB-free laptops |
-| `zai-org/GLM-4.5-Air` / FP8 variant | ~255GB bf16, less if FP8 path works | high-upside MoE reasoning/agent model; MIT; smaller than 235B | no BloomBee `glm4_moe` wrapper; FP8 path not integrated | after core demo works, if swarm has ~260GB free and wrapper investigation looks simple |
-| `zai-org/GLM-4.5` | ~850GB bf16 | stronger GLM-class model | no wrapper; very large | post-MVP unless hardware is abundant |
-| `moonshotai/Kimi-K2-Instruct` / newer Kimi K2.x | ~2.4TB bf16 | frontier open MoE/agentic capability | no wrapper; too large for normal laptop swarm | post-MVP / only with quantized expert paging or huge hardware |
-| DeepSeek V3/V4-class MoE | ~1.6TB bf16 for V3-class | strong coding/reasoning class | no wrapper; MLA/DeepSeekMoE-specific state; huge | post-MVP / backend research |
-| Qwen3-Coder large MoE class | likely ~1TB+ depending checkpoint | best coding-demo story if available | likely huge; wrapper/proof unknown | post-MVP unless quant/backend path exists |
+| `Qwen/Qwen3-235B-A22B-Instruct-2507` | ~560GB+ bf16/fp16 with margin | strongest same-family Qwen3-MoE upgrade; better benchmark class than 30B | huge memory; not cached/proven | after Qwen3-30B full-generation works and connected swarm has ~29 × 20GB-free laptops or ~12 × 48GB-free laptops |
+| `zai-org/GLM-5.2` | ~1.8TB bf16, ~0.9TB FP8, ~0.45TB ideal FP4 floor with margin | frontier open-weight coding/agentic target; 744B total / ~40B active class | no native BloomBee wrapper; needs quantized backend or enormous swarm | after core demo works, via LayerExecutor wrapping vLLM/SGLang/llama.cpp-style backend before native BloomBee block work |
+| `deepseek-ai/DeepSeek-V4-Flash` | ~0.68TB bf16, ~0.34TB FP8, ~0.17TB ideal FP4 floor with margin | most plausible DeepSeek V4 family target; much smaller than Pro | no native wrapper; quantized backend path needed | post-core if quantized weights/backend are stable and hardware is large enough |
+| `deepseek-ai/DeepSeek-V4-Pro` | ~3.8TB bf16, ~1.9TB FP8, ~0.96TB ideal FP4 floor with margin | frontier benchmark ceiling | no native wrapper; huge; special attention/MoE state likely | post-MVP / backend research only |
+| Kimi K2.x / giant Qwen3-Coder MoEs | likely ~1–2.4TB+ depending checkpoint/precision | best long-horizon/agentic/coding ceiling if available | no wrapper; huge; quant/expert-paging required | post-MVP unless hardware pool is far larger than expected |
 
-High-compute rule: these models may appear in the dashboard as `last-stage` or
-`blocked-by-wrapper/memory/proof`, but they must not delay the core live demo.
-If one appears feasible, run the same proof ladder as every other model: prescan,
-one-block server proof, multi-block proof, full distributed generation, then
-load/multi-request proof.
+High-compute rule: these models may appear in the dashboard as `last-stage`,
+`blocked-by-wrapper`, `blocked-by-memory`, or `blocked-by-proof`, but they must
+not delay the core live demo. If one appears feasible, run the same proof ladder
+as every other model. For GLM-5.2 / DeepSeek V4-class models, the first practical
+path is a **LayerExecutor backend** that wraps a proven quantized serving backend
+(vLLM, SGLang, llama.cpp/KTransformers-style), not a native BloomBee block wrapper.
 
 ### Proof ladder for each prepared model
 
@@ -307,17 +313,70 @@ This lets us validate policies before a real 10-device gathering.
 | memory-pressure peer | mark draining; stop new requests; replan if safe |
 | unproven high-quality model fits | show as experimental/blocked, not demo-safe |
 
-## Speculative decoding and phones
+## Speculative decoding, phones, and output guarantees
 
-Speculative decoding is important, but should not block the core join/layer/model
-selection MVP. The best MVP path is:
+Speculative decoding is a speed technique, not a magic quality upgrade. The output
+is exactly equivalent to the **verifier/target** model only when every accepted
+token is checked by that same verifier.
 
-1. Build a verifier loop with exact output parity.
-2. Start with n-gram or cheap multi-token draft provider.
-3. Add dashboard metrics: proposed, accepted, rejected, acceptance rate, wall-clock delta.
-4. Treat Android phones as async draft workers after capability and throughput proof.
-5. Keep iOS as control-plane/async-only for now.
-6. Defer Eagle3 chain-mode unless compatible draft assets are already available.
+```text
+small draft + Qwen3-30B verifier = exact Qwen3-30B output, faster if acceptance is high
+small draft + Qwen3-30B verifier != GLM-5.2 output
+small draft + GLM-5.2 verifier = exact GLM-5.2 output, but GLM-5.2 must actually run
+```
+
+### Exact verifier mode
+
+Use this for demo claims that say "equivalent to model X":
+
+- `verifier_model_id`: the model whose distribution/output is guaranteed.
+- `draft_model_id`: n-gram, Qwen3 small dense, phone model, EAGLE/Medusa/MTP head,
+  or another cheap proposal source.
+- Every accepted token is validated by the verifier.
+- Dashboard shows proposed tokens, accepted tokens, rejected tokens, acceptance
+  rate, verifier latency, draft latency, wall-clock speedup, and exact guarantee.
+
+MVP exact target:
+
+```text
+verifier: Qwen/Qwen3-30B-A3B-Instruct-2507 or Qwen/Qwen3-30B-A3B
+draft: n-gram, Qwen3-1.7B/4B/8B, or Android phone draft provider after proof
+guarantee: exact verifier-equivalent output
+```
+
+High-compute exact targets after the core demo works:
+
+```text
+verifier: Qwen/Qwen3-235B-A22B-Instruct-2507
+verifier: GLM-5.2 via LayerExecutor backend
+verifier: DeepSeek-V4-Flash via LayerExecutor backend
+```
+
+### Approximate teacher mode
+
+Use this only for clearly-labelled experiments:
+
+- A hosted or offline frontier model such as GLM-5.2 / DeepSeek V4 teaches,
+  distils, plans, or critiques.
+- A smaller local swarm model executes or imitates.
+- Output is **not** exact frontier-model equivalent.
+- Dashboard claim level must say `approximate-teacher`, `distilled`, or
+  `cascade`, never `exact-verifier`.
+
+### Phone role
+
+Phones should not be counted as block workers until a real block-serving proof
+exists. Their MVP role is:
+
+1. control-plane participant,
+2. capability scan source,
+3. async draft provider for speculative decoding after throughput proof,
+4. never part of the exact-output claim unless their proposed tokens are verified
+   by the target verifier.
+
+Defer Eagle3 chain-mode unless compatible draft assets are already available. The
+first speculative implementation should be a simple exact verifier loop with an
+n-gram or cheap multi-token draft provider.
 
 ## Prefill and caching
 
@@ -375,6 +434,8 @@ The moonlit demo story:
 
 ## Immediate next build order
 
+Build in this order. Do not let frontier-model dreams block the core swarm demo.
+
 1. `model_compat_scan.py` + proof-status registry.
 2. Add Qwen3-30B-A3B-Instruct-2507 / Thinking-2507 candidates with pending proof.
 3. Best-model selector with `safe-demo`, `showcase-attempt`, and `planning` modes.
@@ -382,9 +443,16 @@ The moonlit demo story:
 5. Layer planner from live worker capabilities.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
 7. Qwen3 dense fallback proofs: 8B, then 14B.
-8. Qwen3-30B-A3B multi-block/full-generation proof ladder.
+8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
 9. Multi-request chain scheduler.
-10. Speculative verifier + cheap draft provider; phones as async draft workers.
-11. Last-stage high-compute shelf, only after 1–10 work: Qwen3-235B-A22B first,
-    then GLM-4.5-Air if a `glm4_moe` wrapper looks tractable, with Kimi/DeepSeek
-    giant MoEs reserved for post-MVP backend/quantization research.
+10. Exact speculative verifier loop with cheap draft provider; phones only as async
+    draft workers after capability and throughput proof.
+11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
+    connected swarm has enough memory and Qwen3-30B generation already works.
+12. LayerExecutor backend interface for quantized frontier serving backends.
+13. GLM-5.2 backend experiment after LayerExecutor works.
+14. DeepSeek-V4-Flash backend experiment after LayerExecutor works.
+15. DeepSeek-V4-Pro / Kimi K2.x / giant Qwen3-Coder MoEs as post-MVP research.
+
+The first build sprint should therefore start at item 1, not at speculative
+decoding or frontier-model wrappers.

@@ -55,10 +55,11 @@ Why:
 
 Last-stage stretch targets are tracked in the final plan and come **after** the
 core live demo works. First choice is the same-family
-**Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears;
-`GLM-4.5-Air` is the high-upside new-wrapper investigation; Kimi/DeepSeek giant
-MoEs stay post-MVP unless quantized expert paging or a much larger hardware pool
-exists.
+**Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears. After
+that, a LayerExecutor backend can try quantized frontier serving backends for
+**GLM-5.2** and **DeepSeek-V4-Flash**. DeepSeek-V4-Pro, Kimi K2.x, and giant
+Qwen3-Coder MoEs stay post-MVP unless quantized expert paging or a much larger
+hardware pool exists.
 
 ## Verified current state
 

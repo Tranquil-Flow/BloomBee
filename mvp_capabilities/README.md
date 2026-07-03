@@ -9,7 +9,10 @@ The final MVP plan is in
 The target behavior is dynamic best-model selection: when users join the live
 demo by link/QR, the coordinator should choose the strongest **proven** model the
 connected devices can actually run, while showing stronger-but-unproven models as
-experimental/blocked instead of silently overclaiming them.
+experimental/blocked instead of silently overclaiming them. Speculative decoding
+may speed up the selected verifier model, but output is only exact-equivalent to
+that verifier; GLM-5.2 / DeepSeek-V4-class output requires those models to run as
+verifiers through a later high-compute backend path.
 
 They are deliberately decoupled from BloomBee itself — no `import
 bloombee` anywhere. The JSON they produce can be hand-fed into a
