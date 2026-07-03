@@ -228,6 +228,29 @@ def _write_handoff_bundle(path: Path) -> None:
     )
 
 
+def _write_speculative_plan(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "speculative_decode_plan_only_no_generation_proof",
+                "source": "speculative_decode_plan.py",
+                "verifier": {"model_id": "Qwen/Qwen3-8B", "authoritative": True, "claim_level": "experimental"},
+                "draft": {
+                    "mode": "async_draft_provider",
+                    "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                    "max_draft_tokens": 4,
+                    "phone_candidates": [{"hostname": "phone-a", "runtime": "termux"}],
+                },
+                "correctness_contract": {"accepted_tokens_require_verifier_match": True},
+                "phone_policy": {"phones_as_block_workers": False, "phones_as_draft_providers_only": True},
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_request_log(path: Path) -> None:
     path.write_text(
         "[direct] model=Qwen/Qwen3-8B\n"
@@ -258,6 +281,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_chain_schedule(chain_schedule)
     handoff_bundle = tmp_path / "handoff-bundle.json"
     _write_handoff_bundle(handoff_bundle)
+    speculative_plan = tmp_path / "speculative-plan.json"
+    _write_speculative_plan(speculative_plan)
     request_log = tmp_path / "direct-client.log"
     _write_request_log(request_log)
 
@@ -269,6 +294,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         joined_layer_plan_path=joined_layer_plan,
         chain_schedule_path=chain_schedule,
         handoff_bundle_path=handoff_bundle,
+        speculative_plan_path=speculative_plan,
         request_logs=[request_log],
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
@@ -284,7 +310,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 74
+    assert doc["mvp_status"]["overall_percent"] == 75
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert doc["proof_state"]["download_status"] == "complete"
     assert doc["proof_state"]["inference_proven"] is False
@@ -295,13 +321,15 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["handoff_bundle"]["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
     assert doc["handoff_bundle"]["bootstrap_runbook"]["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
     assert doc["handoff_bundle"]["proof_runbooks"]["multi_block"]["proof_gate"] == "multi_block"
+    assert doc["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
+    assert doc["speculative_plan"]["verifier"]["authoritative"] is True
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
     assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "███████████████░░░░░ 74%" in html
+    assert "███████████████░░░░░ 75%" in html
     assert "Qwen3-8B multi-block or full-generation proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Live proof-prep state" in html
@@ -338,6 +366,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "heartbeat count 180" in html
     assert "multi_block_proof_harness_only_no_live_inference" in html
     assert "multi_request_load_harness_only_no_live_traffic" in html
+    assert "Speculative decode plan" in html
+    assert "speculative_decode_plan_only_no_generation_proof" in html
+    assert "Verifier authoritative" in html
+    assert "phone-a" in html
+    assert "phones as draft providers only" in html
     assert "Live request telemetry" in html
     assert "request_telemetry_observability_only_no_load_proof" in html
     assert "succeeded 1 / failed 1" in html
@@ -364,6 +397,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_chain_schedule(chain_schedule)
     handoff_bundle = tmp_path / "handoff-bundle.json"
     _write_handoff_bundle(handoff_bundle)
+    speculative_plan = tmp_path / "speculative-plan.json"
+    _write_speculative_plan(speculative_plan)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -384,6 +419,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(chain_schedule),
             "--handoff-bundle",
             str(handoff_bundle),
+            "--speculative-plan",
+            str(speculative_plan),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -404,13 +441,15 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "███████████████░░░░░ 74%" in text
+    assert "███████████████░░░░░ 75%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text
     assert "layers 18:36" in text
     assert "Chain scheduler rehearsal" in text
     assert "Operator handoff bundle" in text
+    assert "Speculative decode plan" in text
+    assert "speculative_decode_plan_only_no_generation_proof" in text
     assert "coordinator_handoff_bundle_only_no_server_started" in text
     assert "joined-peer-a" in text
     assert "240" in text

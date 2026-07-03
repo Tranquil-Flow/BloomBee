@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 74%
+███████████████░░░░░ 75%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -78,8 +78,8 @@ Already proven:
 - TinyLlama S2S opportunistic push with client-direct fallback.
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
   status/next gate, live proof-prep feed, joined-peer layer-plan runbooks,
-  coordinator handoff/bootstrap/proof-runbook bundles, chain-scheduler rehearsal
-  panels, telemetry, and real layer-placement metadata.
+  coordinator handoff/bootstrap/proof-runbook bundles, speculative decode plans,
+  chain-scheduler rehearsal panels, telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
   `/active`; operator-captured seed multiaddrs can now resolve follower launch
@@ -127,7 +127,8 @@ Already proven:
   `/active`, `/route`, `/plan`, `/bootstrap`, `/bootstrap.sh`, and `/handoff`
   endpoints, proof-aware auto model selection for `/plan?model=auto`,
   token-scoped fresh-device bootstrap scripts in JSON and plain-shell form,
-  no-server-start operator handoff bundles with bootstrap runbooks, launch plans,
+  verifier-authoritative `/speculative` draft-provider plans, no-server-start
+  operator handoff bundles with bootstrap/speculative runbooks, launch plans,
   plus proof-runbook placeholders,
   physical-device `join_client.py` one-shot or bounded repeated heartbeat
   posting, SVG join-card rendering, QR scanner dependency preflight, and explicit
@@ -145,11 +146,15 @@ Already proven:
 - Chain scheduler planning exists: joined layer plans become multi-request waves,
   per-peer scheduled-token estimates, and `planned_no_live_traffic` health
   reports. `request_telemetry.py` summarizes direct-client `[direct] RESULT` logs,
-  request success/failure counts, latency, model/block coverage, and blockers;
-  `multi_request_load_proof.py` emits repeated direct-client runbooks and verifies
-  expected successful request logs before any `multi_request_load` proof
-  promotion; `demo_dashboard.py --chain-schedule ... --request-log ...` renders
-  planned waves plus live request telemetry without claiming load proof.
+  and `multi_request_load_proof.py` now verifies repeated direct-client logs
+  before proof promotion.
+- Speculative decode planning exists: `speculative_decode_plan.py` defines
+  verifier-authoritative draft-provider roles, exact-token acceptance contracts,
+  and a phone-as-draft-only policy. Coordinator `/speculative`, `/handoff`, and
+  the dashboard expose the plan without claiming generation or speedup proof.
+  `demo_dashboard.py --chain-schedule ... --request-log ... --speculative-plan ...`
+  renders planned waves, live request telemetry, and draft-provider plans without
+  claiming load or speculative speedup proof.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 
@@ -553,8 +558,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    `chain_scheduler.py` emits request waves and per-peer utilization from a joined
    layer plan, with `chain_scheduler_plan_only_no_inference_proof`. Live load
    proof remains future work.
-10. Exact speculative verifier loop with cheap draft provider; phones only as async
-    draft workers after capability and throughput proof.
+10. Exact speculative verifier loop with cheap draft provider. **Planning slice
+    complete**: `speculative_decode_plan.py` defines verifier-authoritative
+    draft-provider roles, exact-token acceptance contracts, and phone-as-draft-
+    only policy; `/speculative`, `/handoff`, and the dashboard surface the plan
+    without running generation. Next: measure draft-provider latency/match rate
+    and wire an execution harness only after verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.
 12. LayerExecutor backend interface for quantized frontier serving backends.

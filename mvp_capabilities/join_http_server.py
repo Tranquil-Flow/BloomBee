@@ -30,6 +30,7 @@ try:
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
+    from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from mvp_capabilities.cache_generation_proof import build_cache_generation_plan
@@ -44,6 +45,7 @@ except ModuleNotFoundError:  # direct script execution
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
+    from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
 ERROR_CLAIM_BOUNDARY = "coordinator_error_no_inference_proof"
@@ -54,6 +56,8 @@ HANDOFF_SOURCE = "coordinator_http_handoff_endpoint"
 HANDOFF_CLAIM_BOUNDARY = "coordinator_handoff_bundle_only_no_server_started"
 BOOTSTRAP_SOURCE = "coordinator_http_bootstrap_endpoint"
 BOOTSTRAP_CLAIM_BOUNDARY = "coordinator_bootstrap_runbook_only_no_server_started"
+SPECULATIVE_SOURCE = "coordinator_http_speculative_endpoint"
+SPECULATIVE_CLAIM_BOUNDARY = "coordinator_speculative_plan_only_no_generation_proof"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -366,6 +370,43 @@ def _route_from_query(
     return 200, payload
 
 
+def _handle_speculative(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    token = _first(query, "token")
+    if not token:
+        return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    route_query = {key: list(value) for key, value in query.items()}
+    if route_query.get("model") == ["auto"]:
+        route_query.pop("model", None)
+    route_status, route_payload = _route_from_query(route_query, state_dir=state_dir, registry=registry)
+    if route_status != 200:
+        return route_status, route_payload
+    active = _active_for_query(query, state_dir=state_dir, token=token)
+    peers = _peers_from_heartbeats(active)
+    plan = build_speculative_decode_plan(
+        verifier_route=route_payload,
+        peers=peers,
+        draft_model_id=_first(query, "draft_model", "TinyLlama/TinyLlama-1.1B-Chat-v1.0") or "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        max_draft_tokens=_as_int(_first(query, "max_draft_tokens"), 4),
+        acceptance_window=_as_int(_first(query, "acceptance_window"), 4),
+    )
+    return 200, {
+        "claim_boundary": SPECULATIVE_CLAIM_BOUNDARY,
+        "source": SPECULATIVE_SOURCE,
+        "token": token,
+        "active_peer_count": len(active),
+        "route_decision": route_payload,
+        "speculative_plan": plan,
+        "inference_proven": False,
+        "generation_proven": False,
+        "can_update_proof_status": False,
+    }
+
+
 def _handle_plan(
     query: dict[str, list[str]],
     *,
@@ -477,6 +518,13 @@ def _handle_handoff(
         count=_as_int(_first(query, "count"), 180),
         interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
     )
+    speculative_plan = build_speculative_decode_plan(
+        verifier_route=plan.get("route_decision") or {"picked": {"model_id": model_id}},
+        peers=_peers_from_heartbeats(active.get("active_peers") or []),
+        draft_model_id=_first(query, "draft_model", "TinyLlama/TinyLlama-1.1B-Chat-v1.0") or "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        max_draft_tokens=_as_int(_first(query, "max_draft_tokens"), 4),
+        acceptance_window=_as_int(_first(query, "acceptance_window"), 4),
+    )
     route_decision = plan.get("route_decision")
     if not isinstance(route_decision, dict):
         route_query = {key: list(value) for key, value in query.items()}
@@ -493,6 +541,7 @@ def _handle_handoff(
         "route_decision": route_decision,
         "plan": plan,
         "bootstrap_runbook": bootstrap_runbook,
+        "speculative_plan": speculative_plan,
         "proof_runbooks": proof_runbooks,
         "operator_next_steps": [
             "share offer.join_url, join card, or bootstrap_runbook.shell_script with devices",
@@ -571,6 +620,8 @@ def handle_get(
         }
     if parsed.path == "/route":
         return _route_from_query(query, state_dir=state_dir, registry=registry)
+    if parsed.path == "/speculative":
+        return _handle_speculative(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/plan":
         return _handle_plan(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/handoff":
@@ -706,6 +757,7 @@ def main(argv: list[str] | None = None) -> int:
                 "bootstrap_endpoint": "/bootstrap",
                 "bootstrap_script_endpoint": "/bootstrap.sh",
                 "handoff_endpoint": "/handoff",
+                "speculative_endpoint": "/speculative",
                 "plan_endpoint": "/plan",
                 "registry": str(Path(args.registry).expanduser()),
                 "state_dir": str(Path(args.state_dir).expanduser()),

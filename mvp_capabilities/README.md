@@ -42,8 +42,9 @@ BloomBee's runtime already maintains.
 | 15. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
 | 16. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
 | 17. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
-| 18. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 19. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 18. Speculative decode plan | `speculative_decode_plan.py` | Defines verifier-authoritative draft-provider roles, including phone-as-draft-only policy and exact-token correctness contract. This is speedup planning only, not generation proof. | JSON speculative plan |
+| 19. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 20. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layers 6–7 prepare generation/cache proof evidence. Layer 8 says *how much of the plan is built*. Layer 9 says *what each model actually achieves on this hardware*.
 
@@ -222,6 +223,14 @@ python mvp_capabilities/join_handoff.py \
   --request-count 2 \
   --out .local/handoff-bundle.json
 
+#     Optional: extract or build a speculative decode plan. This is verifier-
+#     authoritative speedup planning only, not generation proof.
+python mvp_capabilities/speculative_decode_plan.py \
+  --route-json .local/route.json \
+  --peers-json .local/active-peers.json \
+  --draft-model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --max-draft-tokens 4 > .local/speculative-plan.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -230,6 +239,7 @@ python mvp_capabilities/demo_dashboard.py \
   --joined-layer-plan .local/joined-layer-plan.json \
   --chain-schedule .local/chain-schedule.json \
   --handoff-bundle .local/handoff-bundle.json \
+  --speculative-plan .local/speculative-plan.json \
   --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
@@ -279,15 +289,17 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████░░░░░ 74%` built from the plan, with claim boundary
+  `███████████████░░░░░ 75%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
-  request telemetry parsing/dashboarding exists; `multi_request_load_proof.py`
-  now verifies repeated direct-client logs before proof promotion, but the actual
-  multi-request load gate is still pending until real traffic passes.
+  request telemetry parsing/dashboarding exists; `speculative_decode_plan.py`
+  emits verifier-authoritative draft-provider plans with phones limited to
+  draft-only roles; `multi_request_load_proof.py` verifies repeated direct-client
+  logs before proof promotion, but actual multi-request load and speculative speed
+  gates remain pending until real traffic/latency evidence passes.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
   Qwen3-8B server/client commands and verifies captured logs before allowing the
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is
@@ -327,14 +339,15 @@ As of the current implementation slice:
 - Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
   `bloombee://join?...` offers and token-scoped active heartbeat rosters.
   `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, `/active`,
-  `/route`, `/plan`, `/bootstrap`, `/bootstrap.sh`, and `/handoff` HTTP endpoints
+  `/route`, `/plan`, `/speculative`, `/bootstrap`, `/bootstrap.sh`, and `/handoff` HTTP endpoints
   with explicit `no_inference_proof` / no-server-start claim boundaries.
   `/bootstrap` returns a token-scoped peer-scan + bounded heartbeat script as
   JSON and `/bootstrap.sh` returns the same script as plain text; `/route` returns
-  proof-aware model selection for current heartbeats; `/plan?model=auto` folds
+  proof-aware model selection for current heartbeats; `/speculative` returns a
+  verifier-authoritative draft-provider plan; `/plan?model=auto` folds
   that selection into a joined layer plan without shared filesystem access;
-  `/handoff` bundles offer, active roster, bootstrap runbook, route, launch plan,
-  and proof harness placeholders for demo operators. In the Hermes sandbox,
+  `/handoff` bundles offer, active roster, bootstrap runbook, speculative plan,
+  route, launch plan, and proof harness placeholders for demo operators. In the Hermes sandbox,
   dispatch functions are verified without binding a port because socket bind is blocked.
 - Handoff fetcher (`join_handoff.py`) exists: it fetches `/handoff` or redacts a
   saved raw handoff JSON, strips tokens from nested fields/URLs, and writes a
@@ -355,8 +368,8 @@ As of the current implementation slice:
   It does not generate/decode QR artifacts and does not replace the visual grid.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans,
-  coordinator handoff bundles, chain-scheduler rehearsals, request telemetry,
-  and milestone table beside routes/evidence.
+  coordinator handoff bundles, speculative decode plans, chain-scheduler
+  rehearsals, request telemetry, and milestone table beside routes/evidence.
 - Proof-state observability (`proof_state.py`) parses retained status/log/cache
   facts from long-running proof prep, distinguishes complete snapshots from stale
   `.incomplete` leftovers, emits ETA fields, and feeds the dashboard without
@@ -379,8 +392,9 @@ As of the current implementation slice:
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, joined layer
-  plans, coordinator handoff/runbook bundles, chain-scheduler waves/peer health,
-  live telemetry counters, and claim boundaries. Synthetic 10-laptop planning is hidden by
+  plans, coordinator handoff/runbook bundles, speculative decode plans,
+  chain-scheduler waves/peer health, live telemetry counters, and claim
+  boundaries. Synthetic 10-laptop planning is hidden by
   default and appears only with `--synthetic-m4-laptops`.
 - Real layer-placement proof (2026-07-03): three live BloomBee server processes
   on `m4pro` served TinyLlama layers `0:8`, `8:15`, and `15:22`; a direct client

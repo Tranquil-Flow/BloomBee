@@ -273,9 +273,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 74
-    assert report["overall_bar"] == "███████████████░░░░░ 74%"
-    assert report["remaining_percent"] == 26
+    assert report["overall_percent"] == 75
+    assert report["overall_bar"] == "███████████████░░░░░ 75%"
+    assert report["remaining_percent"] == 25
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -285,7 +285,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████░░░░░ 74%" in text
+    assert "███████████████░░░░░ 75%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -303,8 +303,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 74
-    assert payload["overall_bar"].endswith("74%")
+    assert payload["overall_percent"] == 75
+    assert payload["overall_bar"].endswith("75%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
@@ -2387,6 +2387,120 @@ def test_join_http_server_bootstrap_sh_requires_token(tmp_path: Path):
     assert content_type == "text/plain; charset=utf-8"
     assert "missing token" in body.decode("utf-8")
     assert "coordinator_error_no_inference_proof" in body.decode("utf-8")
+
+
+def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
+    from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
+
+    route_decision = {
+        "picked": {
+            "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+            "claim_level": "experimental",
+            "selector_mode": "showcase-attempt",
+            "proof_status": {"full_generation": "pending"},
+        }
+    }
+    peers = [
+        {"hostname": "phone-a", "mobile": {"is_mobile": True, "runtime": "termux"}, "memory": {"free_gb": 3}},
+        {"hostname": "m4pro", "accelerator": {"device": "mps"}, "memory": {"free_gb": 34}},
+    ]
+
+    plan = build_speculative_decode_plan(
+        verifier_route=route_decision,
+        peers=peers,
+        draft_model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        max_draft_tokens=4,
+        acceptance_window=2,
+    )
+
+    assert plan["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
+    assert plan["verifier"]["model_id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert plan["verifier"]["authoritative"] is True
+    assert plan["draft"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert plan["draft"]["phone_candidates"][0]["hostname"] == "phone-a"
+    assert plan["phone_policy"]["phones_as_block_workers"] is False
+    assert plan["correctness_contract"]["accepted_tokens_require_verifier_match"] is True
+    assert plan["execution_plan"][0]["stage"] == "draft_propose"
+    assert plan["inference_proven"] is False
+    assert plan["can_update_proof_status"] is False
+
+
+def test_speculative_decode_plan_cli_outputs_json(tmp_path: Path):
+    route_path = tmp_path / "route.json"
+    peers_path = tmp_path / "peers.json"
+    route_path.write_text(json.dumps({"picked": {"model_id": "Qwen/Qwen3-8B", "claim_level": "experimental"}}), encoding="utf-8")
+    peers_path.write_text(json.dumps([{"hostname": "phone-a", "mobile": {"is_mobile": True}}]), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/speculative_decode_plan.py",
+            "--route-json",
+            str(route_path),
+            "--peers-json",
+            str(peers_path),
+            "--draft-model",
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            "--max-draft-tokens",
+            "3",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
+    assert payload["draft"]["max_draft_tokens"] == 3
+    assert payload["draft"]["phone_candidates"][0]["hostname"] == "phone-a"
+    assert payload["verifier"]["authoritative"] is True
+
+
+def test_join_http_server_speculative_endpoint_and_handoff_include_no_generation_plan(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+    from mvp_capabilities.join_http_server import handle_get
+
+    state = tmp_path / "state"
+    record_heartbeat(
+        state,
+        token="moon-token",
+        peer_id="phone-a",
+        capabilities={"hostname": "phone-a", "mobile": {"is_mobile": True, "runtime": "termux"}, "memory": {"free_gb": 3}},
+        now=1_000,
+    )
+    record_heartbeat(
+        state,
+        token="moon-token",
+        peer_id="m4pro",
+        capabilities={"hostname": "m4pro", "accelerator": {"device": "mps"}, "memory": {"free_gb": 80}},
+        now=1_000,
+    )
+
+    status, payload = handle_get(
+        "/speculative?token=moon-token&model=auto&selector_mode=showcase-attempt&draft_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0&max_draft_tokens=4&now=1000",
+        state_dir=state,
+        coordinator="http://m4pro.local:8787",
+        registry=REGISTRY_PATH,
+    )
+
+    assert status == 200
+    assert payload["claim_boundary"] == "coordinator_speculative_plan_only_no_generation_proof"
+    assert payload["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
+    assert payload["speculative_plan"]["draft"]["phone_candidates"][0]["hostname"] == "phone-a"
+    assert payload["speculative_plan"]["verifier"]["authoritative"] is True
+    assert payload["inference_proven"] is False
+
+    handoff_status, handoff = handle_get(
+        "/handoff?token=moon-token&model=auto&selector_mode=showcase-attempt&now=1000",
+        state_dir=state,
+        coordinator="http://m4pro.local:8787",
+        registry=REGISTRY_PATH,
+    )
+    assert handoff_status == 200
+    assert handoff["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
+    assert handoff["speculative_plan"]["correctness_contract"]["accepted_tokens_require_verifier_match"] is True
 
 
 def test_join_client_parses_join_url_and_builds_heartbeat_request(tmp_path: Path):

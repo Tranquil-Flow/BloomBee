@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 74%
+███████████████░░░░░ 75%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -123,8 +123,9 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   failed at client DHT bootstrap before any RPC proof.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
-  runbooks, coordinator handoff bundles with fresh-device bootstrap scripts, and
-  chain-scheduler rehearsals beside route/evidence/telemetry panels.
+  runbooks, coordinator handoff bundles with fresh-device bootstrap scripts,
+  speculative decode plans, and chain-scheduler rehearsals beside
+  route/evidence/telemetry panels.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
   from nested fields and URLs before writing/printing.
@@ -152,15 +153,16 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   safe-demo candidates until full distributed generation passes.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
-  exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`, and
-  `/bootstrap`, `/bootstrap.sh`, and `/handoff` endpoints using Python stdlib
+  exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`,
+  `/speculative`, `/bootstrap`, `/bootstrap.sh`, and `/handoff` endpoints using Python stdlib
   HTTP. `/bootstrap` returns a token-scoped peer-scan + bounded-heartbeat JSON
   runbook; `/bootstrap.sh` returns the same runbook as plain shell; `/route`
   returns proof-aware dynamic model selection for current heartbeats;
+  `/speculative` returns a verifier-authoritative draft-provider plan;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active
-  roster, bootstrap runbook, auto route, launch plan, and proof harness runbooks
-  without starting servers.
+  roster, bootstrap runbook, speculative plan, auto route, launch plan, and proof
+  harness runbooks without starting servers.
   `mvp_capabilities/join_client.py` lets physical devices
   parse a join URL and post one-shot or bounded repeated peer-scan heartbeats so
   they remain active during operator planning. `mvp_capabilities/join_card.py`

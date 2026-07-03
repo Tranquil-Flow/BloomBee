@@ -201,6 +201,7 @@ def build_dashboard_document(
     joined_layer_plan_path: str | Path | None = None,
     chain_schedule_path: str | Path | None = None,
     handoff_bundle_path: str | Path | None = None,
+    speculative_plan_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
@@ -229,6 +230,9 @@ def build_dashboard_document(
     joined_layer_plan = _read_json(joined_layer_plan_path, None)
     chain_schedule = _read_json(chain_schedule_path, None)
     handoff_bundle = _read_json(handoff_bundle_path, None)
+    speculative_plan = _read_json(speculative_plan_path, None)
+    if speculative_plan is None and isinstance(handoff_bundle, dict):
+        speculative_plan = handoff_bundle.get("speculative_plan")
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -250,6 +254,7 @@ def build_dashboard_document(
         "joined_layer_plan": joined_layer_plan,
         "chain_schedule": chain_schedule,
         "handoff_bundle": handoff_bundle,
+        "speculative_plan": speculative_plan,
         "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
@@ -687,6 +692,45 @@ def _handoff_bundle_panel(bundle: dict[str, Any] | None) -> str:
     """
 
 
+def _speculative_plan_panel(plan: dict[str, Any] | None) -> str:
+    if not plan:
+        return ""
+    verifier = plan.get("verifier") or {}
+    draft = plan.get("draft") or {}
+    contract = plan.get("correctness_contract") or {}
+    phone_policy = plan.get("phone_policy") or {}
+    phones = draft.get("phone_candidates") or []
+    phone_rows = "".join(
+        "<tr>"
+        f"<td>{_esc((phone or {}).get('hostname'))}</td>"
+        f"<td>{_esc((phone or {}).get('runtime') or '—')}</td>"
+        f"<td>{_esc((phone or {}).get('role') or 'async_draft_provider_only')}</td>"
+        "</tr>"
+        for phone in phones
+        if isinstance(phone, dict)
+    )
+    policy = "phones as draft providers only" if phone_policy.get("phones_as_draft_providers_only") else "no phone policy supplied"
+    verifier_copy = "Verifier authoritative" if verifier.get("authoritative") else "Verifier not marked authoritative"
+    return f"""
+      <section class="card wide speculative-plan">
+        <h2>Speculative decode plan</h2>
+        <div class="grid two">
+          <div><span class="label">Verifier</span><strong>{_esc(verifier.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Verifier authority</span><strong>{_esc(verifier_copy)}</strong></div>
+          <div><span class="label">Draft model</span><strong>{_esc(draft.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Draft window</span><strong>{_esc(draft.get('max_draft_tokens') or '—')} tokens · acceptance {_esc(draft.get('acceptance_window') or '—')}</strong></div>
+          <div><span class="label">Boundary</span><code>{_esc(plan.get('claim_boundary'))}</code></div>
+          <div><span class="label">Phone policy</span><strong>{_esc(policy)}</strong></div>
+        </div>
+        <p class="reason">Accepted tokens require verifier match: {_esc(contract.get('accepted_tokens_require_verifier_match'))}. Drafting is speed planning only; generation is not proven.</p>
+        <table>
+          <thead><tr><th>Phone/draft peer</th><th>Runtime</th><th>Role</th></tr></thead>
+          <tbody>{phone_rows or '<tr><td colspan="3">No phone draft candidates discovered</td></tr>'}</tbody>
+        </table>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -767,6 +811,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_chain_schedule_panel(document.get('chain_schedule'))}
     {_handoff_bundle_panel(document.get('handoff_bundle'))}
+    {_speculative_plan_panel(document.get('speculative_plan'))}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
@@ -805,6 +850,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
     parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
     parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
+    parser.add_argument("--speculative-plan", default=None, help="Optional JSON from speculative_decode_plan.py or join_http_server.py /speculative")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
@@ -826,6 +872,7 @@ def main(argv: list[str] | None = None) -> int:
             joined_layer_plan_path=args.joined_layer_plan,
             chain_schedule_path=args.chain_schedule,
             handoff_bundle_path=args.handoff_bundle,
+            speculative_plan_path=args.speculative_plan,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
