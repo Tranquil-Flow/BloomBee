@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -51,6 +52,8 @@ ROUTE_SOURCE = "coordinator_http_route_endpoint"
 ROUTE_CLAIM_BOUNDARY = "coordinator_route_only_no_inference_proof"
 HANDOFF_SOURCE = "coordinator_http_handoff_endpoint"
 HANDOFF_CLAIM_BOUNDARY = "coordinator_handoff_bundle_only_no_server_started"
+BOOTSTRAP_SOURCE = "coordinator_http_bootstrap_endpoint"
+BOOTSTRAP_CLAIM_BOUNDARY = "coordinator_bootstrap_runbook_only_no_server_started"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -65,6 +68,15 @@ def _as_int(value: str | None, default: int) -> int:
         if value is None:
             return default
         return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value: str | None, default: float) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
     except (TypeError, ValueError):
         return default
 
@@ -151,6 +163,65 @@ def _unavailable_runbook(proof_gate: str, reason: str) -> dict[str, Any]:
         "proof_gate": proof_gate,
         "status": "unavailable",
         "reason": reason,
+        "inference_proven": False,
+        "can_update_proof_status": False,
+    }
+
+
+def _shell_number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def build_bootstrap_runbook(
+    *,
+    coordinator: str,
+    token: str,
+    ttl_seconds: int = 600,
+    now: int | None = None,
+    count: int = 180,
+    interval_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Build a fresh-device join script without starting servers or inference."""
+    bounded_count = max(1, int(count))
+    bounded_interval = max(0.0, float(interval_seconds))
+    offer = create_join_offer(coordinator=coordinator, token=token, ttl_seconds=ttl_seconds, now=now)
+    join_url = str(offer["join_url"])
+    interval_text = _shell_number(bounded_interval)
+    shell_script = "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            "",
+            'CAP_PATH="${BLOOMBEE_CAPABILITIES_PATH:-$HOME/.bloombee/capabilities/$(hostname -s).json}"',
+            'mkdir -p "$(dirname "$CAP_PATH")"',
+            "",
+            'python mvp_capabilities/peer_scan.py --out "$CAP_PATH"',
+            "python mvp_capabilities/join_client.py "
+            f"--join-url {shlex.quote(join_url)} "
+            '--capabilities "$CAP_PATH" '
+            f"--count {bounded_count} "
+            f"--interval-seconds {interval_text}",
+            "",
+        ]
+    )
+    return {
+        "source": BOOTSTRAP_SOURCE,
+        "claim_boundary": BOOTSTRAP_CLAIM_BOUNDARY,
+        "offer": offer,
+        "token": token,
+        "capabilities_path_env": "BLOOMBEE_CAPABILITIES_PATH",
+        "default_capabilities_path": "~/.bloombee/capabilities/$(hostname -s).json",
+        "heartbeat_loop": {
+            "count": bounded_count,
+            "interval_seconds": bounded_interval,
+            "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+        },
+        "shell_script": shell_script,
+        "operator_next_steps": [
+            "run this script from the BloomBee checkout on the joining laptop",
+            "keep the process running until the coordinator /active roster shows the device",
+            "do not treat heartbeat success as server start or inference proof",
+        ],
         "inference_proven": False,
         "can_update_proof_status": False,
     }
@@ -391,6 +462,14 @@ def _handle_handoff(
         prompt=_first(query, "prompt", "The moon is") or "The moon is",
         max_new_tokens=_as_int(_first(query, "max_new_tokens"), 4),
     )
+    bootstrap_runbook = build_bootstrap_runbook(
+        coordinator=_first(query, "coordinator", coordinator) or coordinator,
+        token=token,
+        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        now=_as_int(_first(query, "now"), 0) or None,
+        count=_as_int(_first(query, "count"), 180),
+        interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
+    )
     route_decision = plan.get("route_decision")
     if not isinstance(route_decision, dict):
         route_query = {key: list(value) for key, value in query.items()}
@@ -406,9 +485,10 @@ def _handle_handoff(
         "active": active,
         "route_decision": route_decision,
         "plan": plan,
+        "bootstrap_runbook": bootstrap_runbook,
         "proof_runbooks": proof_runbooks,
         "operator_next_steps": [
-            "share offer.join_url or join card with devices",
+            "share offer.join_url, join card, or bootstrap_runbook.shell_script with devices",
             "wait for active.active_peers to match physical devices",
             "run plan.placement.assignments launch_command values manually on assigned hosts",
             "replace <SEED_MULTIADDR_FROM_...> / <PASTE_SERVER_..._MULTIADDR> placeholders with captured server multiaddrs",
@@ -436,6 +516,18 @@ def handle_get(
             token=_first(query, "token"),
             ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
             now=_as_int(_first(query, "now"), 0) or None,
+        )
+    if parsed.path == "/bootstrap":
+        token = _first(query, "token")
+        if not token:
+            return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        return 200, build_bootstrap_runbook(
+            coordinator=_first(query, "coordinator", coordinator) or coordinator,
+            token=token,
+            ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+            now=_as_int(_first(query, "now"), 0) or None,
+            count=_as_int(_first(query, "count"), 180),
+            interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
         )
     if parsed.path == "/active":
         token = _first(query, "token")
@@ -562,6 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "listening": f"http://{args.host}:{args.port}",
+                "bootstrap_endpoint": "/bootstrap",
                 "handoff_endpoint": "/handoff",
                 "plan_endpoint": "/plan",
                 "registry": str(Path(args.registry).expanduser()),

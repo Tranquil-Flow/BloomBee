@@ -124,11 +124,13 @@ Already proven:
   metadata and pending proof: Instruct-2507 and Thinking-2507.
 - Join-flow foundation exists: shareable join-link offers, token-scoped heartbeat
   state, active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`,
-  `/active`, `/route`, `/plan`, and `/handoff` endpoints, proof-aware auto model
-  selection for `/plan?model=auto`, no-server-start operator handoff bundles with
-  launch plans plus proof-runbook placeholders, physical-device `join_client.py`
-  one-shot or bounded repeated heartbeat posting, SVG join-card rendering, QR
-  scanner dependency preflight, and explicit no-inference-proof claim boundaries.
+  `/active`, `/route`, `/plan`, `/bootstrap`, and `/handoff` endpoints,
+  proof-aware auto model selection for `/plan?model=auto`, token-scoped
+  fresh-device bootstrap scripts, no-server-start operator handoff bundles with
+  bootstrap runbooks, launch plans, plus proof-runbook placeholders,
+  physical-device `join_client.py` one-shot or bounded repeated heartbeat
+  posting, SVG join-card rendering, QR scanner dependency preflight, and explicit
+  no-inference-proof claim boundaries.
   SVG visual-grid scanner interoperability remains unproven until a generated
   artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
@@ -527,9 +529,11 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    complete**: join-link offers and heartbeat state exist; stdlib HTTP health,
    offer, heartbeat, and active-roster endpoints exist; physical-device join
    client wiring exists with bounded repeated heartbeats for live roster windows;
-   SVG join-card rendering exists with scanner interop explicitly unproven; QR
-   dependency preflight now fails closed when encoder or decoder packages are
-   missing. True QR scanner proof and fresh-device showcase remain future work.
+   `/bootstrap` emits token-scoped peer-scan + heartbeat scripts and `/handoff`
+   includes that runbook; SVG join-card rendering exists with scanner interop
+   explicitly unproven; QR dependency preflight now fails closed when encoder or
+   decoder packages are missing. True QR scanner proof and fresh-device showcase
+   remain future work.
 5. Layer planner from live worker capabilities. **Initial slice complete**:
    `layer_planner.py` emits deterministic contiguous block ranges from a model
    registry entry and peer free-memory capacities. **Launch-command slice

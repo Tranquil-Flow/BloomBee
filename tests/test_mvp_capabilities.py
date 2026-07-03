@@ -1824,6 +1824,8 @@ models:
     assert handoff["proof_runbooks"]["multi_request_load"]["claim_boundary"] == "multi_request_load_harness_only_no_live_traffic"
     assert handoff["proof_runbooks"]["multi_request_load"]["request_count"] == 2
     assert handoff["proof_runbooks"]["multi_request_load"]["hidden_dim"] == 128
+    assert handoff["bootstrap_runbook"]["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
+    assert "join_client.py" in handoff["bootstrap_runbook"]["shell_script"]
     assert handoff["inference_proven"] is False
     assert handoff["can_update_proof_status"] is False
 
@@ -1853,6 +1855,9 @@ def test_join_handoff_cli_builds_redacted_dashboard_artifact(tmp_path: Path):
         "token": "moon-token",
         "offer": {"token": "moon-token", "join_url": "bloombee://join?coordinator=http%3A%2F%2F127.0.0.1%3A8787&token=moon-token"},
         "active": {"active_peers": [{"peer_id": "peer-a", "token": "moon-token"}]},
+        "bootstrap_runbook": {
+            "shell_script": "python mvp_capabilities/join_client.py --join-url 'bloombee://join?coordinator=http%3A%2F%2F127.0.0.1%3A8787&token=moon-token' --count 180",
+        },
         "proof_runbooks": {"multi_block": {"claim_boundary": "multi_block_proof_harness_only_no_live_inference"}},
         "inference_proven": False,
         "can_update_proof_status": False,
@@ -1862,6 +1867,7 @@ def test_join_handoff_cli_builds_redacted_dashboard_artifact(tmp_path: Path):
     assert redacted["handoff_fetch_claim_boundary"] == "join_handoff_fetch_only_no_server_started"
     assert redacted["token"] == "***"
     assert redacted["offer"]["token"] == "***"
+    assert redacted["bootstrap_runbook"]["shell_script"].count("token=%2A%2A%2A") + redacted["bootstrap_runbook"]["shell_script"].count("token=***") >= 1
     assert "moon-token" not in json.dumps(redacted)
     assert redacted["proof_runbooks"]["multi_block"]["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
 
@@ -2312,6 +2318,41 @@ def test_join_http_server_rejects_bad_heartbeat_json(tmp_path: Path):
     status, payload = handle_post("/heartbeat", body=b'{"token":"moon-token"}', state_dir=tmp_path / "state")
     assert status == 400
     assert payload["error"] == "missing required heartbeat fields"
+    assert payload["claim_boundary"] == "coordinator_error_no_inference_proof"
+
+
+def test_join_http_server_bootstrap_runbook_keeps_fresh_laptop_heartbeating(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get
+
+    status, payload = handle_get(
+        "/bootstrap?token=moon-token&count=180&interval_seconds=10&now=1000&ttl_seconds=600",
+        state_dir=tmp_path / "state",
+        coordinator="http://m4pro.local:8787",
+    )
+
+    script = payload["shell_script"]
+    assert status == 200
+    assert payload["source"] == "coordinator_http_bootstrap_endpoint"
+    assert payload["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
+    assert payload["offer"]["join_url"] == "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    assert payload["heartbeat_loop"]["count"] == 180
+    assert payload["heartbeat_loop"]["interval_seconds"] == 10.0
+    assert "peer_scan.py --out" in script
+    assert "join_client.py" in script
+    assert "--count 180" in script
+    assert "--interval-seconds 10" in script
+    assert "bloombee.cli.run_server" not in script
+    assert payload["inference_proven"] is False
+    assert payload["can_update_proof_status"] is False
+
+
+def test_join_http_server_bootstrap_requires_token(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get
+
+    status, payload = handle_get("/bootstrap", state_dir=tmp_path / "state", coordinator="http://m4pro.local:8787")
+
+    assert status == 400
+    assert payload["error"] == "missing token"
     assert payload["claim_boundary"] == "coordinator_error_no_inference_proof"
 
 
