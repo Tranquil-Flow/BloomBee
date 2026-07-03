@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 73%
+███████████████░░░░░ 74%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -131,9 +131,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
   heartbeats from local state or HTTP `/active` into deterministic layer
   placements, launch-command runbooks, and no-execution launch-readiness
-  checklists. Operators can pass captured seed addresses with `--seed-multiaddr
-  HOST=/ip4/.../p2p/...` to resolve follower placeholders before the checklist
-  marks the runbook startable; this still carries a no-server-started claim.
+  checklists. Generated follower commands use `BLOOMBEE_INITIAL_PEERS` rather
+  than `--initial_peers`. Operators can pass captured seed addresses with
+  `--seed-multiaddr HOST=/ip4/.../p2p/...` to resolve follower placeholders
+  before the checklist marks the runbook ready.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from
@@ -170,8 +171,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   promotion. This is still not a live load proof until real traffic logs pass.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
-  server launch commands with `--include-launch-commands`. This is placement and
-  launch planning only; real serving still requires the BloomBee server proof ladder.
+  server launch commands with `--include-launch-commands`. Follower runbooks use
+  `BLOOMBEE_INITIAL_PEERS`, matching the live-tested multi-block join path. This
+  is placement and launch planning only; real serving still requires the
+  BloomBee server proof ladder.
 - `mvp_capabilities/swarm_simulator.py` rehearses synthetic/live rosters with
   failed hosts, route selection, and layer placement. It is explicitly
   simulation-only, not an inference or serving proof.

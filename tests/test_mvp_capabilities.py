@@ -273,9 +273,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 73
-    assert report["overall_bar"] == "███████████████░░░░░ 73%"
-    assert report["remaining_percent"] == 27
+    assert report["overall_percent"] == 74
+    assert report["overall_bar"] == "███████████████░░░░░ 74%"
+    assert report["remaining_percent"] == 26
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -285,7 +285,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████░░░░░ 73%" in text
+    assert "███████████████░░░░░ 74%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -303,8 +303,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 73
-    assert payload["overall_bar"].endswith("73%")
+    assert payload["overall_percent"] == 74
+    assert payload["overall_bar"].endswith("74%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
@@ -1068,7 +1068,8 @@ def test_layer_planner_can_attach_exact_bloombee_server_commands():
     assert "--block_indices 0:5" in plan["assignments"][0]["launch_command"]
     assert "--block_indices 5:12" in plan["assignments"][1]["launch_command"]
     assert "--dht_prefix demo-prefix" in plan["assignments"][0]["launch_command"]
-    assert "--initial_peers '<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
+    assert "BLOOMBEE_INITIAL_PEERS='<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
+    assert "--initial_peers" not in plan["assignments"][1]["launch_command"]
 
 
 def test_layer_planner_cli_can_include_launch_commands():
@@ -1097,7 +1098,8 @@ def test_layer_planner_cli_can_include_launch_commands():
     assert payload["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
     assert payload["assignments"][0]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
     assert "--new_swarm" in payload["assignments"][0]["launch_command"]
-    assert "--initial_peers '<SEED_MULTIADDR_FROM_" in payload["assignments"][1]["launch_command"]
+    assert payload["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS='<SEED_MULTIADDR_FROM_")
+    assert "--initial_peers" not in payload["assignments"][1]["launch_command"]
 
 
 def test_layer_planner_cli_outputs_json_for_synthetic_swarm():

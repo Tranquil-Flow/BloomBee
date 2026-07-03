@@ -144,20 +144,22 @@ def _server_command(
     dht_prefix: str | None,
     initial_peer_placeholder: str | None,
 ) -> str:
-    parts = [
-        "PYTHONPATH=.:src",
-        "python -m bloombee.cli.run_server",
-        model_id,
-        f"--block_indices {block_range}",
-        f"--device {device}",
-        f"--torch_dtype {dtype}",
-        f"--port {port}",
-    ]
+    parts = ["PYTHONPATH=.:src"]
+    if initial_peer_placeholder:
+        parts.append(f"BLOOMBEE_INITIAL_PEERS='{initial_peer_placeholder}'")
+    parts.extend(
+        [
+            "python -m bloombee.cli.run_server",
+            model_id,
+            f"--block_indices {block_range}",
+            f"--device {device}",
+            f"--torch_dtype {dtype}",
+            f"--port {port}",
+        ]
+    )
     if dht_prefix:
         parts.append(f"--dht_prefix {dht_prefix}")
-    if initial_peer_placeholder:
-        parts.append(f"--initial_peers '{initial_peer_placeholder}'")
-    else:
+    if not initial_peer_placeholder:
         parts.append("--new_swarm")
     return " ".join(parts)
 
@@ -212,7 +214,8 @@ def attach_launch_commands(
     }
     updated["launch_command_notes"] = [
         "Commands are a runbook only; no server was started by the planner.",
-        "Start the first command, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders.",
+        "Start the first command, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders in BLOOMBEE_INITIAL_PEERS.",
+        "Follower commands use the BLOOMBEE_INITIAL_PEERS environment variable instead of --initial_peers because live multi-block tests require the env-var join path.",
         "Only promote proof gates after direct client evidence verifies finite outputs/gradients.",
     ]
     return updated

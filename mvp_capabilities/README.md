@@ -255,7 +255,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████░░░░░ 73%` built from the plan, with claim boundary
+  `███████████████░░░░░ 74%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
@@ -330,9 +330,11 @@ As of the current implementation slice:
   promoting inference gates.
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
-  `--include-launch-commands`, it adds exact BloomBee server command runbooks
-  and `join_layer_plan.py` can feed active token-scoped coordinator heartbeats
-  from local state or HTTP `/active` into those placements. With
+  `--include-launch-commands`, it adds exact BloomBee server command runbooks;
+  follower commands use `BLOOMBEE_INITIAL_PEERS`, matching the live-tested
+  multi-block join path. `join_layer_plan.py` can feed active token-scoped
+  coordinator heartbeats from local state or HTTP `/active` into those
+  placements. With
   `--include-launch-readiness`, it also emits a machine-readable checklist that
   marks unresolved seed multiaddr placeholders before any server start; with
   `--seed-multiaddr HOST=MULTIADDR`, it substitutes operator-captured seed

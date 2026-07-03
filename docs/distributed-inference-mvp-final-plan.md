@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 73%
+███████████████░░░░░ 74%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -127,8 +127,9 @@ Already proven:
   remains unproven until a generated artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
-  launch command runbooks, operator-captured seed multiaddr substitution,
-  launch-readiness checklists, and explicit `launch_commands_only_no_server_started`
+  launch command runbooks using the verified `BLOOMBEE_INITIAL_PEERS` follower
+  join path, operator-captured seed multiaddr substitution, launch-readiness
+  checklists, and explicit `launch_commands_only_no_server_started`
   / `launch_multiaddr_resolution_only_no_server_started` / readiness claim
   boundaries; active coordinator heartbeats can be handed into the same planner
   via `join_layer_plan.py` from local state or HTTP `/active`.
