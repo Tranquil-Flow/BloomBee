@@ -99,6 +99,46 @@ def _trim_recovered_history_for_existing_downstream(
     return inputs[:, -int(current_step_tokens):, :].contiguous()
 
 
+def _recovery_error_code(error: BaseException) -> str:
+    """Classify noisy recovery exceptions into stable log-scrapable reasons."""
+    text = f"{type(error).__name__}: {error!s} {error!r}".lower()
+    if "placeholder storage has not been allocated on mps device" in text:
+        return "mps_placeholder_storage"
+    if "maximum length" in text or "max_length" in text:
+        return "cache_length_mismatch"
+    if "failed to call handler" in text or "p2phandlererror" in text:
+        return "rpc_handler_error"
+    return type(error).__name__
+
+
+def _format_recovery_retry_event(
+    span,
+    attempt_no: int,
+    max_retries: int,
+    delay_s: float,
+    error: BaseException,
+) -> str:
+    return (
+        "[RECOVERY_EVENT] type=rpc_inference_retry action=retry "
+        f"reason={_recovery_error_code(error)} "
+        f"attempt={attempt_no + 1}/{max_retries} "
+        f"delay_s={delay_s:.0f} span={span} error={error!r}"
+    )
+
+
+def _format_final_history_trim_event(
+    seq_len: int,
+    current_step_tokens: int,
+    client_position: int,
+) -> str:
+    return (
+        "[RECOVERY_EVENT] type=final_history_trim "
+        "reason=session_rebuild_full_history action=trim_to_current_window "
+        f"seq_len={seq_len} current_step_tokens={current_step_tokens} "
+        f"client_position={client_position}"
+    )
+
+
 def _prepare_rpc_inference_tensor_for_wire(
     tensor: torch.Tensor,
     tensor_name: str,
@@ -774,8 +814,13 @@ class InferenceSession:
                         raise
                     delay = self._sequence_manager.get_retry_delay(attempt_no)
                     logger.warning(
-                        f"Caught exception when running inference via {server_session.span if server_session is not None else None} "
-                        f"(retry in {delay:.0f} sec): {repr(e)}"
+                        _format_recovery_retry_event(
+                            span=server_session.span if server_session is not None else None,
+                            attempt_no=attempt_no,
+                            max_retries=self._sequence_manager.config.max_retries,
+                            delay_s=delay,
+                            error=e,
+                        )
                     )
                     maybe_log_traceback(e)
                     time.sleep(delay) 
@@ -804,8 +849,11 @@ class InferenceSession:
             and outputs.shape[1] > n_input_tokens
         ):
             logger.warning(
-                "Final stage returned full-history hidden states after session recovery; "
-                f"slicing seq_len from {outputs.shape[1]} to current_step_tokens={n_input_tokens}"
+                _format_final_history_trim_event(
+                    seq_len=int(outputs.shape[1]),
+                    current_step_tokens=int(n_input_tokens),
+                    client_position=int(self._position),
+                )
             )
             outputs = outputs[:, -n_input_tokens:, :]
         elif (

@@ -175,15 +175,31 @@ This preserves the push-only performance experiment as an explicit opt-in while 
 
 ## Remaining F work
 
-This change makes S2S push opportunistic by default, but does **not** claim push-only S2S itself is robust. Remaining hardening:
+This change makes S2S push opportunistic by default, and the follow-up telemetry hardening now emits machine-readable recovery markers:
 
-1. Add clearer client/server telemetry taxonomy:
+```text
+[RECOVERY_EVENT] type=rpc_inference_retry action=retry reason=<code> attempt=<n>/<max> delay_s=<s> span=<span> error=<repr>
+[RECOVERY_EVENT] type=final_history_trim reason=session_rebuild_full_history action=trim_to_current_window seq_len=<n> current_step_tokens=<n> client_position=<n>
+```
+
+Current reason codes include:
+
+```text
+mps_placeholder_storage
+cache_length_mismatch
+rpc_handler_error
+<ExceptionClassName>
+```
+
+The MPS placeholder flood from the live run can now be counted via `reason=mps_placeholder_storage` instead of scraping raw tracebacks. The full-history recovery trim can be counted via `type=final_history_trim`.
+
+Remaining hardening:
+
+1. Add server-side push counters:
    - push scheduled
    - push acked
    - push failed
-   - direct fallback used
    - late push skipped
-   - recovery session rebuilt
 2. Fix or suppress macOS/MPS placeholder recovery at its source.
 3. Make S2S push failures surface as structured counters instead of noisy tracebacks.
 4. Add a short timeout/direct-fallback path if push-only mode remains available for performance experiments.
