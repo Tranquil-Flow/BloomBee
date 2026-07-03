@@ -2383,6 +2383,49 @@ def test_join_client_post_heartbeat_uses_injectable_urlopen(tmp_path: Path):
     assert result["claim_boundary"] == "join_client_post_only_no_inference_proof"
 
 
+def test_join_client_run_heartbeat_loop_reposts_with_sleep_hook(tmp_path: Path):
+    from mvp_capabilities.join_client import run_heartbeat_loop
+
+    capabilities_path = tmp_path / "fresh-peer.json"
+    capabilities_path.write_text(json.dumps({"hostname": "fresh-peer"}), encoding="utf-8")
+    captured_bodies = []
+    slept = []
+    now_values = iter([1_000, 1_010, 1_020])
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"ok":true,"claim_boundary":"heartbeat_only_no_inference_proof"}'
+
+    def fake_urlopen(request, timeout=0):
+        captured_bodies.append(json.loads(request.data.decode("utf-8")))
+        return FakeResponse()
+
+    report = run_heartbeat_loop(
+        "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+        capabilities_path=capabilities_path,
+        count=3,
+        interval_seconds=2.5,
+        timeout=7,
+        now_fn=lambda: next(now_values),
+        sleep_fn=slept.append,
+        urlopen_fn=fake_urlopen,
+    )
+
+    assert [body["now"] for body in captured_bodies] == [1_000, 1_010, 1_020]
+    assert slept == [2.5, 2.5]
+    assert report["heartbeat_count"] == 3
+    assert len(report["results"]) == 3
+    assert report["results"][0]["server_response"]["ok"] is True
+    assert report["claim_boundary"] == "join_client_heartbeat_loop_only_no_inference_proof"
+    assert report["inference_proven"] is False
+
+
 def test_join_client_cli_dry_run_outputs_request_json(tmp_path: Path):
     import subprocess
     import sys

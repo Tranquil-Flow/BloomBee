@@ -35,7 +35,7 @@ BloomBee's runtime already maintains.
 | 8. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
 | 9. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 10. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan/handoff endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / operator handoff bundle / SVG join card / QR preflight report |
+| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan/handoff endpoints, lets physical devices post one-shot or bounded repeated peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / route decision / joined layer plan / operator handoff bundle / SVG join card / QR preflight report |
 | 12. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 13. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 14. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
@@ -147,7 +147,9 @@ python mvp_capabilities/join_http_server.py \
 python mvp_capabilities/peer_scan.py --out ~/.bloombee/capabilities/$(hostname -s).json
 python mvp_capabilities/join_client.py \
   --join-url 'bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token' \
-  --capabilities ~/.bloombee/capabilities/$(hostname -s).json
+  --capabilities ~/.bloombee/capabilities/$(hostname -s).json \
+  --count 180 \
+  --interval-seconds 10
 
 #    Render a dependency-free visual join card for operator handoff.
 #    This embeds the exact URL and writes JSON/TXT copy-paste sidecars, but does not yet claim QR scanner compatibility.
@@ -326,8 +328,9 @@ As of the current implementation slice:
   dashboard-ready artifact without starting servers or sending traffic.
 - Join client (`join_client.py`) exists: it parses the join URL, loads a
   `bloombee://join?...` offer, loads peer-scan capabilities, and posts a
-  heartbeat to the coordinator. Dry-run mode prints the exact request without
-  network side effects.
+  one-shot or bounded repeated heartbeat loop to the coordinator so a fresh
+  laptop stays visible in the active roster while operators plan/launch servers.
+  Dry-run mode prints the exact request without network side effects.
 - SVG join-card renderer (`join_card.py`) exists: it embeds the exact join URL
   in text/data attributes, renders a deterministic visual grid, and can write
   `.join.json` / `.join.txt` copy-paste sidecars for phones/operators. It carries

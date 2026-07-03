@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 REQUEST_CLAIM_BOUNDARY = "join_client_request_only_no_inference_proof"
 DRY_RUN_CLAIM_BOUNDARY = "join_client_dry_run_only_no_inference_proof"
 POST_CLAIM_BOUNDARY = "join_client_post_only_no_inference_proof"
+LOOP_CLAIM_BOUNDARY = "join_client_heartbeat_loop_only_no_inference_proof"
 
 
 def parse_join_url(join_url: str) -> dict[str, str]:
@@ -108,6 +109,58 @@ def post_heartbeat(
     }
 
 
+def run_heartbeat_loop(
+    join_url: str,
+    *,
+    capabilities_path: str | Path,
+    peer_id: str | None = None,
+    count: int = 1,
+    interval_seconds: float = 10.0,
+    timeout: float = 5.0,
+    now: int | None = None,
+    now_fn: Callable[[], float] = time.time,
+    sleep_fn: Callable[[float], Any] = time.sleep,
+    urlopen_fn: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    """Post repeated heartbeats so a joined laptop stays active in the roster.
+
+    This is still coordinator/roster wiring only. It does not start BloomBee
+    servers, run inference, or update proof status. ``count`` is intentionally
+    finite so operators can choose a bounded live-demo window and tests can run
+    deterministically.
+    """
+    if count < 1:
+        raise ValueError("count must be >= 1")
+    if interval_seconds < 0:
+        raise ValueError("interval_seconds must be >= 0")
+
+    results: list[dict[str, Any]] = []
+    for index in range(count):
+        heartbeat_now = int(now if now is not None else now_fn())
+        result = post_heartbeat(
+            join_url,
+            capabilities_path=capabilities_path,
+            peer_id=peer_id,
+            timeout=timeout,
+            now=heartbeat_now,
+            urlopen_fn=urlopen_fn,
+        )
+        result["iteration"] = index + 1
+        results.append(result)
+        if index < count - 1:
+            sleep_fn(interval_seconds)
+
+    return {
+        "heartbeat_count": len(results),
+        "requested_count": count,
+        "interval_seconds": interval_seconds,
+        "results": results,
+        "claim_boundary": LOOP_CLAIM_BOUNDARY,
+        "inference_proven": False,
+        "can_update_proof_status": False,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--join-url", required=True)
@@ -115,11 +168,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--peer-id", default=None, help="Override peer id; defaults to capabilities.hostname")
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--now", type=int, default=None)
+    parser.add_argument("--count", type=int, default=1, help="Number of heartbeats to post; default is one-shot")
+    parser.add_argument("--interval-seconds", type=float, default=10.0, help="Seconds to sleep between repeated heartbeats")
     parser.add_argument("--dry-run", action="store_true", help="Print request payload without sending it")
     args = parser.parse_args(argv)
 
     if args.dry_run:
         payload = dry_run_report(args.join_url, capabilities_path=args.capabilities, peer_id=args.peer_id, now=args.now)
+    elif args.count != 1:
+        payload = run_heartbeat_loop(
+            args.join_url,
+            capabilities_path=args.capabilities,
+            peer_id=args.peer_id,
+            count=args.count,
+            interval_seconds=args.interval_seconds,
+            timeout=args.timeout,
+            now=args.now,
+        )
     else:
         payload = post_heartbeat(
             args.join_url,

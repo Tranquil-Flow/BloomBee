@@ -159,7 +159,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   filesystem access; `/handoff` bundles offer, active roster, auto route, launch
   plan, and proof harness runbooks without starting servers.
   `mvp_capabilities/join_client.py` lets physical devices
-  parse a join URL and post their peer-scan heartbeat. `mvp_capabilities/join_card.py`
+  parse a join URL and post one-shot or bounded repeated peer-scan heartbeats so
+  they remain active during operator planning. `mvp_capabilities/join_card.py`
   renders an SVG join card with exact URL metadata and scanner interop explicitly
   unproven. `mvp_capabilities/join_qr_preflight.py` reports missing QR
   encoder/decoder dependencies fail-closed before any scanner proof claim. This
