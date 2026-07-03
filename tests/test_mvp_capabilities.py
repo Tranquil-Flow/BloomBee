@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 55
-    assert report["overall_bar"] == "███████████░░░░░░░░░ 55%"
-    assert report["remaining_percent"] == 45
+    assert report["overall_percent"] == 56
+    assert report["overall_bar"] == "███████████░░░░░░░░░ 56%"
+    assert report["remaining_percent"] == 44
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████░░░░░░░░░ 55%" in text
+    assert "███████████░░░░░░░░░ 56%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +298,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 55
-    assert payload["overall_bar"].endswith("55%")
+    assert payload["overall_percent"] == 56
+    assert payload["overall_bar"].endswith("56%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1086,3 +1086,101 @@ def test_join_http_server_rejects_bad_heartbeat_json(tmp_path: Path):
     assert status == 400
     assert payload["error"] == "missing required heartbeat fields"
     assert payload["claim_boundary"] == "coordinator_error_no_inference_proof"
+
+
+def test_join_client_parses_join_url_and_builds_heartbeat_request(tmp_path: Path):
+    from mvp_capabilities.join_client import build_heartbeat_request, build_heartbeat_payload, parse_join_url
+
+    capabilities_path = tmp_path / "fresh-peer.json"
+    capabilities_path.write_text(
+        json.dumps({"hostname": "fresh-peer", "memory": {"free_gb": 20}, "accelerator": {"device": "mps"}}),
+        encoding="utf-8",
+    )
+
+    join = parse_join_url("bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token")
+    payload = build_heartbeat_payload(join, capabilities_path=capabilities_path, now=1_000)
+    request = build_heartbeat_request(join, payload)
+
+    assert join == {"coordinator": "http://m4pro.local:8787", "token": "moon-token"}
+    assert payload["token"] == "moon-token"
+    assert payload["peer_id"] == "fresh-peer"
+    assert payload["capabilities"]["memory"]["free_gb"] == 20
+    assert payload["claim_boundary"] == "join_client_request_only_no_inference_proof"
+    assert request.full_url == "http://m4pro.local:8787/heartbeat"
+    assert request.get_method() == "POST"
+    assert request.headers["Content-type"] == "application/json"
+    assert json.loads(request.data.decode("utf-8"))["peer_id"] == "fresh-peer"
+
+
+def test_join_client_rejects_malformed_join_url():
+    from mvp_capabilities.join_client import parse_join_url
+
+    with pytest.raises(ValueError, match="join URL must include coordinator and token"):
+        parse_join_url("bloombee://join?token=moon-token")
+
+
+def test_join_client_post_heartbeat_uses_injectable_urlopen(tmp_path: Path):
+    from mvp_capabilities.join_client import post_heartbeat
+
+    capabilities_path = tmp_path / "fresh-peer.json"
+    capabilities_path.write_text(json.dumps({"hostname": "fresh-peer"}), encoding="utf-8")
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"peer_id":"fresh-peer","claim_boundary":"heartbeat_only_no_inference_proof"}'
+
+    def fake_urlopen(request, timeout=0):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    result = post_heartbeat(
+        "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+        capabilities_path=capabilities_path,
+        timeout=7,
+        urlopen_fn=fake_urlopen,
+    )
+
+    assert captured["url"] == "http://m4pro.local:8787/heartbeat"
+    assert captured["body"]["token"] == "moon-token"
+    assert captured["timeout"] == 7
+    assert result["server_response"]["peer_id"] == "fresh-peer"
+    assert result["claim_boundary"] == "join_client_post_only_no_inference_proof"
+
+
+def test_join_client_cli_dry_run_outputs_request_json(tmp_path: Path):
+    import subprocess
+    import sys
+
+    capabilities_path = tmp_path / "fresh-peer.json"
+    capabilities_path.write_text(json.dumps({"hostname": "fresh-peer"}), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_client.py",
+            "--join-url",
+            "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+            "--capabilities",
+            str(capabilities_path),
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["dry_run"] is True
+    assert payload["url"] == "http://m4pro.local:8787/heartbeat"
+    assert payload["body"]["peer_id"] == "fresh-peer"
+    assert payload["claim_boundary"] == "join_client_dry_run_only_no_inference_proof"

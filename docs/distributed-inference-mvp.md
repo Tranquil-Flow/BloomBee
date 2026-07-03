@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████░░░░░░░░░ 55%
+███████████░░░░░░░░░ 56%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -117,8 +117,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
   exposes `/healthz`, `/offer`, `/heartbeat`, and `/active` endpoints using
-  Python stdlib HTTP. This is bootstrap/roster state only and explicitly does
-  not claim inference proof.
+  Python stdlib HTTP. `mvp_capabilities/join_client.py` lets physical devices
+  parse a join URL and post their peer-scan heartbeat. This is bootstrap/roster
+  state only and explicitly does not claim inference proof.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
   server launch commands with `--include-launch-commands`. This is placement and
