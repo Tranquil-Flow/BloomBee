@@ -17,15 +17,18 @@ from typing import Any
 import yaml
 
 try:
+    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/route_picker.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 
 
 DEFAULT_REGISTRY = Path(__file__).with_name("MODEL_REGISTRY.yaml")
 MVP_MODEL_ID = "Qwen/Qwen3-30B-A3B"
 STRETCH_MODEL_ID = "Qwen/Qwen3-235B-A22B"
+SELECTOR_MODES = ("planning", "showcase-attempt", "safe-demo")
 
 
 def load_registry(path: str | Path = DEFAULT_REGISTRY) -> list[dict[str, Any]]:
@@ -86,10 +89,62 @@ def _bench_score(model: dict[str, Any], bench_matrix: dict[str, Any] | None) -> 
     return max(values) if values else 0.0
 
 
+def _default_proof_status() -> dict[str, str]:
+    return {key: "pending" for key in PROOF_KEYS}
+
+
+def _proof_status_for(
+    model: dict[str, Any],
+    proof_status: dict[str, dict[str, str]] | None = None,
+) -> dict[str, str]:
+    status = _default_proof_status()
+    model_status = model.get("proof_status")
+    if isinstance(model_status, dict):
+        status.update({str(key): str(value) for key, value in model_status.items()})
+    model_id = model.get("model_id")
+    if model_id and proof_status and model_id in proof_status:
+        status.update(proof_status[model_id])
+    return status
+
+
+def _status_is_blocked(value: object) -> bool:
+    return str(value).lower().startswith("blocked")
+
+
+def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
+    explicit = model.get("claim_level")
+    if explicit:
+        return str(explicit)
+    if model.get("architecture_supported") is False:
+        return "blocked"
+    if any(_status_is_blocked(value) for value in status.values()):
+        return "blocked"
+    if status.get("full_generation") == "passed":
+        return "demo_safe"
+    return "experimental"
+
+
+def _selector_allowed(selector_mode: str, claim_level: str) -> tuple[bool, str | None]:
+    if selector_mode == "planning":
+        return True, None
+    if selector_mode == "showcase-attempt":
+        if claim_level == "blocked":
+            return False, "blocked by missing wrapper or proof gate"
+        return True, None
+    if selector_mode == "safe-demo":
+        if claim_level != "demo_safe":
+            return False, "safe-demo requires full_generation proof"
+        return True, None
+    raise ValueError(f"unknown selector_mode={selector_mode!r}; expected one of {SELECTOR_MODES}")
+
+
 def evaluate_model(
     peers: list[dict[str, Any]],
     model: dict[str, Any],
     bench_matrix: dict[str, Any] | None = None,
+    *,
+    proof_status: dict[str, dict[str, str]] | None = None,
+    selector_mode: str = "planning",
 ) -> dict[str, Any]:
     required_gb = _model_required_gb(model)
     free_by_peer = [(peer.get("hostname", "unknown"), _peer_free_gb(peer)) for peer in peers]
@@ -109,6 +164,10 @@ def evaluate_model(
     else:
         reason = f"requires {required_gb:.1f}GB free; swarm has {total_free:.1f}GB"
 
+    model_proof_status = _proof_status_for(model, proof_status)
+    claim_level = _claim_level_for(model, model_proof_status)
+    selector_allowed, selector_blocked_reason = _selector_allowed(selector_mode, claim_level)
+
     return {
         "model_id": model.get("model_id"),
         "supported": supported,
@@ -122,6 +181,11 @@ def evaluate_model(
         "supports_moe": bool(model.get("supports_moe")),
         "quality_rank": float(model.get("quality_rank") or 0.0),
         "measured_decode_tok_per_s": _bench_score(model, bench_matrix),
+        "proof_status": model_proof_status,
+        "claim_level": claim_level,
+        "selector_mode": selector_mode,
+        "selector_allowed": selector_allowed,
+        "selector_blocked_reason": selector_blocked_reason,
     }
 
 
@@ -162,11 +226,19 @@ def choose_best_route(
     scenario: str | None = None,
     requested_model: str | None = None,
     bench_matrix: dict[str, Any] | None = None,
+    proof_status: dict[str, dict[str, str]] | None = None,
+    selector_mode: str = "planning",
 ) -> dict[str, Any]:
     if requested_model:
         for model in registry:
             if model.get("model_id") == requested_model:
-                return evaluate_model(peers, model, bench_matrix)
+                return evaluate_model(
+                    peers,
+                    model,
+                    bench_matrix,
+                    proof_status=proof_status,
+                    selector_mode=selector_mode,
+                )
         return {
             "model_id": requested_model,
             "supported": False,
@@ -174,16 +246,33 @@ def choose_best_route(
             "reason": "model not found in registry",
             "mvp_target": requested_model == MVP_MODEL_ID,
             "stretch_target": requested_model == STRETCH_MODEL_ID,
+            "selector_mode": selector_mode,
+            "selector_allowed": False,
+            "selector_blocked_reason": "model not found in registry",
         }
 
-    candidates = [evaluate_model(peers, model, bench_matrix) for model in registry]
-    supported = [candidate for candidate in candidates if candidate["supported"]]
+    candidates = [
+        evaluate_model(
+            peers,
+            model,
+            bench_matrix,
+            proof_status=proof_status,
+            selector_mode=selector_mode,
+        )
+        for model in registry
+    ]
+    supported = [
+        candidate for candidate in candidates
+        if candidate["supported"] and candidate.get("selector_allowed", True)
+    ]
     if not supported:
         return {
             "model_id": None,
             "supported": False,
             "placement": "unsupported",
-            "reason": "no model fits current swarm",
+            "reason": f"no selectable model fits current swarm for selector_mode={selector_mode}",
+            "selector_mode": selector_mode,
+            "selector_allowed": False,
         }
 
     if scenario == "mvp-10-laptop":
@@ -209,15 +298,25 @@ def explain_route(
     scenario: str | None = None,
     requested_model: str | None = None,
     bench_matrix: dict[str, Any] | None = None,
+    proof_status: dict[str, dict[str, str]] | None = None,
+    selector_mode: str = "planning",
 ) -> dict[str, Any]:
     """Return the picked route plus full evidence for every candidate.
 
     Consumers (UI, tests, logs) get to see WHY the router picked what it did:
     which candidates supported, which placed how, which fell short by how much,
-    and whether measured bench data changed the outcome.
+    whether measured bench data changed the outcome, and which proof gate made a
+    candidate selectable for the requested mode.
     """
     candidates: list[dict[str, Any]] = [
-        evaluate_model(peers, model, bench_matrix) for model in registry
+        evaluate_model(
+            peers,
+            model,
+            bench_matrix,
+            proof_status=proof_status,
+            selector_mode=selector_mode,
+        )
+        for model in registry
     ]
     if requested_model:
         for candidate in candidates:
@@ -225,6 +324,7 @@ def explain_route(
                 return {
                     "picked": candidate,
                     "scenario": scenario,
+                    "selector_mode": selector_mode,
                     "peer_summary": _peer_summary(peers),
                     "candidates": candidates,
                 }
@@ -236,8 +336,12 @@ def explain_route(
                 "reason": "model not found in registry",
                 "mvp_target": requested_model == MVP_MODEL_ID,
                 "stretch_target": requested_model == STRETCH_MODEL_ID,
+                "selector_mode": selector_mode,
+                "selector_allowed": False,
+                "selector_blocked_reason": "model not found in registry",
             },
             "scenario": scenario,
+            "selector_mode": selector_mode,
             "peer_summary": _peer_summary(peers),
             "candidates": candidates,
         }
@@ -247,9 +351,12 @@ def explain_route(
         registry,
         scenario=scenario,
         bench_matrix=bench_matrix,
+        proof_status=proof_status,
+        selector_mode=selector_mode,
     )
 
     supported = [c for c in candidates if c["supported"]]
+    selectable = [c for c in supported if c.get("selector_allowed", True)]
     near_miss = [
         c for c in candidates
         if not c["supported"]
@@ -259,8 +366,10 @@ def explain_route(
     return {
         "picked": picked,
         "scenario": scenario,
+        "selector_mode": selector_mode,
         "peer_summary": _peer_summary(peers),
         "supported_count": len(supported),
+        "selectable_count": len(selectable),
         "near_miss": near_miss,
         "candidates": candidates,
     }
@@ -284,6 +393,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scenario", default=None)
     parser.add_argument("--model", dest="requested_model", default=None)
     parser.add_argument("--bench-matrix", default=None)
+    parser.add_argument("--proof-status", default=str(DEFAULT_PROOF_STATUS))
+    parser.add_argument(
+        "--selector-mode",
+        choices=SELECTOR_MODES,
+        default="planning",
+        help="planning ignores proof gates; showcase-attempt blocks missing wrappers; safe-demo requires full_generation proof.",
+    )
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Append N synthetic M4 laptop peers")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
     parser.add_argument("--synthetic-free-gb", type=float, default=20.0)
@@ -297,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
     bench_matrix = None
     if args.bench_matrix:
         bench_matrix = json.loads(Path(args.bench_matrix).expanduser().read_text(encoding="utf-8"))
+    proof_status = load_proof_status(args.proof_status)
     peers = load_roster(args.cap_dir or [DEFAULT_CAP_DIR])
     if args.synthetic_m4_laptops:
         peers.extend(
@@ -315,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
             scenario=args.scenario,
             requested_model=args.requested_model,
             bench_matrix=bench_matrix,
+            proof_status=proof_status,
+            selector_mode=args.selector_mode,
         )
         print(json.dumps(explainable, indent=2, sort_keys=True))
         return 0
@@ -327,6 +446,8 @@ def main(argv: list[str] | None = None) -> int:
                 scenario=args.scenario,
                 requested_model=args.requested_model,
                 bench_matrix=bench_matrix,
+                proof_status=proof_status,
+                selector_mode=args.selector_mode,
             ),
             indent=2,
             sort_keys=True,

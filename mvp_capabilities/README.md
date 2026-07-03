@@ -30,7 +30,7 @@ BloomBee's runtime already maintains.
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
 | 4. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 5. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 6. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. The final coordinator should extend this with architecture/proof-status filters before safe-demo selection. | JSON route decision |
+| 6. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 7. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *what each model actually achieves on this hardware*.
@@ -74,6 +74,18 @@ python mvp_capabilities/swarm_roster.py --cap-dir ~/.bloombee/capabilities --jso
 
 # 6. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
+
+#    Safe demo mode only auto-selects models with full_generation proof.
+python mvp_capabilities/route_picker.py \
+  --cap-dir ~/.bloombee/capabilities \
+  --selector-mode safe-demo
+
+#    Showcase-attempt permits experimental proven-wrapper models, but still
+#    blocks missing-wrapper frontier candidates.
+python mvp_capabilities/route_picker.py \
+  --cap-dir ~/.bloombee/capabilities \
+  --selector-mode showcase-attempt \
+  --explain
 
 # 7. Plan the 10-laptop MVP showcase route before physical showcase day.
 python mvp_capabilities/route_picker.py \

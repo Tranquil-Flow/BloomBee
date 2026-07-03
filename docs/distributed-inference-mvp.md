@@ -90,6 +90,10 @@ hardware pool exists.
 - `mvp_capabilities/model_compat_scan.py` and `PROOF_STATUS.yaml` exist. They
   prescan local model configs, map HF `model_type` to BloomBee support, merge
   proof gates, and emit `demo_safe` / `experimental` / `blocked` claim levels.
+- `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
+  `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
+  live dashboard/coordinator can distinguish memory-fit planning from
+  proof-gated demo-safe selection.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and

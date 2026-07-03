@@ -283,6 +283,140 @@ def _write_hf_config(model_dir: Path, **fields) -> Path:
     return path
 
 
+def _tiny_route_registry() -> list[dict]:
+    return [
+        {
+            "model_id": "demo-safe/Tiny-Proven",
+            "recommended_min_free_mem_gb": 4,
+            "min_total_mem_gb": 4,
+            "params_b": 1.0,
+            "active_params_b": 1.0,
+            "quality_rank": 1.0,
+        },
+        {
+            "model_id": "Qwen/Qwen3-30B-A3B",
+            "recommended_min_free_mem_gb": 70,
+            "min_total_mem_gb": 63,
+            "params_b": 30.5,
+            "active_params_b": 3.3,
+            "quality_rank": 50.0,
+            "supports_moe": True,
+        },
+        {
+            "model_id": "zai-org/GLM-5.2",
+            "recommended_min_free_mem_gb": 70,
+            "min_total_mem_gb": 63,
+            "params_b": 744.0,
+            "active_params_b": 40.0,
+            "quality_rank": 200.0,
+            "supports_moe": True,
+        },
+    ]
+
+
+def _proof_status_fixture() -> dict[str, dict[str, str]]:
+    return {
+        "demo-safe/Tiny-Proven": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+        },
+        "Qwen/Qwen3-30B-A3B": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "pending",
+            "full_generation": "pending",
+        },
+        "zai-org/GLM-5.2": {
+            "prescan": "pending",
+            "one_block_server": "blocked-by-wrapper",
+            "multi_block": "blocked-by-wrapper",
+            "full_generation": "blocked-by-wrapper",
+        },
+    }
+
+
+def test_safe_demo_selector_picks_only_full_generation_proven_model():
+    from mvp_capabilities.route_picker import choose_best_route
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    route = choose_best_route(
+        peers,
+        _tiny_route_registry(),
+        proof_status=_proof_status_fixture(),
+        selector_mode="safe-demo",
+    )
+
+    assert route["model_id"] == "demo-safe/Tiny-Proven"
+    assert route["selector_mode"] == "safe-demo"
+    assert route["claim_level"] == "demo_safe"
+    assert route["selector_allowed"] is True
+
+
+def test_showcase_attempt_allows_experimental_but_blocks_wrapper_blocked():
+    from mvp_capabilities.route_picker import explain_route
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    result = explain_route(
+        peers,
+        _tiny_route_registry(),
+        proof_status=_proof_status_fixture(),
+        selector_mode="showcase-attempt",
+    )
+
+    assert result["picked"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert result["picked"]["claim_level"] == "experimental"
+    blocked = next(c for c in result["candidates"] if c["model_id"] == "zai-org/GLM-5.2")
+    assert blocked["claim_level"] == "blocked"
+    assert blocked["selector_allowed"] is False
+    assert "wrapper" in blocked["selector_blocked_reason"].lower()
+
+
+def test_planning_mode_keeps_memory_fit_candidates_even_when_unproven():
+    from mvp_capabilities.route_picker import choose_best_route
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    route = choose_best_route(
+        peers,
+        _tiny_route_registry(),
+        proof_status=_proof_status_fixture(),
+        selector_mode="planning",
+    )
+
+    assert route["model_id"] == "zai-org/GLM-5.2"
+    assert route["claim_level"] == "blocked"
+    assert route["selector_allowed"] is True
+    assert route["selector_mode"] == "planning"
+
+
+def test_cli_safe_demo_mode_uses_proof_status_before_selecting_model():
+    import subprocess
+    import sys
+
+    cmd = [
+        sys.executable,
+        "mvp_capabilities/route_picker.py",
+        "--cap-dir",
+        "/tmp/mvp_demo_caps",
+        "--scenario",
+        "mvp-10-laptop",
+        "--synthetic-m4-laptops",
+        "10",
+        "--selector-mode",
+        "safe-demo",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["selector_mode"] == "safe-demo"
+    assert payload["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert payload["claim_level"] == "demo_safe"
+
+
 def test_model_compat_scan_marks_qwen3_moe_as_bloombee_supported(tmp_path: Path):
     from mvp_capabilities.model_compat_scan import scan_model_config
 

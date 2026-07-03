@@ -75,6 +75,9 @@ Already proven:
 - Model compatibility scanner plus proof-status registry: local `config.json`
   prescan, BloomBee family mapping, unsupported-wrapper blocking, and claim-level
   output are test-covered.
+- Route picker selector modes are wired: `planning` keeps memory-fit simulation,
+  `showcase-attempt` allows experimental supported wrappers while blocking
+  missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
 
 Not yet proven:
 
@@ -444,6 +447,8 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    output exist. Next slice should feed this into the best-model selector.
 2. Add Qwen3-30B-A3B-Instruct-2507 / Thinking-2507 candidates with pending proof.
 3. Best-model selector with `safe-demo`, `showcase-attempt`, and `planning` modes.
+   **Initial slice complete**: route picking and explain output include selector
+   mode, proof status, claim level, and selectable/blocker metadata.
 4. QR/link join coordinator and heartbeat state.
 5. Layer planner from live worker capabilities.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
