@@ -33,7 +33,7 @@ BloomBee's runtime already maintains.
 | 6. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
 | 7. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 8. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 9. Join | `join_coordinator.py` | Creates shareable join-link offers and records token-scoped peer heartbeats. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
+| 9. Join | `join_coordinator.py` + `join_http_server.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, and exposes HTTP health/offer/heartbeat/active endpoints. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
 | 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 12. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
@@ -100,6 +100,12 @@ python mvp_capabilities/swarm_roster.py --cap-dir ~/.bloombee/capabilities --jso
 python mvp_capabilities/join_coordinator.py offer \
   --coordinator http://m4pro.local:8787 \
   --ttl-seconds 600
+
+#    Or run the stdlib HTTP coordinator on a normal host.
+python mvp_capabilities/join_http_server.py \
+  --host 0.0.0.0 \
+  --port 8787 \
+  --coordinator http://m4pro.local:8787
 
 # 10. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
@@ -176,7 +182,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████░░░░░░░░░ 54%` built from the plan, with claim boundary
+  `███████████░░░░░░░░░ 55%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
@@ -198,9 +204,12 @@ As of the current implementation slice:
   passed config-only prescan as `qwen3` dense models, but one-block,
   multi-block, and full-generation gates remain pending; they are experimental,
   not `safe-demo` selectable.
-- Join-link/heartbeat foundation (`join_coordinator.py`) exists: it emits
-  `bloombee://join?...` offers and token-scoped active heartbeat rosters, with
-  explicit `no_inference_proof` claim boundaries.
+- Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
+  `bloombee://join?...` offers and token-scoped active heartbeat rosters.
+  `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, and `/active`
+  HTTP endpoints with explicit `no_inference_proof` claim boundaries. In the
+  Hermes sandbox, dispatch functions are verified without binding a port because
+  socket bind is blocked.
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
   `--include-launch-commands`, it adds exact BloomBee server command runbooks

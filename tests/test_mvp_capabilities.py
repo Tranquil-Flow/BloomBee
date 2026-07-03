@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 54
-    assert report["overall_bar"] == "███████████░░░░░░░░░ 54%"
-    assert report["remaining_percent"] == 46
+    assert report["overall_percent"] == 55
+    assert report["overall_bar"] == "███████████░░░░░░░░░ 55%"
+    assert report["remaining_percent"] == 45
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████░░░░░░░░░ 54%" in text
+    assert "███████████░░░░░░░░░ 55%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +298,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 54
-    assert payload["overall_bar"].endswith("54%")
+    assert payload["overall_percent"] == 55
+    assert payload["overall_bar"].endswith("55%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1040,3 +1040,49 @@ def test_join_coordinator_cli_offer_outputs_json():
     payload = json.loads(proc.stdout)
     assert payload["join_url"].startswith("bloombee://join?")
     assert payload["expires_at"] == 1120
+
+
+def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    state_dir = tmp_path / "join-http-state"
+
+    status, health = handle_get("/healthz", state_dir=state_dir, coordinator="http://127.0.0.1:8787")
+    assert status == 200
+    assert health == {"ok": True, "claim_boundary": "coordinator_health_only_no_inference_proof"}
+
+    status, offer = handle_get(
+        "/offer?token=moon-token&ttl_seconds=120",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    assert offer["token"] == "moon-token"
+    assert offer["claim_boundary"] == "link_offer_only_no_inference_proof"
+    assert offer["join_url"].startswith("bloombee://join?")
+
+    heartbeat_body = json.dumps(
+        {
+            "token": "moon-token",
+            "peer_id": "fresh-peer",
+            "capabilities": {"hostname": "fresh-peer", "memory": {"free_gb": 20}, "accelerator": {"device": "mps"}},
+        }
+    ).encode("utf-8")
+    status, heartbeat = handle_post("/heartbeat", body=heartbeat_body, state_dir=state_dir)
+    assert status == 200
+    assert heartbeat["peer_id"] == "fresh-peer"
+    assert heartbeat["claim_boundary"] == "heartbeat_only_no_inference_proof"
+
+    status, active = handle_get("/active?token=moon-token&max_age_seconds=60", state_dir=state_dir, coordinator="http://127.0.0.1:8787")
+    assert status == 200
+    assert active["claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
+    assert [peer["peer_id"] for peer in active["active_peers"]] == ["fresh-peer"]
+
+
+def test_join_http_server_rejects_bad_heartbeat_json(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_post
+
+    status, payload = handle_post("/heartbeat", body=b'{"token":"moon-token"}', state_dir=tmp_path / "state")
+    assert status == 400
+    assert payload["error"] == "missing required heartbeat fields"
+    assert payload["claim_boundary"] == "coordinator_error_no_inference_proof"

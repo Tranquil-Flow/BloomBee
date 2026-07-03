@@ -58,10 +58,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="join_flow",
         label="Self-serve join flow, QR/link, heartbeat, live coordinator service",
         weight=10,
-        completion=0.35,
+        completion=0.45,
         status="partial",
-        evidence="join_coordinator.py creates link offers and heartbeat rosters",
-        next_step="add QR rendering and HTTP coordinator endpoints",
+        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health, offer, heartbeat, and active roster endpoints",
+        next_step="add QR rendering and wire physical-device client flow",
     ),
     Milestone(
         id="layer_planning",
