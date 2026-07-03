@@ -49,10 +49,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="dashboard_visibility",
         label="Dashboard/operator visibility with claim boundaries",
         weight=8,
-        completion=0.85,
-        status="partial",
-        evidence="demo_dashboard.py renders real peers, route cards, evidence, telemetry, layer placement, and mvp_status.py progress/next gate",
-        next_step="add live proof/download state feed into dashboard",
+        completion=1.00,
+        status="complete",
+        evidence="demo_dashboard.py renders real peers, route cards, evidence, telemetry, layer placement, mvp_status.py progress/next gate, and proof_state.py live prep feed",
     ),
     Milestone(
         id="join_flow",

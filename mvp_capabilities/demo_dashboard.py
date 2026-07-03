@@ -195,6 +195,7 @@ def build_dashboard_document(
     registry_path: str | Path = DEFAULT_REGISTRY,
     bench_matrix_path: str | Path | None = None,
     evidence_dir: str | Path = DEFAULT_EVIDENCE_DIR,
+    proof_state_path: str | Path | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
@@ -218,6 +219,7 @@ def build_dashboard_document(
             bench_matrix=bench_matrix,
         )
     evidence = load_evidence(evidence_dir)
+    proof_state = _read_json(proof_state_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -235,6 +237,7 @@ def build_dashboard_document(
         "synthetic_10_laptop_route": synthetic_route,
         "benchmarks": bench_matrix,
         "evidence": evidence,
+        "proof_state": proof_state,
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
@@ -424,6 +427,42 @@ def _status_panel(status: dict[str, Any]) -> str:
     """
 
 
+def _proof_state_panel(proof_state: dict[str, Any] | None) -> str:
+    if not proof_state:
+        return """
+      <section class="card wide proof-state">
+        <h2>Live proof-prep state</h2>
+        <p class="muted">No proof-state JSON supplied yet. Generate one with <code>python mvp_capabilities/proof_state.py</code>.</p>
+      </section>
+    """
+    progress = proof_state.get("fetch_progress") or {}
+    cache = proof_state.get("cache") or {}
+    status = proof_state.get("download_status") or "unknown"
+    inference_copy = "inference proven" if proof_state.get("inference_proven") else "inference not proven"
+    progress_copy = (
+        f"{progress.get('percent')}% ({progress.get('completed_files')}/{progress.get('total_files')} files)"
+        if progress
+        else "—"
+    )
+    cache_copy = cache.get("human") or _fmt_num(cache.get("bytes"), 0)
+    return f"""
+      <section class="card wide proof-state">
+        <h2>Live proof-prep state</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(proof_state.get('model'))}</strong></div>
+          <div><span class="label">Gate</span><strong>{_esc(proof_state.get('gate'))}</strong></div>
+          <div><span class="label">Download status</span><strong>{_esc(status)}</strong></div>
+          <div><span class="label">Fetch progress</span><strong>{_esc(progress_copy)}</strong></div>
+          <div><span class="label">Host</span><strong>{_esc(proof_state.get('host') or '—')}</strong></div>
+          <div><span class="label">Cache</span><strong>{_esc(cache_copy)} · {_esc(cache.get('weight_files'))} weight files</strong></div>
+          <div><span class="label">Inference claim</span><strong class="warn">{_esc(inference_copy)}</strong></div>
+          <div><span class="label">Claim boundary</span><code>{_esc(proof_state.get('claim_boundary'))}</code></div>
+        </div>
+        <p class="muted">{_esc(proof_state.get('next_step') or 'Only a dedicated proof verifier may promote this gate.')}</p>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -500,6 +539,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
   </header>
   <main>
     {_status_panel(document.get('mvp_status') or {})}
+    {_proof_state_panel(document.get('proof_state'))}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
     {_devices_table(document.get('roster') or {})}
@@ -533,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY))
     parser.add_argument("--bench-matrix", default=None, help="JSON from bench_matrix.py")
     parser.add_argument("--evidence-dir", default=str(DEFAULT_EVIDENCE_DIR))
+    parser.add_argument("--proof-state", default=None, help="Optional JSON from proof_state.py")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
@@ -549,6 +590,7 @@ def main(argv: list[str] | None = None) -> int:
             registry_path=args.registry,
             bench_matrix_path=args.bench_matrix,
             evidence_dir=args.evidence_dir,
+            proof_state_path=args.proof_state,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
             synthetic_total_gb=args.synthetic_total_gb,

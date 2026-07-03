@@ -194,7 +194,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `████████████░░░░░░░░ 58%` built from the plan, with claim boundary
+  `████████████░░░░░░░░ 59%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
@@ -232,6 +232,9 @@ As of the current implementation slice:
   proof gate.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, and milestone table beside routes/evidence.
+- Proof-state observability (`proof_state.py`) parses retained status/log/cache
+  facts from long-running proof prep and feeds the dashboard without promoting
+  inference gates.
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
   `--include-launch-commands`, it adds exact BloomBee server command runbooks

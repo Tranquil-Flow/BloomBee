@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-████████████░░░░░░░░ 58%
+████████████░░░░░░░░ 59%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -77,7 +77,8 @@ Already proven:
 - TinyLlama cached `.generate()` parity.
 - TinyLlama S2S opportunistic push with client-direct fallback.
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
-  status/next gate, telemetry, and real layer-placement metadata.
+  status/next gate, live proof-prep feed, telemetry, and real layer-placement
+  metadata.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -268,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 58
-    assert report["overall_bar"] == "████████████░░░░░░░░ 58%"
-    assert report["remaining_percent"] == 42
+    assert report["overall_percent"] == 59
+    assert report["overall_bar"] == "████████████░░░░░░░░ 59%"
+    assert report["remaining_percent"] == 41
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "████████████░░░░░░░░ 58%" in text
+    assert "████████████░░░░░░░░ 59%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 58
-    assert payload["overall_bar"].endswith("58%")
+    assert payload["overall_percent"] == 59
+    assert payload["overall_bar"].endswith("59%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -374,6 +375,86 @@ def test_one_block_proof_cli_plan_outputs_json():
     assert payload["model_id"] == "Qwen/Qwen3-8B"
     assert payload["claim_boundary"] == "proof_harness_only_no_live_inference"
     assert payload["server_command"].startswith("PYTHONPATH=.:src")
+
+
+def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):
+    from mvp_capabilities.proof_state import build_proof_state
+
+    status = tmp_path / "download.status"
+    status.write_text("EXIT_CODE=0\n", encoding="utf-8")
+    log = tmp_path / "download.log"
+    log.write_text(
+        "START=2026-07-03T16:33:24Z\n"
+        "HOST=m4pro\n"
+        "MODEL=Qwen/Qwen3-8B\n"
+        "TOKEN_FILE_PRESENT True\n"
+        "\rFetching 15 files:  40%|████      | 6/15 [00:01<00:01,  6.97it/s]\n"
+        "SNAPSHOT_PATH /Users/evi/.cache/hub/models--Qwen--Qwen3-8B/snapshots/abc\n"
+        "SECONDS 123.45\n"
+        "WEIGHT_FILES=5\n"
+        "24G\t/Users/evi/.cache/hub/models--Qwen--Qwen3-8B\n"
+        "END=2026-07-03T16:40:00Z\n",
+        encoding="utf-8",
+    )
+
+    payload = build_proof_state(
+        model="Qwen/Qwen3-8B",
+        gate="one_block_server",
+        status_file=status,
+        log_file=log,
+        cache_bytes=24 * 1024**3,
+        weight_files=5,
+    )
+
+    assert payload["claim_boundary"] == "proof_state_observability_only_no_inference_proof"
+    assert payload["model"] == "Qwen/Qwen3-8B"
+    assert payload["gate"] == "one_block_server"
+    assert payload["download_status"] == "complete"
+    assert payload["exit_code"] == 0
+    assert payload["host"] == "m4pro"
+    assert payload["token_file_present"] is True
+    assert payload["fetch_progress"]["percent"] == 40
+    assert payload["fetch_progress"]["completed_files"] == 6
+    assert payload["fetch_progress"]["total_files"] == 15
+    assert payload["cache"]["weight_files"] == 5
+    assert payload["cache"]["bytes"] == 24 * 1024**3
+    assert payload["inference_proven"] is False
+
+
+def test_proof_state_cli_outputs_json(tmp_path: Path):
+    status = tmp_path / "download.status"
+    status.write_text("EXIT_CODE=1\n", encoding="utf-8")
+    log = tmp_path / "download.log"
+    log.write_text("HOST=m4pro\nMODEL=Qwen/Qwen3-8B\n", encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "mvp_capabilities" / "proof_state.py"),
+            "--model",
+            "Qwen/Qwen3-8B",
+            "--gate",
+            "one_block_server",
+            "--status-file",
+            str(status),
+            "--log-file",
+            str(log),
+            "--weight-files",
+            "0",
+            "--cache-bytes",
+            "0",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["download_status"] == "failed"
+    assert payload["exit_code"] == 1
+    assert payload["inference_proven"] is False
 
 
 def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):

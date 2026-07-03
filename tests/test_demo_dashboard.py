@@ -75,6 +75,24 @@ def _write_evidence(path: Path) -> None:
     )
 
 
+def _write_proof_state(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "proof_state_observability_only_no_inference_proof",
+                "model": "Qwen/Qwen3-8B",
+                "gate": "one_block_server",
+                "download_status": "running",
+                "host": "m4pro",
+                "fetch_progress": {"percent": 40, "completed_files": 6, "total_files": 15},
+                "cache": {"weight_files": 0, "bytes": 3_006_477_312, "human": "2.8G"},
+                "inference_proven": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path: Path):
     from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
 
@@ -87,11 +105,14 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     evidence_dir = tmp_path / "evidence"
     evidence_dir.mkdir()
     _write_evidence(evidence_dir / "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json")
+    proof_state = tmp_path / "proof-state.json"
+    _write_proof_state(proof_state)
 
     doc = build_dashboard_document(
         cap_dirs=[cap_dir],
         bench_matrix_path=bench_matrix,
         evidence_dir=evidence_dir,
+        proof_state_path=proof_state,
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
         synthetic_free_gb=20,
@@ -106,15 +127,22 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 58
+    assert doc["mvp_status"]["overall_percent"] == 59
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B one-block server proof"
+    assert doc["proof_state"]["download_status"] == "running"
+    assert doc["proof_state"]["inference_proven"] is False
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "████████████░░░░░░░░ 58%" in html
+    assert "████████████░░░░░░░░ 59%" in html
     assert "Qwen3-8B one-block server proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
+    assert "Live proof-prep state" in html
+    assert "Qwen/Qwen3-8B" in html
+    assert "proof_state_observability_only_no_inference_proof" in html
+    assert "40%" in html
+    assert "inference not proven" in html
     assert "unmeasured" in html
     assert "Layer placement" in html
     assert "m4pro-seed" in html
@@ -133,6 +161,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     evidence_dir = tmp_path / "evidence"
     evidence_dir.mkdir()
     _write_evidence(evidence_dir / "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json")
+    proof_state = tmp_path / "proof-state.json"
+    _write_proof_state(proof_state)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -145,6 +175,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(bench_matrix),
             "--evidence-dir",
             str(evidence_dir),
+            "--proof-state",
+            str(proof_state),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -165,7 +197,9 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "████████████░░░░░░░░ 58%" in text
+    assert "████████████░░░░░░░░ 59%" in text
+    assert "Live proof-prep state" in text
+    assert "proof_state_observability_only_no_inference_proof" in text
     assert "auto-refreshes every 10 seconds" in text
     assert "Synthetic 10-laptop target route" not in text
 
