@@ -26,16 +26,32 @@ Do not use local sandbox `tailscale status` as the source of truth; it can fail 
    inference evidence, S2S/recovery telemetry, and honest claim boundaries in a
    single local HTML artifact.
 
-## 10-laptop MVP target
+## Final plan and dynamic target selection
 
-Primary 10-laptop target: **Qwen/Qwen3-30B-A3B**.
+The integrated final plan lives in
+[`docs/distributed-inference-mvp-final-plan.md`](distributed-inference-mvp-final-plan.md).
+The live demo should not hardcode one model. It should let users join via link or
+QR code, scan real connected devices, then select the strongest **proven** model
+that the live swarm can actually run.
+
+Safe-demo mode must filter by architecture support, proof status, memory fit,
+throughput evidence, and claim boundaries. Stronger models that fit by memory but
+lack full generation proof should appear as `experimental` or `blocked`, not as
+the automatic public-demo choice.
+
+## 10-laptop prepared target
+
+Primary prepared 10-laptop target: **Qwen/Qwen3-30B-A3B-Instruct-2507**, with
+**Qwen/Qwen3-30B-A3B** as the already-partially-proven fallback in the same
+`qwen3_moe` family.
 
 Why:
 
 - 30.5B total parameters, ~3.3B active parameters per token.
 - Better quality-per-watt than dense 14B/32B on Apple Silicon swarms.
 - Fits aggregate memory of 10 M4 laptops even when each laptop cannot host the whole model solo.
-- Best MVP showcase story: many modest devices collaborate to serve a stronger model.
+- Best MVP showcase story: many modest devices collaborate to serve the strongest
+  model that the connected swarm can prove safe to run.
 
 Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the swarm has enough aggregate memory and BloomBee has a verified Qwen3 MoE block handler.
 

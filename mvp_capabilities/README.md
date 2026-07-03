@@ -4,6 +4,13 @@ Small, independent tools that together answer:
 **"Given a swarm of BloomBee peers, who can serve which model, and at
 what speed?"**
 
+The final MVP plan is in
+[`docs/distributed-inference-mvp-final-plan.md`](../docs/distributed-inference-mvp-final-plan.md).
+The target behavior is dynamic best-model selection: when users join the live
+demo by link/QR, the coordinator should choose the strongest **proven** model the
+connected devices can actually run, while showing stronger-but-unproven models as
+experimental/blocked instead of silently overclaiming them.
+
 They are deliberately decoupled from BloomBee itself — no `import
 bloombee` anywhere. The JSON they produce can be hand-fed into a
 scheduler, printed in a CLI dashboard, or pushed into the DHT that
@@ -19,7 +26,7 @@ BloomBee's runtime already maintains.
 | 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for ~20 candidate models (TinyLlama through Qwen3-235B-A22B, dense and MoE). | YAML, loaded by the scheduler |
 | 3. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 4. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 5. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. | JSON route decision |
+| 5. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. The final coordinator should extend this with architecture/proof-status filters before safe-demo selection. | JSON route decision |
 | 6. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *what each model actually achieves on this hardware*.
