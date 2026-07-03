@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 61
-    assert report["overall_bar"] == "████████████░░░░░░░░ 61%"
-    assert report["remaining_percent"] == 39
+    assert report["overall_percent"] == 62
+    assert report["overall_bar"] == "████████████░░░░░░░░ 62%"
+    assert report["remaining_percent"] == 38
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "████████████░░░░░░░░ 61%" in text
+    assert "████████████░░░░░░░░ 62%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 61
-    assert payload["overall_bar"].endswith("61%")
+    assert payload["overall_percent"] == 62
+    assert payload["overall_bar"].endswith("62%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1226,6 +1226,105 @@ def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: 
     assert "--new_swarm" in plan["placement"]["assignments"][0]["launch_command"]
     assert "<SEED_MULTIADDR_FROM_peer-a>" in plan["placement"]["assignments"][1]["launch_command"]
     assert plan["inference_proven"] is False
+
+
+def test_join_layer_plan_builds_from_http_active_payload():
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan_from_active_payload, fetch_active_heartbeats
+
+    captured_urls: list[str] = []
+
+    def fake_fetcher(url: str) -> dict[str, object]:
+        captured_urls.append(url)
+        return {
+            "token": "moon-token",
+            "active_peers": [
+                {
+                    "peer_id": "peer-http-b",
+                    "token": "moon-token",
+                    "timestamp": 100,
+                    "capabilities": {"hostname": "peer-http-b", "memory": {"free_gb": 6}},
+                    "claim_boundary": "heartbeat_only_no_inference_proof",
+                },
+                {
+                    "peer_id": "peer-http-a",
+                    "token": "moon-token",
+                    "timestamp": 100,
+                    "capabilities": {"hostname": "peer-http-a", "memory": {"free_gb": 6}},
+                    "claim_boundary": "heartbeat_only_no_inference_proof",
+                },
+            ],
+            "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+        }
+
+    active_payload = fetch_active_heartbeats(
+        "http://coordinator.local:8787",
+        token="moon-token",
+        now=110,
+        max_age_seconds=30,
+        fetcher=fake_fetcher,
+    )
+    plan = build_join_layer_plan_from_active_payload(
+        active_payload,
+        model={"model_id": "test/SixLayer", "num_layers": 6, "recommended_min_free_mem_gb": 12},
+        include_launch_commands=True,
+        base_port=41000,
+    )
+
+    assert captured_urls == ["http://coordinator.local:8787/active?token=moon-token&max_age_seconds=30&now=110"]
+    assert plan["source"] == "coordinator_http_active"
+    assert plan["claim_boundary"] == "joined_roster_layer_plan_only_no_inference_proof"
+    assert plan["heartbeat_claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
+    assert [peer["peer_id"] for peer in plan["active_heartbeats"]] == ["peer-http-a", "peer-http-b"]
+    assert [(item["hostname"], item["block_range"]) for item in plan["placement"]["assignments"]] == [
+        ("peer-http-a", "0:3"),
+        ("peer-http-b", "3:6"),
+    ]
+    assert plan["inference_proven"] is False
+
+
+def test_join_layer_plan_cli_accepts_coordinator_url(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    from mvp_capabilities import join_layer_plan
+
+    def fake_fetch_active_heartbeats(coordinator_url: str, *, token: str, now: int | None = None, max_age_seconds: int = 30, fetcher=None):
+        assert coordinator_url == "http://coordinator.local:8787"
+        assert token == "moon-token"
+        assert max_age_seconds == 30
+        return {
+            "token": token,
+            "active_peers": [
+                {
+                    "peer_id": "http-peer",
+                    "token": token,
+                    "timestamp": 100,
+                    "capabilities": {"hostname": "http-peer", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+                    "claim_boundary": "heartbeat_only_no_inference_proof",
+                }
+            ],
+            "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+        }
+
+    monkeypatch.setattr(join_layer_plan, "fetch_active_heartbeats", fake_fetch_active_heartbeats)
+    rc = join_layer_plan.main(
+        [
+            "--coordinator-url",
+            "http://coordinator.local:8787",
+            "--token",
+            "moon-token",
+            "--model",
+            "Qwen/Qwen3-8B",
+            "--max-age-seconds",
+            "30",
+            "--include-launch-commands",
+        ]
+    )
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["source"] == "coordinator_http_active"
+    assert payload["claim_boundary"] == "joined_roster_layer_plan_only_no_inference_proof"
+    assert payload["active_peer_count"] == 1
+    assert payload["placement"]["assignments"][0]["hostname"] == "http-peer"
+    assert payload["inference_proven"] is False
 
 
 def test_join_layer_plan_cli_reads_registry_model_and_active_state(tmp_path: Path):

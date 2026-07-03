@@ -66,9 +66,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="layer_planning",
         label="Layer planner and launch-ready worker assignment",
         weight=10,
-        completion=0.70,
+        completion=0.80,
         status="partial",
-        evidence="layer_planner.py emits deterministic ranges/runbooks; join_layer_plan.py converts active coordinator heartbeats into launch-ready layer plans",
+        evidence="layer_planner.py emits deterministic ranges/runbooks; join_layer_plan.py converts local or HTTP /active coordinator heartbeats into launch-ready layer plans",
         next_step="replace seed placeholders from live coordinator multiaddrs and verify launched servers",
     ),
     Milestone(

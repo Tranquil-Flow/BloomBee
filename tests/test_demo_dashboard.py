@@ -127,7 +127,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 61
+    assert doc["mvp_status"]["overall_percent"] == 62
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B one-block server proof"
     assert doc["proof_state"]["download_status"] == "running"
     assert doc["proof_state"]["inference_proven"] is False
@@ -135,7 +135,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "████████████░░░░░░░░ 61%" in html
+    assert "████████████░░░░░░░░ 62%" in html
     assert "Qwen3-8B one-block server proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Live proof-prep state" in html
@@ -197,7 +197,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "████████████░░░░░░░░ 61%" in text
+    assert "████████████░░░░░░░░ 62%" in text
     assert "Live proof-prep state" in text
     assert "proof_state_observability_only_no_inference_proof" in text
     assert "auto-refreshes every 10 seconds" in text
