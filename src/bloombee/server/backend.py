@@ -12,8 +12,12 @@ import numpy as np
 from hivemind.moe.expert_uid import ExpertUID
 from hivemind.moe.server.module_backend import ModuleBackend
 from hivemind.utils import get_logger
-from tensor_parallel import TensorParallel
-from tensor_parallel.tensor_parallel import PerDeviceTensors
+try:
+    from tensor_parallel import TensorParallel
+    from tensor_parallel.tensor_parallel import PerDeviceTensors
+except ImportError:
+    TensorParallel = None
+    PerDeviceTensors = None
 from transformers import PretrainedConfig
 
 from bloombee.data_structures import InferenceMetadata
@@ -30,7 +34,11 @@ from bloombee.utils.microbatch_config import (
     MBPIPE_LOG_PREFIX,
 )
 from bloombee.utils.real_activation_dumper import capture_activation
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 import logging
 import time
 import threading
@@ -83,7 +91,7 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
 
         super().__init__(*args, **kwargs)
         # Accept both TensorParallel and our PipelineParallelWrapper
-        assert (isinstance(self.module, TensorParallel) or
+        assert (TensorParallel is not None and isinstance(self.module, TensorParallel) or
                 hasattr(self.module, 'devices') and hasattr(self.module, 'module_shards'))
         self.config = config
         self.cache_manager = cache_manager

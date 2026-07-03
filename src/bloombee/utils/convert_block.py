@@ -6,16 +6,27 @@ from enum import Enum
 from typing import Optional, Sequence
 
 import numpy as np
-import tensor_parallel as tp
+try:
+    import tensor_parallel as tp
+    from tensor_parallel.slicing_configs import get_bloom_config
+except ImportError:
+    tp = None
+    get_bloom_config = None
 import torch
 import torch.nn as nn
 from hivemind.utils.logging import get_logger
-from tensor_parallel.slicing_configs import get_bloom_config
 from transformers import PretrainedConfig
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 from bloombee.utils.debug import dprint
 from bloombee.utils.memory_usage import see_memory_usage, log_mem
-from bloombee.server.flexgen_tensor_parallel import FlexgenLlamaTensorParallel
+try:
+    from bloombee.server.flexgen_tensor_parallel import FlexgenLlamaTensorParallel
+except ImportError:
+    FlexgenLlamaTensorParallel = None
 
 logger = get_logger(__name__)
 
@@ -96,7 +107,7 @@ def convert_block(
     adapters: Optional[Sequence[str]] = None,
     policy=None,
     **kwargs,
-) -> tp.TensorParallel:
+) -> "tp.TensorParallel":
     """
     Optimize a transformer block for use in a Petals server with FlexGen.
     
