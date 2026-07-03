@@ -532,3 +532,82 @@ def test_model_compat_scan_merges_proof_status_registry(tmp_path: Path):
     assert result["proof_status"]["one_block_server"] == "passed"
     assert result["proof_status"]["multi_block"] == "pending"
     assert result["claim_level"] == "experimental"
+
+
+def test_join_offer_builds_shareable_link_with_expiry():
+    from mvp_capabilities.join_coordinator import create_join_offer
+
+    offer = create_join_offer(
+        coordinator="http://m4pro.local:8787",
+        token="moon-token",
+        now=1_000,
+        ttl_seconds=120,
+    )
+
+    assert offer["token"] == "moon-token"
+    assert offer["created_at"] == 1_000
+    assert offer["expires_at"] == 1_120
+    assert offer["coordinator"] == "http://m4pro.local:8787"
+    assert offer["join_url"] == "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    assert offer["claim_boundary"] == "link_offer_only_no_inference_proof"
+
+
+def test_join_heartbeat_state_filters_stale_and_wrong_token_peers(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import load_active_heartbeats, record_heartbeat
+
+    state_dir = tmp_path / "join-state"
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="fresh-peer",
+        capabilities={"memory": {"free_gb": 20}, "accelerator": {"device": "mps"}},
+        now=1_000,
+    )
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="stale-peer",
+        capabilities={"memory": {"free_gb": 20}},
+        now=900,
+    )
+    record_heartbeat(
+        state_dir,
+        token="other-token",
+        peer_id="wrong-token-peer",
+        capabilities={"memory": {"free_gb": 20}},
+        now=1_000,
+    )
+
+    active = load_active_heartbeats(state_dir, token="moon-token", now=1_030, max_age_seconds=60)
+
+    assert [peer["peer_id"] for peer in active] == ["fresh-peer"]
+    assert active[0]["capabilities"]["memory"]["free_gb"] == 20
+
+
+def test_join_coordinator_cli_offer_outputs_json():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_coordinator.py",
+            "offer",
+            "--coordinator",
+            "http://m4pro.local:8787",
+            "--token",
+            "moon-token",
+            "--now",
+            "1000",
+            "--ttl-seconds",
+            "120",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["join_url"].startswith("bloombee://join?")
+    assert payload["expires_at"] == 1120

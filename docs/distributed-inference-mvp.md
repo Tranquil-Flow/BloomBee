@@ -98,6 +98,9 @@ hardware pool exists.
   `Qwen/Qwen3-30B-A3B-Instruct-2507` and
   `Qwen/Qwen3-30B-A3B-Thinking-2507` with pending proof gates; they are not
   safe-demo candidates until full distributed generation passes.
+- `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
+  and token-scoped heartbeat rosters. This is bootstrap/roster state only and
+  explicitly does not claim inference proof.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and

@@ -80,6 +80,8 @@ Already proven:
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
 - Prepared Qwen3-30B-A3B 2507 variants are in the registry with fetched config
   metadata and pending proof: Instruct-2507 and Thinking-2507.
+- Join-link/heartbeat foundation exists: link offers, token-scoped heartbeats,
+  active-peer filtering, and explicit no-inference-proof claim boundaries.
 
 Not yet proven:
 
@@ -453,7 +455,9 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 3. Best-model selector with `safe-demo`, `showcase-attempt`, and `planning` modes.
    **Initial slice complete**: route picking and explain output include selector
    mode, proof status, claim level, and selectable/blocker metadata.
-4. QR/link join coordinator and heartbeat state.
+4. QR/link join coordinator and heartbeat state. **Initial slice complete**:
+   join-link offers and heartbeat state exist. QR image rendering and live
+   coordinator service wiring remain future work.
 5. Layer planner from live worker capabilities.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
 7. Qwen3 dense fallback proofs: 8B, then 14B.

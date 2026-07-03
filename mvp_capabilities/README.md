@@ -30,8 +30,9 @@ BloomBee's runtime already maintains.
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
 | 4. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 5. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 6. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
-| 7. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 6. Join | `join_coordinator.py` | Creates shareable join-link offers and records token-scoped peer heartbeats. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
+| 7. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
+| 8. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *what each model actually achieves on this hardware*.
 
@@ -72,7 +73,12 @@ python mvp_capabilities/bench_throughput.py --device cuda --dtype fp16 --model Q
 # 5. Aggregate real peer scans.
 python mvp_capabilities/swarm_roster.py --cap-dir ~/.bloombee/capabilities --json
 
-# 6. Pick the strongest feasible route for real devices.
+# 6. Create a join-link offer. This is roster/bootstrap state only.
+python mvp_capabilities/join_coordinator.py offer \
+  --coordinator http://m4pro.local:8787 \
+  --ttl-seconds 600
+
+# 7. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
 
 #    Safe demo mode only auto-selects models with full_generation proof.
@@ -87,7 +93,7 @@ python mvp_capabilities/route_picker.py \
   --selector-mode showcase-attempt \
   --explain
 
-# 7. Plan the 10-laptop MVP showcase route before physical showcase day.
+# 8. Plan the 10-laptop MVP showcase route before physical showcase day.
 python mvp_capabilities/route_picker.py \
   --cap-dir ~/.bloombee/capabilities \
   --scenario mvp-10-laptop \
@@ -95,7 +101,7 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 8. Generate the local real-demo dashboard (real connected peers only).
+# 9. Generate the local real-demo dashboard (real connected peers only).
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -112,7 +118,7 @@ python mvp_capabilities/demo_dashboard.py \
   --synthetic-m4-laptops 10 \
   --out .local/demo-dashboard-planning.html
 
-# 9. Plan a per-peer benchmark sweep without downloading/running models.
+# 10. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
   --peer ~/.bloombee/capabilities/$(hostname -s).json \
   --dry-run
@@ -136,6 +142,9 @@ As of the current implementation slice:
 - Prepared Qwen3-30B-A3B 2507 variants (`Instruct-2507`, `Thinking-2507`)
   are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will
   not auto-select them until `full_generation` passes.
+- Join-link/heartbeat foundation (`join_coordinator.py`) exists: it emits
+  `bloombee://join?...` offers and token-scoped active heartbeat rosters, with
+  explicit `no_inference_proof` claim boundaries.
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, live telemetry
