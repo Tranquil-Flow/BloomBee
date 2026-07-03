@@ -137,6 +137,41 @@ def test_route_picker_marks_235b_as_stretch_until_memory_fits():
     assert "requires" in route["reason"].lower()
 
 
+def test_registry_includes_prepared_qwen3_30b_2507_variants_with_pending_proof():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.route_picker import choose_best_route, load_registry, synthetic_m4_laptops
+
+    registry = load_registry(REGISTRY_PATH)
+    by_id = {model["model_id"]: model for model in registry}
+    expected_ids = [
+        "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "Qwen/Qwen3-30B-A3B-Thinking-2507",
+    ]
+
+    for model_id in expected_ids:
+        model = by_id[model_id]
+        assert model["supports_moe"] is True
+        assert model["hf_model_type"] == "qwen3_moe"
+        assert model["num_layers"] == 48
+        assert model["hidden_size"] == 2048
+        assert model["num_experts"] == 128
+        assert model["num_experts_per_tok"] == 8
+        assert model["context_length"] == 262144
+        assert model["recommended_min_free_mem_gb"] == 70
+
+        route = choose_best_route(
+            synthetic_m4_laptops(count=10, total_gb=24, free_gb=20),
+            registry,
+            requested_model=model_id,
+            proof_status=load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml"),
+            selector_mode="safe-demo",
+        )
+        assert route["supported"] is True
+        assert route["claim_level"] == "experimental"
+        assert route["selector_allowed"] is False
+        assert route["proof_status"]["full_generation"] == "pending"
+
+
 def test_sweep_models_dry_run_selects_feasible_models(tmp_path: Path):
     from mvp_capabilities.sweep_models import build_sweep_plan
 

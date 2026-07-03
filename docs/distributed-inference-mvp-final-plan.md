@@ -78,6 +78,8 @@ Already proven:
 - Route picker selector modes are wired: `planning` keeps memory-fit simulation,
   `showcase-attempt` allows experimental supported wrappers while blocking
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
+- Prepared Qwen3-30B-A3B 2507 variants are in the registry with fetched config
+  metadata and pending proof: Instruct-2507 and Thinking-2507.
 
 Not yet proven:
 
@@ -446,6 +448,8 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    local config scanning, supported-family mapping, proof merge, and CLI JSON
    output exist. Next slice should feed this into the best-model selector.
 2. Add Qwen3-30B-A3B-Instruct-2507 / Thinking-2507 candidates with pending proof.
+   **Initial slice complete**: both prepared 2507 variants are in
+   `MODEL_REGISTRY.yaml` as Qwen3-MoE candidates with pending proof gates.
 3. Best-model selector with `safe-demo`, `showcase-attempt`, and `planning` modes.
    **Initial slice complete**: route picking and explain output include selector
    mode, proof status, claim level, and selectable/blocker metadata.

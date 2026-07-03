@@ -94,6 +94,10 @@ hardware pool exists.
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from
   proof-gated demo-safe selection.
+- `MODEL_REGISTRY.yaml` includes the prepared core-dream Qwen3-MoE variants
+  `Qwen/Qwen3-30B-A3B-Instruct-2507` and
+  `Qwen/Qwen3-30B-A3B-Thinking-2507` with pending proof gates; they are not
+  safe-demo candidates until full distributed generation passes.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and

@@ -133,6 +133,9 @@ As of the current implementation slice:
   ~36.8GB free.
 - Real two-device roster route currently picks `google/gemma-2-9b-it` as a solo M4 Pro route when M4 Pro has enough free memory.
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
+- Prepared Qwen3-30B-A3B 2507 variants (`Instruct-2507`, `Thinking-2507`)
+  are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will
+  not auto-select them until `full_generation` passes.
 - Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, live telemetry
