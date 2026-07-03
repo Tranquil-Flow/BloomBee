@@ -451,6 +451,9 @@ def _proof_state_panel(proof_state: dict[str, Any] | None) -> str:
         else "—"
     )
     cache_copy = cache.get("human") or _fmt_num(cache.get("bytes"), 0)
+    eta = proof_state.get("eta_seconds")
+    eta_copy = "complete" if eta == 0 else (f"~{_fmt_num(eta, 0)}s" if eta is not None else proof_state.get("eta_reason") or "—")
+    snapshot_copy = "complete" if cache.get("snapshot_complete") else "not complete"
     return f"""
       <section class="card wide proof-state">
         <h2>Live proof-prep state</h2>
@@ -461,6 +464,8 @@ def _proof_state_panel(proof_state: dict[str, Any] | None) -> str:
           <div><span class="label">Fetch progress</span><strong>{_esc(progress_copy)}</strong></div>
           <div><span class="label">Host</span><strong>{_esc(proof_state.get('host') or '—')}</strong></div>
           <div><span class="label">Cache</span><strong>{_esc(cache_copy)} · {_esc(cache.get('weight_files'))} weight files</strong></div>
+          <div><span class="label">ETA</span><strong>{_esc(eta_copy)}</strong></div>
+          <div><span class="label">Snapshot</span><strong>{_esc(snapshot_copy)} · stale partials {_esc(cache.get('stale_incomplete_files') or 0)}</strong></div>
           <div><span class="label">Inference claim</span><strong class="warn">{_esc(inference_copy)}</strong></div>
           <div><span class="label">Claim boundary</span><code>{_esc(proof_state.get('claim_boundary'))}</code></div>
         </div>

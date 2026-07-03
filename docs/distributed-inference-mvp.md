@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 68%
+██████████████░░░░░░ 69%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -110,7 +110,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, and chain-scheduler rehearsals beside route/evidence/telemetry panels.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
-  facts and feeds the dashboard while explicitly refusing to claim inference.
+  facts, distinguishes complete snapshots from stale `.incomplete` leftovers,
+  emits ETA fields, and feeds the dashboard while explicitly refusing to claim
+  inference.
 - `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
   heartbeats from local state or HTTP `/active` into deterministic layer
   placements, launch-command runbooks, and no-execution launch-readiness

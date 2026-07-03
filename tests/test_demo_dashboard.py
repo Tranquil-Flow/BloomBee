@@ -82,10 +82,18 @@ def _write_proof_state(path: Path) -> None:
                 "claim_boundary": "proof_state_observability_only_no_inference_proof",
                 "model": "Qwen/Qwen3-8B",
                 "gate": "one_block_server",
-                "download_status": "running",
+                "download_status": "complete",
                 "host": "m4pro",
-                "fetch_progress": {"percent": 40, "completed_files": 6, "total_files": 15},
-                "cache": {"weight_files": 0, "bytes": 3_006_477_312, "human": "2.8G"},
+                "fetch_progress": {"percent": 100, "completed_files": 15, "total_files": 15},
+                "cache": {
+                    "weight_files": 5,
+                    "bytes": 36_374_890_321,
+                    "human": "33.9G",
+                    "snapshot_complete": True,
+                    "stale_incomplete_files": 4,
+                },
+                "eta_seconds": 0,
+                "eta_reason": "snapshot_complete",
                 "inference_proven": False,
             }
         ),
@@ -222,9 +230,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 68
+    assert doc["mvp_status"]["overall_percent"] == 69
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B one-block server proof"
-    assert doc["proof_state"]["download_status"] == "running"
+    assert doc["proof_state"]["download_status"] == "complete"
     assert doc["proof_state"]["inference_proven"] is False
     assert doc["joined_layer_plan"]["source"] == "coordinator_http_active"
     assert doc["joined_layer_plan"]["active_peer_count"] == 2
@@ -234,13 +242,16 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "██████████████░░░░░░ 68%" in html
+    assert "██████████████░░░░░░ 69%" in html
     assert "Qwen3-8B one-block server proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Live proof-prep state" in html
+    assert "Snapshot" in html
+    assert "stale partials 4" in html
+    assert "ETA" in html
     assert "Qwen/Qwen3-8B" in html
     assert "proof_state_observability_only_no_inference_proof" in html
-    assert "40%" in html
+    assert "100%" in html
     assert "inference not proven" in html
     assert "unmeasured" in html
     assert "Layer placement" in html
@@ -315,7 +326,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "██████████████░░░░░░ 68%" in text
+    assert "██████████████░░░░░░ 69%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text

@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 68
-    assert report["overall_bar"] == "██████████████░░░░░░ 68%"
-    assert report["remaining_percent"] == 32
+    assert report["overall_percent"] == 69
+    assert report["overall_bar"] == "██████████████░░░░░░ 69%"
+    assert report["remaining_percent"] == 31
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████░░░░░░ 68%" in text
+    assert "██████████████░░░░░░ 69%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 68
-    assert payload["overall_bar"].endswith("68%")
+    assert payload["overall_percent"] == 69
+    assert payload["overall_bar"].endswith("69%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -418,6 +418,41 @@ def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Pat
     assert payload["fetch_progress"]["total_files"] == 15
     assert payload["cache"]["weight_files"] == 5
     assert payload["cache"]["bytes"] == 24 * 1024**3
+    assert payload["inference_proven"] is False
+
+
+def test_proof_state_marks_complete_snapshot_despite_stale_incomplete_blobs(tmp_path: Path):
+    from mvp_capabilities.proof_state import build_proof_state
+
+    cache = tmp_path / "models--Qwen--Qwen3-8B"
+    snapshot = cache / "snapshots" / "abc123"
+    blobs = cache / "blobs"
+    snapshot.mkdir(parents=True)
+    blobs.mkdir(parents=True)
+    for index in range(1, 6):
+        (snapshot / f"model-0000{index}-of-00005.safetensors").write_bytes(b"x" * index)
+    (snapshot / "model.safetensors.index.json").write_text("{}", encoding="utf-8")
+    (blobs / "old-partial.incomplete").write_bytes(b"stale")
+    log = tmp_path / "download.log"
+    log.write_text(
+        f"SNAPSHOT_PATH={snapshot}\n"
+        "Fetching 15 files: 100%|██████████| 15/15 [00:00<00:00, 2000it/s]\n",
+        encoding="utf-8",
+    )
+
+    payload = build_proof_state(
+        model="Qwen/Qwen3-8B",
+        gate="one_block_server",
+        log_file=log,
+        cache_dir=cache,
+    )
+
+    assert payload["download_status"] == "complete"
+    assert payload["cache"]["snapshot_complete"] is True
+    assert payload["cache"]["snapshot_weight_files"] == 5
+    assert payload["cache"]["stale_incomplete_files"] == 1
+    assert payload["eta_seconds"] == 0
+    assert payload["eta_reason"] == "snapshot_complete"
     assert payload["inference_proven"] is False
 
 
