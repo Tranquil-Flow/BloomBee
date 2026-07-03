@@ -128,6 +128,9 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
   from nested fields and URLs before writing/printing.
+- `mvp_capabilities/join_card.py --write-sidecars` writes `.join.json` and
+  `.join.txt` fallback artifacts containing the exact copy/paste join URL; this
+  improves operator flow but still does not prove QR scanner interoperability.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
   facts, distinguishes complete snapshots from stale `.incomplete` leftovers,
   emits ETA fields, and feeds the dashboard while explicitly refusing to claim

@@ -2429,6 +2429,25 @@ def test_join_card_renders_svg_with_metadata_and_claim_boundary():
     assert svg.count("<rect") > 40
 
 
+def test_join_card_sidecar_exposes_exact_copy_paste_join_artifacts():
+    from mvp_capabilities.join_card import render_join_card_sidecar, render_join_card_sidecar_text
+
+    join_url = "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    sidecar = render_join_card_sidecar(join_url, title="BloomBee Join", expires_at=1120)
+    text = render_join_card_sidecar_text(sidecar)
+
+    assert sidecar["claim_boundary"] == "join_card_sidecar_exact_url_no_scanner_proof"
+    assert sidecar["scanner_status"] == "scanner_interop_unproven"
+    assert sidecar["join_url"] == join_url
+    assert sidecar["url_text_copyable"] is True
+    assert sidecar["scanner_interop_proven"] is False
+    assert sidecar["inference_proven"] is False
+    assert "join_client.py" in sidecar["join_client_command"]
+    assert join_url in sidecar["join_client_command"]
+    assert join_url in text
+    assert "Visual grid is not a proven QR code" in text
+
+
 def test_join_card_cli_writes_svg_file(tmp_path: Path):
     import subprocess
     import sys
@@ -2459,6 +2478,43 @@ def test_join_card_cli_writes_svg_file(tmp_path: Path):
     text = out.read_text(encoding="utf-8")
     assert "Moonlit Join" in text
     assert "scanner_interop_unproven" in text
+
+
+def test_join_card_cli_can_write_json_and_text_sidecars(tmp_path: Path):
+    import subprocess
+    import sys
+
+    out = tmp_path / "join-card.svg"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_card.py",
+            "--join-url",
+            "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+            "--title",
+            "Moonlit Join",
+            "--expires-at",
+            "1234",
+            "--out",
+            str(out),
+            "--write-sidecars",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["sidecar_json"].endswith("join-card.join.json")
+    assert payload["sidecar_text"].endswith("join-card.join.txt")
+    sidecar = json.loads(Path(payload["sidecar_json"]).read_text(encoding="utf-8"))
+    sidecar_text = Path(payload["sidecar_text"]).read_text(encoding="utf-8")
+    assert sidecar["claim_boundary"] == "join_card_sidecar_exact_url_no_scanner_proof"
+    assert sidecar["join_url"] in sidecar_text
+    assert sidecar["expires_at"] == 1234
+    assert sidecar["scanner_interop_proven"] is False
 
 
 def test_join_qr_preflight_reports_missing_dependencies_fail_closed():

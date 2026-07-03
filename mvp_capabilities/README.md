@@ -150,9 +150,10 @@ python mvp_capabilities/join_client.py \
   --capabilities ~/.bloombee/capabilities/$(hostname -s).json
 
 #    Render a dependency-free visual join card for operator handoff.
-#    This embeds the exact URL but does not yet claim QR scanner compatibility.
+#    This embeds the exact URL and writes JSON/TXT copy-paste sidecars, but does not yet claim QR scanner compatibility.
 python mvp_capabilities/join_card.py \
   --join-url 'bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token' \
+  --write-sidecars \
   --out .local/join-card.svg
 
 # 10. Pick the strongest feasible route for real devices.
@@ -328,7 +329,8 @@ As of the current implementation slice:
   heartbeat to the coordinator. Dry-run mode prints the exact request without
   network side effects.
 - SVG join-card renderer (`join_card.py`) exists: it embeds the exact join URL
-  in text/data attributes and renders a deterministic visual grid. It carries
+  in text/data attributes, renders a deterministic visual grid, and can write
+  `.join.json` / `.join.txt` copy-paste sidecars for phones/operators. It carries
   `scanner_interop_unproven`; true QR scanner compatibility is still a future
   proof gate.
 - QR scanner preflight (`join_qr_preflight.py`) exists: it checks for encoder

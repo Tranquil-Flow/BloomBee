@@ -13,10 +13,12 @@ import argparse
 import hashlib
 import html
 import json
+import shlex
 from pathlib import Path
 from typing import Iterable
 
 CLAIM_BOUNDARY = "join_card_visual_only_no_inference_proof"
+SIDECAR_CLAIM_BOUNDARY = "join_card_sidecar_exact_url_no_scanner_proof"
 SCANNER_STATUS = "scanner_interop_unproven"
 
 
@@ -111,17 +113,86 @@ def render_join_card_svg(join_url: str, *, title: str = "BloomBee join", expires
 '''
 
 
-def write_join_card(path: str | Path, join_url: str, *, title: str = "BloomBee join", expires_at: int | None = None) -> dict[str, str | int | None]:
+def render_join_card_sidecar(join_url: str, *, title: str = "BloomBee join", expires_at: int | None = None) -> dict[str, object]:
+    """Return a copy/paste fallback artifact for the visual join card."""
+    return {
+        "claim_boundary": SIDECAR_CLAIM_BOUNDARY,
+        "visual_claim_boundary": CLAIM_BOUNDARY,
+        "scanner_status": SCANNER_STATUS,
+        "scanner_interop_proven": False,
+        "inference_proven": False,
+        "url_text_copyable": True,
+        "title": title,
+        "join_url": join_url,
+        "expires_at": expires_at,
+        "join_client_command": f"python mvp_capabilities/join_client.py --join-url {shlex.quote(join_url)} --capabilities .local/capabilities/$(hostname -s).json",
+        "operator_warning": "This sidecar contains a live join token; share only with devices intended to join the demo swarm.",
+        "next_step": "Copy the join_url into join_client.py or a phone/browser bridge; scanner interop is still unproven.",
+    }
+
+
+def render_join_card_sidecar_text(sidecar: dict[str, object]) -> str:
+    return "\n".join(
+        [
+            "# BloomBee join card sidecar",
+            "",
+            f"Title: {sidecar.get('title') or 'BloomBee join'}",
+            f"Claim boundary: {sidecar.get('claim_boundary')}",
+            f"Scanner status: {sidecar.get('scanner_status')}",
+            f"Expires at: {sidecar.get('expires_at') if sidecar.get('expires_at') is not None else 'never'}",
+            "",
+            "Join URL:",
+            str(sidecar.get("join_url") or ""),
+            "",
+            "Join client command:",
+            str(sidecar.get("join_client_command") or ""),
+            "",
+            "Visual grid is not a proven QR code; copy the exact Join URL above if scanning fails.",
+            str(sidecar.get("operator_warning") or ""),
+        ]
+    ) + "\n"
+
+
+def _default_sidecar_json_path(svg_path: Path) -> Path:
+    return svg_path.with_suffix(".join.json")
+
+
+def _default_sidecar_text_path(svg_path: Path) -> Path:
+    return svg_path.with_suffix(".join.txt")
+
+
+def write_join_card(
+    path: str | Path,
+    join_url: str,
+    *,
+    title: str = "BloomBee join",
+    expires_at: int | None = None,
+    write_sidecars: bool = False,
+    sidecar_json: str | Path | None = None,
+    sidecar_text: str | Path | None = None,
+) -> dict[str, str | int | None]:
     out = Path(path).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_join_card_svg(join_url, title=title, expires_at=expires_at), encoding="utf-8")
-    return {
+    payload: dict[str, str | int | None] = {
         "out": str(out),
         "join_url": join_url,
         "expires_at": expires_at,
         "claim_boundary": CLAIM_BOUNDARY,
         "scanner_status": SCANNER_STATUS,
     }
+    if write_sidecars or sidecar_json or sidecar_text:
+        sidecar = render_join_card_sidecar(join_url, title=title, expires_at=expires_at)
+        json_path = Path(sidecar_json).expanduser() if sidecar_json else _default_sidecar_json_path(out)
+        text_path = Path(sidecar_text).expanduser() if sidecar_text else _default_sidecar_text_path(out)
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        text_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        text_path.write_text(render_join_card_sidecar_text(sidecar), encoding="utf-8")
+        payload["sidecar_json"] = str(json_path)
+        payload["sidecar_text"] = str(text_path)
+        payload["sidecar_claim_boundary"] = SIDECAR_CLAIM_BOUNDARY
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -130,8 +201,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--title", default="BloomBee join")
     parser.add_argument("--expires-at", type=int, default=None)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--write-sidecars", action="store_true", help="Write .join.json and .join.txt copy/paste fallback artifacts next to the SVG")
+    parser.add_argument("--sidecar-json", default=None, help="Optional explicit JSON sidecar path")
+    parser.add_argument("--sidecar-text", default=None, help="Optional explicit text sidecar path")
     args = parser.parse_args(argv)
-    payload = write_join_card(args.out, args.join_url, title=args.title, expires_at=args.expires_at)
+    payload = write_join_card(
+        args.out,
+        args.join_url,
+        title=args.title,
+        expires_at=args.expires_at,
+        write_sidecars=args.write_sidecars,
+        sidecar_json=args.sidecar_json,
+        sidecar_text=args.sidecar_text,
+    )
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
