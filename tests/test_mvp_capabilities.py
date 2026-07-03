@@ -273,9 +273,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 71
-    assert report["overall_bar"] == "██████████████░░░░░░ 71%"
-    assert report["remaining_percent"] == 29
+    assert report["overall_percent"] == 72
+    assert report["overall_bar"] == "██████████████░░░░░░ 72%"
+    assert report["remaining_percent"] == 28
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -285,7 +285,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████░░░░░░ 71%" in text
+    assert "██████████████░░░░░░ 72%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -303,8 +303,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 71
-    assert payload["overall_bar"].endswith("71%")
+    assert payload["overall_percent"] == 72
+    assert payload["overall_bar"].endswith("72%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
@@ -502,6 +502,82 @@ def test_request_telemetry_cli_outputs_json(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["request_counts"]["succeeded"] == 1
     assert payload["latency_seconds"]["forward"]["max"] == 1.5
+
+
+def test_multi_request_load_proof_plan_generates_repeated_client_runbook():
+    from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
+
+    plan = build_multi_request_load_plan(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        server_maddrs=["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+        request_count=3,
+        hidden_dim=4096,
+    )
+
+    assert plan["claim_boundary"] == "multi_request_load_harness_only_no_live_traffic"
+    assert plan["proof_gate"] == "multi_request_load"
+    assert plan["request_count"] == 3
+    assert len(plan["client_commands"]) == 3
+    assert "--server-maddr '/ip4/100.64.0.20/tcp/31337/p2p/seed'" in plan["client_commands"][0]
+    assert "tee .local/load-client-000.log" in plan["client_commands"][0]
+    assert "multi_request_load_proof.py verify" in plan["verify_command"]
+    assert plan["proof_status_on_success"] == "multi_request_load: passed"
+
+
+def test_multi_request_load_proof_verifier_accepts_successful_live_request_logs(tmp_path: Path):
+    from mvp_capabilities.multi_request_load_proof import verify_multi_request_load_evidence
+
+    logs: list[Path] = []
+    for index in range(3):
+        log = tmp_path / f"load-client-{index:03d}.log"
+        log.write_text(
+            '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+            f'"forward_seconds": {0.1 + index / 100:.2f}, "backward_seconds": 0.2, '
+            '"outputs_finite": true, "grad_finite": true}\n',
+            encoding="utf-8",
+        )
+        logs.append(log)
+
+    result = verify_multi_request_load_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        request_logs=logs,
+        expected_request_count=3,
+    )
+
+    assert result["status"] == "passed"
+    assert result["claim_boundary"] == "verified_multi_request_load_evidence"
+    assert result["proof_gate"] == "multi_request_load"
+    assert result["can_update_proof_status"] is True
+    assert result["proof_status_update"] == {"multi_request_load": "passed"}
+    assert result["telemetry"]["request_counts"] == {"total": 3, "succeeded": 3, "failed": 0}
+    assert result["telemetry"]["latency_seconds"]["forward"]["max"] == 0.12
+
+
+def test_multi_request_load_proof_verifier_blocks_failed_or_missing_requests(tmp_path: Path):
+    from mvp_capabilities.multi_request_load_proof import verify_multi_request_load_evidence
+
+    ok_log = tmp_path / "load-client-000.log"
+    ok_log.write_text(
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0.1, "backward_seconds": 0.2, "outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+    failed_log = tmp_path / "load-client-001.log"
+    failed_log.write_text("RuntimeError: DHT bootstrap failed before RPC\n", encoding="utf-8")
+
+    result = verify_multi_request_load_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        request_logs=[ok_log, failed_log],
+        expected_request_count=3,
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert any("expected 3 successful requests, saw 1" in item for item in result["failed_checks"])
+    assert any("request telemetry recorded 1 failed request" in item for item in result["failed_checks"])
 
 
 def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):

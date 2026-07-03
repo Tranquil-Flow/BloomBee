@@ -39,8 +39,9 @@ BloomBee's runtime already maintains.
 | 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
 | 13. Chain scheduler | `chain_scheduler.py` | Converts a joined layer plan into multi-request waves, per-peer scheduled-token estimates, and no-live-traffic health reports. This is scheduler rehearsal only, not a load proof. | JSON chain schedule |
 | 14. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
-| 15. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 16. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 15. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
+| 16. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 17. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layer 6 says *how much of the plan is built*. Layer 7 says *what each model actually achieves on this hardware*.
 
@@ -183,6 +184,22 @@ python mvp_capabilities/demo_dashboard.py \
 python mvp_capabilities/request_telemetry.py \
   --request-log .local/direct-client.log
 
+#    Generate and verify a repeated direct-client load proof runbook.
+#    Plan mode is not live traffic; verify mode requires real successful logs.
+python mvp_capabilities/multi_request_load_proof.py plan \
+  --model Qwen/Qwen3-8B \
+  --block-range 0:1 \
+  --server-maddr '<PASTE_SERVER_MULTIADDR>' \
+  --request-count 3 \
+  --hidden-dim 4096
+python mvp_capabilities/multi_request_load_proof.py verify \
+  --model Qwen/Qwen3-8B \
+  --block-range 0:1 \
+  --expected-request-count 3 \
+  --request-log .local/load-client-000.log \
+  --request-log .local/load-client-001.log \
+  --request-log .local/load-client-002.log
+
 # Optional: add a clearly-labelled synthetic planning panel, not for live demos.
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -206,13 +223,15 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████████░░░░░░ 71%` built from the plan, with claim boundary
+  `██████████████░░░░░░ 72%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
-  request telemetry parsing/dashboarding exists; dedicated multi-request load proof is still a future proof gate.
+  request telemetry parsing/dashboarding exists; `multi_request_load_proof.py`
+  now verifies repeated direct-client logs before proof promotion, but the actual
+  multi-request load gate is still pending until real traffic passes.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
   Qwen3-8B server/client commands and verifies captured logs before allowing the
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is

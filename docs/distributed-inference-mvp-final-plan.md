@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 71%
+██████████████░░░░░░ 72%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -127,7 +127,9 @@ Already proven:
   per-peer scheduled-token estimates, and `planned_no_live_traffic` health
   reports. `request_telemetry.py` summarizes direct-client `[direct] RESULT` logs,
   request success/failure counts, latency, model/block coverage, and blockers;
-  `demo_dashboard.py --chain-schedule ... --request-log ...` renders those
+  `multi_request_load_proof.py` emits repeated direct-client runbooks and verifies
+  expected successful request logs before any `multi_request_load` proof
+  promotion; `demo_dashboard.py --chain-schedule ... --request-log ...` renders
   planned waves plus live request telemetry without claiming load proof.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.

@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 71%
+██████████████░░░░░░ 72%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -156,8 +156,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   multi-request waves, per-peer scheduled-token estimates, and no-live-traffic
   health reports. `mvp_capabilities/request_telemetry.py` summarizes direct-client
   `[direct] RESULT` logs into request success/failure counts, forward/backward
-  latency, model/block coverage, and errors for the dashboard. This is
-  observability only; it does not send live requests or prove load behavior.
+  latency, model/block coverage, and errors for the dashboard.
+  `mvp_capabilities/multi_request_load_proof.py` emits repeated direct-client
+  runbooks and verifies expected successful request logs before allowing proof
+  promotion. This is still not a live load proof until real traffic logs pass.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
   server launch commands with `--include-launch-commands`. This is placement and
