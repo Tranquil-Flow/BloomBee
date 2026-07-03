@@ -248,19 +248,23 @@ def test_proof_ladder_cli_outputs_fallback_ladder_json():
     assert all("next_gate" in item for item in payload["models"])
 
 
-def test_qwen3_dense_fallbacks_have_prescan_only_not_safe_demo():
+def test_qwen3_dense_fallbacks_track_one_block_without_safe_demo():
     from mvp_capabilities.model_compat_scan import load_proof_status
     from mvp_capabilities.proof_ladder import build_proof_ladder
 
     proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
 
-    for model_id in ("Qwen/Qwen3-8B", "Qwen/Qwen3-14B"):
+    expected = {
+        "Qwen/Qwen3-8B": ("passed", "multi_block"),
+        "Qwen/Qwen3-14B": ("pending", "one_block_server"),
+    }
+    for model_id, (one_block_status, next_gate) in expected.items():
         report = build_proof_ladder(model_id, proof_status=proof)
         assert report["proof_status"]["prescan"] == "passed"
-        assert report["proof_status"]["one_block_server"] == "pending"
+        assert report["proof_status"]["one_block_server"] == one_block_status
         assert report["claim_level"] == "experimental"
         assert report["safe_demo_selectable"] is False
-        assert report["next_gate"] == "one_block_server"
+        assert report["next_gate"] == next_gate
 
 
 def test_mvp_status_report_has_weighted_progress_bar():
@@ -269,10 +273,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 69
-    assert report["overall_bar"] == "██████████████░░░░░░ 69%"
-    assert report["remaining_percent"] == 31
-    assert report["next_gate"] == "Qwen3-8B one-block server proof"
+    assert report["overall_percent"] == 70
+    assert report["overall_bar"] == "██████████████░░░░░░ 70%"
+    assert report["remaining_percent"] == 30
+    assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
 
@@ -281,8 +285,8 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████░░░░░░ 69%" in text
-    assert "Qwen3-8B one-block server proof" in text
+    assert "██████████████░░░░░░ 70%" in text
+    assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
 
@@ -299,9 +303,9 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 69
-    assert payload["overall_bar"].endswith("69%")
-    assert payload["next_gate"] == "Qwen3-8B one-block server proof"
+    assert payload["overall_percent"] == 70
+    assert payload["overall_bar"].endswith("70%")
+    assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
 
 
 def test_one_block_proof_plan_generates_qwen3_8b_commands():

@@ -199,17 +199,18 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████████░░░░░░ 69%` built from the plan, with claim boundary
-  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
-  proof.
+  `██████████████░░░░░░ 70%` built from the plan, with claim boundary
+  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
+  full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
   request latency/error telemetry is still a future proof gate.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
   Qwen3-8B server/client commands and verifies captured logs before allowing the
-  `one_block_server` gate to be marked passed; it is harness-only until a live
-  run succeeds.
+  `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is
+  now passed from live M4 Pro server/client evidence; this is not full-generation
+  proof.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.
@@ -222,9 +223,9 @@ As of the current implementation slice:
   are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will
   not auto-select them until `full_generation` passes.
 - Proof ladder audit (`proof_ladder.py`) exists. Qwen3-8B and Qwen3-14B have
-  passed config-only prescan as `qwen3` dense models, but one-block,
-  multi-block, and full-generation gates remain pending; they are experimental,
-  not `safe-demo` selectable.
+  passed config-only prescan as `qwen3` dense models, and Qwen3-8B one-block
+  server proof is passed. Multi-block and full-generation gates remain pending;
+  they are experimental, not `safe-demo` selectable.
 - Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
   `bloombee://join?...` offers and token-scoped active heartbeat rosters.
   `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, `/active`,

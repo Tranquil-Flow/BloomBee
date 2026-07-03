@@ -1,0 +1,66 @@
+{
+  "artifact": "QWEN3_8B_ONE_BLOCK_SERVER_PROOF_2026-07-03",
+  "block_range": "0:1",
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_one_block_server_evidence",
+  "client_log_excerpt": [
+    "[direct] model=Qwen/Qwen3-8B",
+    "[direct] bootstrap peers (1):",
+    "[direct] requesting block range 0:1",
+    "[direct]   ... 0.08s, output shape=[1, 5, 4096]",
+    "[direct]   ... backward 0.20s, grad_finite=True, grad_norm=144.3696",
+    "[direct] outputs finite: True, unique values: 8967.0",
+    "[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-8B\", \"block_range\": [0, 1], \"input_shape\": [1, 5, 4096], \"output_shape\": [1, 5, 4096], \"outputs_finite\": true, \"outputs_unique\": 8967.0, \"grad_finite\": true, \"grad_norm\": 144.36956787109375, \"forward_seconds\": 0.08165311813354492, \"backward_seconds\": 0.20383310317993164}"
+  ],
+  "client_result": {
+    "backward_seconds": 0.20383310317993164,
+    "block_range": [
+      0,
+      1
+    ],
+    "forward_seconds": 0.08165311813354492,
+    "grad_finite": true,
+    "grad_norm": 144.36956787109375,
+    "input_shape": [
+      1,
+      5,
+      4096
+    ],
+    "model": "Qwen/Qwen3-8B",
+    "ok": true,
+    "output_shape": [
+      1,
+      5,
+      4096
+    ],
+    "outputs_finite": true,
+    "outputs_unique": 8967.0
+  },
+  "device": "mps",
+  "dtype": "float16",
+  "host": "m4pro / evinova-self",
+  "model": "Qwen/Qwen3-8B",
+  "notes": [
+    "This proves one live BloomBee server shard for Qwen3-8B block 0:1, not full generation.",
+    "Full_generation/cache_generation/multi_request_load remain pending.",
+    "Verifier was mvp_capabilities/one_block_proof.py verify and returned status=passed with failed_checks=[]."
+  ],
+  "proof_gate": "one_block_server",
+  "proof_status_update": {
+    "one_block_server": "passed"
+  },
+  "server_log_excerpt": [
+    "Jul 03 21:50:28.055 [INFO] Running a server on ['/ip4/100.84.252.4/tcp/31337/p2p/12D3KooWAEzHeW6sEysjcjnxSxwi4bJYmWMZ9zZy372919vL88Wx', '/ip4/127.0.0.1/tcp/31337/p2p/12D3KooWAEzHeW6sEysjcjnxSxwi4bJYmWMZ9zZy372919vL88Wx', '/ip6/::1/tcp/31337/p2p/12D3KooWAEzHeW6sEysjcjnxSxwi4bJYmWMZ9zZy372919vL88Wx']",
+    "Jul 03 21:50:28.294 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-8B",
+    "Jul 03 21:50:28.721 [INFO] Inference throughput: 551.0 tokens/sec per block (1 tokens/batch, MPS, float16)",
+    "Jul 03 21:50:28.937 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-8B",
+    "Jul 03 21:50:29.985 [INFO] Forward pass throughput: 12096.9 tokens/sec per block (1024 tokens/batch, MPS, float16)",
+    "Jul 03 21:50:47.112 [INFO] Announced that blocks range(0, 1) are joining",
+    "Jul 03 21:50:47.376 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-8B",
+    "Jul 03 21:50:47.554 [INFO] Started",
+    "Jul 03 21:51:40.941 [INFO] rpc_forward(blocks=0:1, remote_peer=...xFV3EW)",
+    "Jul 03 21:51:41.017 [INFO] rpc_backward(blocks=0:1, remote_peer=...xFV3EW)"
+  ],
+  "snapshot": "Qwen/Qwen3-8B snapshot b968826d9c46dd6066d109eabc6255188de91218; 5 safetensors shards resolved; stale .incomplete blobs ignored by proof_state only after snapshot completeness verified",
+  "status": "passed"
+}

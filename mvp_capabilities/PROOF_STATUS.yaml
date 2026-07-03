@@ -18,7 +18,7 @@ models:
 
   Qwen/Qwen3-8B:
     prescan: passed
-    one_block_server: pending
+    one_block_server: passed
     multi_block: pending
     full_generation: pending
     cache_generation: pending

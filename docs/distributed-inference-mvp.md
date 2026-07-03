@@ -66,11 +66,11 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████░░░░░░ 69%
+██████████████░░░░░░ 70%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
+public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /
@@ -105,7 +105,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   inference gates remain pending, so they stay experimental and not safe-demo.
 - `mvp_capabilities/one_block_proof.py` emits exact run/verify commands for the
   Qwen3-8B one-block proof and refuses to mark the gate passed unless both server
-  and direct-client logs contain matching finite-output evidence.
+  and direct-client logs contain matching finite-output evidence. Qwen3-8B
+  `one_block_server` is now passed from M4 Pro evidence; full generation remains
+  pending.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, and chain-scheduler rehearsals beside route/evidence/telemetry panels.
