@@ -58,10 +58,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="join_flow",
         label="Self-serve join flow, QR/link, heartbeat, live coordinator service",
         weight=10,
-        completion=0.55,
+        completion=0.65,
         status="partial",
-        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes endpoints; join_client.py posts peer-scan heartbeats from physical devices",
-        next_step="add QR rendering and fresh-device showcase run",
+        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes endpoints; join_client.py posts peer heartbeats; join_card.py renders SVG join cards with scanner-unproven claim boundary",
+        next_step="add true QR scanner-interop proof and fresh-device showcase run",
     ),
     Milestone(
         id="layer_planning",

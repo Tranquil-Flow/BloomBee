@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 56
-    assert report["overall_bar"] == "███████████░░░░░░░░░ 56%"
-    assert report["remaining_percent"] == 44
+    assert report["overall_percent"] == 57
+    assert report["overall_bar"] == "███████████░░░░░░░░░ 57%"
+    assert report["remaining_percent"] == 43
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████░░░░░░░░░ 56%" in text
+    assert "███████████░░░░░░░░░ 57%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +298,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 56
-    assert payload["overall_bar"].endswith("56%")
+    assert payload["overall_percent"] == 57
+    assert payload["overall_bar"].endswith("57%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1184,3 +1184,51 @@ def test_join_client_cli_dry_run_outputs_request_json(tmp_path: Path):
     assert payload["url"] == "http://m4pro.local:8787/heartbeat"
     assert payload["body"]["peer_id"] == "fresh-peer"
     assert payload["claim_boundary"] == "join_client_dry_run_only_no_inference_proof"
+
+
+def test_join_card_renders_svg_with_metadata_and_claim_boundary():
+    from mvp_capabilities.join_card import render_join_card_svg
+
+    join_url = "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    svg = render_join_card_svg(join_url, title="BloomBee Join", expires_at=1120)
+
+    assert svg.startswith("<svg ")
+    assert "BloomBee Join" in svg
+    assert "bloombee://join?" in svg
+    assert "moon-token" in svg
+    assert "join_card_visual_only_no_inference_proof" in svg
+    assert "scanner_interop_unproven" in svg
+    assert "data-join-url=" in svg
+    assert svg.count("<rect") > 40
+
+
+def test_join_card_cli_writes_svg_file(tmp_path: Path):
+    import subprocess
+    import sys
+
+    out = tmp_path / "join-card.svg"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_card.py",
+            "--join-url",
+            "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+            "--title",
+            "Moonlit Join",
+            "--expires-at",
+            "1120",
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["out"] == str(out)
+    assert payload["claim_boundary"] == "join_card_visual_only_no_inference_proof"
+    text = out.read_text(encoding="utf-8")
+    assert "Moonlit Join" in text
+    assert "scanner_interop_unproven" in text

@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████░░░░░░░░░ 56%
+███████████░░░░░░░░░ 57%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -98,8 +98,9 @@ Already proven:
   metadata and pending proof: Instruct-2507 and Thinking-2507.
 - Join-link/heartbeat foundation exists: link offers, token-scoped heartbeats,
   active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`, and
-  `/active` endpoints, physical-device `join_client.py` heartbeat posting, and
-  explicit no-inference-proof claim boundaries.
+  `/active` endpoints, physical-device `join_client.py` heartbeat posting, SVG
+  join-card rendering, and explicit no-inference-proof claim boundaries. SVG
+  visual-grid scanner interoperability remains unproven.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks and explicit no-server-started/no-inference-proof
@@ -482,7 +483,8 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 4. QR/link join coordinator and heartbeat state. **Foundation + HTTP slice
    complete**: join-link offers and heartbeat state exist; stdlib HTTP health,
    offer, heartbeat, and active-roster endpoints exist; physical-device join
-   client wiring exists. QR image rendering and fresh-device showcase remain
+   client wiring exists; SVG join-card rendering exists with scanner interop
+   explicitly unproven. True QR scanner proof and fresh-device showcase remain
    future work.
 5. Layer planner from live worker capabilities. **Initial slice complete**:
    `layer_planner.py` emits deterministic contiguous block ranges from a model
