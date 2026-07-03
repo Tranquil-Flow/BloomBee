@@ -1,19 +1,26 @@
 import os
 import torch
-# from pynvml.smi import nvidia_smi
-from pynvml import *
 from typing import Optional
 import logging
+
+# Conditional NVML import — not available on non-NVIDIA devices (MPS, CPU)
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 # [MBPIPE_DEBUG] Create a dedicated logger for micro-batch memory debugging
 _mbpipe_mem_logger = logging.getLogger('bloombee.mbpipe_memory')
 _mbpipe_mem_logger.setLevel(logging.INFO)
 
 def nvidia_smi_usage():
-	nvmlInit()
-	handle = nvmlDeviceGetHandleByIndex(0)
-	info = nvmlDeviceGetMemoryInfo(handle)
-	return (info.used) / 1024 / 1024 / 1024
+    if not _NVML_AVAILABLE or not torch.cuda.is_available():
+        return 0.0
+    nvmlInit()
+    handle = nvmlDeviceGetHandleByIndex(0)
+    info = nvmlDeviceGetMemoryInfo(handle)
+    return (info.used) / 1024 / 1024 / 1024
 
 
 # =============================================================================
@@ -199,20 +206,22 @@ class MemoryTracker:
         return 0.0
 
 def get_memory_stats() -> dict:
-	"""Get detailed memory statistics from both PyTorch and nvidia-smi."""
-	stats = {}
-	
-	# Get nvidia-smi memory usage
-	nvmlInit()
-	handle = nvmlDeviceGetHandleByIndex(0)
-	info = nvmlDeviceGetMemoryInfo(handle)
-	stats['nvidia_smi_used'] = info.used / 1024 / 1024 / 1024  # GB
-	
-	# Get PyTorch memory stats
-	stats['torch_allocated'] = torch.cuda.memory_allocated() / (1024 * 1024 * 1024)  # GB
-	stats['torch_max_allocated'] = torch.cuda.max_memory_allocated() / (1024 * 1024 * 1024)  # GB
-	
-	return stats
+    """Get detailed memory statistics from both PyTorch and nvidia-smi."""
+    stats = {}
+
+    if _NVML_AVAILABLE and torch.cuda.is_available():
+        nvmlInit()
+        handle = nvmlDeviceGetHandleByIndex(0)
+        info = nvmlDeviceGetMemoryInfo(handle)
+        stats['nvidia_smi_used'] = info.used / 1024 / 1024 / 1024  # GB
+        stats['torch_allocated'] = torch.cuda.memory_allocated() / (1024 * 1024 * 1024)  # GB
+        stats['torch_max_allocated'] = torch.cuda.max_memory_allocated() / (1024 * 1024 * 1024)  # GB
+    else:
+        stats['nvidia_smi_used'] = 0.0
+        stats['torch_allocated'] = 0.0
+        stats['torch_max_allocated'] = 0.0
+
+    return stats
 
 def see_memory_usage(message: str, force: bool = True):
 	"""Print current memory usage with a message."""

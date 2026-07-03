@@ -5,6 +5,7 @@ from enum import Enum, auto
 class DeviceType(Enum):
     CPU = auto()
     CUDA = auto()
+    MPS = auto()
     DISK = auto()
     MIXED = auto()
     COMPRESSED = auto()
@@ -15,6 +16,8 @@ class DeviceType(Enum):
             return DeviceType.CPU
         elif name == "cuda":
             return DeviceType.CUDA
+        elif name == "mps":
+            return DeviceType.MPS
         elif name == "disk":
             return DeviceType.DISK
         elif name == "mixed":

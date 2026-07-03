@@ -52,12 +52,18 @@ def fix_recursive_import():
     from bloombee.flexgen_utils import compression
     general_copy_compressed = compression.general_copy_compressed
     TorchCompressedDevice = compression.TorchCompressedDevice
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 def see_memory_usage(message, force=True):
 	logger = ''
 	logger += message
-	nvmlInit()
+	if not _NVML_AVAILABLE or not torch.cuda.is_available():
+		logger += '\n    (NVML not available, skipping GPU stats)'
+		return logger
  
 	# nvidia_smi.nvmlInit()
 	handle = nvmlDeviceGetHandleByIndex(0)

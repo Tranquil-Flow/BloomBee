@@ -52,7 +52,7 @@ class AdaptiveNeuralPruner:
         self.device = device
         self.config = config
         
-        self.lm_head = MidLMHead(hidden_size=hidden_size, vocab_size=vocab_size).to("cuda")
+        self.lm_head = MidLMHead(hidden_size=hidden_size, vocab_size=vocab_size).to(self.device)
         lm_head_weights_path = hf_hub_download(
             repo_id="xxiong59/lm-head-for-speculative-pruning",
             filename="lm_head_weights_15.pt",

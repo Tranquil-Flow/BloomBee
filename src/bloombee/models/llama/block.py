@@ -63,7 +63,11 @@ def get_global_tokenizer(model_name='llama-7b'):
 
 fix_recursive_import()
 
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 
 

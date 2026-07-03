@@ -71,7 +71,11 @@ from bloombee.utils.microbatch_config import (
     log_config as mbpipe_log_config,
     MBPIPE_LOG_PREFIX,
 )
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 # Create dedicated offloading debug logger
 import logging

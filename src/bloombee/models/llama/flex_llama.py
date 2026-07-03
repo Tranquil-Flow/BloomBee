@@ -139,7 +139,11 @@ def apply_rotary_pos_emb(q, k, cos, sin):
 
 DUMMY_WEIGHT = "_DUMMY_"  # Use dummy weights for benchmark purposes
 
-from pynvml import *
+try:
+    from pynvml import *
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 def get_choice(cur_percent, percents, choices):
     percents = np.cumsum(percents)
