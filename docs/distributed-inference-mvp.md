@@ -53,7 +53,12 @@ Why:
 - Best MVP showcase story: many modest devices collaborate to serve the strongest
   model that the connected swarm can prove safe to run.
 
-Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the swarm has enough aggregate memory and BloomBee has a verified Qwen3 MoE block handler.
+Last-stage stretch targets are tracked in the final plan and come **after** the
+core live demo works. First choice is the same-family
+**Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears;
+`GLM-4.5-Air` is the high-upside new-wrapper investigation; Kimi/DeepSeek giant
+MoEs stay post-MVP unless quantized expert paging or a much larger hardware pool
+exists.
 
 ## Verified current state
 

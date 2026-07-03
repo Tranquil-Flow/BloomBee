@@ -172,6 +172,30 @@ before demo day.
 5. Qwen3-30B-A3B-Instruct-2507 — prescan and one-block proof; promote only if it
    passes the same gates.
 
+### Last-stage high-compute shelf
+
+These models are **not** prerequisites for the MVP. They should come last, only
+after the join flow, layer planner, dashboard, best-model selector, scheduler,
+simulation harness, fallback proofs, and Qwen3-30B proof ladder are working. The
+reason to include them in the plan is readiness: if demo day unexpectedly brings
+far more aggregate memory than our current two-laptop testbed, the coordinator
+should know which bigger models are worth attempting and which are blocked.
+
+| Model | Rough fp16/bf16 budget | Why consider it | Current blocker | When to attempt |
+|---|---:|---|---|---|
+| `Qwen/Qwen3-235B-A22B-Instruct-2507` | ~560GB+ | strongest same-family Qwen3-MoE upgrade; better benchmark class than 30B | huge memory; not cached/proven | after Qwen3-30B full-generation works and connected swarm has ~29 × 20GB-free laptops or ~12 × 48GB-free laptops |
+| `zai-org/GLM-4.5-Air` / FP8 variant | ~255GB bf16, less if FP8 path works | high-upside MoE reasoning/agent model; MIT; smaller than 235B | no BloomBee `glm4_moe` wrapper; FP8 path not integrated | after core demo works, if swarm has ~260GB free and wrapper investigation looks simple |
+| `zai-org/GLM-4.5` | ~850GB bf16 | stronger GLM-class model | no wrapper; very large | post-MVP unless hardware is abundant |
+| `moonshotai/Kimi-K2-Instruct` / newer Kimi K2.x | ~2.4TB bf16 | frontier open MoE/agentic capability | no wrapper; too large for normal laptop swarm | post-MVP / only with quantized expert paging or huge hardware |
+| DeepSeek V3/V4-class MoE | ~1.6TB bf16 for V3-class | strong coding/reasoning class | no wrapper; MLA/DeepSeekMoE-specific state; huge | post-MVP / backend research |
+| Qwen3-Coder large MoE class | likely ~1TB+ depending checkpoint | best coding-demo story if available | likely huge; wrapper/proof unknown | post-MVP unless quant/backend path exists |
+
+High-compute rule: these models may appear in the dashboard as `last-stage` or
+`blocked-by-wrapper/memory/proof`, but they must not delay the core live demo.
+If one appears feasible, run the same proof ladder as every other model: prescan,
+one-block server proof, multi-block proof, full distributed generation, then
+load/multi-request proof.
+
 ### Proof ladder for each prepared model
 
 1. `model_compat_scan`: AutoConfig dispatch, wrapper, layer count, block prefix,
@@ -361,3 +385,6 @@ The moonlit demo story:
 8. Qwen3-30B-A3B multi-block/full-generation proof ladder.
 9. Multi-request chain scheduler.
 10. Speculative verifier + cheap draft provider; phones as async draft workers.
+11. Last-stage high-compute shelf, only after 1–10 work: Qwen3-235B-A22B first,
+    then GLM-4.5-Air if a `glm4_moe` wrapper looks tractable, with Kimi/DeepSeek
+    giant MoEs reserved for post-MVP backend/quantization research.
