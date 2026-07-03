@@ -25,6 +25,7 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 
 CLAIM_BOUNDARY = "placement_plan_only_no_inference_proof"
+LAUNCH_COMMANDS_CLAIM_BOUNDARY = "launch_commands_only_no_server_started"
 
 
 def _as_float(value: Any, default: float = 0.0) -> float:
@@ -133,6 +134,90 @@ def plan_layer_placement(peers: list[dict[str, Any]], model: dict[str, Any]) -> 
     }
 
 
+def _server_command(
+    *,
+    model_id: str,
+    block_range: str,
+    port: int,
+    device: str,
+    dtype: str,
+    dht_prefix: str | None,
+    initial_peer_placeholder: str | None,
+) -> str:
+    parts = [
+        "PYTHONPATH=.:src",
+        "python -m bloombee.cli.run_server",
+        model_id,
+        f"--block_indices {block_range}",
+        f"--device {device}",
+        f"--torch_dtype {dtype}",
+        f"--port {port}",
+    ]
+    if dht_prefix:
+        parts.append(f"--dht_prefix {dht_prefix}")
+    if initial_peer_placeholder:
+        parts.append(f"--initial_peers '{initial_peer_placeholder}'")
+    else:
+        parts.append("--new_swarm")
+    return " ".join(parts)
+
+
+def attach_launch_commands(
+    plan: dict[str, Any],
+    *,
+    device: str = "mps",
+    dtype: str = "float16",
+    base_port: int = 31337,
+    dht_prefix: str | None = None,
+) -> dict[str, Any]:
+    """Attach copy/paste BloomBee server commands to a placement plan.
+
+    This is still a planning artifact. It does not start servers; it gives the
+    coordinator/operator exact commands to launch from each assignment.
+    """
+    updated = dict(plan)
+    assignments: list[dict[str, Any]] = []
+    seed_hostname: str | None = None
+    for index, assignment in enumerate(plan.get("assignments") or []):
+        item = dict(assignment)
+        hostname = str(item.get("hostname") or f"peer-{index + 1}")
+        if seed_hostname is None:
+            seed_hostname = hostname
+        port = base_port + index
+        block_range = f"{item['start_layer']}:{item['end_layer']}"
+        initial_peer = None if index == 0 else f"<SEED_MULTIADDR_FROM_{seed_hostname}>"
+        item.update(
+            {
+                "port": port,
+                "block_range": block_range,
+                "launch_command": _server_command(
+                    model_id=str(plan.get("model_id")),
+                    block_range=block_range,
+                    port=port,
+                    device=device,
+                    dtype=dtype,
+                    dht_prefix=dht_prefix,
+                    initial_peer_placeholder=initial_peer,
+                ),
+            }
+        )
+        assignments.append(item)
+    updated["assignments"] = assignments
+    updated["launch_commands_claim_boundary"] = LAUNCH_COMMANDS_CLAIM_BOUNDARY
+    updated["launch_command_defaults"] = {
+        "device": device,
+        "dtype": dtype,
+        "base_port": base_port,
+        "dht_prefix": dht_prefix,
+    }
+    updated["launch_command_notes"] = [
+        "Commands are a runbook only; no server was started by the planner.",
+        "Start the first command, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders.",
+        "Only promote proof gates after direct client evidence verifies finite outputs/gradients.",
+    ]
+    return updated
+
+
 def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]:
     for model in registry:
         if model.get("model_id") == model_id:
@@ -148,6 +233,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0)
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
     parser.add_argument("--synthetic-free-gb", type=float, default=20.0)
+    parser.add_argument("--include-launch-commands", action="store_true")
+    parser.add_argument("--launch-device", default="mps")
+    parser.add_argument("--launch-dtype", default="float16")
+    parser.add_argument("--base-port", type=int, default=31337)
+    parser.add_argument("--dht-prefix", default=None)
     args = parser.parse_args(argv)
 
     peers = load_roster(args.cap_dir or [DEFAULT_CAP_DIR])
@@ -161,7 +251,16 @@ def main(argv: list[str] | None = None) -> int:
         )
     registry = load_registry(args.registry)
     model = _find_model(registry, args.model)
-    print(json.dumps(plan_layer_placement(peers, model), indent=2, sort_keys=True))
+    plan = plan_layer_placement(peers, model)
+    if args.include_launch_commands:
+        plan = attach_launch_commands(
+            plan,
+            device=args.launch_device,
+            dtype=args.launch_dtype,
+            base_port=args.base_port,
+            dht_prefix=args.dht_prefix,
+        )
+    print(json.dumps(plan, indent=2, sort_keys=True))
     return 0
 
 

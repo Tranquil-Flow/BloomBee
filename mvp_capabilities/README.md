@@ -176,7 +176,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████░░░░░░░░░ 53%` built from the plan, with claim boundary
+  `███████████░░░░░░░░░ 54%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
@@ -202,8 +202,9 @@ As of the current implementation slice:
   `bloombee://join?...` offers and token-scoped active heartbeat rosters, with
   explicit `no_inference_proof` claim boundaries.
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
-  layer ranges from a selected model and live/synthetic peer roster, with an
-  explicit placement-only/no-inference-proof claim boundary.
+  layer ranges from a selected model and live/synthetic peer roster. With
+  `--include-launch-commands`, it adds exact BloomBee server command runbooks
+  while preserving a no-server-started claim boundary.
 - Simulation harness (`swarm_simulator.py`) exists: it rehearses variable-device
   rosters and failed-host scenarios, then emits route + layer-plan JSON with an
   explicit simulation-only/no-inference-proof claim boundary.

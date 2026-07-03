@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 53
-    assert report["overall_bar"] == "███████████░░░░░░░░░ 53%"
-    assert report["remaining_percent"] == 47
+    assert report["overall_percent"] == 54
+    assert report["overall_bar"] == "███████████░░░░░░░░░ 54%"
+    assert report["remaining_percent"] == 46
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████░░░░░░░░░ 53%" in text
+    assert "███████████░░░░░░░░░ 54%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,8 +298,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 53
-    assert payload["overall_bar"].endswith("53%")
+    assert payload["overall_percent"] == 54
+    assert payload["overall_bar"].endswith("54%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -509,6 +509,64 @@ def test_layer_planner_reports_missing_capacity_without_overclaiming():
     assert plan["assigned_layers"] == 2
     assert plan["missing_layers"] == 2
     assert plan["claim_boundary"] == "placement_plan_only_no_inference_proof"
+
+
+def test_layer_planner_can_attach_exact_bloombee_server_commands():
+    from mvp_capabilities.layer_planner import attach_launch_commands, plan_layer_placement
+
+    model = {
+        "model_id": "test/TwelveLayer",
+        "num_layers": 12,
+        "recommended_min_free_mem_gb": 24,
+    }
+    peers = [
+        {"hostname": "alpha", "memory": {"free_gb": 10}, "accelerator": {"device": "mps"}},
+        {"hostname": "bravo", "memory": {"free_gb": 14}, "accelerator": {"device": "mps"}},
+    ]
+    plan = attach_launch_commands(
+        plan_layer_placement(peers, model),
+        device="mps",
+        dtype="float16",
+        base_port=31337,
+        dht_prefix="demo-prefix",
+    )
+
+    assert plan["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
+    assert plan["assignments"][0]["port"] == 31337
+    assert plan["assignments"][1]["port"] == 31338
+    assert "--block_indices 0:5" in plan["assignments"][0]["launch_command"]
+    assert "--block_indices 5:12" in plan["assignments"][1]["launch_command"]
+    assert "--dht_prefix demo-prefix" in plan["assignments"][0]["launch_command"]
+    assert "--initial_peers '<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
+
+
+def test_layer_planner_cli_can_include_launch_commands():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/layer_planner.py",
+            "--model",
+            "Qwen/Qwen3-30B-A3B",
+            "--synthetic-m4-laptops",
+            "10",
+            "--include-launch-commands",
+            "--dht-prefix",
+            "mvp-demo",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
+    assert payload["assignments"][0]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
+    assert "--new_swarm" in payload["assignments"][0]["launch_command"]
+    assert "--initial_peers '<SEED_MULTIADDR_FROM_" in payload["assignments"][1]["launch_command"]
 
 
 def test_layer_planner_cli_outputs_json_for_synthetic_swarm():

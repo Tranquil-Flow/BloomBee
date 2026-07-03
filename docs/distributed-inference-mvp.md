@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████░░░░░░░░░ 53%
+███████████░░░░░░░░░ 54%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -118,8 +118,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   and token-scoped heartbeat rosters. This is bootstrap/roster state only and
   explicitly does not claim inference proof.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
-  into deterministic contiguous layer ranges. This is placement planning only;
-  real serving still requires the BloomBee server proof ladder.
+  into deterministic contiguous layer ranges and can attach exact BloomBee
+  server launch commands with `--include-launch-commands`. This is placement and
+  launch planning only; real serving still requires the BloomBee server proof ladder.
 - `mvp_capabilities/swarm_simulator.py` rehearses synthetic/live rosters with
   failed hosts, route selection, and layer placement. It is explicitly
   simulation-only, not an inference or serving proof.

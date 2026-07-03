@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████░░░░░░░░░ 53%
+███████████░░░░░░░░░ 54%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -99,8 +99,9 @@ Already proven:
 - Join-link/heartbeat foundation exists: link offers, token-scoped heartbeats,
   active-peer filtering, and explicit no-inference-proof claim boundaries.
 - Layer planner exists: selected model + live/synthetic roster becomes
-  deterministic contiguous layer ranges, with explicit placement-only/no
-  inference-proof claim boundaries.
+  deterministic contiguous layer ranges, with optional exact BloomBee server
+  launch command runbooks and explicit no-server-started/no-inference-proof
+  claim boundaries.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 
@@ -481,8 +482,9 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    coordinator service wiring remain future work.
 5. Layer planner from live worker capabilities. **Initial slice complete**:
    `layer_planner.py` emits deterministic contiguous block ranges from a model
-   registry entry and peer free-memory capacities. This is a placement plan, not
-   inference proof.
+   registry entry and peer free-memory capacities. **Launch-command slice
+   complete**: optional BloomBee server commands are included with a
+   no-server-started boundary. This is a placement/launch plan, not inference proof.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
    **Initial slice complete**: `swarm_simulator.py` emits a simulation-only
    route + layer-plan report for synthetic/live rosters and failed-host lists.
