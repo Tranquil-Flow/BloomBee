@@ -262,6 +262,47 @@ def test_qwen3_dense_fallbacks_have_prescan_only_not_safe_demo():
         assert report["next_gate"] == "one_block_server"
 
 
+def test_mvp_status_report_has_weighted_progress_bar():
+    from mvp_capabilities.mvp_status import build_status_report
+
+    report = build_status_report()
+    assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
+    assert report["total_weight"] == 100
+    assert report["overall_percent"] == 52
+    assert report["overall_bar"] == "██████████░░░░░░░░░░ 52%"
+    assert report["remaining_percent"] == 48
+    assert report["next_gate"] == "Qwen3-8B one-block server proof"
+    assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
+
+
+def test_mvp_status_markdown_contains_status_bar_and_next_gate():
+    from mvp_capabilities.mvp_status import build_status_report, render_markdown
+
+    text = render_markdown(build_status_report())
+    assert "Distributed Inference MVP status" in text
+    assert "██████████░░░░░░░░░░ 52%" in text
+    assert "Qwen3-8B one-block server proof" in text
+    assert "weighted_plan_status_not_demo_proof" in text
+
+
+def test_mvp_status_cli_outputs_json():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "mvp_capabilities/mvp_status.py", "--json"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["overall_percent"] == 52
+    assert payload["overall_bar"].endswith("52%")
+    assert payload["next_gate"] == "Qwen3-8B one-block server proof"
+
+
 def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):
     from mvp_capabilities.bench_matrix import build_matrix
     from mvp_capabilities.route_picker import choose_best_route, load_registry

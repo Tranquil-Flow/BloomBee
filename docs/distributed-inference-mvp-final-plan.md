@@ -59,6 +59,15 @@ The MVP is complete when the following are all true:
 
 ## Current proof ladder
 
+Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
+
+```text
+██████████░░░░░░░░░░ 52%
+```
+
+Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
+public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
+
 Already proven:
 
 - TinyLlama two-server forward/backward.

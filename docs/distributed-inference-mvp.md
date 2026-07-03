@@ -63,6 +63,15 @@ hardware pool exists.
 
 ## Verified current state
 
+Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
+
+```text
+██████████░░░░░░░░░░ 52%
+```
+
+Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
+public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
+
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /
   `Evis-MacBook-Pro` reports MPS, 16GB total, ~2.3GB free; `m4pro`
