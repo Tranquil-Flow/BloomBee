@@ -125,6 +125,9 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, coordinator handoff bundles, and chain-scheduler rehearsals beside
   route/evidence/telemetry panels.
+- `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
+  bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
+  from nested fields and URLs before writing/printing.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
   facts, distinguishes complete snapshots from stale `.incomplete` leftovers,
   emits ETA fields, and feeds the dashboard while explicitly refusing to claim
@@ -359,6 +362,14 @@ self-contained dashboard snapshot for real connected peers only:
 ```bash
 cd ~/Projects/distributed-inference-mvp
 source .venv/bin/activate
+
+python mvp_capabilities/join_handoff.py \
+  --coordinator-url http://127.0.0.1:8787 \
+  --token moon-token \
+  --model auto \
+  --selector-mode planning \
+  --request-count 2 \
+  --out .local/handoff-bundle.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \

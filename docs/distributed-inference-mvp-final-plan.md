@@ -83,8 +83,9 @@ Already proven:
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
   `/active`; operator-captured seed multiaddrs can now resolve follower launch
-  commands before no-execution launch-readiness checklists mark the runbook
-  startable.
+  commands before readiness checks.
+- Redacted handoff artifacts can be fetched with `join_handoff.py` and fed into
+  the dashboard without leaking join tokens.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.

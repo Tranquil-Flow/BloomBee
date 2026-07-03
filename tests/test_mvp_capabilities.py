@@ -1828,6 +1828,70 @@ models:
     assert handoff["can_update_proof_status"] is False
 
 
+def test_join_handoff_cli_builds_redacted_dashboard_artifact(tmp_path: Path):
+    from mvp_capabilities.join_handoff import build_handoff_url, redact_handoff_bundle
+
+    url = build_handoff_url(
+        "http://127.0.0.1:8787/",
+        token="moon-token",
+        model="auto",
+        selector_mode="planning",
+        max_age_seconds=60,
+        include_launch_commands=True,
+        include_launch_readiness=True,
+        request_count=2,
+    )
+    assert url == (
+        "http://127.0.0.1:8787/handoff?"
+        "token=moon-token&model=auto&selector_mode=planning&max_age_seconds=60"
+        "&include_launch_commands=1&include_launch_readiness=1&request_count=2"
+    )
+
+    raw = {
+        "claim_boundary": "coordinator_handoff_bundle_only_no_server_started",
+        "source": "coordinator_http_handoff_endpoint",
+        "token": "moon-token",
+        "offer": {"token": "moon-token", "join_url": "bloombee://join?coordinator=http%3A%2F%2F127.0.0.1%3A8787&token=moon-token"},
+        "active": {"active_peers": [{"peer_id": "peer-a", "token": "moon-token"}]},
+        "proof_runbooks": {"multi_block": {"claim_boundary": "multi_block_proof_harness_only_no_live_inference"}},
+        "inference_proven": False,
+        "can_update_proof_status": False,
+    }
+    redacted = redact_handoff_bundle(raw, fetched_url=url)
+    assert redacted["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
+    assert redacted["handoff_fetch_claim_boundary"] == "join_handoff_fetch_only_no_server_started"
+    assert redacted["token"] == "***"
+    assert redacted["offer"]["token"] == "***"
+    assert "moon-token" not in json.dumps(redacted)
+    assert redacted["proof_runbooks"]["multi_block"]["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
+
+    raw_path = tmp_path / "raw-handoff.json"
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    out = tmp_path / "handoff-bundle.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "mvp_capabilities" / "join_handoff.py"),
+            "--input-json",
+            str(raw_path),
+            "--fetched-url",
+            url,
+            "--out",
+            str(out),
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert written["source"] == "coordinator_http_handoff_endpoint"
+    assert written["handoff_fetch_source"] == "join_handoff_cli"
+    assert "moon-token" not in out.read_text(encoding="utf-8")
+    assert "moon-token" not in result.stdout
+
+
 def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: Path):
     from mvp_capabilities.join_coordinator import record_heartbeat
     from mvp_capabilities.join_layer_plan import build_join_layer_plan

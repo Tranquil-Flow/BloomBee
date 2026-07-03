@@ -199,6 +199,15 @@ python mvp_capabilities/swarm_simulator.py \
   --request-count 2
 
 # 14. Generate the local real-demo dashboard (real connected peers only).
+#     First fetch a redacted coordinator handoff bundle, suitable for sharing.
+python mvp_capabilities/join_handoff.py \
+  --coordinator-url http://127.0.0.1:8787 \
+  --token moon-token \
+  --model auto \
+  --selector-mode planning \
+  --request-count 2 \
+  --out .local/handoff-bundle.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -311,7 +320,10 @@ As of the current implementation slice:
   `/handoff` bundles offer, active roster, route, launch plan, and proof harness
   placeholders for demo operators. In the Hermes sandbox, dispatch functions are
   verified without binding a port because socket bind is blocked.
-- Physical-device join client (`join_client.py`) exists: it parses a
+- Handoff fetcher (`join_handoff.py`) exists: it fetches `/handoff` or redacts a
+  saved raw handoff JSON, strips tokens from nested fields/URLs, and writes a
+  dashboard-ready artifact without starting servers or sending traffic.
+- Join client (`join_client.py`) exists: it parses the join URL, loads a
   `bloombee://join?...` offer, loads peer-scan capabilities, and posts a
   heartbeat to the coordinator. Dry-run mode prints the exact request without
   network side effects.
