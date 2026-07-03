@@ -90,6 +90,10 @@ hardware pool exists.
 - `mvp_capabilities/model_compat_scan.py` and `PROOF_STATUS.yaml` exist. They
   prescan local model configs, map HF `model_type` to BloomBee support, merge
   proof gates, and emit `demo_safe` / `experimental` / `blocked` claim levels.
+- `mvp_capabilities/proof_ladder.py` audits the ordered proof gates for prepared
+  models and emits the next gate before promotion. Qwen3-8B and Qwen3-14B now
+  have real config-only prescan evidence (`qwen3`, wrapper-supported), but all
+  inference gates remain pending, so they stay experimental and not safe-demo.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from

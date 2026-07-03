@@ -169,6 +169,99 @@ def test_swarm_simulator_pure_synthetic_ignores_default_capability_dir(tmp_path:
     assert "real-peer" not in {peer["hostname"] for peer in result["layer_plan"]["assignments"]}
 
 
+def test_proof_ladder_reports_ordered_gates_and_next_pending_step():
+    from mvp_capabilities.proof_ladder import build_proof_ladder
+
+    proof_status = {
+        "Qwen/Qwen3-8B": {
+            "prescan": "passed",
+            "one_block_server": "pending",
+            "multi_block": "pending",
+            "full_generation": "pending",
+        }
+    }
+
+    report = build_proof_ladder("Qwen/Qwen3-8B", proof_status=proof_status)
+
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["claim_boundary"] == "proof_ladder_audit_only_no_inference_proof"
+    assert report["claim_level"] == "experimental"
+    assert report["next_gate"] == "one_block_server"
+    assert [gate["name"] for gate in report["gates"]] == [
+        "prescan",
+        "one_block_server",
+        "multi_block",
+        "full_generation",
+        "cache_generation",
+        "multi_request_load",
+    ]
+    assert report["gates"][0]["status"] == "passed"
+    assert report["gates"][1]["status"] == "pending"
+
+
+def test_proof_ladder_safe_demo_requires_full_generation_passed():
+    from mvp_capabilities.proof_ladder import build_proof_ladder
+
+    report = build_proof_ladder(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        proof_status={
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
+                "prescan": "passed",
+                "one_block_server": "passed",
+                "multi_block": "passed",
+                "full_generation": "passed",
+                "cache_generation": "pending",
+                "multi_request_load": "pending",
+            }
+        },
+    )
+
+    assert report["claim_level"] == "demo_safe"
+    assert report["safe_demo_selectable"] is True
+    assert report["next_gate"] == "cache_generation"
+
+
+def test_proof_ladder_cli_outputs_fallback_ladder_json():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/proof_ladder.py",
+            "--fallback-ladder",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "proof_ladder_audit_only_no_inference_proof"
+    assert [item["model_id"] for item in payload["models"]][:3] == [
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "Qwen/Qwen3-8B",
+        "Qwen/Qwen3-14B",
+    ]
+    assert all("next_gate" in item for item in payload["models"])
+
+
+def test_qwen3_dense_fallbacks_have_prescan_only_not_safe_demo():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.proof_ladder import build_proof_ladder
+
+    proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
+
+    for model_id in ("Qwen/Qwen3-8B", "Qwen/Qwen3-14B"):
+        report = build_proof_ladder(model_id, proof_status=proof)
+        assert report["proof_status"]["prescan"] == "passed"
+        assert report["proof_status"]["one_block_server"] == "pending"
+        assert report["claim_level"] == "experimental"
+        assert report["safe_demo_selectable"] is False
+        assert report["next_gate"] == "one_block_server"
+
+
 def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):
     from mvp_capabilities.bench_matrix import build_matrix
     from mvp_capabilities.route_picker import choose_best_route, load_registry

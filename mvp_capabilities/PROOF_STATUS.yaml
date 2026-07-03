@@ -17,7 +17,7 @@ models:
     multi_request_load: pending
 
   Qwen/Qwen3-8B:
-    prescan: pending
+    prescan: passed
     one_block_server: pending
     multi_block: pending
     full_generation: pending
@@ -25,7 +25,7 @@ models:
     multi_request_load: pending
 
   Qwen/Qwen3-14B:
-    prescan: pending
+    prescan: passed
     one_block_server: pending
     multi_block: pending
     full_generation: pending
