@@ -36,8 +36,9 @@ BloomBee's runtime already maintains.
 | 9. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active endpoints, lets physical devices post peer-scan heartbeats, and renders SVG join cards. This is join/roster state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / SVG join card |
 | 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
-| 12. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 13. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 12. Joined layer plans | `join_layer_plan.py` | Converts active token-scoped coordinator heartbeats into `layer_planner.py` placements and optional launch-command runbooks. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
+| 13. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 14. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layer 6 says *how much of the plan is built*. Layer 7 says *what each model actually achieves on this hardware*.
 
@@ -194,7 +195,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `████████████░░░░░░░░ 59%` built from the plan, with claim boundary
+  `████████████░░░░░░░░ 61%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
@@ -238,6 +239,8 @@ As of the current implementation slice:
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
   `--include-launch-commands`, it adds exact BloomBee server command runbooks
+  and `join_layer_plan.py` can feed active token-scoped coordinator heartbeats
+  into those placements.
   while preserving a no-server-started claim boundary.
 - Simulation harness (`swarm_simulator.py`) exists: it rehearses variable-device
   rosters and failed-host scenarios, then emits route + layer-plan JSON with an

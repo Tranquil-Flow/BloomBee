@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-████████████░░░░░░░░ 59%
+████████████░░░░░░░░ 61%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -79,6 +79,8 @@ Already proven:
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
   status/next gate, live proof-prep feed, telemetry, and real layer-placement
   metadata.
+- Active join-heartbeat rosters can feed deterministic layer-placement runbooks
+  through `join_layer_plan.py`.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
@@ -105,14 +107,16 @@ Already proven:
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks and explicit no-server-started/no-inference-proof
-  claim boundaries.
+  claim boundaries; active coordinator heartbeats can be handed into the same
+  planner via `join_layer_plan.py`.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 
 Not yet proven:
 
 - self-serve QR/link laptop join,
-- automatic layer assignment across arbitrary joined laptops,
+- automatic layer assignment across arbitrary joined laptops after server launch
+  multiaddrs are captured,
 - physical N-laptop showcase,
 - full Qwen3-30B-A3B distributed generation,
 - Qwen3-30B-A3B 2507 checkpoint proof,

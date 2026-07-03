@@ -66,10 +66,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="layer_planning",
         label="Layer planner and launch-ready worker assignment",
         weight=10,
-        completion=0.55,
+        completion=0.70,
         status="partial",
-        evidence="layer_planner.py emits deterministic contiguous ranges plus exact BloomBee server launch command runbooks",
-        next_step="replace seed placeholders from live coordinator and verify launched servers",
+        evidence="layer_planner.py emits deterministic ranges/runbooks; join_layer_plan.py converts active coordinator heartbeats into launch-ready layer plans",
+        next_step="replace seed placeholders from live coordinator multiaddrs and verify launched servers",
     ),
     Milestone(
         id="simulation_harness",

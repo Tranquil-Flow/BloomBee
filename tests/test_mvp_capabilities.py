@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 59
-    assert report["overall_bar"] == "████████████░░░░░░░░ 59%"
-    assert report["remaining_percent"] == 41
+    assert report["overall_percent"] == 61
+    assert report["overall_bar"] == "████████████░░░░░░░░ 61%"
+    assert report["remaining_percent"] == 39
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "████████████░░░░░░░░ 59%" in text
+    assert "████████████░░░░░░░░ 61%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 59
-    assert payload["overall_bar"].endswith("59%")
+    assert payload["overall_percent"] == 61
+    assert payload["overall_bar"].endswith("61%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1158,6 +1158,117 @@ def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
     assert status == 200
     assert active["claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
     assert [peer["peer_id"] for peer in active["active_peers"]] == ["fresh-peer"]
+
+
+def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan
+
+    state_dir = tmp_path / "join-state"
+    model = {
+        "model_id": "test/SixLayer",
+        "num_layers": 6,
+        "recommended_min_free_mem_gb": 12,
+    }
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="peer-b",
+        capabilities={"hostname": "peer-b", "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="peer-a",
+        capabilities={"hostname": "peer-a", "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+    record_heartbeat(
+        state_dir,
+        token="other-token",
+        peer_id="wrong-token",
+        capabilities={"hostname": "wrong-token", "memory": {"free_gb": 48}},
+        now=100,
+    )
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="stale-peer",
+        capabilities={"hostname": "stale-peer", "memory": {"free_gb": 48}},
+        now=1,
+    )
+
+    plan = build_join_layer_plan(
+        state_dir=state_dir,
+        token="moon-token",
+        model=model,
+        now=110,
+        max_age_seconds=30,
+        include_launch_commands=True,
+        base_port=41000,
+        dht_prefix="moon-swarm",
+    )
+
+    assert plan["claim_boundary"] == "joined_roster_layer_plan_only_no_inference_proof"
+    assert plan["heartbeat_claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
+    assert plan["placement"]["claim_boundary"] == "placement_plan_only_no_inference_proof"
+    assert plan["placement"]["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
+    assert plan["token"] == "moon-token"
+    assert plan["active_peer_count"] == 2
+    assert [peer["peer_id"] for peer in plan["active_heartbeats"]] == ["peer-a", "peer-b"]
+    assert plan["placement"]["supported"] is True
+    assert [(item["hostname"], item["block_range"]) for item in plan["placement"]["assignments"]] == [
+        ("peer-a", "0:3"),
+        ("peer-b", "3:6"),
+    ]
+    assert "--block_indices 0:3" in plan["placement"]["assignments"][0]["launch_command"]
+    assert "--new_swarm" in plan["placement"]["assignments"][0]["launch_command"]
+    assert "<SEED_MULTIADDR_FROM_peer-a>" in plan["placement"]["assignments"][1]["launch_command"]
+    assert plan["inference_proven"] is False
+
+
+def test_join_layer_plan_cli_reads_registry_model_and_active_state(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+
+    state_dir = tmp_path / "join-state"
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="m4pro",
+        capabilities={"hostname": "m4pro", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_layer_plan.py",
+            "--state-dir",
+            str(state_dir),
+            "--token",
+            "moon-token",
+            "--model",
+            "Qwen/Qwen3-8B",
+            "--now",
+            "110",
+            "--max-age-seconds",
+            "30",
+            "--include-launch-commands",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "joined_roster_layer_plan_only_no_inference_proof"
+    assert payload["model_id"] == "Qwen/Qwen3-8B"
+    assert payload["active_peer_count"] == 1
+    assert payload["placement"]["assignments"][0]["hostname"] == "m4pro"
+    assert payload["placement"]["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
+    assert payload["inference_proven"] is False
 
 
 def test_join_http_server_rejects_bad_heartbeat_json(tmp_path: Path):

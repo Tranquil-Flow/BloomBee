@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-████████████░░░░░░░░ 59%
+████████████░░░░░░░░ 61%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -110,6 +110,8 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   remaining percentage, and next gate beside route/evidence/telemetry panels.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
   facts and feeds the dashboard while explicitly refusing to claim inference.
+- `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
+  heartbeats into deterministic layer placements and launch-command runbooks.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
   `--selector-mode showcase-attempt`, and `--selector-mode safe-demo`, so the
   live dashboard/coordinator can distinguish memory-fit planning from
@@ -126,6 +128,8 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   renders an SVG join card with exact URL metadata and scanner interop explicitly
   unproven. This is bootstrap/roster state only and explicitly does not claim
   inference proof.
+  `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
+  launch-ready layer-placement runbooks without starting servers.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
   server launch commands with `--include-launch-commands`. This is placement and
