@@ -87,6 +87,9 @@ hardware pool exists.
   128 experts @ 8/topk). Wrapper contract tests pass. One live M4 Pro server
   shard has loaded real Qwen3-30B-A3B safetensors for block `0:1` and served
   direct RPC forward/backward with finite outputs and gradients.
+- `mvp_capabilities/model_compat_scan.py` and `PROOF_STATUS.yaml` exist. They
+  prescan local model configs, map HF `model_type` to BloomBee support, merge
+  proof gates, and emit `demo_safe` / `experimental` / `blocked` claim levels.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and

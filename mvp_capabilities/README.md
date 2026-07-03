@@ -27,12 +27,13 @@ BloomBee's runtime already maintains.
 |------:|------|--------------|--------|
 | 1. Hardware | `peer_scan.py` | Probes the local node: hostname, Tailscale IP, CPU model & counts, RAM, MPS/CUDA VRAM, ping latency to peers, free disk on `~/.cache/huggingface`. | JSON to stdout AND `~/.bloombee/capabilities/<hostname>.json` |
 | 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for ~20 candidate models (TinyLlama through Qwen3-235B-A22B, dense and MoE). | YAML, loaded by the scheduler |
-| 3. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
-| 4. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 5. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. The final coordinator should extend this with architecture/proof-status filters before safe-demo selection. | JSON route decision |
-| 6. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
+| 4. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
+| 5. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
+| 6. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. The final coordinator should extend this with architecture/proof-status filters before safe-demo selection. | JSON route decision |
+| 7. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
-Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *what each model actually achieves on this hardware*.
+Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *what each model actually achieves on this hardware*.
 
 A naive router is `peer_free_gb >= model.min_total_mem_gb`. A better router is `peer_decode_tok_s >= request.min_decode_tok_s`, using the benchmark numbers instead of the catalog alone.
 
@@ -53,7 +54,12 @@ python mvp_capabilities/peer_scan.py --peers m4-pro,m4-laptop,node3.tail.ts.net
 # 2. Inspect the model catalog (no code needed; it's data).
 cat mvp_capabilities/MODEL_REGISTRY.yaml
 
-# 3. Benchmark the default small model on this machine (MPS, bf16).
+# 3. Scan a local model config or cached HF config for BloomBee compatibility.
+python mvp_capabilities/model_compat_scan.py \
+  ~/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B/snapshots/<snapshot> \
+  --model-id Qwen/Qwen3-30B-A3B
+
+# 4. Benchmark the default small model on this machine (MPS, bf16).
 python mvp_capabilities/bench_throughput.py
 
 #    A bigger target — same shape of output:
@@ -63,13 +69,13 @@ python mvp_capabilities/bench_throughput.py --model Qwen/Qwen2.5-3B-Instruct --m
 #    remote-debugging on a CUDA box):
 python mvp_capabilities/bench_throughput.py --device cuda --dtype fp16 --model Qwen/Qwen2.5-7B-Instruct
 
-# 4. Aggregate real peer scans.
+# 5. Aggregate real peer scans.
 python mvp_capabilities/swarm_roster.py --cap-dir ~/.bloombee/capabilities --json
 
-# 5. Pick the strongest feasible route for real devices.
+# 6. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
 
-# 6. Plan the 10-laptop MVP showcase route before physical showcase day.
+# 7. Plan the 10-laptop MVP showcase route before physical showcase day.
 python mvp_capabilities/route_picker.py \
   --cap-dir ~/.bloombee/capabilities \
   --scenario mvp-10-laptop \
@@ -77,7 +83,7 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 7. Generate the local real-demo dashboard (real connected peers only).
+# 8. Generate the local real-demo dashboard (real connected peers only).
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -94,7 +100,7 @@ python mvp_capabilities/demo_dashboard.py \
   --synthetic-m4-laptops 10 \
   --out .local/demo-dashboard-planning.html
 
-# 8. Plan a per-peer benchmark sweep without downloading/running models.
+# 9. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
   --peer ~/.bloombee/capabilities/$(hostname -s).json \
   --dry-run

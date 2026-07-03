@@ -274,3 +274,92 @@ def test_cli_explain_flag_runs_without_error():
     assert "picked" in payload
     assert isinstance(payload["picked"], dict)
     assert "candidates" not in payload["picked"]  # no nested duplication
+
+
+def _write_hf_config(model_dir: Path, **fields) -> Path:
+    model_dir.mkdir()
+    path = model_dir / "config.json"
+    path.write_text(json.dumps(fields), encoding="utf-8")
+    return path
+
+
+def test_model_compat_scan_marks_qwen3_moe_as_bloombee_supported(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "qwen3_moe"
+    _write_hf_config(
+        model_dir,
+        model_type="qwen3_moe",
+        num_hidden_layers=48,
+        hidden_size=2048,
+        num_attention_heads=32,
+        num_key_value_heads=4,
+        num_experts=128,
+        num_experts_per_tok=8,
+        architectures=["Qwen3MoeForCausalLM"],
+    )
+
+    result = scan_model_config(model_dir, model_id="Qwen/Qwen3-30B-A3B-Instruct-2507")
+
+    assert result["model_id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert result["hf_model_type"] == "qwen3_moe"
+    assert result["architecture_supported"] is True
+    assert result["bloombee_family"] == "qwen3_moe"
+    assert result["block_prefix"] == "model.layers"
+    assert result["num_layers"] == 48
+    assert result["hidden_size"] == 2048
+    assert result["num_experts"] == 128
+    assert result["experts_per_token"] == 8
+    assert result["proof_status"]["prescan"] == "passed"
+    assert result["claim_level"] == "experimental"
+
+
+def test_model_compat_scan_marks_unknown_frontier_family_blocked(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "glm52"
+    _write_hf_config(
+        model_dir,
+        model_type="glm5_moe",
+        num_hidden_layers=128,
+        hidden_size=8192,
+        num_attention_heads=64,
+        num_experts=256,
+        num_experts_per_tok=8,
+    )
+
+    result = scan_model_config(model_dir, model_id="zai-org/GLM-5.2")
+
+    assert result["hf_model_type"] == "glm5_moe"
+    assert result["architecture_supported"] is False
+    assert result["claim_level"] == "blocked"
+    assert "wrapper" in result["blocked_reasons"][0].lower()
+
+
+def test_model_compat_scan_merges_proof_status_registry(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import load_proof_status, scan_model_config
+
+    model_dir = tmp_path / "qwen3_moe"
+    _write_hf_config(
+        model_dir,
+        model_type="qwen3_moe",
+        num_hidden_layers=48,
+        hidden_size=2048,
+    )
+    proof_path = tmp_path / "proof.yaml"
+    proof_path.write_text(
+        "models:\n"
+        "  Qwen/Qwen3-30B-A3B:\n"
+        "    one_block_server: passed\n"
+        "    multi_block: pending\n"
+        "    full_generation: pending\n",
+        encoding="utf-8",
+    )
+
+    proof = load_proof_status(proof_path)
+    result = scan_model_config(model_dir, model_id="Qwen/Qwen3-30B-A3B", proof_status=proof)
+
+    assert result["proof_status"]["prescan"] == "passed"
+    assert result["proof_status"]["one_block_server"] == "passed"
+    assert result["proof_status"]["multi_block"] == "pending"
+    assert result["claim_level"] == "experimental"

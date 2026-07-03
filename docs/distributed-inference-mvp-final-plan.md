@@ -72,6 +72,9 @@ Already proven:
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
+- Model compatibility scanner plus proof-status registry: local `config.json`
+  prescan, BloomBee family mapping, unsupported-wrapper blocking, and claim-level
+  output are test-covered.
 
 Not yet proven:
 
@@ -436,7 +439,9 @@ The moonlit demo story:
 
 Build in this order. Do not let frontier-model dreams block the core swarm demo.
 
-1. `model_compat_scan.py` + proof-status registry.
+1. `model_compat_scan.py` + proof-status registry. **Initial slice complete**:
+   local config scanning, supported-family mapping, proof merge, and CLI JSON
+   output exist. Next slice should feed this into the best-model selector.
 2. Add Qwen3-30B-A3B-Instruct-2507 / Thinking-2507 candidates with pending proof.
 3. Best-model selector with `safe-demo`, `showcase-attempt`, and `planning` modes.
 4. QR/link join coordinator and heartbeat state.
