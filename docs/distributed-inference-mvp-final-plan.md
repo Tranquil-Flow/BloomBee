@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████░░░░░░░░░░ 52%
+███████████░░░░░░░░░ 53%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -88,6 +88,9 @@ Already proven:
   prepared models without claiming inference. Qwen3-8B and Qwen3-14B passed
   config-only prescan as supported `qwen3` dense models; one-block,
   multi-block, full-generation, cache-generation, and load gates remain pending.
+- One-block proof harness exists: `one_block_proof.py` emits exact server/client
+  commands and verifies captured logs for the Qwen3-8B `one_block_server` gate.
+  It does not itself prove inference; a live run must still pass.
 - Route picker selector modes are wired: `planning` keeps memory-fit simulation,
   `showcase-attempt` allows experimental supported wrappers while blocking
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
@@ -483,8 +486,8 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 6. M4 Pro simulation harness for variable-device routing/load/failure.
    **Initial slice complete**: `swarm_simulator.py` emits a simulation-only
    route + layer-plan report for synthetic/live rosters and failed-host lists.
-7. Qwen3 dense fallback proofs: 8B, then 14B. **Config-only prescan slice
-   complete** for both; next gate is one-block server proof.
+7. Qwen3 dense fallback proofs: 8B, then 14B. **Config-only prescan + harness
+   slice complete** for both; next gate is live Qwen3-8B one-block server proof.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
 9. Multi-request chain scheduler.
 10. Exact speculative verifier loop with cheap draft provider; phones only as async

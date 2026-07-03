@@ -268,9 +268,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 52
-    assert report["overall_bar"] == "██████████░░░░░░░░░░ 52%"
-    assert report["remaining_percent"] == 48
+    assert report["overall_percent"] == 53
+    assert report["overall_bar"] == "███████████░░░░░░░░░ 53%"
+    assert report["remaining_percent"] == 47
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -280,7 +280,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████░░░░░░░░░░ 52%" in text
+    assert "███████████░░░░░░░░░ 53%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -298,9 +298,82 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 52
-    assert payload["overall_bar"].endswith("52%")
+    assert payload["overall_percent"] == 53
+    assert payload["overall_bar"].endswith("53%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
+
+
+def test_one_block_proof_plan_generates_qwen3_8b_commands():
+    from mvp_capabilities.one_block_proof import build_one_block_plan
+    from mvp_capabilities.route_picker import load_registry
+
+    plan = build_one_block_plan(
+        "Qwen/Qwen3-8B",
+        registry=load_registry(REGISTRY_PATH),
+        port=31337,
+        device="mps",
+        dtype="float16",
+    )
+
+    assert plan["model_id"] == "Qwen/Qwen3-8B"
+    assert plan["claim_boundary"] == "proof_harness_only_no_live_inference"
+    assert plan["hidden_size"] == 4096
+    assert plan["block_range"] == "0:1"
+    assert "--block_indices 0:1" in plan["server_command"]
+    assert "--hidden-dim 4096" in plan["client_command"]
+    assert plan["proof_status_on_success"] == "one_block_server: passed"
+
+
+def test_one_block_proof_verifier_requires_server_and_client_evidence():
+    from mvp_capabilities.one_block_proof import verify_one_block_evidence
+
+    server_log = "[INFO] Announced that blocks range(0, 1) are joining\n[INFO] Started\n"
+    client_log = '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], "outputs_finite": true, "grad_finite": true}\n'
+
+    result = verify_one_block_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        server_log=server_log,
+        client_log=client_log,
+    )
+
+    assert result["claim_boundary"] == "verified_one_block_server_evidence"
+    assert result["proof_gate"] == "one_block_server"
+    assert result["status"] == "passed"
+    assert result["can_update_proof_status"] is True
+
+
+def test_one_block_proof_verifier_blocks_partial_evidence():
+    from mvp_capabilities.one_block_proof import verify_one_block_evidence
+
+    result = verify_one_block_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        server_log="[INFO] Started\n",
+        client_log='[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], "outputs_finite": true, "grad_finite": true}\n',
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert "server did not announce requested block range" in result["failed_checks"]
+
+
+def test_one_block_proof_cli_plan_outputs_json():
+    import subprocess
+    import sys
+
+    proc = subprocess.run(
+        [sys.executable, "mvp_capabilities/one_block_proof.py", "plan", "--model", "Qwen/Qwen3-8B"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["model_id"] == "Qwen/Qwen3-8B"
+    assert payload["claim_boundary"] == "proof_harness_only_no_live_inference"
+    assert payload["server_command"].startswith("PYTHONPATH=.:src")
 
 
 def test_bench_matrix_feeds_measured_decode_tok_per_s_into_router(tmp_path: Path):

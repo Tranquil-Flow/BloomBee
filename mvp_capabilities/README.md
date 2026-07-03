@@ -29,16 +29,17 @@ BloomBee's runtime already maintains.
 | 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for ~20 candidate models (TinyLlama through Qwen3-235B-A22B, dense and MoE). | YAML, loaded by the scheduler |
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
 | 4. Proof ladder | `proof_ladder.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. This is audit state only, not inference proof. | JSON proof-ladder report |
-| 5. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
-| 6. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
-| 7. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 8. Join | `join_coordinator.py` | Creates shareable join-link offers and records token-scoped peer heartbeats. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
-| 9. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
-| 10. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
-| 11. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 12. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 5. One-block proof harness | `one_block_proof.py` | Emits exact one-block server/client commands and verifies captured logs before a proof gate can be promoted. Planning mode is not proof. | JSON plan / verification report |
+| 6. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
+| 7. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
+| 8. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
+| 9. Join | `join_coordinator.py` | Creates shareable join-link offers and records token-scoped peer heartbeats. This is join/roster state only, not inference proof. | JSON offer / active heartbeat roster |
+| 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
+| 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
+| 12. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 13. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
-Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 says *how much of the plan is built*. Layer 6 says *what each model actually achieves on this hardware*.
+Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layer 6 says *how much of the plan is built*. Layer 7 says *what each model actually achieves on this hardware*.
 
 A naive router is `peer_free_gb >= model.min_total_mem_gb`. A better router is `peer_decode_tok_s >= request.min_decode_tok_s`, using the benchmark numbers instead of the catalog alone.
 
@@ -67,13 +68,22 @@ python mvp_capabilities/model_compat_scan.py \
 # 4. Audit prepared proof ladders and next gates.
 python mvp_capabilities/proof_ladder.py --fallback-ladder
 
-# 5. Show weighted MVP build status.
+# 5. Generate the Qwen3-8B one-block proof runbook.
+python mvp_capabilities/one_block_proof.py plan --model Qwen/Qwen3-8B
+
+#    After live server/client logs exist, verify them before updating proof status.
+python mvp_capabilities/one_block_proof.py verify \
+  --model Qwen/Qwen3-8B \
+  --server-log .local/one-block-server.log \
+  --client-log .local/one-block-client.log
+
+# 6. Show weighted MVP build status.
 python mvp_capabilities/mvp_status.py
 
 #    Machine-readable form for dashboards/automation:
 python mvp_capabilities/mvp_status.py --json
 
-# 6. Benchmark the default small model on this machine (MPS, bf16).
+# 7. Benchmark the default small model on this machine (MPS, bf16).
 python mvp_capabilities/bench_throughput.py
 
 #    A bigger target — same shape of output:
@@ -83,15 +93,15 @@ python mvp_capabilities/bench_throughput.py --model Qwen/Qwen2.5-3B-Instruct --m
 #    remote-debugging on a CUDA box):
 python mvp_capabilities/bench_throughput.py --device cuda --dtype fp16 --model Qwen/Qwen2.5-7B-Instruct
 
-# 7. Aggregate real peer scans.
+# 8. Aggregate real peer scans.
 python mvp_capabilities/swarm_roster.py --cap-dir ~/.bloombee/capabilities --json
 
-# 8. Create a join-link offer. This is roster/bootstrap state only.
+# 9. Create a join-link offer. This is roster/bootstrap state only.
 python mvp_capabilities/join_coordinator.py offer \
   --coordinator http://m4pro.local:8787 \
   --ttl-seconds 600
 
-# 9. Pick the strongest feasible route for real devices.
+# 10. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
 
 #    Safe demo mode only auto-selects models with full_generation proof.
@@ -106,7 +116,7 @@ python mvp_capabilities/route_picker.py \
   --selector-mode showcase-attempt \
   --explain
 
-# 10. Plan the 10-laptop MVP showcase route before physical showcase day.
+# 11. Plan the 10-laptop MVP showcase route before physical showcase day.
 python mvp_capabilities/route_picker.py \
   --cap-dir ~/.bloombee/capabilities \
   --scenario mvp-10-laptop \
@@ -114,7 +124,7 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 11. Plan deterministic layer placement for the selected model.
+# 12. Plan deterministic layer placement for the selected model.
 python mvp_capabilities/layer_planner.py \
   --cap-dir ~/.bloombee/capabilities \
   --model Qwen/Qwen3-30B-A3B
@@ -126,7 +136,7 @@ python mvp_capabilities/layer_planner.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 12. Simulate a 10-laptop failure scenario before showcase day.
+# 13. Simulate a 10-laptop failure scenario before showcase day.
 python mvp_capabilities/swarm_simulator.py \
   --scenario mvp-10-laptop \
   --model Qwen/Qwen3-30B-A3B \
@@ -134,7 +144,7 @@ python mvp_capabilities/swarm_simulator.py \
   --fail-host m4-laptop-01 \
   --request-count 2
 
-# 13. Generate the local real-demo dashboard (real connected peers only).
+# 14. Generate the local real-demo dashboard (real connected peers only).
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -151,7 +161,7 @@ python mvp_capabilities/demo_dashboard.py \
   --synthetic-m4-laptops 10 \
   --out .local/demo-dashboard-planning.html
 
-# 14. Plan a per-peer benchmark sweep without downloading/running models.
+# 15. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
   --peer ~/.bloombee/capabilities/$(hostname -s).json \
   --dry-run
@@ -166,9 +176,13 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████░░░░░░░░░░ 52%` built from the plan, with claim boundary
+  `███████████░░░░░░░░░ 53%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B one-block server
   proof.
+- One-block proof harness (`one_block_proof.py`) exists. It emits exact
+  Qwen3-8B server/client commands and verifies captured logs before allowing the
+  `one_block_server` gate to be marked passed; it is harness-only until a live
+  run succeeds.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.

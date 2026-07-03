@@ -92,9 +92,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_dense_fallbacks",
         label="Qwen3 dense fallback proof ladder: 8B then 14B",
         weight=8,
-        completion=0.20,
+        completion=0.25,
         status="partial",
-        evidence="Qwen3-8B and Qwen3-14B config-only prescan passed as supported qwen3 dense models",
+        evidence="Qwen3-8B and Qwen3-14B config-only prescan passed; one-block proof harness emits run/verify commands",
         next_step=NEXT_GATE,
     ),
     Milestone(
