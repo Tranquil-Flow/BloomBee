@@ -39,9 +39,10 @@ Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the 
 ## Verified current state
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
-- Fresh live scan on 2026-07-03: local `evinova` / `Evis-MacBook-Pro`
-  reports MPS, 16GB total, ~2.3GB free; `m4pro` reports MPS, 48GB total,
-  ~37.5GB free. Combined live roster: 2 peers, 64GB total, ~39.9GB free.
+- Fresh repo-local live scan on 2026-07-03: local `evinova` /
+  `Evis-MacBook-Pro` reports MPS, 16GB total, ~2.3GB free; `m4pro`
+  reports MPS, 48GB total, ~34.5GB free. Combined live roster: 2 peers,
+  64GB total, ~36.8GB free.
 - Current two-peer route with the measured M4 Pro matrix picks
   `google/gemma-2-9b-it` as a solo `m4pro` route. This is a live roster
   choice, not the final 10-laptop target.
@@ -56,7 +57,11 @@ Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the 
   | Qwen2.5-3B-Instruct | 107 | 3.6 |
   | Qwen2.5-7B-Instruct | 65 | 2.6 |
 - Direct SSH to M4 Pro works and reports 48GB memory.
-- Qwen3-MoE block wrapper (`src/bloombee/models/qwen3_moe/`) is in place: auto-dispatches from real Qwen3-30B-A3B config (48 layers, hidden=2048, 128 experts @ 8/topk). Wrapper contract tests pass. Has not yet been exercised with full 30B safetensors in a live server.
+- Qwen3-MoE block wrapper (`src/bloombee/models/qwen3_moe/`) is in place:
+  auto-dispatches from real Qwen3-30B-A3B config (48 layers, hidden=2048,
+  128 experts @ 8/topk). Wrapper contract tests pass. One live M4 Pro server
+  shard has loaded real Qwen3-30B-A3B safetensors for block `0:1` and served
+  direct RPC forward/backward with finite outputs and gradients.
 - TinyLlama distributed inference has been verified as a proof ladder:
   two-server, two-laptop, three-peer, forward-loop text parity, and cached
   `.generate()` parity. Cached generation now matches exact token IDs and
@@ -130,7 +135,7 @@ TinyLlama-1.1B two-device rehearsal (the smallest real distributed test):
 cd ~/Projects/distributed-inference-mvp && source .venv/bin/activate
 export PYTHONPATH=".:src"
 python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-    --new_swarm --block_indices 0 10 \
+    --new_swarm --block_indices 0:11 \
     --device mps --torch_dtype bfloat16 --port 31337
 
 # It prints INITIAL_PEERS multiaddr like:
@@ -138,7 +143,7 @@ python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 # Copy that, then on machine B:
 INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
 python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-    --block_indices 10 22 \
+    --block_indices 11:22 \
     --device mps --torch_dtype bfloat16
 ```
 
@@ -162,10 +167,14 @@ Verified gates now include:
 - three-peer TinyLlama forward/backward on one host,
 - three-peer forward-loop text-generation parity,
 - cached `.generate()` text-generation parity on the patched `rpc_inference`
-  recovery path.
+  recovery path,
+- three-peer cached `.generate()` parity with S2S enabled by default as an
+  opportunistic optimization plus direct client fallback,
+- one-block Qwen3-30B-A3B MoE live-server shard proof on M4 Pro.
 
-Next verification gates are three-peer cached `.generate()` parity, two-laptop
-cached `.generate()` parity, and Qwen3-30B-A3B live-serving preflight.
+Next verification gates are full multi-block Qwen3-30B-A3B distributed serving,
+two-laptop cached `.generate()` with S2S/default fallback, and the physical
+10-laptop showcase.
 
 ### Verified distributed-server boot on M4 Pro (2026-07-02 ~21:52)
 
@@ -202,9 +211,9 @@ environment problem, not a code correctness problem.
 ## No-overclaiming rules
 
 - Do not claim 10 physical laptops have run until the showcase test happens.
-- Do not claim Qwen3-30B-A3B live serving works until full safetensors have run
-  through a live BloomBee server. Wrapper/config tests are necessary but not
-  sufficient.
+- Do not claim full Qwen3-30B-A3B distributed generation works until all required
+  blocks have been served across a live swarm. One-block live serving is proven;
+  full-model distributed generation is not.
 - Do not claim a server gate is complete from registry fit alone; fit prediction is not inference proof.
 - Do not count phones as useful inference workers until a phone produces
   measured throughput and successfully serves at least one transformer block in

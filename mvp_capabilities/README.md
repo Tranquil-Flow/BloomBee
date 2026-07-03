@@ -83,20 +83,25 @@ As of the current implementation slice:
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.
-- Fresh live scan on 2026-07-03: local M4 has ~2.3GB free and m4pro has
-  ~37.5GB free; combined live roster is 2 peers, 64GB total, ~39.9GB free.
+- Fresh repo-local live scan on 2026-07-03: local M4 has ~2.3GB free and
+  m4pro has ~34.5GB free; combined live roster is 2 peers, 64GB total,
+  ~36.8GB free.
 - Real two-device roster route currently picks `google/gemma-2-9b-it` as a solo M4 Pro route when M4 Pro has enough free memory.
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
 - TinyLlama distributed inference has been verified through two-server,
   two-laptop, three-peer, forward-loop text parity, and cached `.generate()`
-  parity evidence.
+  parity evidence, including S2S-enabled cached generation with direct fallback
+  as the default correctness path.
+- Qwen3-30B-A3B MoE support has passed config/wrapper tests and one live M4 Pro
+  block-shard proof: block `0:1` loaded real safetensors and served direct RPC
+  forward/backward with finite output and gradient.
 - Phone/mobile peer support is at capability-discovery stage: `peer_scan.py`
   now emits a `mobile` profile for Android/Termux devices, but no phone is
   counted as a useful inference worker until it produces throughput evidence and
   successfully serves at least one transformer block in the distributed path.
-- Physical 10-laptop showcase remains part of MVP scope but should happen after
-  smaller cached-generation, Qwen3-MoE live-serving, and failover gates are
-  confirmed.
+- Physical 10-laptop showcase remains part of MVP scope. The next hard gates are
+  full multi-block Qwen3-30B-A3B distributed serving, two-laptop cached
+  `.generate()` with S2S/default fallback, and then the physical showcase.
 
 ### Measured M4 Pro bf16 bench (2026-07-02)
 
