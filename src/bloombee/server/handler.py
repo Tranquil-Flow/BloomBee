@@ -63,6 +63,43 @@ from bloombee.utils.microbatch_schema import (
 
 logger = get_logger(__name__)
 
+
+def _s2s_push_error_code(error: BaseException) -> str:
+    text = f"{type(error).__name__}: {error!s} {error!r}".lower()
+    if "timed out" in text or "timeout" in text:
+        return "rpc_push_timeout"
+    if "placeholder storage has not been allocated on mps device" in text:
+        return "mps_placeholder_storage"
+    if "failed to call handler" in text or "p2phandlererror" in text:
+        return "rpc_push_handler_error"
+    return type(error).__name__
+
+
+def _format_s2s_push_event(
+    *,
+    event_type: str,
+    action: str,
+    reason: str,
+    step_id,
+    from_blocks,
+    to_blocks,
+    to_peer,
+    session_id,
+    tensor_bytes: int = 0,
+    metadata_bytes: int = 0,
+    elapsed_ms: Optional[float] = None,
+) -> str:
+    elapsed_part = "" if elapsed_ms is None else f" elapsed_ms={elapsed_ms:.2f}"
+    return (
+        "[S2S_PUSH_EVENT] "
+        f"type={event_type} action={action} reason={reason} "
+        f"step_id={step_id} from_blocks={from_blocks} to_blocks={to_blocks} "
+        f"to_peer={to_peer} session_id={session_id} "
+        f"tensor_bytes={int(tensor_bytes)} metadata_bytes={int(metadata_bytes)}"
+        f"{elapsed_part}"
+    )
+
+
 _s2s_output_compression_name = os.getenv("BLOOMBEE_S2S_OUTPUT_COMPRESSION", "").strip().upper()
 _s2s_output_compression = None
 if _s2s_output_compression_name:
@@ -1531,9 +1568,14 @@ class TransformerConnectionHandler(ConnectionHandler):
         # print('_push_outputs metadata ', metadata)
         push_start_time = perf_counter()
         next_peer_id = None
+        next_peer_id_str = None
         next_session_id = None
         next_start = None
         next_end = None
+        sender_blocks = "unknown"
+        step_id = metadata.get("step_id", "unknown")
+        push_tensor_bytes = 0
+        push_metadata_bytes = 0
         try:
             next_servers = metadata.get("next_servers")
             if not next_servers:
@@ -1674,6 +1716,21 @@ class TransformerConnectionHandler(ConnectionHandler):
             serialized_next_metadata = MSGPackSerializer.dumps(next_metadata)
             push_metadata_bytes = len(serialized_next_metadata)
             rpc_request = runtime_pb2.ExpertRequest(uid=next_uid, tensors=next_tensors, metadata=serialized_next_metadata)
+            if is_log_channel_enabled("s2s_wire_logs"):
+                logger.info(
+                    _format_s2s_push_event(
+                        event_type="push_scheduled",
+                        action="schedule",
+                        reason="next_server",
+                        step_id=step_id,
+                        from_blocks=sender_blocks,
+                        to_blocks=f"{next_start}:{next_end}",
+                        to_peer=next_peer_id_str,
+                        session_id=next_session_id,
+                        tensor_bytes=push_tensor_bytes,
+                        metadata_bytes=push_metadata_bytes,
+                    )
+                )
 
             nic2nic_start = perf_counter()
             response = await stub.rpc_push(rpc_request, timeout=self.request_timeout)
@@ -1741,6 +1798,21 @@ class TransformerConnectionHandler(ConnectionHandler):
             )
 
             if is_log_channel_enabled("s2s_wire_logs"):
+                logger.info(
+                    _format_s2s_push_event(
+                        event_type="push_acked",
+                        action="ack",
+                        reason="rpc_push_ack",
+                        step_id=step_id,
+                        from_blocks=sender_blocks,
+                        to_blocks=f"{next_start}:{next_end}",
+                        to_peer=next_peer_id_str,
+                        session_id=next_session_id,
+                        tensor_bytes=push_tensor_bytes,
+                        metadata_bytes=push_metadata_bytes,
+                        elapsed_ms=push_e2e_ms,
+                    )
+                )
                 logger.info(f"[NETWORK_S2S] PUSH_COMPLETE | "
                            f"from_blocks={sender_blocks} | to_blocks={next_start}:{next_end} | "
                            f"tensor_size={push_tensor_bytes/1024:.2f}KB | "
@@ -1748,9 +1820,22 @@ class TransformerConnectionHandler(ConnectionHandler):
                            f"transfer_time={transfer_time_ms:.2f}ms | "
                            f"approx_bw={transfer_bw_mbps:.2f}Mbps")
             
-        except Exception:
+        except Exception as e:
+            failure_elapsed_ms = (perf_counter() - push_start_time) * 1000.0
             logger.warning(
-                f"Failed to push outputs to peer_id={next_peer_id}, session_id={next_session_id}, blocks={next_start}:{next_end}:",
+                _format_s2s_push_event(
+                    event_type="push_failed",
+                    action="direct_fallback",
+                    reason=_s2s_push_error_code(e),
+                    step_id=step_id,
+                    from_blocks=sender_blocks,
+                    to_blocks=f"{next_start}:{next_end}",
+                    to_peer=next_peer_id_str or next_peer_id,
+                    session_id=next_session_id,
+                    tensor_bytes=push_tensor_bytes,
+                    metadata_bytes=push_metadata_bytes,
+                    elapsed_ms=failure_elapsed_ms,
+                ),
                 exc_info=True,
             )
             if raise_on_error:

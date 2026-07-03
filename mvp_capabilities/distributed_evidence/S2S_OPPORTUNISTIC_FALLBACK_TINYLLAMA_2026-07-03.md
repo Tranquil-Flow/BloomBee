@@ -173,16 +173,16 @@ DEFAULT_PUSH_ONLY_DOWNSTREAM_DECODE = env in {"1", "true", "yes", "on"} if env e
 
 This preserves the push-only performance experiment as an explicit opt-in while making the correctness-preserving fallback path the default.
 
-## Remaining F work
+## F telemetry hardening state
 
-This change makes S2S push opportunistic by default, and the follow-up telemetry hardening now emits machine-readable recovery markers:
+This change makes S2S push opportunistic by default. Follow-up telemetry hardening now emits machine-readable client recovery markers:
 
 ```text
 [RECOVERY_EVENT] type=rpc_inference_retry action=retry reason=<code> attempt=<n>/<max> delay_s=<s> span=<span> error=<repr>
 [RECOVERY_EVENT] type=final_history_trim reason=session_rebuild_full_history action=trim_to_current_window seq_len=<n> current_step_tokens=<n> client_position=<n>
 ```
 
-Current reason codes include:
+Client recovery reason codes include:
 
 ```text
 mps_placeholder_storage
@@ -191,18 +191,30 @@ rpc_handler_error
 <ExceptionClassName>
 ```
 
-The MPS placeholder flood from the live run can now be counted via `reason=mps_placeholder_storage` instead of scraping raw tracebacks. The full-history recovery trim can be counted via `type=final_history_trim`.
+Server-side S2S push now emits machine-readable push markers:
+
+```text
+[S2S_PUSH_EVENT] type=push_scheduled action=schedule reason=next_server step_id=<n> from_blocks=<a:b> to_blocks=<c:d> to_peer=<peer> session_id=<id> tensor_bytes=<n> metadata_bytes=<n>
+[S2S_PUSH_EVENT] type=push_acked action=ack reason=rpc_push_ack step_id=<n> from_blocks=<a:b> to_blocks=<c:d> to_peer=<peer> session_id=<id> tensor_bytes=<n> metadata_bytes=<n> elapsed_ms=<ms>
+[S2S_PUSH_EVENT] type=push_failed action=direct_fallback reason=<code> step_id=<n> from_blocks=<a:b> to_blocks=<c:d> to_peer=<peer> session_id=<id> tensor_bytes=<n> metadata_bytes=<n> elapsed_ms=<ms>
+```
+
+Server push reason codes include:
+
+```text
+rpc_push_timeout
+mps_placeholder_storage
+rpc_push_handler_error
+<ExceptionClassName>
+```
+
+The MPS placeholder flood from the live run can now be counted via `reason=mps_placeholder_storage` instead of scraping raw tracebacks. The full-history recovery trim can be counted via `type=final_history_trim`. Push behavior can be counted via `type=push_scheduled`, `type=push_acked`, and `type=push_failed`.
 
 Remaining hardening:
 
-1. Add server-side push counters:
-   - push scheduled
-   - push acked
-   - push failed
-   - late push skipped
+1. Add late-push skipped marker/counter if/when skipped duplicate pushes become noisy.
 2. Fix or suppress macOS/MPS placeholder recovery at its source.
-3. Make S2S push failures surface as structured counters instead of noisy tracebacks.
-4. Add a short timeout/direct-fallback path if push-only mode remains available for performance experiments.
+3. Add a short timeout/direct-fallback path if push-only mode remains available for performance experiments.
 
 Safe wording now:
 
