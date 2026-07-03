@@ -24,7 +24,7 @@ try:
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
-    from mvp_capabilities.route_picker import DEFAULT_REGISTRY, load_registry
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from mvp_capabilities.join_coordinator import (
@@ -34,11 +34,13 @@ except ModuleNotFoundError:  # direct script execution
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
-    from mvp_capabilities.route_picker import DEFAULT_REGISTRY, load_registry
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
 ERROR_CLAIM_BOUNDARY = "coordinator_error_no_inference_proof"
 PLAN_SOURCE = "coordinator_http_plan_endpoint"
+ROUTE_SOURCE = "coordinator_http_route_endpoint"
+ROUTE_CLAIM_BOUNDARY = "coordinator_route_only_no_inference_proof"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -74,6 +76,63 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
+def _active_for_query(query: dict[str, list[str]], *, state_dir: str | Path, token: str) -> list[dict[str, Any]]:
+    return load_active_heartbeats(
+        state_dir,
+        token=token,
+        now=_as_int(_first(query, "now"), 0) or None,
+        max_age_seconds=_as_int(_first(query, "max_age_seconds"), 30),
+    )
+
+
+def _peers_from_heartbeats(active_heartbeats: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    peers: list[dict[str, Any]] = []
+    for heartbeat in active_heartbeats:
+        capabilities = heartbeat.get("capabilities")
+        if not isinstance(capabilities, dict):
+            continue
+        peer = dict(capabilities)
+        peer.setdefault("hostname", heartbeat.get("peer_id"))
+        peer["joined_peer_id"] = heartbeat.get("peer_id")
+        peer["joined_at"] = heartbeat.get("timestamp")
+        peer["join_claim_boundary"] = heartbeat.get("claim_boundary")
+        peers.append(peer)
+    peers.sort(key=lambda peer: str(peer.get("hostname") or peer.get("joined_peer_id") or ""))
+    return peers
+
+
+def _route_from_query(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    token = _first(query, "token")
+    if not token:
+        return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    active = _active_for_query(query, state_dir=state_dir, token=token)
+    peers = _peers_from_heartbeats(active)
+    try:
+        payload = explain_route(
+            peers,
+            load_registry(registry),
+            scenario=_first(query, "scenario"),
+            requested_model=_first(query, "model"),
+            proof_status=load_proof_status(_first(query, "proof_status", str(DEFAULT_PROOF_STATUS)) or DEFAULT_PROOF_STATUS),
+            selector_mode=_first(query, "selector_mode", "planning") or "planning",
+        )
+    except ValueError as exc:
+        return 400, {"error": str(exc), "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    payload["claim_boundary"] = ROUTE_CLAIM_BOUNDARY
+    payload["source"] = ROUTE_SOURCE
+    payload["token"] = token
+    payload["active_peer_count"] = len(active)
+    payload["active_heartbeats"] = active
+    payload["inference_proven"] = False
+    payload["can_update_proof_status"] = False
+    return 200, payload
+
+
 def _handle_plan(
     query: dict[str, list[str]],
     *,
@@ -87,7 +146,20 @@ def _handle_plan(
     if not model_id:
         return 400, {"error": "missing model", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
-    model = _find_model(load_registry(registry), model_id)
+    route_decision: dict[str, Any] | None = None
+    registry_models = load_registry(registry)
+    if model_id == "auto":
+        route_query = {key: list(value) for key, value in query.items() if key != "model"}
+        route_status, route_payload = _route_from_query(route_query, state_dir=state_dir, registry=registry)
+        if route_status != 200:
+            return route_status, route_payload
+        route_decision = route_payload
+        picked_model_id = (route_payload.get("picked") or {}).get("model_id")
+        if not picked_model_id:
+            return 409, {"error": "no selectable model for current joined roster", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        model_id = str(picked_model_id)
+
+    model = _find_model(registry_models, model_id)
     if model is None:
         return 404, {"error": f"model not found: {model_id}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
@@ -114,6 +186,8 @@ def _handle_plan(
         seed_multiaddrs=seed_multiaddrs,
     )
     payload["source"] = PLAN_SOURCE
+    if route_decision is not None:
+        payload["route_decision"] = route_decision
     return 200, payload
 
 
@@ -141,14 +215,11 @@ def handle_get(
             return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
         return 200, {
             "token": token,
-            "active_peers": load_active_heartbeats(
-                state_dir,
-                token=token,
-                now=_as_int(_first(query, "now"), 0) or None,
-                max_age_seconds=_as_int(_first(query, "max_age_seconds"), 30),
-            ),
+            "active_peers": _active_for_query(query, state_dir=state_dir, token=token),
             "claim_boundary": "heartbeat_roster_only_no_inference_proof",
         }
+    if parsed.path == "/route":
+        return _route_from_query(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/plan":
         return _handle_plan(query, state_dir=state_dir, registry=registry)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}

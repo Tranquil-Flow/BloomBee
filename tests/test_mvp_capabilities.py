@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 67
-    assert report["overall_bar"] == "█████████████░░░░░░░ 67%"
-    assert report["remaining_percent"] == 33
+    assert report["overall_percent"] == 68
+    assert report["overall_bar"] == "██████████████░░░░░░ 68%"
+    assert report["remaining_percent"] == 32
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "█████████████░░░░░░░ 67%" in text
+    assert "██████████████░░░░░░ 68%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 67
-    assert payload["overall_bar"].endswith("67%")
+    assert payload["overall_percent"] == 68
+    assert payload["overall_bar"].endswith("68%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1223,6 +1223,98 @@ def test_join_http_server_plan_endpoint_requires_token_and_model(tmp_path: Path)
     assert missing_token == {"error": "missing token", "claim_boundary": "coordinator_error_no_inference_proof"}
     assert status_model == 400
     assert missing_model == {"error": "missing model", "claim_boundary": "coordinator_error_no_inference_proof"}
+
+
+def test_join_http_server_route_endpoint_picks_best_joined_model(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: test/Tiny
+    params_b: 1
+    num_layers: 2
+    recommended_min_free_mem_gb: 4
+  - model_id: test/Bigger
+    params_b: 3
+    num_layers: 6
+    recommended_min_free_mem_gb: 12
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    body = json.dumps(
+        {
+            "token": "moon-token",
+            "peer_id": "joined-peer",
+            "capabilities": {"hostname": "joined-peer", "memory": {"free_gb": 14}, "accelerator": {"device": "mps"}},
+            "now": 100,
+        }
+    ).encode("utf-8")
+    status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+    assert status == 200
+
+    status, route = handle_get(
+        "/route?token=moon-token&now=110&max_age_seconds=60&selector_mode=planning",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert route["claim_boundary"] == "coordinator_route_only_no_inference_proof"
+    assert route["source"] == "coordinator_http_route_endpoint"
+    assert route["picked"]["model_id"] == "test/Bigger"
+    assert route["peer_summary"]["peer_count"] == 1
+    assert route["selector_mode"] == "planning"
+    assert route["inference_proven"] is False
+
+
+def test_join_http_server_plan_endpoint_can_auto_select_model(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: test/Tiny
+    params_b: 1
+    num_layers: 2
+    recommended_min_free_mem_gb: 4
+  - model_id: test/Bigger
+    params_b: 3
+    num_layers: 6
+    recommended_min_free_mem_gb: 12
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    body = json.dumps(
+        {
+            "token": "moon-token",
+            "peer_id": "joined-peer",
+            "capabilities": {"hostname": "joined-peer", "memory": {"free_gb": 14}, "accelerator": {"device": "mps"}},
+            "now": 100,
+        }
+    ).encode("utf-8")
+    status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+    assert status == 200
+
+    status, plan = handle_get(
+        "/plan?token=moon-token&model=auto&now=110&max_age_seconds=60&selector_mode=planning&include_launch_commands=1",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert plan["model_id"] == "test/Bigger"
+    assert plan["route_decision"]["picked"]["model_id"] == "test/Bigger"
+    assert plan["route_decision"]["claim_boundary"] == "coordinator_route_only_no_inference_proof"
+    assert plan["placement"]["supported"] is True
+    assert plan["placement"]["assignments"][0]["block_range"] == "0:6"
+    assert plan["inference_proven"] is False
 
 
 def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: Path):

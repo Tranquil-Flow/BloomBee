@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████░░░░░░░ 67%
+██████████████░░░░░░ 68%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -104,8 +104,9 @@ Already proven:
   metadata and pending proof: Instruct-2507 and Thinking-2507.
 - Join-flow foundation exists: shareable join-link offers, token-scoped heartbeat
   state, active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`,
-  `/active`, and `/plan` endpoints, physical-device `join_client.py` heartbeat
-  posting, SVG join-card rendering, QR scanner dependency preflight, and explicit
+  `/active`, `/route`, and `/plan` endpoints, proof-aware auto model selection
+  for `/plan?model=auto`, physical-device `join_client.py` heartbeat posting,
+  SVG join-card rendering, QR scanner dependency preflight, and explicit
   no-inference-proof claim boundaries. SVG visual-grid scanner interoperability
   remains unproven until a generated artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
