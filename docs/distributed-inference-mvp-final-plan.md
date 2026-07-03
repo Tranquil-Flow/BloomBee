@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-████████████░░░░░░░░ 62%
+█████████████░░░░░░░ 63%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -81,7 +81,8 @@ Already proven:
   telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
-  `/active`.
+  `/active`, and no-execution launch-readiness checklists expose seed multiaddr
+  placeholders before any server start.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
@@ -107,9 +108,10 @@ Already proven:
   visual-grid scanner interoperability remains unproven.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
-  launch command runbooks and explicit no-server-started/no-inference-proof
-  claim boundaries; active coordinator heartbeats can be handed into the same
-  planner via `join_layer_plan.py` from local state or HTTP `/active`.
+  launch command runbooks, launch-readiness checklists, and explicit
+  no-server-started/no-inference-proof claim boundaries; active coordinator
+  heartbeats can be handed into the same planner via `join_layer_plan.py` from
+  local state or HTTP `/active`.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 

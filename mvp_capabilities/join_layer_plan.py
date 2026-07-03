@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,8 +31,10 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
 
 CLAIM_BOUNDARY = "joined_roster_layer_plan_only_no_inference_proof"
 HEARTBEAT_CLAIM_BOUNDARY = "heartbeat_roster_only_no_inference_proof"
+LAUNCH_READINESS_CLAIM_BOUNDARY = "launch_readiness_checklist_only_no_server_started"
 HTTP_SOURCE = "coordinator_http_active"
 LOCAL_SOURCE = "local_state_dir"
+_PLACEHOLDER_RE = re.compile(r"<[^>]+>")
 
 
 def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]:
@@ -91,6 +94,56 @@ def fetch_active_heartbeats(
     return payload
 
 
+def materialize_launch_readiness(plan: dict[str, Any]) -> dict[str, Any]:
+    """Build a no-execution preflight checklist for launch-command runbooks."""
+    placement = plan.get("placement") or {}
+    assignments = [item for item in placement.get("assignments") or [] if isinstance(item, dict)]
+    unresolved: list[str] = []
+    server_checks: list[dict[str, Any]] = []
+    operator_steps: list[str] = []
+    for index, item in enumerate(assignments):
+        hostname = str(item.get("hostname") or f"server-{index}")
+        command = str(item.get("launch_command") or "")
+        placeholders = _PLACEHOLDER_RE.findall(command)
+        for placeholder in placeholders:
+            if placeholder not in unresolved:
+                unresolved.append(placeholder)
+        blocked_by: list[str] = []
+        if not command:
+            blocked_by.append("missing_launch_command")
+        if placeholders:
+            blocked_by.append("unresolved_multiaddr_placeholder")
+        role = "seed" if index == 0 else "follower"
+        if index == 0:
+            operator_steps.append(f"start seed server {hostname} and capture its announced multiaddr")
+        for placeholder in placeholders:
+            operator_steps.append(f"replace {placeholder} in {hostname} command before starting it")
+        server_checks.append(
+            {
+                "hostname": hostname,
+                "role": role,
+                "block_range": item.get("block_range"),
+                "port": item.get("port"),
+                "launch_command": command,
+                "unresolved_placeholders": placeholders,
+                "blocked_by": blocked_by,
+                "ready": not blocked_by,
+            }
+        )
+    ready_to_start = bool(assignments) and not unresolved and all(check["ready"] for check in server_checks)
+    return {
+        "claim_boundary": LAUNCH_READINESS_CLAIM_BOUNDARY,
+        "server_count": len(assignments),
+        "ready_to_start": ready_to_start,
+        "unresolved_placeholders": unresolved,
+        "operator_steps": operator_steps,
+        "server_checks": server_checks,
+        "inference_proven": False,
+        "can_update_proof_status": False,
+        "next_step": "resolve placeholders, start servers manually, capture multiaddrs/logs, then run a proof harness",
+    }
+
+
 def _build_from_active_heartbeats(
     *,
     active: list[dict[str, Any]],
@@ -99,6 +152,7 @@ def _build_from_active_heartbeats(
     heartbeat_claim_boundary: str,
     source: str,
     include_launch_commands: bool = False,
+    include_launch_readiness: bool = False,
     device: str = "mps",
     dtype: str = "float16",
     base_port: int = 31337,
@@ -115,7 +169,7 @@ def _build_from_active_heartbeats(
             base_port=base_port,
             dht_prefix=dht_prefix,
         )
-    return {
+    payload = {
         "claim_boundary": CLAIM_BOUNDARY,
         "heartbeat_claim_boundary": heartbeat_claim_boundary,
         "source": source,
@@ -130,6 +184,9 @@ def _build_from_active_heartbeats(
         "can_update_proof_status": False,
         "next_step": "start generated server commands manually, capture multiaddrs, run direct client proof, then verify with one_block_proof.py or generation parity harness",
     }
+    if include_launch_readiness:
+        payload["launch_readiness"] = materialize_launch_readiness(payload)
+    return payload
 
 
 def build_join_layer_plan_from_active_payload(
@@ -137,6 +194,7 @@ def build_join_layer_plan_from_active_payload(
     *,
     model: dict[str, Any],
     include_launch_commands: bool = False,
+    include_launch_readiness: bool = False,
     device: str = "mps",
     dtype: str = "float16",
     base_port: int = 31337,
@@ -152,6 +210,7 @@ def build_join_layer_plan_from_active_payload(
         heartbeat_claim_boundary=str(active_payload.get("claim_boundary") or HEARTBEAT_CLAIM_BOUNDARY),
         source=HTTP_SOURCE,
         include_launch_commands=include_launch_commands,
+        include_launch_readiness=include_launch_readiness,
         device=device,
         dtype=dtype,
         base_port=base_port,
@@ -167,6 +226,7 @@ def build_join_layer_plan(
     now: int | None = None,
     max_age_seconds: int = 30,
     include_launch_commands: bool = False,
+    include_launch_readiness: bool = False,
     device: str = "mps",
     dtype: str = "float16",
     base_port: int = 31337,
@@ -180,6 +240,7 @@ def build_join_layer_plan(
         heartbeat_claim_boundary=HEARTBEAT_CLAIM_BOUNDARY,
         source=LOCAL_SOURCE,
         include_launch_commands=include_launch_commands,
+        include_launch_readiness=include_launch_readiness,
         device=device,
         dtype=dtype,
         base_port=base_port,
@@ -197,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--now", type=int, default=None)
     parser.add_argument("--max-age-seconds", type=int, default=30)
     parser.add_argument("--include-launch-commands", action="store_true")
+    parser.add_argument("--include-launch-readiness", action="store_true", help="Embed no-execution readiness checklist for generated launch commands")
     parser.add_argument("--launch-device", default="mps")
     parser.add_argument("--launch-dtype", default="float16")
     parser.add_argument("--base-port", type=int, default=31337)
@@ -216,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
             active_payload,
             model=model,
             include_launch_commands=args.include_launch_commands,
+            include_launch_readiness=args.include_launch_readiness,
             device=args.launch_device,
             dtype=args.launch_dtype,
             base_port=args.base_port,
@@ -229,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
             now=args.now,
             max_age_seconds=args.max_age_seconds,
             include_launch_commands=args.include_launch_commands,
+            include_launch_readiness=args.include_launch_readiness,
             device=args.launch_device,
             dtype=args.launch_dtype,
             base_port=args.base_port,

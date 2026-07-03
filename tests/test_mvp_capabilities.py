@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 62
-    assert report["overall_bar"] == "████████████░░░░░░░░ 62%"
-    assert report["remaining_percent"] == 38
+    assert report["overall_percent"] == 63
+    assert report["overall_bar"] == "█████████████░░░░░░░ 63%"
+    assert report["remaining_percent"] == 37
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "████████████░░░░░░░░ 62%" in text
+    assert "█████████████░░░░░░░ 63%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 62
-    assert payload["overall_bar"].endswith("62%")
+    assert payload["overall_percent"] == 63
+    assert payload["overall_bar"].endswith("63%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1226,6 +1226,124 @@ def test_join_layer_plan_builds_launch_runbook_from_active_heartbeats(tmp_path: 
     assert "--new_swarm" in plan["placement"]["assignments"][0]["launch_command"]
     assert "<SEED_MULTIADDR_FROM_peer-a>" in plan["placement"]["assignments"][1]["launch_command"]
     assert plan["inference_proven"] is False
+
+
+def test_join_layer_plan_materializes_launch_readiness_checklist(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan, materialize_launch_readiness
+
+    state_dir = tmp_path / "join-state"
+    model = {"model_id": "test/SixLayer", "num_layers": 6, "recommended_min_free_mem_gb": 12}
+    for peer in ("peer-a", "peer-b"):
+        record_heartbeat(
+            state_dir,
+            token="moon-token",
+            peer_id=peer,
+            capabilities={"hostname": peer, "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+            now=100,
+        )
+    plan = build_join_layer_plan(
+        state_dir=state_dir,
+        token="moon-token",
+        model=model,
+        now=110,
+        max_age_seconds=30,
+        include_launch_commands=True,
+        base_port=41000,
+    )
+
+    readiness = materialize_launch_readiness(plan)
+
+    assert readiness["claim_boundary"] == "launch_readiness_checklist_only_no_server_started"
+    assert readiness["ready_to_start"] is False
+    assert readiness["server_count"] == 2
+    assert readiness["unresolved_placeholders"] == ["<SEED_MULTIADDR_FROM_peer-a>"]
+    assert readiness["operator_steps"][0] == "start seed server peer-a and capture its announced multiaddr"
+    assert readiness["operator_steps"][1] == "replace <SEED_MULTIADDR_FROM_peer-a> in peer-b command before starting it"
+    assert readiness["server_checks"][0]["hostname"] == "peer-a"
+    assert readiness["server_checks"][0]["ready"] is True
+    assert readiness["server_checks"][0]["role"] == "seed"
+    assert readiness["server_checks"][1]["hostname"] == "peer-b"
+    assert readiness["server_checks"][1]["ready"] is False
+    assert readiness["server_checks"][1]["blocked_by"] == ["unresolved_multiaddr_placeholder"]
+    assert readiness["inference_proven"] is False
+
+
+def test_join_layer_plan_embeds_launch_readiness_when_requested(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+    from mvp_capabilities.join_layer_plan import build_join_layer_plan
+
+    state_dir = tmp_path / "join-state"
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="peer-a",
+        capabilities={"hostname": "peer-a", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+
+    plan = build_join_layer_plan(
+        state_dir=state_dir,
+        token="moon-token",
+        model={"model_id": "test/SixLayer", "num_layers": 6, "recommended_min_free_mem_gb": 12},
+        now=110,
+        max_age_seconds=30,
+        include_launch_commands=True,
+        include_launch_readiness=True,
+        base_port=41000,
+    )
+
+    assert plan["launch_readiness"]["ready_to_start"] is True
+    assert plan["launch_readiness"]["unresolved_placeholders"] == []
+    assert plan["launch_readiness"]["operator_steps"] == ["start seed server peer-a and capture its announced multiaddr"]
+
+
+def test_join_layer_plan_cli_can_emit_launch_readiness(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+
+    state_dir = tmp_path / "join-state"
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="m4pro-a",
+        capabilities={"hostname": "m4pro-a", "memory": {"free_gb": 12}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+    record_heartbeat(
+        state_dir,
+        token="moon-token",
+        peer_id="m4pro-b",
+        capabilities={"hostname": "m4pro-b", "memory": {"free_gb": 12}, "accelerator": {"device": "mps"}},
+        now=100,
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/join_layer_plan.py",
+            "--state-dir",
+            str(state_dir),
+            "--token",
+            "moon-token",
+            "--model",
+            "Qwen/Qwen3-8B",
+            "--now",
+            "110",
+            "--include-launch-commands",
+            "--include-launch-readiness",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["launch_readiness"]["claim_boundary"] == "launch_readiness_checklist_only_no_server_started"
+    assert payload["launch_readiness"]["ready_to_start"] is False
+    assert payload["launch_readiness"]["unresolved_placeholders"] == ["<SEED_MULTIADDR_FROM_m4pro-a>"]
+    assert payload["launch_readiness"]["inference_proven"] is False
 
 
 def test_join_layer_plan_builds_from_http_active_payload():
