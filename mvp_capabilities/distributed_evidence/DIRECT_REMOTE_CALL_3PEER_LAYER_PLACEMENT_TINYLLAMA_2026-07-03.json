@@ -24,7 +24,6 @@
   "outputs_finite": true,
   "outputs_unique": 6183.0,
   "proof_host": "m4pro",
-  "raw_log": "/tmp/direct_layer_placement_proof.log",
   "server_maddrs": [
     "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWF3g2zDrGw272x7rtTUXwth13P7CNgbb4WEcQkUhy88yH",
     "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWEfk8QywJTab24hKEzuX3D6PyxLwftcMwZod2UF9By1MM",
