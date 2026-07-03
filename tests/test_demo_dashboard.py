@@ -207,6 +207,11 @@ def _write_handoff_bundle(path: Path) -> None:
                         "claim_boundary": "launch_readiness_checklist_only_no_server_started",
                     },
                 },
+                "bootstrap_runbook": {
+                    "claim_boundary": "coordinator_bootstrap_runbook_only_no_server_started",
+                    "heartbeat_loop": {"count": 180, "interval_seconds": 10.0},
+                    "shell_script": "python mvp_capabilities/peer_scan.py --out \"$CAP_PATH\"\npython mvp_capabilities/join_client.py --join-url 'bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=%2A%2A%2A' --capabilities \"$CAP_PATH\" --count 180 --interval-seconds 10",
+                },
                 "proof_runbooks": {
                     "multi_block": {"claim_boundary": "multi_block_proof_harness_only_no_live_inference", "proof_gate": "multi_block"},
                     "full_generation": {"claim_boundary": "full_generation_proof_harness_only_no_live_generation", "proof_gate": "full_generation"},
@@ -288,6 +293,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["chain_schedule"]["scheduler_status"] == "ready_to_rehearse_no_live_requests"
     assert doc["chain_schedule"]["peer_health"]["joined-peer-b"]["utilization_fraction"] == 0.83
     assert doc["handoff_bundle"]["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
+    assert doc["handoff_bundle"]["bootstrap_runbook"]["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
     assert doc["handoff_bundle"]["proof_runbooks"]["multi_block"]["proof_gate"] == "multi_block"
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
     assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
@@ -325,6 +331,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Operator handoff bundle" in html
     assert "coordinator_http_handoff_endpoint" in html
     assert "coordinator_handoff_bundle_only_no_server_started" in html
+    assert "Fresh-device bootstrap" in html
+    assert "coordinator_bootstrap_runbook_only_no_server_started" in html
+    assert "peer_scan.py" in html
+    assert "join_client.py" in html
+    assert "heartbeat count 180" in html
     assert "multi_block_proof_harness_only_no_live_inference" in html
     assert "multi_request_load_harness_only_no_live_traffic" in html
     assert "Live request telemetry" in html

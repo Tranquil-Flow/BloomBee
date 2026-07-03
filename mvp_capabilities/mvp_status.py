@@ -51,7 +51,7 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=8,
         completion=1.00,
         status="complete",
-        evidence="demo_dashboard.py renders real peers, route cards, evidence, telemetry, layer placement, mvp_status.py progress/next gate, proof_state.py live prep feed, and coordinator /handoff proof-runbook bundles",
+        evidence="demo_dashboard.py renders real peers, route cards, evidence, telemetry, layer placement, mvp_status.py progress/next gate, proof_state.py live prep feed, and coordinator /handoff bootstrap/proof-runbook bundles",
     ),
     Milestone(
         id="join_flow",

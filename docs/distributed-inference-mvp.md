@@ -123,8 +123,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   failed at client DHT bootstrap before any RPC proof.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
-  runbooks, coordinator handoff bundles, and chain-scheduler rehearsals beside
-  route/evidence/telemetry panels.
+  runbooks, coordinator handoff bundles with fresh-device bootstrap scripts, and
+  chain-scheduler rehearsals beside route/evidence/telemetry panels.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
   from nested fields and URLs before writing/printing.

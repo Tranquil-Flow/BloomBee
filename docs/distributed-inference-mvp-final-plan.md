@@ -78,8 +78,8 @@ Already proven:
 - TinyLlama S2S opportunistic push with client-direct fallback.
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
   status/next gate, live proof-prep feed, joined-peer layer-plan runbooks,
-  coordinator handoff/runbook bundles, chain-scheduler rehearsal panels,
-  telemetry, and real layer-placement metadata.
+  coordinator handoff/bootstrap/proof-runbook bundles, chain-scheduler rehearsal
+  panels, telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
   `/active`; operator-captured seed multiaddrs can now resolve follower launch

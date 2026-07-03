@@ -638,6 +638,21 @@ def _handoff_bundle_panel(bundle: dict[str, Any] | None) -> str:
     picked = route.get("picked") or {}
     plan = bundle.get("plan") or {}
     readiness = plan.get("launch_readiness") or {}
+    bootstrap = bundle.get("bootstrap_runbook") or {}
+    heartbeat_loop = bootstrap.get("heartbeat_loop") or {}
+    bootstrap_script = bootstrap.get("shell_script") or ""
+    bootstrap_panel = ""
+    if isinstance(bootstrap, dict) and bootstrap:
+        bootstrap_panel = f"""
+        <div class="handoff-bootstrap">
+          <h3>Fresh-device bootstrap</h3>
+          <div class="grid two">
+            <div><span class="label">Heartbeat loop</span><strong>heartbeat count {_esc(heartbeat_loop.get('count') or '—')} · every {_esc(heartbeat_loop.get('interval_seconds') or '—')}s</strong></div>
+            <div><span class="label">Bootstrap boundary</span><code>{_esc(bootstrap.get('claim_boundary') or '—')}</code></div>
+          </div>
+          <pre>{_esc(bootstrap_script or 'No bootstrap shell script supplied')}</pre>
+        </div>
+        """
     runbooks = bundle.get("proof_runbooks") or {}
     runbook_rows = "".join(
         "<tr>"
@@ -666,6 +681,7 @@ def _handoff_bundle_panel(bundle: dict[str, Any] | None) -> str:
           <thead><tr><th>Runbook</th><th>Proof gate</th><th>Claim boundary / status</th><th>Size</th></tr></thead>
           <tbody>{runbook_rows or '<tr><td colspan="4">No proof runbooks in handoff bundle</td></tr>'}</tbody>
         </table>
+        {bootstrap_panel}
         <p class="muted">Handoff bundles are operator checklists only: they do not start servers, send traffic, or update proof status.</p>
       </section>
     """
