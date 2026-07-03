@@ -104,6 +104,10 @@ Already proven:
   any `full_generation` gate promotion. It requires exact distributed/reference
   generated token ID and text parity plus server placement attribution; Qwen3-8B
   full-generation remains pending until live parity evidence passes.
+- Cache-generation proof harness exists: `cache_generation_proof.py` emits
+  `text_generation_parity.py --mode generate-api` runbooks and verifies cached
+  generate parity before any `cache_generation` gate promotion. Forward-loop
+  evidence is rejected for this gate.
 - Multi-block proof harness exists: `multi_block_proof.py` emits two-or-more
   server runbooks and verifies only when every server records start,
   block-range announcement, RPC evidence, plus a combined direct-client result.

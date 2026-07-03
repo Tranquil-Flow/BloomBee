@@ -683,6 +683,115 @@ def test_full_generation_proof_verifier_blocks_mismatch_or_missing_placements(tm
     assert any("server placements are required" in item for item in result["failed_checks"])
 
 
+def test_cache_generation_proof_plan_uses_generate_api_runbook():
+    from mvp_capabilities.cache_generation_proof import build_cache_generation_plan
+
+    plan = build_cache_generation_plan(
+        model_id="Qwen/Qwen3-8B",
+        server_maddrs=["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+        server_placements=["m4pro=0:36"],
+        prompt="The moon is",
+        max_new_tokens=4,
+        evidence_path=".local/qwen3-cache-generation.json",
+    )
+
+    assert plan["claim_boundary"] == "cache_generation_proof_harness_only_no_live_generation"
+    assert plan["proof_gate"] == "cache_generation"
+    assert "scripts/text_generation_parity.py" in plan["parity_command"]
+    assert "--mode generate-api" in plan["parity_command"]
+    assert "--out .local/qwen3-cache-generation.json" in plan["parity_command"]
+    assert "cache_generation_proof.py verify" in plan["verify_command"]
+    assert plan["proof_status_on_success"] == "cache_generation: passed"
+
+
+def test_cache_generation_proof_verifier_accepts_generate_api_parity(tmp_path: Path):
+    from mvp_capabilities.cache_generation_proof import verify_cache_generation_evidence
+
+    evidence = tmp_path / "qwen3-cache-generation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "mode": "generate-api",
+                "model": "Qwen/Qwen3-8B",
+                "prompt": "The moon is",
+                "max_new_tokens": 4,
+                "generated_ids_match": True,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "distributed_ids": [1, 2, 3, 4],
+                "reference_ids": [1, 2, 3, 4],
+                "distributed_text": "The moon is bright",
+                "reference_text": "The moon is bright",
+                "distributed_steps": [],
+                "reference_steps": [],
+                "distributed_seconds": 12.0,
+                "reference_seconds": 2.0,
+                "server_maddrs": ["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+                "server_placements": [
+                    {"host": "m4pro", "layers": [0, 36], "server_maddr": "/ip4/100.64.0.20/tcp/31337/p2p/seed"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = verify_cache_generation_evidence(
+        evidence_path=evidence,
+        model_id="Qwen/Qwen3-8B",
+        min_new_tokens=4,
+        require_server_placements=True,
+    )
+
+    assert result["status"] == "passed"
+    assert result["claim_boundary"] == "verified_cache_generation_evidence"
+    assert result["proof_gate"] == "cache_generation"
+    assert result["can_update_proof_status"] is True
+    assert result["proof_status_update"] == {"cache_generation": "passed"}
+    assert result["evidence_summary"]["mode"] == "generate-api"
+
+
+def test_cache_generation_proof_verifier_blocks_forward_loop_evidence(tmp_path: Path):
+    from mvp_capabilities.cache_generation_proof import verify_cache_generation_evidence
+
+    evidence = tmp_path / "forward-loop-generation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "mode": "forward-loop",
+                "model": "Qwen/Qwen3-8B",
+                "max_new_tokens": 4,
+                "generated_ids_match": True,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "distributed_ids": [1, 2, 3, 4],
+                "reference_ids": [1, 2, 3, 4],
+                "distributed_text": "The moon is bright",
+                "reference_text": "The moon is bright",
+                "distributed_steps": [{"step": 0}],
+                "reference_steps": [{"step": 0}],
+                "server_maddrs": ["/ip4/100.64.0.20/tcp/31337/p2p/seed"],
+                "server_placements": [
+                    {"host": "m4pro", "layers": [0, 36], "server_maddr": "/ip4/100.64.0.20/tcp/31337/p2p/seed"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = verify_cache_generation_evidence(
+        evidence_path=evidence,
+        model_id="Qwen/Qwen3-8B",
+        min_new_tokens=4,
+        require_server_placements=True,
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert any("cache_generation requires mode=generate-api" in item for item in result["failed_checks"])
+
+
 def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):
     from mvp_capabilities.proof_state import build_proof_state
 

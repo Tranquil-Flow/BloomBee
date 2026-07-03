@@ -112,6 +112,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   runbooks and verifies captured parity JSON before a model's `full_generation`
   gate can be marked passed. It requires exact generated token ID/text parity and
   server placement attribution. Planning mode is not generation proof.
+- `mvp_capabilities/cache_generation_proof.py` emits
+  `text_generation_parity.py --mode generate-api` runbooks and verifies cached
+  generate parity before a model's `cache_generation` gate can be marked passed.
+  Forward-loop parity is explicitly not enough for this gate.
 - `mvp_capabilities/multi_block_proof.py` emits two-or-more-server runbooks and
   verifies multi-block evidence only when each server records start, block-range
   announcement, RPC evidence, and a combined direct-client result. Qwen3-8B
