@@ -9,6 +9,7 @@ from bloombee.models.falcon.block import WrappedFalconBlock
 from bloombee.models.gemma4.block import WrappedGemma4Block
 from bloombee.models.mixtral.block import WrappedMixtralBlock
 from bloombee.models.qwen3.block import WrappedQwen3Block
+from bloombee.models.qwen3_moe.block import WrappedQwen3MoeBlock
 from bloombee.utils.convert_block import QuantType
 from bloombee.utils.misc import get_size_in_bytes
 from bloombee.flexgen_utils.ExecutionEnv import ExecutionEnv
@@ -108,6 +109,10 @@ def get_model_block(config, env, policy, weight_home, path, layer_idx: int = 0, 
         return config.block_class(config)
     elif config.block_class == WrappedQwen3Block:
         dprint('server/block_utils.py config.block_class == WrappedQwen3Block ')
+        config = _autoset_attn_impl(config)
+        return config.block_class(config, layer_idx)
+    elif config.block_class == WrappedQwen3MoeBlock:
+        dprint('server/block_utils.py config.block_class == WrappedQwen3MoeBlock ')
         config = _autoset_attn_impl(config)
         return config.block_class(config, layer_idx)
     elif config.block_class == WrappedGemma4Block:
