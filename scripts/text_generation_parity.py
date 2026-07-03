@@ -62,6 +62,45 @@ def _ids(ids: torch.Tensor) -> list[int]:
     return [int(x) for x in ids.detach().cpu()[0].tolist()]
 
 
+def _prepare_sandbox_hivemind_runtime() -> None:
+    """Apply client-only hivemind fallbacks needed in sandboxed shells.
+
+    `direct_remote_call.py` uses the same guards. They are harmless on normal
+    terminals and make this parity harness usable from Hermes local shells where
+    sitecustomize disabled MPFuture's global lock and torch_shm_manager cannot
+    be executed.
+    """
+    from hivemind.utils.mpfuture import MPFuture
+
+    MPFuture.reset_backend()
+    try:
+        torch.empty([4], dtype=torch.uint8).share_memory_()
+    except (RuntimeError, OSError, PermissionError):
+        from hivemind.utils.mpfuture import SharedBytes
+        import os as _os
+        import threading as _threading
+
+        _heap_buffer: dict[str, Any] = {"pid": None, "buffer": None, "index": 0}
+        _heap_lock = _threading.Lock()
+
+        def _next_heap_byte():
+            with _heap_lock:
+                if (
+                    _heap_buffer["pid"] != _os.getpid()
+                    or _heap_buffer["buffer"] is None
+                    or _heap_buffer["index"] >= len(_heap_buffer["buffer"])
+                ):
+                    size = int(_os.environ.get("HIVEMIND_SHM_BUFFER_SIZE", 16))
+                    _heap_buffer["pid"] = _os.getpid()
+                    _heap_buffer["buffer"] = torch.zeros(size, dtype=torch.uint8)
+                    _heap_buffer["index"] = 0
+                _heap_buffer["index"] += 1
+                return _heap_buffer["buffer"][_heap_buffer["index"] - 1]
+
+        SharedBytes.next = staticmethod(_next_heap_byte)
+        print("[parity] (sandbox detected: SharedBytes heap-buffer fallback active)")
+
+
 def _topk(logits: torch.Tensor, k: int = 5) -> list[dict[str, Any]]:
     values, indices = torch.topk(logits.detach().float().cpu(), k=k, dim=-1)
     return [
@@ -116,17 +155,21 @@ def main() -> int:
               "generate-api exercises cached RemoteGenerationMixin.generate"),
     )
     p.add_argument("--out", default=None, help="Optional JSON evidence path")
+    p.add_argument("--no-server-to-server", action="store_true",
+                   help="Disable direct server-to-server rpc_push; client orchestrates every stage")
     p.add_argument("--allow-mismatch", action="store_true",
                    help="Return 0 even when generated token IDs differ")
     args = p.parse_args()
 
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    _prepare_sandbox_hivemind_runtime()
     torch.manual_seed(0)
 
     print(f"[parity] model={args.model}")
     print(f"[parity] prompt={args.prompt!r}")
     print(f"[parity] max_new_tokens={args.max_new_tokens}")
     print(f"[parity] mode={args.mode}")
+    print(f"[parity] server_to_server={not args.no_server_to_server}")
     print(f"[parity] bootstrap peers ({len(args.server_maddr)}):")
     for addr in args.server_maddr:
         print(f"[parity]   {addr}")
@@ -161,6 +204,7 @@ def main() -> int:
         args.model,
         initial_peers=args.server_maddr,
         torch_dtype=args.distributed_dtype,
+        use_server_to_server=not args.no_server_to_server,
     ).eval()
     print(f"[parity]   ... {time.time() - t0:.1f}s dtype={args.distributed_dtype}")
 
@@ -181,6 +225,7 @@ def main() -> int:
         "reference_dtype": str(args.reference_dtype),
         "distributed_dtype": str(args.distributed_dtype),
         "mode": args.mode,
+        "server_to_server": not args.no_server_to_server,
         "input_ids": _ids(input_ids_cpu),
     }
 

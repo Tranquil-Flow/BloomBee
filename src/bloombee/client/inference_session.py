@@ -75,6 +75,30 @@ def _server_session_tokens_to_advance(sent_inputs: torch.Tensor, current_step_to
     return int(current_step_tokens)
 
 
+def _trim_recovered_history_for_existing_downstream(
+    inputs: torch.Tensor,
+    current_step_tokens: int,
+    downstream_position: int,
+    is_spec_dec: bool,
+) -> torch.Tensor:
+    """Trim full-history recovery output before an already-warm downstream stage.
+
+    If an upstream stage is recreated after failure, it resends full hidden-state
+    history to rebuild its own KV cache and may return that full history. Later
+    stages that did *not* fail already have the prefix cached; feeding the full
+    history to them again makes their server-side guard see e.g. ``prefix=6`` +
+    ``current=7`` for a session with ``max_length=12``. Replacement downstream
+    sessions have ``downstream_position == 0`` and must keep the full history.
+    """
+    if is_spec_dec or current_step_tokens <= 0 or downstream_position <= 0:
+        return inputs
+    if not torch.is_tensor(inputs) or inputs.ndim < 2:
+        return inputs
+    if int(inputs.shape[1]) <= int(current_step_tokens):
+        return inputs
+    return inputs[:, -int(current_step_tokens):, :].contiguous()
+
+
 def _prepare_rpc_inference_tensor_for_wire(
     tensor: torch.Tensor,
     tensor_name: str,
@@ -705,8 +729,14 @@ class InferenceSession:
                     # 🔍 CLIENT DEBUG: Log server span processing start
                     span_start_time = time.perf_counter()
                     
-                    inputs, keep_indices, *_ = server_session.step(
+                    server_inputs = _trim_recovered_history_for_existing_downstream(
                         inputs,
+                        current_step_tokens=n_input_tokens,
+                        downstream_position=server_session.position,
+                        is_spec_dec=is_spec_dec,
+                    )
+                    inputs, keep_indices, *_ = server_session.step(
+                        server_inputs,
                         prompts[server_session.span.start : server_session.span.end],
                         hypo_ids,
                         tree_attention_mask,

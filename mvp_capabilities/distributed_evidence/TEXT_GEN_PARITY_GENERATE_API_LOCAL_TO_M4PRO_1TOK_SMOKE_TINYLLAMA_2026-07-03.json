@@ -1,0 +1,99 @@
+{
+  "distributed_dtype": "torch.float16",
+  "distributed_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681
+  ],
+  "distributed_next_token_id": 3681,
+  "distributed_seconds": 2.0229897499084473,
+  "distributed_steps": [],
+  "distributed_text": "The capital of France is Paris",
+  "distributed_top5": [
+    {
+      "logit": 13.38662052154541,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.26742172241211,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.239398956298828,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.225192070007324,
+      "token_id": 278
+    },
+    {
+      "logit": 10.203680992126465,
+      "token_id": 29973
+    }
+  ],
+  "generated_ids_match": true,
+  "generated_text_match": true,
+  "input_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338
+  ],
+  "logits_max_abs_diff": 0.019906044006347656,
+  "logits_mean_abs_diff": 0.0031153331510722637,
+  "max_new_tokens": 1,
+  "mode": "generate-api",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "next_token_match": true,
+  "ok": true,
+  "prompt": "The capital of France is",
+  "reference_device": "mps",
+  "reference_dtype": "torch.float16",
+  "reference_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681
+  ],
+  "reference_next_token_id": 3681,
+  "reference_seconds": 4.2403740882873535,
+  "reference_steps": [],
+  "reference_text": "The capital of France is Paris",
+  "reference_top5": [
+    {
+      "logit": 13.390625,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.2734375,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.234375,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.2265625,
+      "token_id": 278
+    },
+    {
+      "logit": 10.2109375,
+      "token_id": 29973
+    }
+  ],
+  "server_maddrs": [
+    "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWMGfcPfQmktBmqKG5QA4tjUxS6b6uZBQ1ifQ6Zc9oGmPm",
+    "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWSBuGCxPMqT8DFMV8ku3U1ZfcwMAgWmXU1qkC2i462qz7",
+    "/ip4/192.168.178.37/tcp/31339/p2p/12D3KooWNyQKUsobDkouqDGinMKmZkF6zgcuLC8REZwB6DjcmeaX"
+  ],
+  "server_to_server": false
+}
