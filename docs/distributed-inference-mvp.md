@@ -129,8 +129,9 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   Python stdlib HTTP. `mvp_capabilities/join_client.py` lets physical devices
   parse a join URL and post their peer-scan heartbeat. `mvp_capabilities/join_card.py`
   renders an SVG join card with exact URL metadata and scanner interop explicitly
-  unproven. This is bootstrap/roster state only and explicitly does not claim
-  inference proof.
+  unproven. `mvp_capabilities/join_qr_preflight.py` reports missing QR
+  encoder/decoder dependencies fail-closed before any scanner proof claim. This
+  is bootstrap/roster state only and explicitly does not claim inference proof.
   `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
   launch-ready layer-placement runbooks from local state or HTTP `/active`
   without starting servers; `--include-launch-readiness` adds a checklist that

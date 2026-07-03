@@ -1641,3 +1641,48 @@ def test_join_card_cli_writes_svg_file(tmp_path: Path):
     text = out.read_text(encoding="utf-8")
     assert "Moonlit Join" in text
     assert "scanner_interop_unproven" in text
+
+
+def test_join_qr_preflight_reports_missing_dependencies_fail_closed():
+    from mvp_capabilities.join_qr_preflight import check_qr_scanner_readiness
+
+    report = check_qr_scanner_readiness(availability={"qrcode": False, "PIL": False, "cv2": False, "pyzbar": False, "segno": False})
+
+    assert report["claim_boundary"] == "qr_scanner_preflight_only_no_scanner_proof"
+    assert report["scanner_status"] == "scanner_interop_blocked_missing_dependencies"
+    assert report["ready_for_scanner_proof"] is False
+    assert report["can_replace_visual_grid"] is False
+    assert report["missing_encoder_options"] == ["qrcode+PIL", "segno"]
+    assert report["missing_decoder_options"] == ["cv2", "pyzbar"]
+    assert report["inference_proven"] is False
+
+
+def test_join_qr_preflight_marks_ready_only_when_encoder_and_decoder_available():
+    from mvp_capabilities.join_qr_preflight import check_qr_scanner_readiness
+
+    report = check_qr_scanner_readiness(availability={"qrcode": True, "PIL": True, "cv2": True, "pyzbar": False, "segno": False})
+
+    assert report["scanner_status"] == "scanner_interop_preflight_ready_no_scan_yet"
+    assert report["ready_for_scanner_proof"] is True
+    assert report["can_replace_visual_grid"] is False
+    assert report["next_step"] == "generate a true QR artifact, decode it with an installed scanner library, and compare the decoded URL exactly"
+
+
+def test_join_qr_preflight_cli_outputs_fail_closed_json():
+    proc = subprocess.run(
+        [sys.executable, "mvp_capabilities/join_qr_preflight.py", "--json"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "qr_scanner_preflight_only_no_scanner_proof"
+    assert payload["ready_for_scanner_proof"] is False
+    assert payload["scanner_status"] in {
+        "scanner_interop_blocked_missing_dependencies",
+        "scanner_interop_preflight_ready_no_scan_yet",
+    }
+    assert payload["inference_proven"] is False

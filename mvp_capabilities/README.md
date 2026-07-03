@@ -33,7 +33,7 @@ BloomBee's runtime already maintains.
 | 6. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
 | 7. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 8. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 9. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active endpoints, lets physical devices post peer-scan heartbeats, and renders SVG join cards. This is join/roster state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / SVG join card |
+| 9. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active endpoints, lets physical devices post peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / SVG join card / QR preflight report |
 | 10. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 11. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 12. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
@@ -233,6 +233,10 @@ As of the current implementation slice:
   in text/data attributes and renders a deterministic visual grid. It carries
   `scanner_interop_unproven`; true QR scanner compatibility is still a future
   proof gate.
+- QR scanner preflight (`join_qr_preflight.py`) exists: it checks for encoder
+  (`qrcode+PIL` or `segno`) and decoder (`cv2` or `pyzbar`) options and reports
+  `scanner_interop_blocked_missing_dependencies` fail-closed on this environment.
+  It does not generate/decode QR artifacts and does not replace the visual grid.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans, and
   milestone table beside routes/evidence.

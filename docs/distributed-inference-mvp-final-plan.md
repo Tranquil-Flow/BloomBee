@@ -101,11 +101,12 @@ Already proven:
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
 - Prepared Qwen3-30B-A3B 2507 variants are in the registry with fetched config
   metadata and pending proof: Instruct-2507 and Thinking-2507.
-- Join-link/heartbeat foundation exists: link offers, token-scoped heartbeats,
-  active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`, and
+- Join-flow foundation exists: shareable join-link offers, token-scoped heartbeat
+  state, active-peer filtering, stdlib HTTP `/healthz`, `/offer`, `/heartbeat`, and
   `/active` endpoints, physical-device `join_client.py` heartbeat posting, SVG
-  join-card rendering, and explicit no-inference-proof claim boundaries. SVG
-  visual-grid scanner interoperability remains unproven.
+  join-card rendering, QR scanner dependency preflight, and explicit
+  no-inference-proof claim boundaries. SVG visual-grid scanner interoperability
+  remains unproven until a generated artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks, launch-readiness checklists, and explicit
@@ -492,8 +493,9 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    complete**: join-link offers and heartbeat state exist; stdlib HTTP health,
    offer, heartbeat, and active-roster endpoints exist; physical-device join
    client wiring exists; SVG join-card rendering exists with scanner interop
-   explicitly unproven. True QR scanner proof and fresh-device showcase remain
-   future work.
+   explicitly unproven; QR dependency preflight now fails closed when encoder or
+   decoder packages are missing. True QR scanner proof and fresh-device showcase
+   remain future work.
 5. Layer planner from live worker capabilities. **Initial slice complete**:
    `layer_planner.py` emits deterministic contiguous block ranges from a model
    registry entry and peer free-memory capacities. **Launch-command slice

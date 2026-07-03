@@ -59,8 +59,8 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=10,
         completion=0.65,
         status="partial",
-        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes endpoints; join_client.py posts peer heartbeats; join_card.py renders SVG join cards with scanner-unproven claim boundary",
-        next_step="add true QR scanner-interop proof and fresh-device showcase run",
+        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes endpoints; join_client.py posts peer heartbeats; join_card.py renders SVG join cards; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed",
+        next_step="install QR encoder+decoder deps, prove exact QR decode, then run fresh-device showcase",
     ),
     Milestone(
         id="layer_planning",
