@@ -153,12 +153,14 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
   exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`, and
-  `/bootstrap`, and `/handoff` endpoints using Python stdlib HTTP. `/bootstrap`
-  returns a token-scoped peer-scan + bounded-heartbeat script; `/route` returns
-  proof-aware dynamic model selection for current heartbeats; `/plan?model=auto`
-  folds that selection into a no-execution joined layer plan without requiring
-  shared filesystem access; `/handoff` bundles offer, active roster, bootstrap
-  runbook, auto route, launch plan, and proof harness runbooks without starting servers.
+  `/bootstrap`, `/bootstrap.sh`, and `/handoff` endpoints using Python stdlib
+  HTTP. `/bootstrap` returns a token-scoped peer-scan + bounded-heartbeat JSON
+  runbook; `/bootstrap.sh` returns the same runbook as plain shell; `/route`
+  returns proof-aware dynamic model selection for current heartbeats;
+  `/plan?model=auto` folds that selection into a no-execution joined layer plan
+  without requiring shared filesystem access; `/handoff` bundles offer, active
+  roster, bootstrap runbook, auto route, launch plan, and proof harness runbooks
+  without starting servers.
   `mvp_capabilities/join_client.py` lets physical devices
   parse a join URL and post one-shot or bounded repeated peer-scan heartbeats so
   they remain active during operator planning. `mvp_capabilities/join_card.py`

@@ -2356,6 +2356,39 @@ def test_join_http_server_bootstrap_requires_token(tmp_path: Path):
     assert payload["claim_boundary"] == "coordinator_error_no_inference_proof"
 
 
+def test_join_http_server_bootstrap_sh_returns_plain_shell_script(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get_text
+
+    status, content_type, body = handle_get_text(
+        "/bootstrap.sh?token=moon-token&count=2&interval_seconds=0&now=1000&ttl_seconds=600",
+        state_dir=tmp_path / "state",
+        coordinator="http://m4pro.local:8787",
+    )
+
+    script = body.decode("utf-8")
+    assert status == 200
+    assert content_type == "text/x-shellscript; charset=utf-8"
+    assert script.startswith("#!/usr/bin/env bash")
+    assert "# claim_boundary: coordinator_bootstrap_runbook_only_no_server_started" in script
+    assert "# inference_proven: false" in script
+    assert "peer_scan.py --out" in script
+    assert "join_client.py" in script
+    assert "--count 2" in script
+    assert "--interval-seconds 0" in script
+    assert "bloombee.cli.run_server" not in script
+
+
+def test_join_http_server_bootstrap_sh_requires_token(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get_text
+
+    status, content_type, body = handle_get_text("/bootstrap.sh", state_dir=tmp_path / "state", coordinator="http://m4pro.local:8787")
+
+    assert status == 400
+    assert content_type == "text/plain; charset=utf-8"
+    assert "missing token" in body.decode("utf-8")
+    assert "coordinator_error_no_inference_proof" in body.decode("utf-8")
+
+
 def test_join_client_parses_join_url_and_builds_heartbeat_request(tmp_path: Path):
     from mvp_capabilities.join_client import build_heartbeat_request, build_heartbeat_payload, parse_join_url
 

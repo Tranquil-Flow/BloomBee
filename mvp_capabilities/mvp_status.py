@@ -57,9 +57,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="join_flow",
         label="Self-serve join flow, QR/link, heartbeat, live coordinator service",
         weight=10,
-        completion=0.93,
+        completion=0.94,
         status="partial",
-        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health/offer/heartbeat/active/route/plan/bootstrap/handoff endpoints with auto model selection, token-scoped bootstrap scripts, and operator proof-runbook bundles; join_handoff.py fetches/redacts dashboard-ready handoff artifacts; join_client.py posts one-shot or bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; generated follower launch runbooks use the verified BLOOMBEE_INITIAL_PEERS join path",
+        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health/offer/heartbeat/active/route/plan/bootstrap/bootstrap.sh/handoff endpoints with auto model selection, token-scoped JSON and plain-shell bootstrap scripts, and operator proof-runbook bundles; join_handoff.py fetches/redacts dashboard-ready handoff artifacts; join_client.py posts one-shot or bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; generated follower launch runbooks use the verified BLOOMBEE_INITIAL_PEERS join path",
         next_step="install QR encoder+decoder deps, prove exact QR decode, then run repeated-heartbeat fresh-device showcase through the HTTP coordinator",
     ),
     Milestone(

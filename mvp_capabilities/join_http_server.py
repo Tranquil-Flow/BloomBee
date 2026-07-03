@@ -190,6 +190,9 @@ def build_bootstrap_runbook(
     shell_script = "\n".join(
         [
             "#!/usr/bin/env bash",
+            f"# claim_boundary: {BOOTSTRAP_CLAIM_BOUNDARY}",
+            "# inference_proven: false",
+            "# can_update_proof_status: false",
             "set -euo pipefail",
             "",
             'CAP_PATH="${BLOOMBEE_CAPABILITIES_PATH:-$HOME/.bloombee/capabilities/$(hostname -s).json}"',
@@ -300,6 +303,10 @@ def _build_handoff_proof_runbooks(
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _text_bytes(text: str) -> bytes:
+    return (text.rstrip("\n") + "\n").encode("utf-8")
 
 
 def _active_for_query(query: dict[str, list[str]], *, state_dir: str | Path, token: str) -> list[dict[str, Any]]:
@@ -499,6 +506,40 @@ def _handle_handoff(
     }
 
 
+def _bootstrap_from_query(query: dict[str, list[str]], *, coordinator: str) -> tuple[int, dict[str, Any]]:
+    token = _first(query, "token")
+    if not token:
+        return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    return 200, build_bootstrap_runbook(
+        coordinator=_first(query, "coordinator", coordinator) or coordinator,
+        token=token,
+        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        now=_as_int(_first(query, "now"), 0) or None,
+        count=_as_int(_first(query, "count"), 180),
+        interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
+    )
+
+
+def handle_get_text(
+    path: str,
+    *,
+    state_dir: str | Path,
+    coordinator: str,
+    registry: str | Path = DEFAULT_REGISTRY,
+) -> tuple[int, str, bytes] | None:
+    """Return plain-text endpoint responses for shell-friendly join flows."""
+    del state_dir, registry  # reserved for parity with handle_get and future text routes
+    parsed = urlparse(path)
+    query = parse_qs(parsed.query)
+    if parsed.path != "/bootstrap.sh":
+        return None
+    status, payload = _bootstrap_from_query(query, coordinator=coordinator)
+    if status != 200:
+        message = f"error: {payload.get('error')}\nclaim_boundary: {payload.get('claim_boundary')}"
+        return status, "text/plain; charset=utf-8", _text_bytes(message)
+    return status, "text/x-shellscript; charset=utf-8", _text_bytes(str(payload["shell_script"]))
+
+
 def handle_get(
     path: str,
     *,
@@ -518,17 +559,7 @@ def handle_get(
             now=_as_int(_first(query, "now"), 0) or None,
         )
     if parsed.path == "/bootstrap":
-        token = _first(query, "token")
-        if not token:
-            return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
-        return 200, build_bootstrap_runbook(
-            coordinator=_first(query, "coordinator", coordinator) or coordinator,
-            token=token,
-            ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
-            now=_as_int(_first(query, "now"), 0) or None,
-            count=_as_int(_first(query, "count"), 180),
-            interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
-        )
+        return _bootstrap_from_query(query, coordinator=coordinator)
     if parsed.path == "/active":
         token = _first(query, "token")
         if not token:
@@ -601,10 +632,28 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send_text(self, status: int, content_type: str, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _send_error_json(self, status: int, message: str) -> None:
         self._send_json(status, {"error": message, "claim_boundary": ERROR_CLAIM_BOUNDARY})
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib API
+        text_response = handle_get_text(
+            self.path,
+            state_dir=self.server.state_dir,
+            coordinator=self.server.coordinator,
+            registry=self.server.registry,
+        )
+        if text_response is not None:
+            status, content_type, body = text_response
+            self._send_text(status, content_type, body)
+            return
         status, payload = handle_get(
             self.path,
             state_dir=self.server.state_dir,
@@ -655,6 +704,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "listening": f"http://{args.host}:{args.port}",
                 "bootstrap_endpoint": "/bootstrap",
+                "bootstrap_script_endpoint": "/bootstrap.sh",
                 "handoff_endpoint": "/handoff",
                 "plan_endpoint": "/plan",
                 "registry": str(Path(args.registry).expanduser()),
