@@ -22,6 +22,9 @@ Do not use local sandbox `tailscale status` as the source of truth; it can fail 
 8. Mobile-phone peer readiness: scan Android/Termux phones, benchmark them, and
    include them only when measured evidence shows they are genuinely useful for
    inference work.
+9. Demo dashboard: show connected devices, route choices, measured throughput,
+   inference evidence, S2S/recovery telemetry, and honest claim boundaries in a
+   single local HTML artifact.
 
 ## 10-laptop MVP target
 
@@ -230,3 +233,39 @@ python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities --exp
 python mvp_capabilities/sweep_models.py --peer ~/.bloombee/capabilities/$(hostname -s).json --dry-run
 ssh m4pro 'cd ~/Projects/distributed-inference-mvp && source .venv/bin/activate && python mvp_capabilities/peer_scan.py'
 ```
+
+### Demo dashboard
+
+If `~/.bloombee/capabilities` is unavailable in a sandboxed session, use the
+repo-local `.local/capabilities/` directory populated by fresh scans. Generate a
+self-contained dashboard snapshot:
+
+```bash
+cd ~/Projects/distributed-inference-mvp
+source .venv/bin/activate
+
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --out .local/demo-dashboard.html \
+  --refresh-seconds 10
+```
+
+For live recovery/S2S counters, add one or more server/client logs:
+
+```bash
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --telemetry-log /tmp/bloombee_seed.log \
+  --out .local/demo-dashboard.html
+```
+
+Open `.local/demo-dashboard.html` during the demo. The dashboard labels
+unbenchmarked route choices as `unmeasured`, not `0 tok/s`, so fit-only routes do
+not masquerade as throughput evidence.
+
+Phone speculative-decoding analysis lives at
+`docs/phone-speculative-decoding-mvp.md`.

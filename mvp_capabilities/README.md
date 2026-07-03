@@ -67,7 +67,14 @@ python mvp_capabilities/route_picker.py \
   --synthetic-total-gb 24 \
   --synthetic-free-gb 20
 
-# 7. Plan a per-peer benchmark sweep without downloading/running models.
+# 7. Generate the local demo dashboard.
+python mvp_capabilities/demo_dashboard.py \
+  --cap-dir .local/capabilities \
+  --bench-matrix .local/m4pro-bench-matrix.json \
+  --evidence-dir mvp_capabilities/distributed_evidence \
+  --out .local/demo-dashboard.html
+
+# 8. Plan a per-peer benchmark sweep without downloading/running models.
 python mvp_capabilities/sweep_models.py \
   --peer ~/.bloombee/capabilities/$(hostname -s).json \
   --dry-run
@@ -88,6 +95,9 @@ As of the current implementation slice:
   ~36.8GB free.
 - Real two-device roster route currently picks `google/gemma-2-9b-it` as a solo M4 Pro route when M4 Pro has enough free memory.
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
+- Demo dashboard generator (`mvp_capabilities/demo_dashboard.py`) emits a local
+  dark HTML dashboard with connected devices, route cards, measured throughput,
+  inference evidence, live telemetry counters, and claim boundaries.
 - TinyLlama distributed inference has been verified through two-server,
   two-laptop, three-peer, forward-loop text parity, and cached `.generate()`
   parity evidence, including S2S-enabled cached generation with direct fallback
