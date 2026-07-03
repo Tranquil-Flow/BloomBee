@@ -138,6 +138,50 @@ def _write_joined_layer_plan(path: Path) -> None:
     )
 
 
+def _write_chain_schedule(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "chain_scheduler_plan_only_no_inference_proof",
+                "scheduler_status": "ready_to_rehearse_no_live_requests",
+                "model_id": "Qwen/Qwen3-8B",
+                "request_count": 5,
+                "stage_count": 2,
+                "wave_count": 3,
+                "waves": [
+                    {"wave_index": 0, "request_ids": ["req-000", "req-001"], "parallel_request_count": 2},
+                    {"wave_index": 1, "request_ids": ["req-002", "req-003"], "parallel_request_count": 2},
+                    {"wave_index": 2, "request_ids": ["req-004"], "parallel_request_count": 1},
+                ],
+                "peer_health": {
+                    "joined-peer-a": {
+                        "hostname": "joined-peer-a",
+                        "block_range": "0:18",
+                        "scheduled_requests": 5,
+                        "scheduled_tokens": 240,
+                        "peak_parallel_requests": 2,
+                        "utilization_fraction": 0.83,
+                        "health_status": "planned_no_live_traffic",
+                    },
+                    "joined-peer-b": {
+                        "hostname": "joined-peer-b",
+                        "block_range": "18:36",
+                        "scheduled_requests": 5,
+                        "scheduled_tokens": 240,
+                        "peak_parallel_requests": 2,
+                        "utilization_fraction": 0.83,
+                        "health_status": "planned_no_live_traffic",
+                    },
+                },
+                "token_budget": {"tokens_per_request": 48, "scheduled_tokens": 240},
+                "inference_proven": False,
+                "live_requests_sent": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path: Path):
     from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
 
@@ -154,6 +198,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_proof_state(proof_state)
     joined_layer_plan = tmp_path / "joined-layer-plan.json"
     _write_joined_layer_plan(joined_layer_plan)
+    chain_schedule = tmp_path / "chain-schedule.json"
+    _write_chain_schedule(chain_schedule)
 
     doc = build_dashboard_document(
         cap_dirs=[cap_dir],
@@ -161,6 +207,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         evidence_dir=evidence_dir,
         proof_state_path=proof_state,
         joined_layer_plan_path=joined_layer_plan,
+        chain_schedule_path=chain_schedule,
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
         synthetic_free_gb=20,
@@ -181,6 +228,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["proof_state"]["inference_proven"] is False
     assert doc["joined_layer_plan"]["source"] == "coordinator_http_active"
     assert doc["joined_layer_plan"]["active_peer_count"] == 2
+    assert doc["chain_schedule"]["scheduler_status"] == "ready_to_rehearse_no_live_requests"
+    assert doc["chain_schedule"]["peer_health"]["joined-peer-b"]["utilization_fraction"] == 0.83
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
@@ -204,6 +253,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "layers 0:18" in html
     assert "launch_commands_only_no_server_started" in html
     assert "joined_roster_layer_plan_only_no_inference_proof" in html
+    assert "Chain scheduler rehearsal" in html
+    assert "chain_scheduler_plan_only_no_inference_proof" in html
+    assert "ready_to_rehearse_no_live_requests" in html
+    assert "req-000, req-001" in html
+    assert "planned_no_live_traffic" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
@@ -221,6 +275,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_proof_state(proof_state)
     joined_layer_plan = tmp_path / "joined-layer-plan.json"
     _write_joined_layer_plan(joined_layer_plan)
+    chain_schedule = tmp_path / "chain-schedule.json"
+    _write_chain_schedule(chain_schedule)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -237,6 +293,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(proof_state),
             "--joined-layer-plan",
             str(joined_layer_plan),
+            "--chain-schedule",
+            str(chain_schedule),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -262,6 +320,9 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text
     assert "layers 18:36" in text
+    assert "Chain scheduler rehearsal" in text
+    assert "joined-peer-a" in text
+    assert "240" in text
     assert "proof_state_observability_only_no_inference_proof" in text
     assert "auto-refreshes every 10 seconds" in text
     assert "Synthetic 10-laptop target route" not in text

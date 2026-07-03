@@ -78,7 +78,7 @@ Already proven:
 - TinyLlama S2S opportunistic push with client-direct fallback.
 - Real dashboard artifact with connected devices, route evidence, weighted MVP
   status/next gate, live proof-prep feed, joined-peer layer-plan runbooks,
-  telemetry, and real layer-placement metadata.
+  chain-scheduler rehearsal panels, telemetry, and real layer-placement metadata.
 - Active join-heartbeat rosters can feed deterministic layer-placement runbooks
   through `join_layer_plan.py`, either from local state or coordinator HTTP
   `/active`, and no-execution launch-readiness checklists expose seed multiaddr
@@ -115,7 +115,9 @@ Already proven:
   `join_layer_plan.py` from local state or HTTP `/active`.
 - Chain scheduler planning exists: joined layer plans become multi-request waves,
   per-peer scheduled-token estimates, and `planned_no_live_traffic` health
-  reports. Live request latency/error telemetry remains unproven.
+  reports. `demo_dashboard.py --chain-schedule ...` renders those planned waves
+  and peer-health rows without claiming live traffic. Live request latency/error
+  telemetry remains unproven.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 

@@ -197,6 +197,7 @@ def build_dashboard_document(
     evidence_dir: str | Path = DEFAULT_EVIDENCE_DIR,
     proof_state_path: str | Path | None = None,
     joined_layer_plan_path: str | Path | None = None,
+    chain_schedule_path: str | Path | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
@@ -222,6 +223,7 @@ def build_dashboard_document(
     evidence = load_evidence(evidence_dir)
     proof_state = _read_json(proof_state_path, None)
     joined_layer_plan = _read_json(joined_layer_plan_path, None)
+    chain_schedule = _read_json(chain_schedule_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -241,6 +243,7 @@ def build_dashboard_document(
         "evidence": evidence,
         "proof_state": proof_state,
         "joined_layer_plan": joined_layer_plan,
+        "chain_schedule": chain_schedule,
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
@@ -512,6 +515,68 @@ def _joined_layer_plan_panel(plan: dict[str, Any] | None) -> str:
     """
 
 
+def _chain_schedule_panel(schedule: dict[str, Any] | None) -> str:
+    if not schedule:
+        return """
+      <section class="card wide chain-schedule">
+        <h2>Chain scheduler rehearsal</h2>
+        <p class="muted">No chain-schedule JSON supplied yet. Generate one with <code>python mvp_capabilities/chain_scheduler.py --joined-layer-plan ...</code>.</p>
+      </section>
+    """
+    waves = schedule.get("waves") or []
+    wave_rows: list[str] = []
+    for wave in waves:
+        request_ids = ", ".join(str(item) for item in wave.get("request_ids") or [])
+        wave_rows.append(
+            "<tr>"
+            f"<td>{_esc(wave.get('wave_index'))}</td>"
+            f"<td>{_esc(request_ids or '—')}</td>"
+            f"<td>{_esc(wave.get('parallel_request_count') or 0)}</td>"
+            "</tr>"
+        )
+    peer_rows: list[str] = []
+    for hostname, item in sorted((schedule.get("peer_health") or {}).items()):
+        peer_rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('hostname') or hostname)}</td>"
+            f"<td>{_esc(item.get('block_range') or '—')}</td>"
+            f"<td>{_esc(item.get('scheduled_requests') or 0)}</td>"
+            f"<td>{_esc(item.get('scheduled_tokens') or 0)}</td>"
+            f"<td>{_fmt_num(item.get('utilization_fraction'), 2)}</td>"
+            f"<td>{_esc(item.get('health_status') or '—')}</td>"
+            "</tr>"
+        )
+    inference_copy = "inference proven" if schedule.get("inference_proven") else "inference not proven"
+    live_copy = "live requests sent" if schedule.get("live_requests_sent") else "no live requests sent"
+    token_budget = schedule.get("token_budget") or {}
+    return f"""
+      <section class="card wide chain-schedule">
+        <h2>Chain scheduler rehearsal</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(schedule.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Scheduler status</span><strong>{_esc(schedule.get('scheduler_status') or '—')}</strong></div>
+          <div><span class="label">Requests / waves</span><strong>{_esc(schedule.get('request_count') or 0)} / {_esc(schedule.get('wave_count') or 0)}</strong></div>
+          <div><span class="label">Stages</span><strong>{_esc(schedule.get('stage_count') or 0)}</strong></div>
+          <div><span class="label">Tokens/request</span><strong>{_esc(token_budget.get('tokens_per_request') or 0)}</strong></div>
+          <div><span class="label">Scheduled tokens</span><strong>{_esc(token_budget.get('scheduled_tokens') or 0)}</strong></div>
+          <div><span class="label">Traffic claim</span><strong class="warn">{_esc(live_copy)} · {_esc(inference_copy)}</strong></div>
+          <div><span class="label">Claim boundary</span><code>{_esc(schedule.get('claim_boundary'))}</code></div>
+        </div>
+        <div class="grid two">
+          <table>
+            <thead><tr><th>Wave</th><th>Request IDs</th><th>Parallel</th></tr></thead>
+            <tbody>{''.join(wave_rows) or '<tr><td colspan="3">No request waves planned</td></tr>'}</tbody>
+          </table>
+          <table>
+            <thead><tr><th>Peer</th><th>Layers</th><th>Requests</th><th>Tokens</th><th>Utilization</th><th>Health</th></tr></thead>
+            <tbody>{''.join(peer_rows) or '<tr><td colspan="6">No peer health rows planned</td></tr>'}</tbody>
+          </table>
+        </div>
+        <p class="muted">{_esc(schedule.get('next_step') or 'Scheduler rehearsal only; live request telemetry is still required for a load-proof claim.')}</p>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -590,6 +655,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_status_panel(document.get('mvp_status') or {})}
     {_proof_state_panel(document.get('proof_state'))}
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
+    {_chain_schedule_panel(document.get('chain_schedule'))}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
     {_devices_table(document.get('roster') or {})}
@@ -625,6 +691,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evidence-dir", default=str(DEFAULT_EVIDENCE_DIR))
     parser.add_argument("--proof-state", default=None, help="Optional JSON from proof_state.py")
     parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
+    parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
@@ -643,6 +710,7 @@ def main(argv: list[str] | None = None) -> int:
             evidence_dir=args.evidence_dir,
             proof_state_path=args.proof_state,
             joined_layer_plan_path=args.joined_layer_plan,
+            chain_schedule_path=args.chain_schedule,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
             synthetic_total_gb=args.synthetic_total_gb,

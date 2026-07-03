@@ -107,8 +107,8 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   Qwen3-8B one-block proof and refuses to mark the gate passed unless both server
   and direct-client logs contain matching finite-output evidence.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
-  remaining percentage, next gate, proof-prep state, and joined-peer layer-plan
-  runbooks beside route/evidence/telemetry panels.
+  remaining percentage, next gate, proof-prep state, joined-peer layer-plan
+  runbooks, and chain-scheduler rehearsals beside route/evidence/telemetry panels.
 - `mvp_capabilities/proof_state.py` parses retained proof-prep status/log/cache
   facts and feeds the dashboard while explicitly refusing to claim inference.
 - `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
@@ -332,6 +332,7 @@ python mvp_capabilities/demo_dashboard.py \
   --evidence-dir mvp_capabilities/distributed_evidence \
   --proof-state .local/proof-state.json \
   --joined-layer-plan .local/joined-layer-plan.json \
+  --chain-schedule .local/chain-schedule.json \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10
 ```
