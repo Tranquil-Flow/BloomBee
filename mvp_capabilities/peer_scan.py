@@ -67,6 +67,65 @@ def detect_tailscale_ip() -> str | None:
     return None
 
 
+def _run_text(cmd: list[str], timeout_s: float = 3.0) -> str | None:
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+    except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+        return None
+    if out.returncode != 0:
+        return None
+    text = out.stdout.strip()
+    return text or None
+
+
+def _android_getprop(name: str) -> str | None:
+    value = _run_text(["getprop", name], timeout_s=1.5)
+    if value:
+        return value
+    # Some Termux setups do not expose getprop on PATH but keep Android's
+    # system binary accessible.
+    return _run_text(["/system/bin/getprop", name], timeout_s=1.5)
+
+
+def detect_mobile_profile() -> dict[str, Any]:
+    """Detect phone/tablet-specific traits without requiring Android APIs.
+
+    The scanner still reports CPU/CUDA/MPS separately. This mobile profile is a
+    routing hint: phones are potential peers only after they produce measured
+    throughput evidence, and current BloomBee block servers still need explicit
+    CPU/mobile validation before being counted as useful inference workers.
+    """
+    prefix = os.environ.get("PREFIX", "")
+    android_root = os.environ.get("ANDROID_ROOT", "")
+    termux = "com.termux" in prefix or bool(os.environ.get("TERMUX_VERSION"))
+    android = termux or bool(android_root) or sys.platform.startswith("android")
+
+    # A cheap probe catches Android shells that do not set Termux-style env.
+    model = _android_getprop("ro.product.model") if sys.platform.startswith("linux") or android else None
+    if model:
+        android = True
+
+    if not android:
+        return {"is_mobile": False, "kind": None, "runtime": None}
+
+    manufacturer = _android_getprop("ro.product.manufacturer")
+    soc = (
+        _android_getprop("ro.soc.model")
+        or _android_getprop("ro.board.platform")
+        or _android_getprop("ro.hardware")
+    )
+    return {
+        "is_mobile": True,
+        "kind": "android",
+        "runtime": "termux" if termux else "android-linux",
+        "model": model,
+        "manufacturer": manufacturer,
+        "soc": soc,
+        "cpu_abi": _android_getprop("ro.product.cpu.abi"),
+        "sdk": _android_getprop("ro.build.version.sdk"),
+    }
+
+
 def detect_cpu() -> dict[str, Any]:
     info: dict[str, Any] = {"model": None, "logical": None, "physical": None}
     info["model"] = _platform.processor() or None
@@ -290,12 +349,14 @@ def python_version() -> str:
 def scan(peers: list[str]) -> dict[str, Any]:
     mem = detect_memory()
     acc = detect_accelerator()
+    mobile = detect_mobile_profile()
     return {
         "schema_version": 1,
         "scanned_at": time.time(),
         "hostname": detect_hostname(),
         "tailscale_ip": detect_tailscale_ip(),
         "platform": "darwin" if sys.platform == "darwin" else sys.platform.split("-")[0],
+        "mobile": mobile,
         "python": python_version(),
         "torch": torch_version(),
         "cpu": detect_cpu(),

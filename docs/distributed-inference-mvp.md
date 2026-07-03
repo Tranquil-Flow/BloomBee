@@ -19,6 +19,9 @@ Do not use local sandbox `tailscale status` as the source of truth; it can fail 
 5. Route picker choosing the strongest feasible model for the current swarm.
 6. 10-laptop swarm readiness as part of MVP scope.
 7. Physical 10-laptop showcase after local and two-device verification are complete.
+8. Mobile-phone peer readiness: scan Android/Termux phones, benchmark them, and
+   include them only when measured evidence shows they are genuinely useful for
+   inference work.
 
 ## 10-laptop MVP target
 
@@ -36,6 +39,12 @@ Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the 
 ## Verified current state
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
+- Fresh live scan on 2026-07-03: local `evinova` / `Evis-MacBook-Pro`
+  reports MPS, 16GB total, ~2.3GB free; `m4pro` reports MPS, 48GB total,
+  ~37.5GB free. Combined live roster: 2 peers, 64GB total, ~39.9GB free.
+- Current two-peer route with the measured M4 Pro matrix picks
+  `google/gemma-2-9b-it` as a solo `m4pro` route. This is a live roster
+  choice, not the final 10-laptop target.
 - Measured local TinyLlama benchmark (cold cache): prefill ~610.7 tok/s, decode ~7.7 tok/s.
 - Measured local TinyLlama (warm cache, repeat run): prefill 1130.3 tok/s, decode 28.6 tok/s, peak 0.21 GB.
 - Measured M4 Pro bf16 sweep (5 models, 2026-07-02):
@@ -48,6 +57,48 @@ Stretch target: **Qwen/Qwen3-235B-A22B**. This stays a stretch target until the 
   | Qwen2.5-7B-Instruct | 65 | 2.6 |
 - Direct SSH to M4 Pro works and reports 48GB memory.
 - Qwen3-MoE block wrapper (`src/bloombee/models/qwen3_moe/`) is in place: auto-dispatches from real Qwen3-30B-A3B config (48 layers, hidden=2048, 128 experts @ 8/topk). Wrapper contract tests pass. Has not yet been exercised with full 30B safetensors in a live server.
+- TinyLlama distributed inference has been verified as a proof ladder:
+  two-server, two-laptop, three-peer, forward-loop text parity, and cached
+  `.generate()` parity. Cached generation now matches exact token IDs and
+  decoded text after the `rpc_inference` recovery fixes.
+
+## Mobile phone peer status
+
+Status: **capability discovery groundwork started; useful inference-worker proof
+not yet complete.**
+
+What exists now:
+
+- `mvp_capabilities/peer_scan.py` emits a `mobile` profile. Android/Termux
+  phones are identified via Termux environment variables and Android
+  `getprop` fields such as model, manufacturer, SoC, ABI, and SDK.
+- Non-mobile hosts explicitly emit `"mobile": {"is_mobile": false, ...}` so
+  route planning can distinguish laptops from phones without guessing.
+
+What does **not** exist yet:
+
+- No Android/Termux phone has produced committed throughput evidence.
+- No phone has successfully served a BloomBee transformer block in the DHT/RPC
+  path.
+- Current BloomBee server auto block selection is still GPU-shaped: it accepts
+  `cuda`/`mps` automatically and only permits CPU-only servers when the operator
+  manually specifies `--num_blocks`. That means Android phones are not yet
+  counted as useful block workers until a CPU/mobile block-serving run is
+  proven and benchmarked.
+
+Practical MVP path for phones:
+
+1. Run `peer_scan.py` inside Termux on one connected Android phone and commit
+   the capability JSON.
+2. Run `bench_throughput.py --device cpu` on that phone for TinyLlama or a
+   smaller model to get honest prefill/decode numbers.
+3. Try `python -m bloombee.cli.run_server ... --device cpu --num_blocks 1` on
+   the phone. Only count it as an inference peer if a client can route through
+   it and output parity still matches.
+4. If CPU throughput is too low, phones can still be useful post-MVP as DHT,
+   monitoring, control-plane, or gateway peers; for transformer-block work we
+   should evaluate Android GPU paths separately (Vulkan/NNAPI/ExecuTorch/MLC),
+   which is a backend integration project rather than a simple BloomBee flag.
 
 ### MoE compatibility note
 
@@ -64,7 +115,7 @@ different *block internals* — the routing expert lives *inside* a block on one
 - The MoE models fit block-parallel placement because the *block* lives on one peer
   and the experts live inside that block — no per-token network routing.
 
-## Server bring-up recipe (BLOCKED on real swarm)
+## Server bring-up recipe and verified swarm gates
 
 The full multi-peer test (`tests/test_remote_sequential.py`) requires:
 
@@ -99,11 +150,22 @@ MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 pytest tests/test_remote_sequential.py -v -s
 ```
 
-Gating this end-to-end test is **the** outstanding MVP verification: I need 2+
-laptops running the BloomBee server simultaneously with this environment
-(`PYTHONPATH=.:src`, the sitecustomize RLock fix in `.venv/`). The M4 Pro is
-reachable via `ssh m4pro` and its `.venv` shares the same fix; both Macs
-together are the next gate before physical 10-laptop rehearsal.
+The original `pytest tests/test_remote_sequential.py` gate remains awkward under
+the Hermes/pytest forked event-loop setup. The practical verified path is now
+`scripts/direct_remote_call.py` and `scripts/text_generation_parity.py`, both of
+which produce machine-readable JSON evidence and avoid the test harness hang.
+
+Verified gates now include:
+
+- two-server TinyLlama forward/backward on one host,
+- two-laptop TinyLlama forward/backward over LAN,
+- three-peer TinyLlama forward/backward on one host,
+- three-peer forward-loop text-generation parity,
+- cached `.generate()` text-generation parity on the patched `rpc_inference`
+  recovery path.
+
+Next verification gates are three-peer cached `.generate()` parity, two-laptop
+cached `.generate()` parity, and Qwen3-30B-A3B live-serving preflight.
 
 ### Verified distributed-server boot on M4 Pro (2026-07-02 ~21:52)
 
@@ -140,8 +202,13 @@ environment problem, not a code correctness problem.
 ## No-overclaiming rules
 
 - Do not claim 10 physical laptops have run until the showcase test happens.
-- Do not claim Qwen3 MoE serving works until a BloomBee MoE wrapper is implemented and tested.
+- Do not claim Qwen3-30B-A3B live serving works until full safetensors have run
+  through a live BloomBee server. Wrapper/config tests are necessary but not
+  sufficient.
 - Do not claim a server gate is complete from registry fit alone; fit prediction is not inference proof.
+- Do not count phones as useful inference workers until a phone produces
+  measured throughput and successfully serves at least one transformer block in
+  the distributed path.
 
 ## Operator commands
 

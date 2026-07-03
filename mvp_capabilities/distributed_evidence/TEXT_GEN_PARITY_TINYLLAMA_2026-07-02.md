@@ -129,13 +129,13 @@ Jul 03 00:58:24.018 [INFO] [CROSS_GPU_TRANSFER_LATENCY] Total: 2640.11ms | Backe
 
 ## Important note: cached `.generate()` path
 
-An initial attempt to use BloomBee's cached `RemoteGenerationMixin.generate()` path exposed a real issue:
+This document originally recorded a cached `RemoteGenerationMixin.generate()` failure:
 
 ```text
 P2PHandlerError: Failed to call handler `TransformerConnectionHandler.rpc_inference` ...
 BH mismatch: src span 256 > dst 32, cannot write
 ```
 
-That is **not** a parity failure in the transformer math. It is a bug in the server-side KV-cache `rpc_inference` path under this 3-peer TinyLlama/MPS setup. The parity script therefore defaults to `--mode forward-loop`, which recomputes the full prefix through `model.forward()` at each token and exercises the same verified `RemoteSequential` / `rpc_forward` path as the distributed-inference proofs.
+That issue is now fixed in commit `2117eca` (`fix(distributed): repair cached generate recovery`). The root causes were dropped full-batch KV metadata and stale cache-position accounting after recovery. See `CACHED_GENERATE_API_TINYLLAMA_2026-07-03.md` and `TEXT_GEN_PARITY_GENERATE_API_6TOK_TINYLLAMA_2026-07-03.json` for the updated cached `.generate()` evidence.
 
-Follow-up recommended: fix `rpc_inference` BH buffer sizing so the cached `.generate()` path works too. Until then, `forward-loop` is the correct MVP proof that distributed inference preserves model output.
+Current status: `--mode forward-loop` remains a useful math-isolation proof, and `--mode generate-api` now also passes exact TinyLlama token/text parity for the tested 6-token prompt on the patched path.

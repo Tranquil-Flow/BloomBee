@@ -159,6 +159,45 @@ def test_docs_use_distributed_inference_mvp_name_not_bloombee_mvp():
     assert "distributed-inference-mvp" in text
 
 
+def test_peer_scan_marks_non_mobile_hosts_explicitly(monkeypatch):
+    from mvp_capabilities import peer_scan
+
+    monkeypatch.delenv("PREFIX", raising=False)
+    monkeypatch.delenv("TERMUX_VERSION", raising=False)
+    monkeypatch.delenv("ANDROID_ROOT", raising=False)
+    monkeypatch.setattr(peer_scan.sys, "platform", "darwin")
+
+    assert peer_scan.detect_mobile_profile() == {"is_mobile": False, "kind": None, "runtime": None}
+
+
+def test_peer_scan_identifies_termux_android(monkeypatch):
+    from mvp_capabilities import peer_scan
+
+    props = {
+        "ro.product.model": "Pixel 8 Pro",
+        "ro.product.manufacturer": "Google",
+        "ro.soc.model": "Tensor G3",
+        "ro.product.cpu.abi": "arm64-v8a",
+        "ro.build.version.sdk": "35",
+    }
+
+    def fake_getprop(name: str):
+        return props.get(name)
+
+    monkeypatch.setattr(peer_scan.sys, "platform", "linux")
+    monkeypatch.setenv("PREFIX", "/data/data/com.termux/files/usr")
+    monkeypatch.setattr(peer_scan, "_android_getprop", fake_getprop)
+
+    profile = peer_scan.detect_mobile_profile()
+
+    assert profile["is_mobile"] is True
+    assert profile["kind"] == "android"
+    assert profile["runtime"] == "termux"
+    assert profile["model"] == "Pixel 8 Pro"
+    assert profile["soc"] == "Tensor G3"
+    assert profile["cpu_abi"] == "arm64-v8a"
+
+
 def test_explain_route_returns_picked_plus_full_candidate_evidence():
     from mvp_capabilities.route_picker import explain_route, load_registry
 
