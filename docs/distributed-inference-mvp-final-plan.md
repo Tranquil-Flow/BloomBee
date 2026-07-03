@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████░░░░░░░ 63%
+█████████████░░░░░░░ 65%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -110,9 +110,12 @@ Already proven:
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks, launch-readiness checklists, and explicit
-  no-server-started/no-inference-proof claim boundaries; active coordinator
-  heartbeats can be handed into the same planner via `join_layer_plan.py` from
-  local state or HTTP `/active`.
+  `launch_commands_only_no_server_started` / readiness claim boundaries; active
+  coordinator heartbeats can be handed into the same planner via
+  `join_layer_plan.py` from local state or HTTP `/active`.
+- Chain scheduler planning exists: joined layer plans become multi-request waves,
+  per-peer scheduled-token estimates, and `planned_no_live_traffic` health
+  reports. Live request latency/error telemetry remains unproven.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 
@@ -507,7 +510,10 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 7. Qwen3 dense fallback proofs: 8B, then 14B. **Config-only prescan + harness
    slice complete** for both; next gate is live Qwen3-8B one-block server proof.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
-9. Multi-request chain scheduler.
+9. Multi-request chain scheduler. **Initial planning slice complete**:
+   `chain_scheduler.py` emits request waves and per-peer utilization from a joined
+   layer plan, with `chain_scheduler_plan_only_no_inference_proof`. Live load
+   proof remains future work.
 10. Exact speculative verifier loop with cheap draft provider; phones only as async
     draft workers after capability and throughput proof.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the

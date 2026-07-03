@@ -269,9 +269,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 63
-    assert report["overall_bar"] == "█████████████░░░░░░░ 63%"
-    assert report["remaining_percent"] == 37
+    assert report["overall_percent"] == 65
+    assert report["overall_bar"] == "█████████████░░░░░░░ 65%"
+    assert report["remaining_percent"] == 35
     assert report["next_gate"] == "Qwen3-8B one-block server proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
 
@@ -281,7 +281,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "█████████████░░░░░░░ 63%" in text
+    assert "█████████████░░░░░░░ 65%" in text
     assert "Qwen3-8B one-block server proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
 
@@ -299,8 +299,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 63
-    assert payload["overall_bar"].endswith("63%")
+    assert payload["overall_percent"] == 65
+    assert payload["overall_bar"].endswith("65%")
     assert payload["next_gate"] == "Qwen3-8B one-block server proof"
 
 
@@ -1686,3 +1686,96 @@ def test_join_qr_preflight_cli_outputs_fail_closed_json():
         "scanner_interop_preflight_ready_no_scan_yet",
     }
     assert payload["inference_proven"] is False
+
+
+def test_chain_scheduler_builds_multi_request_waves_from_joined_plan():
+    from mvp_capabilities.chain_scheduler import build_chain_schedule
+
+    joined_plan = {
+        "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+        "model_id": "Qwen/Qwen3-8B",
+        "placement": {
+            "supported": True,
+            "assignments": [
+                {"hostname": "m4pro-seed", "block_range": "0:18", "assigned_layers": 18, "port": 41000},
+                {"hostname": "m4pro-tail", "block_range": "18:36", "assigned_layers": 18, "port": 41001},
+            ],
+        },
+    }
+
+    schedule = build_chain_schedule(joined_plan, request_count=5, max_parallel_per_peer=2, prompt_tokens=32, max_new_tokens=16)
+
+    assert schedule["claim_boundary"] == "chain_scheduler_plan_only_no_inference_proof"
+    assert schedule["scheduler_status"] == "ready_to_rehearse_no_live_requests"
+    assert schedule["model_id"] == "Qwen/Qwen3-8B"
+    assert schedule["request_count"] == 5
+    assert schedule["stage_count"] == 2
+    assert [wave["request_ids"] for wave in schedule["waves"]] == [["req-000", "req-001"], ["req-002", "req-003"], ["req-004"]]
+    assert schedule["request_chains"][0]["stages"][0]["hostname"] == "m4pro-seed"
+    assert schedule["request_chains"][0]["stages"][1]["block_range"] == "18:36"
+    assert schedule["peer_health"]["m4pro-seed"]["scheduled_requests"] == 5
+    assert schedule["peer_health"]["m4pro-tail"]["peak_parallel_requests"] == 2
+    assert schedule["peer_health"]["m4pro-tail"]["utilization_fraction"] == 0.83
+    assert schedule["token_budget"]["tokens_per_request"] == 48
+    assert schedule["inference_proven"] is False
+    assert schedule["live_requests_sent"] is False
+
+
+def test_chain_scheduler_blocks_unplaceable_joined_plan():
+    from mvp_capabilities.chain_scheduler import build_chain_schedule
+
+    schedule = build_chain_schedule(
+        {"model_id": "Qwen/Qwen3-8B", "placement": {"supported": False, "assignments": []}},
+        request_count=3,
+    )
+
+    assert schedule["scheduler_status"] == "blocked_no_supported_layer_plan"
+    assert schedule["waves"] == []
+    assert schedule["request_chains"] == []
+    assert schedule["inference_proven"] is False
+    assert schedule["next_step"] == "produce a supported joined layer plan before scheduling live requests"
+
+
+def test_chain_scheduler_cli_reads_joined_plan_json(tmp_path: Path):
+    joined_plan = {
+        "model_id": "Qwen/Qwen3-8B",
+        "placement": {
+            "supported": True,
+            "assignments": [
+                {"hostname": "joined-a", "block_range": "0:12", "assigned_layers": 12},
+                {"hostname": "joined-b", "block_range": "12:24", "assigned_layers": 12},
+                {"hostname": "joined-c", "block_range": "24:36", "assigned_layers": 12},
+            ],
+        },
+    }
+    plan_path = tmp_path / "joined-layer-plan.json"
+    plan_path.write_text(json.dumps(joined_plan), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/chain_scheduler.py",
+            "--joined-layer-plan",
+            str(plan_path),
+            "--request-count",
+            "4",
+            "--max-parallel-per-peer",
+            "2",
+            "--prompt-tokens",
+            "10",
+            "--max-new-tokens",
+            "5",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "chain_scheduler_plan_only_no_inference_proof"
+    assert payload["stage_count"] == 3
+    assert payload["wave_count"] == 2
+    assert payload["peer_health"]["joined-c"]["scheduled_tokens"] == 60
+    assert payload["can_update_proof_status"] is False

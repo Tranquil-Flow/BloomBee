@@ -66,7 +66,7 @@ hardware pool exists.
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████░░░░░░░ 63%
+█████████████░░░░░░░ 65%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -135,7 +135,11 @@ public-demo proof. Next gate: **Qwen3-8B one-block server proof**.
   `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
   launch-ready layer-placement runbooks from local state or HTTP `/active`
   without starting servers; `--include-launch-readiness` adds a checklist that
-  stays false until seed multiaddr placeholders are resolved.
+  keeps seed multiaddr placeholders as explicit blockers before any server-start
+  claim.
+  `mvp_capabilities/chain_scheduler.py` turns a joined layer plan into
+  multi-request waves, per-peer scheduled-token estimates, and no-live-traffic
+  health reports. It does not send live requests or prove load behavior.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
   server launch commands with `--include-launch-commands`. This is placement and
