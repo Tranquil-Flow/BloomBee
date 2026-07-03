@@ -1,0 +1,106 @@
+{
+  "distributed_dtype": "torch.float16",
+  "distributed_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681,
+    29889,
+    13,
+    13,
+    29906,
+    29889
+  ],
+  "distributed_next_token_id": 3681,
+  "distributed_seconds": 45.12113308906555,
+  "distributed_steps": [],
+  "distributed_text": "The capital of France is Paris.\n\n2.",
+  "distributed_top5": [
+    {
+      "logit": 13.38662052154541,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.26742172241211,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.239398956298828,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.225192070007324,
+      "token_id": 278
+    },
+    {
+      "logit": 10.203680992126465,
+      "token_id": 29973
+    }
+  ],
+  "generated_ids_match": true,
+  "generated_text_match": true,
+  "input_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338
+  ],
+  "logits_max_abs_diff": 0.016242504119873047,
+  "logits_mean_abs_diff": 0.0030047385953366756,
+  "max_new_tokens": 6,
+  "mode": "generate-api",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "next_token_match": true,
+  "ok": true,
+  "prompt": "The capital of France is",
+  "reference_device": "mps",
+  "reference_dtype": "torch.float16",
+  "reference_ids": [
+    1,
+    450,
+    7483,
+    310,
+    3444,
+    338,
+    3681,
+    29889,
+    13,
+    13,
+    29906,
+    29889
+  ],
+  "reference_next_token_id": 3681,
+  "reference_seconds": 0.23705720901489258,
+  "reference_steps": [],
+  "reference_text": "The capital of France is Paris.\n\n2.",
+  "reference_top5": [
+    {
+      "logit": 13.3828125,
+      "token_id": 3681
+    },
+    {
+      "logit": 12.265625,
+      "token_id": 5982
+    },
+    {
+      "logit": 10.234375,
+      "token_id": 29901
+    },
+    {
+      "logit": 10.2265625,
+      "token_id": 278
+    },
+    {
+      "logit": 10.2109375,
+      "token_id": 29973
+    }
+  ],
+  "server_maddrs": [
+    "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWHEt7jcqo36iv4YuvzEpv8Yv9vTPJjdqgA31VGFBRSyvQ"
+  ]
+}

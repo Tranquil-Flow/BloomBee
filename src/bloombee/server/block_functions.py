@@ -132,6 +132,44 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _fullbatch_metadata_kwargs(step_metadata: Optional[Dict[str, Any]], batch_size: int) -> Dict[str, int]:
+    """Return KV-cache batch metadata for non-microbatch rpc_inference paths.
+
+    The client sends ``full_batch_size``/``micro_batch_size`` on every
+    rpc_inference step, including ordinary cached generation.  The micro-batch
+    paths already propagate these values into ``InferenceMetadata``.  The
+    legacy full-batch paths must do the same; otherwise the cache writer sees
+    zeros, falls back to KV-head inference, and can misinterpret a prefill
+    tensor shaped like ``[B * H, D, S]`` as multiple batch rows.
+    """
+    metadata = step_metadata if isinstance(step_metadata, dict) else {}
+    live_batch = max(1, int(batch_size))
+
+    full_batch_size = _to_int(metadata.get("full_batch_size"), live_batch)
+    if full_batch_size <= 0:
+        full_batch_size = live_batch
+
+    batch_offset = _to_int(metadata.get("batch_offset", metadata.get("offset", 0)), 0)
+    if batch_offset < 0:
+        batch_offset = 0
+
+    default_micro_batch = live_batch
+    if full_batch_size > batch_offset:
+        default_micro_batch = min(live_batch, full_batch_size - batch_offset)
+    micro_batch_size = _to_int(
+        metadata.get("micro_batch_size", metadata.get("size", default_micro_batch)),
+        default_micro_batch,
+    )
+    if micro_batch_size <= 0:
+        micro_batch_size = default_micro_batch
+
+    return {
+        "batch_offset": batch_offset,
+        "full_batch_size": full_batch_size,
+        "micro_batch_size": micro_batch_size,
+    }
+
+
 def _bytes_to_mb(value: Any) -> float:
     return _to_float(value) / (1024.0 * 1024.0)
 
@@ -2167,6 +2205,7 @@ async def iterate_rpc_inference(
                         keep_indices=keep_indices,
                         need_pruning=need_pruning,
                         is_spec_dec=is_spec_dec,
+                        **_fullbatch_metadata_kwargs(step_metadata, batch_size),
                     )
                     submit_result = await requested_backends[0].inference_pool.submit_task(
                         hidden_states, hypo_ids, inference_infos, *prompts, priority=priority
@@ -2355,6 +2394,7 @@ async def iterate_rpc_inference(
                             keep_indices=keep_indices,
                             need_pruning=need_pruning,
                             is_spec_dec=is_spec_dec,
+                            **_fullbatch_metadata_kwargs(step_metadata, batch_size),
                         ),)
                         
                         # Submit task and measure processing time

@@ -58,6 +58,23 @@ def _server_hidden_states_wire_dtype(server_side_inference_schema) -> Optional[t
     return dtype if _is_floating_wire_dtype(dtype) else None
 
 
+def _server_session_tokens_to_advance(sent_inputs: torch.Tensor, current_step_tokens: int, is_spec_dec: bool) -> int:
+    """Return how many tokens a per-server session should add to its cache position.
+
+    Existing decode sessions send only the new token. Replacement sessions after
+    an RPC failure are unstepped and send their full hidden-state history to
+    rebuild remote KV cache.  In that recovery case, advancing by only the
+    current token leaves the per-server session at position 1 even though the
+    server rebuilt the whole prefix, causing later decode requests to use a
+    stale prefix.
+    """
+    if is_spec_dec:
+        return int(current_step_tokens)
+    if torch.is_tensor(sent_inputs) and sent_inputs.ndim >= 2:
+        return int(sent_inputs.shape[1])
+    return int(current_step_tokens)
+
+
 def _prepare_rpc_inference_tensor_for_wire(
     tensor: torch.Tensor,
     tensor_name: str,
@@ -214,6 +231,7 @@ class _ServerInferenceSession:
             inputs = self.history  # Pass full inputs including prefix
         else:
             inputs = inputs  # No need to pass prefix further
+        tokens_to_advance = _server_session_tokens_to_advance(inputs, n_input_tokens, is_spec_dec)
 
         def _infer_batch_dim(value) -> int:
             if value is None or is_dummy(value):
@@ -468,7 +486,7 @@ class _ServerInferenceSession:
         #     outputs[0].shape == inputs.shape
         # ), f"output activation shape is different from input shape: {outputs[0].shape} != {inputs.shape}"
 
-        self._position += n_input_tokens
+        self._position += tokens_to_advance
         if client_inference_logs_enabled:
             logger.info(f"server inference session self._position: {self._position}")
         return outputs

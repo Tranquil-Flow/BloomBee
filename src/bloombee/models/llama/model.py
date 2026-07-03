@@ -18,6 +18,21 @@ from bloombee.utils.hivemind_compat import DHT, get_logger
 logger = get_logger(__name__)
 
 
+def _remote_seen_tokens_after_forward(hidden_states: torch.Tensor, remote_position: int) -> int:
+    """Return the cache length to advertise to HF GenerationMixin.
+
+    During cached generation the remote inference session, not the local output
+    tensor length, is the source of truth for how many tokens are cached on the
+    server.  After server recovery, ``InferenceSession.step`` may slice a
+    full-history response back to the current token window; using that sliced
+    hidden-state length would reset ``RemotePastKeyValues`` to 1 and make HF send
+    the whole prompt history again on the next decode step.
+    """
+    if remote_position is not None and int(remote_position) > 0:
+        return int(remote_position)
+    return int(hidden_states.size(1))
+
+
 class DistributedLlamaModel(FromPretrainedMixin, PTuneMixin, LlamaModel):
     """LlamaModel, but all transformer layers are hosted by the swarm"""
 
@@ -105,7 +120,7 @@ class DistributedLlamaModel(FromPretrainedMixin, PTuneMixin, LlamaModel):
 
         if past_key_values is None:
             past_key_values = RemotePastKeyValues()
-        past_key_values.update_seen(hidden_states.size(1))
+        past_key_values.update_seen(_remote_seen_tokens_after_forward(hidden_states, self.layers.position))
 
         # Remove prefix
         if use_prompts:
