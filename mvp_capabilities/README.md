@@ -211,6 +211,12 @@ As of the current implementation slice:
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is
   now passed from live M4 Pro server/client evidence; this is not full-generation
   proof.
+- Multi-block proof harness (`multi_block_proof.py`) exists. It emits two-or-more
+  server runbooks, uses the verified `BLOOMBEE_INITIAL_PEERS` join pattern for
+  later servers, and refuses to mark `multi_block` passed unless every server log
+  has start/announce/RPC evidence plus a combined direct-client result. The live
+  Qwen3-8B multi-block gate remains pending: M4 Pro attempts started both block
+  servers, but the direct client failed during DHT bootstrap before RPC.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.

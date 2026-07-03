@@ -99,6 +99,11 @@ Already proven:
 - One-block proof harness exists: `one_block_proof.py` emits exact server/client
   commands and verifies captured logs for the Qwen3-8B `one_block_server` gate.
   It does not itself prove inference; a live run must still pass.
+- Multi-block proof harness exists: `multi_block_proof.py` emits two-or-more
+  server runbooks and verifies only when every server records start,
+  block-range announcement, RPC evidence, plus a combined direct-client result.
+  Qwen3-8B multi-block remains pending; initial M4 Pro attempts started both
+  servers but failed at client DHT bootstrap before RPC proof.
 - Route picker selector modes are wired: `planning` keeps memory-fit simulation,
   `showcase-attempt` allows experimental supported wrappers while blocking
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.

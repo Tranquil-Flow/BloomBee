@@ -40,6 +40,11 @@ def main() -> int:
                    help="Override hidden_size for the test tensor (defaults to model)")
     p.add_argument("--block-range", default="0:1",
                    help="Block range to request from the server (start:end slice)")
+    p.add_argument("--client-daemon", action="store_true",
+                   help="Use the normal libp2p daemon subprocess for plain terminals. "
+                        "Default stays daemon=False for sandboxed Hermes shells.")
+    p.add_argument("--client-listen", action="store_true",
+                   help="Allow the client DHT to listen on a local address. Default stays no_listen=True for sandboxes.")
     args = p.parse_args()
 
     print(f"[direct] model={args.model}")
@@ -98,7 +103,15 @@ def main() -> int:
     print(f"[direct]   ... {time.time() - t0:.1f}s, hidden_size={config.hidden_size}, "
           f"num_layers={config.num_hidden_layers}")
 
-    print("[direct] DHT(client_mode=True, start=True, daemon=False, no_listen=True)...")
+    dht_kwargs = {
+        "initial_peers": args.server_maddr,
+        "client_mode": True,
+        "start": True,
+        "daemon": args.client_daemon,
+    }
+    if not args.client_listen:
+        dht_kwargs["no_listen"] = True
+    print(f"[direct] DHT({dht_kwargs})...")
     t0 = time.time()
     # daemon=False: skip the libp2p daemon subprocess (sandbox blocks it
     # from binding to ephemeral ports). With daemon=False, DHT runs P2P in
@@ -106,13 +119,7 @@ def main() -> int:
     # no_listen=True: don't bind a host_maddr (sandbox blocks bind on
     # 127.0.0.1:0). The client only makes outbound libp2p connections;
     # it doesn't need to accept incoming ones for this test.
-    dht = DHT(
-        initial_peers=args.server_maddr,
-        client_mode=True,
-        start=True,
-        daemon=False,
-        no_listen=True,
-    )
+    dht = DHT(**dht_kwargs)
     print(f"[direct]   ... {time.time() - t0:.1f}s")
 
     print("[direct] RemoteSequential(config, dht=dht)...")

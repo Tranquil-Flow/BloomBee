@@ -108,6 +108,11 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   and direct-client logs contain matching finite-output evidence. Qwen3-8B
   `one_block_server` is now passed from M4 Pro evidence; full generation remains
   pending.
+- `mvp_capabilities/multi_block_proof.py` emits two-or-more-server runbooks and
+  verifies multi-block evidence only when each server records start, block-range
+  announcement, RPC evidence, and a combined direct-client result. Qwen3-8B
+  multi-block remains pending; initial M4 Pro attempts started both servers but
+  failed at client DHT bootstrap before any RPC proof.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, and chain-scheduler rehearsals beside route/evidence/telemetry panels.

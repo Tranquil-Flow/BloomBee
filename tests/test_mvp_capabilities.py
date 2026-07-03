@@ -381,6 +381,69 @@ def test_one_block_proof_cli_plan_outputs_json():
     assert payload["server_command"].startswith("PYTHONPATH=.:src")
 
 
+def test_multi_block_proof_plan_generates_two_server_runbook():
+    from mvp_capabilities.multi_block_proof import build_multi_block_plan
+    from mvp_capabilities.route_picker import load_registry
+
+    plan = build_multi_block_plan(
+        "Qwen/Qwen3-8B",
+        registry=load_registry(REGISTRY_PATH),
+        block_ranges=["0:1", "1:2"],
+        ports=[31337, 31338],
+    )
+
+    assert plan["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
+    assert plan["proof_gate"] == "multi_block"
+    assert plan["combined_block_range"] == "0:2"
+    assert len(plan["server_commands"]) == 2
+    assert "--new_swarm" in plan["server_commands"][0]
+    assert "BLOOMBEE_INITIAL_PEERS='<PASTE_SEED_MULTIADDR>'" in plan["server_commands"][1]
+    assert "--server-maddr '<PASTE_SERVER_0_MULTIADDR>'" in plan["client_command"]
+    assert "--server-maddr '<PASTE_SERVER_1_MULTIADDR>'" in plan["client_command"]
+    assert plan["proof_status_on_success"] == "multi_block: passed"
+
+
+def test_multi_block_proof_verifier_requires_each_server_and_combined_client():
+    from mvp_capabilities.multi_block_proof import verify_multi_block_evidence
+
+    server_logs = [
+        "[INFO] Announced that blocks range(0, 1) are joining\n[INFO] Started\n[INFO] rpc_forward(blocks=0:1, remote_peer=...abc)\n",
+        "[INFO] Announced that blocks range(1, 2) are joining\n[INFO] Started\n[INFO] rpc_backward(blocks=1:2, remote_peer=...abc)\n",
+    ]
+    client_log = '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 2], "outputs_finite": true, "grad_finite": true}\n'
+
+    result = verify_multi_block_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_ranges=["0:1", "1:2"],
+        server_logs=server_logs,
+        client_log=client_log,
+    )
+
+    assert result["status"] == "passed"
+    assert result["claim_boundary"] == "verified_multi_block_server_evidence"
+    assert result["proof_gate"] == "multi_block"
+    assert result["combined_block_range"] == "0:2"
+    assert result["can_update_proof_status"] is True
+    assert result["proof_status_update"] == {"multi_block": "passed"}
+
+
+def test_multi_block_proof_verifier_blocks_missing_server_rpc():
+    from mvp_capabilities.multi_block_proof import verify_multi_block_evidence
+
+    result = verify_multi_block_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_ranges=["0:1", "1:2"],
+        server_logs=[
+            "[INFO] Announced that blocks range(0, 1) are joining\n[INFO] Started\n[INFO] rpc_forward(blocks=0:1, remote_peer=...abc)\n",
+            "[INFO] Announced that blocks range(1, 2) are joining\n[INFO] Started\n",
+        ],
+        client_log='[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 2], "outputs_finite": true, "grad_finite": true}\n',
+    )
+
+    assert result["status"] == "failed"
+    assert any("server 1 did not record rpc evidence" in item for item in result["failed_checks"])
+
+
 def test_proof_state_parses_retained_download_logs_and_cache_stats(tmp_path: Path):
     from mvp_capabilities.proof_state import build_proof_state
 
