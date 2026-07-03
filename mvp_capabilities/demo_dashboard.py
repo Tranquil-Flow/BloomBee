@@ -201,6 +201,7 @@ def build_dashboard_document(
     joined_layer_plan_path: str | Path | None = None,
     chain_schedule_path: str | Path | None = None,
     handoff_bundle_path: str | Path | None = None,
+    proof_orchestration_path: str | Path | None = None,
     speculative_plan_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
@@ -230,6 +231,9 @@ def build_dashboard_document(
     joined_layer_plan = _read_json(joined_layer_plan_path, None)
     chain_schedule = _read_json(chain_schedule_path, None)
     handoff_bundle = _read_json(handoff_bundle_path, None)
+    proof_orchestration = _read_json(proof_orchestration_path, None)
+    if proof_orchestration is None and isinstance(handoff_bundle, dict):
+        proof_orchestration = handoff_bundle.get("proof_orchestration")
     speculative_plan = _read_json(speculative_plan_path, None)
     if speculative_plan is None and isinstance(handoff_bundle, dict):
         speculative_plan = handoff_bundle.get("speculative_plan")
@@ -254,6 +258,7 @@ def build_dashboard_document(
         "joined_layer_plan": joined_layer_plan,
         "chain_schedule": chain_schedule,
         "handoff_bundle": handoff_bundle,
+        "proof_orchestration": proof_orchestration,
         "speculative_plan": speculative_plan,
         "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
@@ -692,6 +697,68 @@ def _handoff_bundle_panel(bundle: dict[str, Any] | None) -> str:
     """
 
 
+def _proof_orchestration_panel(plan: dict[str, Any] | None) -> str:
+    if not plan:
+        return """
+      <section class="card wide proof-orchestration">
+        <h2>Proof orchestration</h2>
+        <p class="muted">No proof orchestration JSON supplied yet. Generate one with <code>python mvp_capabilities/proof_orchestrator.py --handoff-bundle .local/handoff-bundle.json</code>.</p>
+      </section>
+    """
+    summary = plan.get("summary") or {}
+    phase_order = " → ".join(str(item) for item in plan.get("phase_order") or []) or "—"
+    placeholders = ", ".join(str(item) for item in summary.get("unresolved_placeholders") or []) or "none"
+    available_gates = ", ".join(str(item) for item in summary.get("available_proof_gates") or []) or "—"
+    ready_servers = "yes" if summary.get("ready_to_start_servers") else "no"
+    ready_clients = "yes" if summary.get("ready_for_proof_clients") else "no"
+    launch_rows = "".join(
+        "<tr>"
+        f"<td>{_esc(item.get('hostname') or '—')}</td>"
+        f"<td>{_esc(item.get('role') or '—')}</td>"
+        f"<td>{_esc(item.get('block_range') or '—')}</td>"
+        f"<td>{_bool_badge(item.get('ready'))}</td>"
+        "</tr>"
+        for item in plan.get("launch_steps") or []
+        if isinstance(item, dict)
+    )
+    proof_rows = "".join(
+        "<tr>"
+        f"<td>{_esc(item.get('proof_gate') or '—')}</td>"
+        f"<td>{_bool_badge(item.get('ready'))}</td>"
+        f"<td>{_esc(item.get('command_count') or 0)}</td>"
+        f"<td>{_esc(', '.join(item.get('blocked_by') or []) or '—')}</td>"
+        "</tr>"
+        for item in plan.get("proof_steps") or []
+        if isinstance(item, dict)
+    )
+    return f"""
+      <section class="card wide proof-orchestration">
+        <h2>Proof orchestration</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(plan.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Status</span><strong>{_esc(summary.get('orchestration_status') or '—')}</strong></div>
+          <div><span class="label">Phase order</span><strong>{_esc(phase_order)}</strong></div>
+          <div><span class="label">Available gates</span><strong>{_esc(available_gates)}</strong></div>
+          <div><span class="label">Server readiness</span><strong>ready to start servers: {_esc(ready_servers)}</strong></div>
+          <div><span class="label">Client proof readiness</span><strong>ready for proof clients: {_esc(ready_clients)}</strong></div>
+          <div><span class="label">Unresolved placeholders</span><code>{_esc(placeholders)}</code></div>
+          <div><span class="label">Boundary</span><code>{_esc(plan.get('claim_boundary'))}</code></div>
+        </div>
+        <div class="grid two">
+          <table>
+            <thead><tr><th>Server</th><th>Role</th><th>Layers</th><th>Ready</th></tr></thead>
+            <tbody>{launch_rows or '<tr><td colspan="4">No launch steps found</td></tr>'}</tbody>
+          </table>
+          <table>
+            <thead><tr><th>Proof gate</th><th>Ready</th><th>Commands</th><th>Blocked by</th></tr></thead>
+            <tbody>{proof_rows or '<tr><td colspan="4">No proof steps found</td></tr>'}</tbody>
+          </table>
+        </div>
+        <p class="muted">This is an operator checklist only: live commands executed = {_esc(plan.get('live_commands_executed'))}; proof status updates applied = {_esc(plan.get('proof_status_updates_applied'))}.</p>
+      </section>
+    """
+
+
 def _speculative_plan_panel(plan: dict[str, Any] | None) -> str:
     if not plan:
         return ""
@@ -811,6 +878,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_chain_schedule_panel(document.get('chain_schedule'))}
     {_handoff_bundle_panel(document.get('handoff_bundle'))}
+    {_proof_orchestration_panel(document.get('proof_orchestration'))}
     {_speculative_plan_panel(document.get('speculative_plan'))}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
@@ -850,6 +918,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--joined-layer-plan", default=None, help="Optional JSON from join_layer_plan.py")
     parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
     parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
+    parser.add_argument("--proof-orchestration", default=None, help="Optional JSON from proof_orchestrator.py or join_http_server.py /proof-orchestration")
     parser.add_argument("--speculative-plan", default=None, help="Optional JSON from speculative_decode_plan.py or join_http_server.py /speculative")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
@@ -872,6 +941,7 @@ def main(argv: list[str] | None = None) -> int:
             joined_layer_plan_path=args.joined_layer_plan,
             chain_schedule_path=args.chain_schedule,
             handoff_bundle_path=args.handoff_bundle,
+            proof_orchestration_path=args.proof_orchestration,
             speculative_plan_path=args.speculative_plan,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,

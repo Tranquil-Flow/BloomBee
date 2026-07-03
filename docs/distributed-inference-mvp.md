@@ -124,8 +124,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, coordinator handoff bundles with fresh-device bootstrap scripts,
-  speculative decode plans, and chain-scheduler rehearsals beside
-  route/evidence/telemetry panels.
+  proof orchestration checklists, speculative decode plans, and chain-scheduler
+  rehearsals beside route/evidence/telemetry panels.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
   from nested fields and URLs before writing/printing.
@@ -140,7 +140,7 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   heartbeats from local state or HTTP `/active` into deterministic layer
   placements, launch-command runbooks, and no-execution launch-readiness
   checklists. Generated follower commands use `BLOOMBEE_INITIAL_PEERS` rather
-  than `--initial_peers`. Operators can pass captured seed addresses with
+  than the legacy CLI flag. Operators can pass captured seed addresses with
   `--seed-multiaddr HOST=/ip4/.../p2p/...` to resolve follower placeholders
   before the checklist marks the runbook ready.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
@@ -154,15 +154,17 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
   exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`,
-  `/speculative`, `/bootstrap`, `/bootstrap.sh`, and `/handoff` endpoints using Python stdlib
+  `/speculative`, `/bootstrap`, `/bootstrap.sh`, `/handoff`, and
+  `/proof-orchestration` endpoints using Python stdlib
   HTTP. `/bootstrap` returns a token-scoped peer-scan + bounded-heartbeat JSON
   runbook; `/bootstrap.sh` returns the same runbook as plain shell; `/route`
   returns proof-aware dynamic model selection for current heartbeats;
   `/speculative` returns a verifier-authoritative draft-provider plan;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active
-  roster, bootstrap runbook, speculative plan, auto route, launch plan, and proof
-  harness runbooks without starting servers.
+  roster, bootstrap runbook, speculative plan, auto route, launch plan, proof
+  harness runbooks, and an embedded proof orchestration checklist without
+  starting servers; `/proof-orchestration` returns the checklist directly.
   `mvp_capabilities/join_client.py` lets physical devices
   parse a join URL and post one-shot or bounded repeated peer-scan heartbeats so
   they remain active during operator planning. `mvp_capabilities/join_card.py`
@@ -178,7 +180,11 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   server-start claim.
   `mvp_capabilities/chain_scheduler.py` turns a joined layer plan into
   multi-request waves, per-peer scheduled-token estimates, and no-live-traffic
-  health reports. `mvp_capabilities/request_telemetry.py` summarizes direct-client
+  health reports. `mvp_capabilities/proof_orchestrator.py` turns a handoff bundle
+  into an ordered no-execution checklist for server launch, multiaddr capture,
+  proof clients, verification, and manual proof-status promotion; it keeps
+  unresolved placeholders and forbidden legacy peer flags visible instead of
+  silently executing. `mvp_capabilities/request_telemetry.py` summarizes direct-client
   `[direct] RESULT` logs into request success/failure counts, forward/backward
   latency, model/block coverage, and errors for the dashboard.
   `mvp_capabilities/multi_request_load_proof.py` emits repeated direct-client
@@ -256,7 +262,7 @@ different *block internals* — the routing expert lives *inside* a block on one
 The full multi-peer test (`tests/test_remote_sequential.py`) requires:
 
 1. N≥2 laptops, each running `python -m bloombee.cli.run_server <model_name>`.
-2. Shared `INITIAL_PEERS` (one peer's multiaddr is shared to the other).
+2. Shared `BLOOMBEE_INITIAL_PEERS` (one peer's multiaddr is shared to the other).
 3. Same `MODEL_NAME` and shared `dht_prefix` across peers.
 
 TinyLlama-1.1B two-device rehearsal (the smallest real distributed test):
@@ -269,10 +275,10 @@ python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
     --new_swarm --block_indices 0:11 \
     --device mps --torch_dtype bfloat16 --port 31337
 
-# It prints INITIAL_PEERS multiaddr like:
+# It prints a BLOOMBEE_INITIAL_PEERS-compatible multiaddr like:
 #   /ip4/192.168.1.42/tcp/31337/p2p/QmXXX
 # Copy that, then on machine B:
-INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
+BLOOMBEE_INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
 python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
     --block_indices 11:22 \
     --device mps --torch_dtype bfloat16
@@ -281,7 +287,7 @@ python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 Then from a third laptop:
 
 ```bash
-INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
+BLOOMBEE_INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
 MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 pytest tests/test_remote_sequential.py -v -s
 ```
@@ -380,6 +386,10 @@ python mvp_capabilities/join_handoff.py \
   --request-count 2 \
   --out .local/handoff-bundle.json
 
+python mvp_capabilities/proof_orchestrator.py \
+  --handoff-bundle .local/handoff-bundle.json \
+  --out .local/proof-orchestration.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -388,6 +398,7 @@ python mvp_capabilities/demo_dashboard.py \
   --joined-layer-plan .local/joined-layer-plan.json \
   --chain-schedule .local/chain-schedule.json \
   --handoff-bundle .local/handoff-bundle.json \
+  --proof-orchestration .local/proof-orchestration.json \
   --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10

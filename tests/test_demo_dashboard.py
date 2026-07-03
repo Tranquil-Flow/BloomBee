@@ -222,6 +222,36 @@ def _write_handoff_bundle(path: Path) -> None:
                         "request_count": 2,
                     },
                 },
+                "proof_orchestration": {
+                    "claim_boundary": "proof_orchestration_plan_only_no_live_inference",
+                    "source": "coordinator_handoff_embedded_proof_orchestration",
+                    "model_id": "Qwen/Qwen3-8B",
+                    "phase_order": [
+                        "start_servers",
+                        "capture_server_multiaddrs",
+                        "run_proof_clients",
+                        "verify_then_promote_manually",
+                    ],
+                    "summary": {
+                        "server_count": 2,
+                        "ready_to_start_servers": False,
+                        "ready_for_proof_clients": False,
+                        "unresolved_placeholders": ["<SEED_MULTIADDR_FROM_joined-peer-a>", "<PASTE_SERVER_0_MULTIADDR>"],
+                        "available_proof_gates": ["multi_block", "full_generation", "cache_generation", "multi_request_load"],
+                    },
+                    "launch_steps": [
+                        {"hostname": "joined-peer-a", "role": "seed", "block_range": "0:18", "ready": True},
+                        {"hostname": "joined-peer-b", "role": "follower", "block_range": "18:36", "ready": False},
+                    ],
+                    "proof_steps": [
+                        {"proof_gate": "multi_block", "ready": False, "command_count": 2},
+                        {"proof_gate": "full_generation", "ready": False, "command_count": 2},
+                        {"proof_gate": "cache_generation", "ready": False, "command_count": 2},
+                        {"proof_gate": "multi_request_load", "ready": False, "command_count": 3},
+                    ],
+                    "inference_proven": False,
+                    "can_update_proof_status": False,
+                },
             }
         ),
         encoding="utf-8",
@@ -321,6 +351,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["handoff_bundle"]["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
     assert doc["handoff_bundle"]["bootstrap_runbook"]["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
     assert doc["handoff_bundle"]["proof_runbooks"]["multi_block"]["proof_gate"] == "multi_block"
+    assert doc["proof_orchestration"]["claim_boundary"] == "proof_orchestration_plan_only_no_live_inference"
+    assert doc["proof_orchestration"]["summary"]["ready_for_proof_clients"] is False
+    assert doc["proof_orchestration"]["proof_steps"][0]["proof_gate"] == "multi_block"
     assert doc["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
     assert doc["speculative_plan"]["verifier"]["authoritative"] is True
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
@@ -366,6 +399,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "heartbeat count 180" in html
     assert "multi_block_proof_harness_only_no_live_inference" in html
     assert "multi_request_load_harness_only_no_live_traffic" in html
+    assert "Proof orchestration" in html
+    assert "proof_orchestration_plan_only_no_live_inference" in html
+    assert "capture_server_multiaddrs" in html
+    assert "ready for proof clients: no" in html
+    assert "&lt;PASTE_SERVER_0_MULTIADDR&gt;" in html
     assert "Speculative decode plan" in html
     assert "speculative_decode_plan_only_no_generation_proof" in html
     assert "Verifier authoritative" in html
@@ -448,6 +486,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "layers 18:36" in text
     assert "Chain scheduler rehearsal" in text
     assert "Operator handoff bundle" in text
+    assert "Proof orchestration" in text
+    assert "proof_orchestration_plan_only_no_live_inference" in text
     assert "Speculative decode plan" in text
     assert "speculative_decode_plan_only_no_generation_proof" in text
     assert "coordinator_handoff_bundle_only_no_server_started" in text

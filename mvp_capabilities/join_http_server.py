@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tiny HTTP coordinator for join offers, peer heartbeats, and joined plans.
 
-This is bootstrap/roster/planning infrastructure only. It does not start
+This is bootstrap/roster/planning/operator-proof orchestration infrastructure only. It does not start
 BloomBee servers, does not run inference, and every response carries a
 no-inference-proof claim boundary.
 """
@@ -29,6 +29,7 @@ try:
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
+    from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 except ModuleNotFoundError:  # direct script execution
@@ -44,6 +45,7 @@ except ModuleNotFoundError:  # direct script execution
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
+    from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
     from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
@@ -58,6 +60,7 @@ BOOTSTRAP_SOURCE = "coordinator_http_bootstrap_endpoint"
 BOOTSTRAP_CLAIM_BOUNDARY = "coordinator_bootstrap_runbook_only_no_server_started"
 SPECULATIVE_SOURCE = "coordinator_http_speculative_endpoint"
 SPECULATIVE_CLAIM_BOUNDARY = "coordinator_speculative_plan_only_no_generation_proof"
+PROOF_ORCHESTRATION_SOURCE = "coordinator_http_proof_orchestration_endpoint"
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -532,7 +535,7 @@ def _handle_handoff(
         route_status, route_payload = _route_from_query(route_query, state_dir=state_dir, registry=registry)
         route_decision = route_payload if route_status == 200 else {"status": "unavailable", "error": route_payload.get("error")}
 
-    return 200, {
+    bundle = {
         "claim_boundary": HANDOFF_CLAIM_BOUNDARY,
         "source": HANDOFF_SOURCE,
         "token": token,
@@ -553,6 +556,26 @@ def _handle_handoff(
         "inference_proven": False,
         "can_update_proof_status": False,
     }
+    bundle["proof_orchestration"] = build_proof_orchestration_plan(bundle, source=HANDOFF_EMBEDDED_SOURCE)
+    return 200, bundle
+
+
+def _handle_proof_orchestration(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    coordinator: str,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    status, handoff = _handle_handoff(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
+    if status != 200:
+        return status, handoff
+    plan = dict(handoff.get("proof_orchestration") or build_proof_orchestration_plan(handoff))
+    plan["source"] = PROOF_ORCHESTRATION_SOURCE
+    plan["handoff_source"] = handoff.get("source")
+    plan["inference_proven"] = False
+    plan["can_update_proof_status"] = False
+    return 200, plan
 
 
 def _bootstrap_from_query(query: dict[str, list[str]], *, coordinator: str) -> tuple[int, dict[str, Any]]:
@@ -626,6 +649,8 @@ def handle_get(
         return _handle_plan(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/handoff":
         return _handle_handoff(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
+    if parsed.path == "/proof-orchestration":
+        return _handle_proof_orchestration(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
@@ -757,6 +782,7 @@ def main(argv: list[str] | None = None) -> int:
                 "bootstrap_endpoint": "/bootstrap",
                 "bootstrap_script_endpoint": "/bootstrap.sh",
                 "handoff_endpoint": "/handoff",
+                "proof_orchestration_endpoint": "/proof-orchestration",
                 "speculative_endpoint": "/speculative",
                 "plan_endpoint": "/plan",
                 "registry": str(Path(args.registry).expanduser()),

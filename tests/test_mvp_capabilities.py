@@ -1826,8 +1826,174 @@ models:
     assert handoff["proof_runbooks"]["multi_request_load"]["hidden_dim"] == 128
     assert handoff["bootstrap_runbook"]["claim_boundary"] == "coordinator_bootstrap_runbook_only_no_server_started"
     assert "join_client.py" in handoff["bootstrap_runbook"]["shell_script"]
+    assert handoff["proof_orchestration"]["claim_boundary"] == "proof_orchestration_plan_only_no_live_inference"
+    assert handoff["proof_orchestration"]["source"] == "coordinator_handoff_embedded_proof_orchestration"
+    assert handoff["proof_orchestration"]["phase_order"] == [
+        "start_servers",
+        "capture_server_multiaddrs",
+        "run_proof_clients",
+        "verify_then_promote_manually",
+    ]
+    assert handoff["proof_orchestration"]["launch_steps"][1]["role"] == "follower"
+    assert "BLOOMBEE_INITIAL_PEERS=" in handoff["proof_orchestration"]["launch_steps"][1]["command"]
+    assert "--initial_peers" not in json.dumps(handoff["proof_orchestration"])
+    assert handoff["proof_orchestration"]["summary"]["ready_for_proof_clients"] is False
+    assert "<PASTE_SERVER_0_MULTIADDR>" in handoff["proof_orchestration"]["summary"]["unresolved_placeholders"]
     assert handoff["inference_proven"] is False
     assert handoff["can_update_proof_status"] is False
+
+
+def test_join_http_server_proof_orchestration_endpoint_returns_operator_plan(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: test/Bigger
+    params_b: 3
+    num_layers: 6
+    hidden_size: 128
+    recommended_min_free_mem_gb: 12
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    for peer in ("peer-a", "peer-b"):
+        status, _ = handle_post(
+            "/heartbeat",
+            body=json.dumps(
+                {
+                    "token": "moon-token",
+                    "peer_id": peer,
+                    "capabilities": {"hostname": peer, "memory": {"free_gb": 6}, "accelerator": {"device": "mps"}},
+                    "now": 100,
+                }
+            ).encode("utf-8"),
+            state_dir=state_dir,
+        )
+        assert status == 200
+
+    status, plan = handle_get(
+        "/proof-orchestration?token=moon-token&model=auto&now=110&max_age_seconds=60&selector_mode=planning&request_count=2",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert plan["source"] == "coordinator_http_proof_orchestration_endpoint"
+    assert plan["claim_boundary"] == "proof_orchestration_plan_only_no_live_inference"
+    assert plan["model_id"] == "test/Bigger"
+    assert [step["proof_gate"] for step in plan["proof_steps"]] == [
+        "multi_block",
+        "full_generation",
+        "cache_generation",
+        "multi_request_load",
+    ]
+    assert plan["summary"]["server_count"] == 2
+    assert plan["summary"]["available_proof_gates"] == ["multi_block", "full_generation", "cache_generation", "multi_request_load"]
+    assert plan["inference_proven"] is False
+    assert plan["can_update_proof_status"] is False
+
+
+def test_proof_orchestrator_blocks_forbidden_initial_peers_flag():
+    from mvp_capabilities.proof_orchestrator import build_proof_orchestration_plan
+
+    handoff = {
+        "claim_boundary": "coordinator_handoff_bundle_only_no_server_started",
+        "source": "coordinator_http_handoff_endpoint",
+        "token": "moon-token",
+        "plan": {
+            "model_id": "test/SixLayer",
+            "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+            "placement": {
+                "assignments": [
+                    {
+                        "hostname": "seed",
+                        "block_range": "0:3",
+                        "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server test/SixLayer --new_swarm --block_indices 0:3",
+                    },
+                    {
+                        "hostname": "tail",
+                        "block_range": "3:6",
+                        "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server test/SixLayer --initial_peers /ip4/1/tcp/2/p2p/seed --block_indices 3:6",
+                    },
+                ]
+            },
+        },
+        "proof_runbooks": {},
+    }
+
+    plan = build_proof_orchestration_plan(handoff)
+
+    assert plan["summary"]["forbidden_flags"] == ["launch step tail uses forbidden --initial_peers"]
+    assert plan["launch_steps"][1]["ready"] is False
+    assert "BLOOMBEE_INITIAL_PEERS" in plan["launch_steps"][1]["fix_hint"]
+    assert "--initial_peers" not in " ".join(plan["operator_next_steps"])
+
+
+def test_proof_orchestrator_cli_writes_no_execution_plan_without_tokens(tmp_path: Path):
+    handoff = {
+        "claim_boundary": "coordinator_handoff_bundle_only_no_server_started",
+        "source": "coordinator_http_handoff_endpoint",
+        "token": "moon-token",
+        "plan": {
+            "model_id": "test/SixLayer",
+            "launch_readiness": {"ready_to_start": True, "claim_boundary": "launch_readiness_checklist_only_no_server_started"},
+            "placement": {
+                "assignments": [
+                    {
+                        "hostname": "seed",
+                        "block_range": "0:6",
+                        "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server test/SixLayer --new_swarm --block_indices 0:6",
+                    }
+                ]
+            },
+        },
+        "proof_runbooks": {
+            "full_generation": {
+                "claim_boundary": "full_generation_proof_harness_only_no_live_generation",
+                "proof_gate": "full_generation",
+                "parity_command": "PYTHONPATH=.:src python scripts/text_generation_parity.py --server-maddr '<PASTE_SERVER_0_MULTIADDR>' --out .local/full.json",
+                "verify_command": "python mvp_capabilities/full_generation_proof.py verify --evidence .local/full.json --model test/SixLayer",
+            }
+        },
+    }
+    handoff_path = tmp_path / "handoff.json"
+    out_path = tmp_path / "proof-orchestration.json"
+    handoff_path.write_text(json.dumps(handoff), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/proof_orchestrator.py",
+            "--handoff-bundle",
+            str(handoff_path),
+            "--out",
+            str(out_path),
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    written = json.loads(out_path.read_text(encoding="utf-8"))
+    assert written["claim_boundary"] == "proof_orchestration_plan_only_no_live_inference"
+    assert written["live_commands_executed"] is False
+    assert "moon-token" not in proc.stdout
+    assert "moon-token" not in out_path.read_text(encoding="utf-8")
+
+
+def test_distributed_inference_docs_server_recipe_uses_bloombee_initial_peers():
+    text = (PROJECT_ROOT / "docs" / "distributed-inference-mvp.md").read_text(encoding="utf-8")
+
+    assert "BLOOMBEE_INITIAL_PEERS" in text
+    assert "--initial_peers" not in text
+    text_without_bloombee_env = text.replace("BLOOMBEE_INITIAL_PEERS", "")
+    assert "INITIAL_PEERS=\"" not in text_without_bloombee_env
 
 
 def test_join_handoff_cli_builds_redacted_dashboard_artifact(tmp_path: Path):

@@ -59,7 +59,7 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=10,
         completion=0.94,
         status="partial",
-        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health/offer/heartbeat/active/route/plan/speculative/bootstrap/bootstrap.sh/handoff endpoints with auto model selection, token-scoped JSON and plain-shell bootstrap scripts, verifier-authoritative speculative plans, and operator proof-runbook bundles; join_handoff.py fetches/redacts dashboard-ready handoff artifacts; join_client.py posts one-shot or bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; generated follower launch runbooks use the verified BLOOMBEE_INITIAL_PEERS join path",
+        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health/offer/heartbeat/active/route/plan/speculative/bootstrap/bootstrap.sh/handoff/proof-orchestration endpoints with auto model selection, token-scoped JSON and plain-shell bootstrap scripts, verifier-authoritative speculative plans, embedded proof orchestration checklists, and operator proof-runbook bundles; join_handoff.py fetches/redacts dashboard-ready handoff artifacts; join_client.py posts one-shot or bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; generated follower launch runbooks use the verified BLOOMBEE_INITIAL_PEERS join path",
         next_step="install QR encoder+decoder deps, prove exact QR decode, then run repeated-heartbeat fresh-device showcase through the HTTP coordinator",
     ),
     Milestone(
@@ -110,7 +110,7 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=8,
         completion=0.56,
         status="partial",
-        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards; multi_request_load_proof.py verifies repeated direct-client logs before proof promotion",
+        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; proof_orchestrator.py orders handoff launch/proof runbooks and blocks unresolved placeholders or legacy peer flags before operator execution; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards; multi_request_load_proof.py verifies repeated direct-client logs before proof promotion",
         next_step="send multi-request live traffic through started servers and pass multi_request_load_proof.py verify; measure draft-provider latency/match rate before enabling speculative decode",
     ),
     Milestone(
