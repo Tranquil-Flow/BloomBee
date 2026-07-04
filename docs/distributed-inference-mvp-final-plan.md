@@ -62,13 +62,14 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████████░░ 89%
+██████████████████░░ 90%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
 progress, not public-demo proof. Next gate: **physical/self-serve showcase with
-fresh joined devices**. `physical_showcase_proof.py` now fail-closed verifies
-operator-captured physical evidence, but a real physical showcase has not yet
+fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
+dashboard now fail-closed verify and surface operator-captured physical evidence,
+but a real physical showcase has not yet
 been captured. Qwen3-30B/larger models and optimisations are tracked
 as post-MVP/stretch work outside the 100% MVP denominator.
 

@@ -123,9 +123,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="physical_showcase",
         label="Physical/self-serve live showcase with fresh joined devices",
         weight=14,
-        completion=0.20,
+        completion=0.30,
         status="partial",
-        evidence="physical_showcase_proof.py now fail-closed verifies operator-captured physical QR scan, repeated fresh-device heartbeat loop, dashboard observation, and selected-model proof status before physical_showcase can be promoted; real physical showcase evidence is not yet captured",
+        evidence="physical_showcase_proof.py now fail-closed verifies operator-captured physical QR scan, repeated fresh-device heartbeat loop, dashboard observation, and selected-model proof status; proof_orchestrator.py and demo_dashboard.py surface the physical-showcase evidence template, verifier command, and missing-evidence blocker in operator artifacts; real physical showcase evidence is not yet captured",
         next_step="run fresh QR/link joined laptop swarm, capture physical scanner + heartbeat evidence, launch selected Qwen3-8B proof-backed path, and verify with physical_showcase_proof.py",
     ),
 )
@@ -242,7 +242,7 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="physical_showcase",
         label="Physical/self-serve N-laptop showcase",
         status="partial",
-        evidence="physical_showcase_proof.py provides a fail-closed verifier for operator-captured physical QR scan, repeated fresh-device heartbeats, dashboard observation, and selected Qwen3-8B proof status; real physical device showcase evidence remains uncaptured",
+        evidence="physical_showcase_proof.py provides a fail-closed verifier for operator-captured physical QR scan, repeated fresh-device heartbeats, dashboard observation, and selected Qwen3-8B proof status; proof_orchestrator.py and demo_dashboard.py now expose the physical evidence template, verifier command, and missing-evidence blocker; real physical device showcase evidence remains uncaptured",
         next_step="run fresh QR/link joined laptop swarm, launch selected model servers, capture physical evidence, and verify with physical_showcase_proof.py",
     ),
     PlanTask(

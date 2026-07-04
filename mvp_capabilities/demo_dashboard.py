@@ -770,6 +770,23 @@ def _proof_orchestration_panel(plan: dict[str, Any] | None) -> str:
         for item in plan.get("proof_steps") or []
         if isinstance(item, dict)
     )
+    physical = plan.get("physical_showcase") or {}
+    physical_blocked = ", ".join(str(item) for item in physical.get("blocked_by") or []) or "—"
+    physical_panel = ""
+    if physical:
+        physical_panel = f"""
+        <div class="physical-showcase-proof">
+          <h3>Physical showcase evidence gate</h3>
+          <div class="grid two">
+            <div><span class="label">Proof gate</span><strong>{_esc(physical.get('proof_gate') or '—')}</strong></div>
+            <div><span class="label">Ready</span><strong>{_esc(physical.get('ready'))}</strong></div>
+            <div><span class="label">Evidence path</span><code>{_esc(physical.get('evidence_path') or '—')}</code></div>
+            <div><span class="label">Blocked by</span><code>{_esc(physical_blocked)}</code></div>
+            <div><span class="label">Boundary</span><code>{_esc(physical.get('claim_boundary') or '—')}</code></div>
+            <div><span class="label">Verify command</span><code>{_esc(physical.get('verify_command') or '—')}</code></div>
+          </div>
+        </div>
+        """
     return f"""
       <section class="card wide proof-orchestration">
         <h2>Proof orchestration</h2>
@@ -793,6 +810,7 @@ def _proof_orchestration_panel(plan: dict[str, Any] | None) -> str:
             <tbody>{proof_rows or '<tr><td colspan="4">No proof steps found</td></tr>'}</tbody>
           </table>
         </div>
+        {physical_panel}
         <p class="muted">This is an operator checklist only: live commands executed = {_esc(plan.get('live_commands_executed'))}; proof status updates applied = {_esc(plan.get('proof_status_updates_applied'))}.</p>
       </section>
     """

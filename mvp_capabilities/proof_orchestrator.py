@@ -22,9 +22,14 @@ PHASE_ORDER = [
     "start_servers",
     "capture_server_multiaddrs",
     "run_proof_clients",
+    "capture_physical_showcase_evidence",
     "verify_then_promote_manually",
 ]
 PROOF_GATE_ORDER = ["multi_block", "full_generation", "cache_generation", "multi_request_load"]
+PHYSICAL_SHOWCASE_TEMPLATE_CLAIM_BOUNDARY = "physical_showcase_operator_evidence_template_only_no_physical_proof"
+PHYSICAL_SHOWCASE_INPUT_CLAIM_BOUNDARY = "physical_showcase_operator_evidence"
+PHYSICAL_SHOWCASE_EVIDENCE_DIR = ".local"
+PHYSICAL_SHOWCASE_PROOF_STATUS = "mvp_capabilities/PROOF_STATUS.yaml"
 _PLACEHOLDER_RE = re.compile(r"<[^<>\s]+>")
 
 
@@ -202,8 +207,52 @@ def _multiaddr_capture_steps(launch_steps: list[dict[str, Any]], proof_steps: li
     return steps
 
 
+
+def _artifact_stem(model_id: str | None) -> str:
+    raw = model_id or "unknown-model"
+    return re.sub(r"[^A-Za-z0-9_.-]+", "--", raw).strip("-.") or "unknown-model"
+
+
+
+def _physical_showcase_step(model_id: str | None) -> dict[str, Any]:
+    evidence_path = f"{PHYSICAL_SHOWCASE_EVIDENCE_DIR}/{_artifact_stem(model_id)}-physical-showcase-evidence.json"
+    evidence_template = {
+        "claim_boundary": PHYSICAL_SHOWCASE_INPUT_CLAIM_BOUNDARY,
+        "model_id": model_id,
+        "fresh_join": {
+            "physical_scanner_interop_proven": False,
+            "fresh_devices": [],
+            "heartbeat_loop": {
+                "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                "inference_proven": False,
+                "results": [],
+            },
+        },
+        "dashboard": {
+            "rendered": False,
+            "observed_peer_ids": [],
+        },
+    }
+    return {
+        "phase": "capture_physical_showcase_evidence",
+        "proof_gate": "physical_showcase",
+        "status": "operator_evidence_required",
+        "claim_boundary": PHYSICAL_SHOWCASE_TEMPLATE_CLAIM_BOUNDARY,
+        "evidence_path": evidence_path,
+        "evidence_template": evidence_template,
+        "verify_command": (
+            "PYTHONPATH=.:src python -m mvp_capabilities.physical_showcase_proof "
+            f"--evidence {evidence_path} --proof-status {PHYSICAL_SHOWCASE_PROOF_STATUS}"
+        ),
+        "ready": False,
+        "requires_operator_captured_evidence": True,
+        "blocked_by": ["operator_physical_showcase_evidence_missing"],
+        "proof_status_on_success": {"physical_showcase": "passed"},
+    }
+
+
+
 def _summary(
-    *,
     launch_steps: list[dict[str, Any]],
     proof_steps: list[dict[str, Any]],
     launch_readiness: dict[str, Any],
@@ -265,28 +314,34 @@ def build_proof_orchestration_plan(
     raw_runbooks = _as_dict(handoff_bundle.get("proof_runbooks"))
     proof_steps = [_proof_step(gate, runbook) for gate, runbook in _ordered_runbooks(raw_runbooks)]
     capture_steps = _multiaddr_capture_steps(launch_steps, proof_steps)
+    model_id = _model_id_from_handoff(handoff_bundle)
+    physical_showcase = _physical_showcase_step(model_id)
     summary = _summary(
         launch_steps=launch_steps,
         proof_steps=proof_steps,
         launch_readiness=launch_readiness,
         forbidden_flags=forbidden_flags,
     )
+    summary["physical_showcase_evidence_required"] = physical_showcase["requires_operator_captured_evidence"]
 
     return {
         "source": source,
         "claim_boundary": CLAIM_BOUNDARY,
         "handoff_source": handoff_bundle.get("source"),
         "handoff_claim_boundary": handoff_bundle.get("claim_boundary"),
-        "model_id": _model_id_from_handoff(handoff_bundle),
+        "model_id": model_id,
         "phase_order": list(PHASE_ORDER),
         "summary": summary,
         "launch_steps": launch_steps,
         "multiaddr_capture_steps": capture_steps,
         "proof_steps": proof_steps,
+        "physical_showcase": physical_showcase,
         "operator_next_steps": [
             "start launch_steps on the named hosts only after ready_to_start_servers is true",
             "capture each server multiaddr and replace matching <PASTE_SERVER_N_MULTIADDR> placeholders",
             "run proof client commands, then run each verify command and require status=passed",
+            "capture physical-showcase evidence JSON from physical QR scan, repeated heartbeat loop, and dashboard observation",
+            "verify physical showcase evidence with mvp_capabilities.physical_showcase_proof before marking MVP physical_showcase passed",
             "promote PROOF_STATUS.yaml only from verifier output where can_update_proof_status=true",
         ],
         "live_commands_executed": False,

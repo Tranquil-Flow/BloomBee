@@ -230,12 +230,14 @@ def _write_handoff_bundle(path: Path) -> None:
                         "start_servers",
                         "capture_server_multiaddrs",
                         "run_proof_clients",
+                        "capture_physical_showcase_evidence",
                         "verify_then_promote_manually",
                     ],
                     "summary": {
                         "server_count": 2,
                         "ready_to_start_servers": False,
                         "ready_for_proof_clients": False,
+                        "physical_showcase_evidence_required": True,
                         "unresolved_placeholders": ["<SEED_MULTIADDR_FROM_joined-peer-a>", "<PASTE_SERVER_0_MULTIADDR>"],
                         "available_proof_gates": ["multi_block", "full_generation", "cache_generation", "multi_request_load"],
                     },
@@ -249,6 +251,15 @@ def _write_handoff_bundle(path: Path) -> None:
                         {"proof_gate": "cache_generation", "ready": False, "command_count": 2},
                         {"proof_gate": "multi_request_load", "ready": False, "command_count": 3},
                     ],
+                    "physical_showcase": {
+                        "proof_gate": "physical_showcase",
+                        "claim_boundary": "physical_showcase_operator_evidence_template_only_no_physical_proof",
+                        "evidence_path": ".local/Qwen--Qwen3-8B-physical-showcase-evidence.json",
+                        "verify_command": "PYTHONPATH=.:src python -m mvp_capabilities.physical_showcase_proof --evidence .local/Qwen--Qwen3-8B-physical-showcase-evidence.json --proof-status mvp_capabilities/PROOF_STATUS.yaml",
+                        "ready": False,
+                        "requires_operator_captured_evidence": True,
+                        "blocked_by": ["operator_physical_showcase_evidence_missing"],
+                    },
                     "inference_proven": False,
                     "can_update_proof_status": False,
                 },
@@ -427,7 +438,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 89
+    assert doc["mvp_status"]["overall_percent"] == 90
     assert doc["mvp_status"]["scope"] == "mvp_core"
     assert doc["mvp_status"]["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
@@ -444,7 +455,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["handoff_bundle"]["proof_runbooks"]["multi_block"]["proof_gate"] == "multi_block"
     assert doc["proof_orchestration"]["claim_boundary"] == "proof_orchestration_plan_only_no_live_inference"
     assert doc["proof_orchestration"]["summary"]["ready_for_proof_clients"] is False
+    assert doc["proof_orchestration"]["summary"]["physical_showcase_evidence_required"] is True
     assert doc["proof_orchestration"]["proof_steps"][0]["proof_gate"] == "multi_block"
+    assert doc["proof_orchestration"]["physical_showcase"]["proof_gate"] == "physical_showcase"
     assert doc["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
     assert doc["speculative_plan"]["verifier"]["authoritative"] is True
     assert doc["draft_report"]["claim_boundary"] == "draft_provider_contract_only_no_generation_proof"
@@ -457,7 +470,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "██████████████████░░ 89%" in html
+    assert "██████████████████░░ 90%" in html
     assert "physical/self-serve showcase with fresh joined devices" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Planned tasks" in html
@@ -502,6 +515,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Proof orchestration" in html
     assert "proof_orchestration_plan_only_no_live_inference" in html
     assert "capture_server_multiaddrs" in html
+    assert "physical_showcase" in html
+    assert "physical_showcase_proof" in html
+    assert "operator_physical_showcase_evidence_missing" in html
     assert "ready for proof clients: no" in html
     assert "&lt;PASTE_SERVER_0_MULTIADDR&gt;" in html
     assert "Speculative decode plan" in html
@@ -623,7 +639,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "██████████████████░░ 89%" in text
+    assert "██████████████████░░ 90%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text

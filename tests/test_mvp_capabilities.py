@@ -280,9 +280,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 89
-    assert report["overall_bar"] == "██████████████████░░ 89%"
-    assert report["remaining_percent"] == 11
+    assert report["overall_percent"] == 90
+    assert report["overall_bar"] == "██████████████████░░ 90%"
+    assert report["remaining_percent"] == 10
     assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
@@ -299,6 +299,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["status"] == "partial"
     assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
+    assert "proof_orchestrator.py" in tasks["physical_showcase"]["evidence"]
 
 
 def test_mvp_status_markdown_contains_status_bar_and_next_gate():
@@ -306,7 +307,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████████░░ 89%" in text
+    assert "██████████████████░░ 90%" in text
     assert "physical/self-serve showcase with fresh joined devices" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
@@ -329,8 +330,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 89
-    assert payload["overall_bar"].endswith("89%")
+    assert payload["overall_percent"] == 90
+    assert payload["overall_bar"].endswith("90%")
     assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
@@ -2367,8 +2368,19 @@ models:
         "start_servers",
         "capture_server_multiaddrs",
         "run_proof_clients",
+        "capture_physical_showcase_evidence",
         "verify_then_promote_manually",
     ]
+    physical = handoff["proof_orchestration"]["physical_showcase"]
+    assert physical["proof_gate"] == "physical_showcase"
+    assert physical["claim_boundary"] == "physical_showcase_operator_evidence_template_only_no_physical_proof"
+    assert physical["evidence_template"]["claim_boundary"] == "physical_showcase_operator_evidence"
+    assert physical["evidence_template"]["model_id"] == "test/Bigger"
+    assert physical["evidence_template"]["fresh_join"]["physical_scanner_interop_proven"] is False
+    assert "physical_showcase_proof" in physical["verify_command"]
+    assert "test--Bigger-physical-showcase-evidence.json" in physical["verify_command"]
+    assert physical["ready"] is False
+    assert handoff["proof_orchestration"]["summary"]["physical_showcase_evidence_required"] is True
     assert handoff["proof_orchestration"]["launch_steps"][1]["role"] == "follower"
     assert "--initial_peers" in handoff["proof_orchestration"]["launch_steps"][1]["command"]
     assert "BLOOMBEE_INITIAL_PEERS" not in json.dumps(handoff["proof_orchestration"])
@@ -2426,6 +2438,18 @@ models:
         "cache_generation",
         "multi_request_load",
     ]
+    assert plan["phase_order"] == [
+        "start_servers",
+        "capture_server_multiaddrs",
+        "run_proof_clients",
+        "capture_physical_showcase_evidence",
+        "verify_then_promote_manually",
+    ]
+    assert plan["physical_showcase"]["proof_gate"] == "physical_showcase"
+    assert plan["physical_showcase"]["evidence_template"]["dashboard"]["observed_peer_ids"] == []
+    assert plan["physical_showcase"]["requires_operator_captured_evidence"] is True
+    assert plan["physical_showcase"]["proof_status_on_success"] == {"physical_showcase": "passed"}
+    assert "mvp_capabilities.physical_showcase_proof" in plan["physical_showcase"]["verify_command"]
     assert plan["summary"]["server_count"] == 2
     assert plan["summary"]["available_proof_gates"] == ["multi_block", "full_generation", "cache_generation", "multi_request_load"]
     assert plan["inference_proven"] is False
