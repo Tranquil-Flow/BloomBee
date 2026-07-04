@@ -5083,6 +5083,33 @@ def test_phone_context_token_id_verifier_tracked_evidence_ingests_phone_tokens()
     assert verifier_report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_context_token_id_verifier_live_adb_rerun_is_claim_bounded():
+    token_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-live-adb-20260704T210323Z.json"
+    verifier_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-live-adb-20260704T210323Z.json"
+    token_report = json.loads(token_path.read_text(encoding="utf-8"))
+    verifier_report = json.loads(verifier_path.read_text(encoding="utf-8"))
+
+    assert token_report["artifact_role"] == "fresh_live_phone_context_token_ids_via_m4pro_adb"
+    assert token_report["captured_live_via_m4pro_adb"] is True
+    assert token_report["transport_path"] == "m4pro_usb_adb_push_type_termux_bash_pull_json"
+    assert token_report["phone_context_token_ids_emitted"] is True
+    assert token_report["phone_context_draft_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert token_report["speedup_proven"] is False
+    assert token_report["bloombee_block_serving_proven"] is False
+
+    assert verifier_report["artifact_role"] == "fresh_live_phone_context_token_id_forced_batch_verifier_via_m4pro_adb"
+    assert verifier_report["phone_token_json_artifact"].endswith("termux-context-token-ids-live-adb-20260704T210323Z.json")
+    assert verifier_report["transport_path"] == "m4pro_usb_adb_pull_termux_json_then_local_forced_batch_verifier"
+    assert verifier_report["live_network_streaming_transport_proven"] is False
+    assert verifier_report["phone_context_draft_token_ids"] == token_report["phone_context_draft_token_ids"]
+    assert verifier_report["verifier_method"] == "forced_batch_logits_all_argmax"
+    assert verifier_report["external_context_token_id_acceptance_proven"] is True
+    assert verifier_report["accepted_external_token_count"] == 8
+    assert verifier_report["phone_integrated_verifier_proven"] is True
+    assert verifier_report["speedup_proven"] is False
+    assert verifier_report["bloombee_block_serving_proven"] is False
+
+
 def test_phone_integrated_verifier_preflight_records_external_token_blocker():
     path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json"
     report = json.loads(path.read_text(encoding="utf-8"))
