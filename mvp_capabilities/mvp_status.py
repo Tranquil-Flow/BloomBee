@@ -148,6 +148,15 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         evidence="No runnable backend proof. Config-only scans and research artifact block MiniMaxAI/MiniMax-M3, zai-org/GLM-5.2, deepseek-ai/DeepSeek-V4-Flash, and moonshotai/Kimi-K2-Instruct from native BloomBee route/demo use today; evidence is tracked at mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json and docs/layerexecutor-quantized-backend-spike.md.",
         next_step="keep base Qwen3-30B full/cache/load ahead of frontier backend work; if continued, pick one target and start with external-runtime smoke only",
     ),
+    Milestone(
+        id="quantization_routing_handoff",
+        label="Quantization + route override handoff",
+        weight=5,
+        completion=0.10,
+        status="stashed_for_fable_review",
+        evidence="Fable's uncommitted quantization/routing foundation is preserved locally as stash@{0} (fable-quant-routing-uncommitted-20260704T190522Z): docs/quantization-routing-handover.md, quantized-block spike evidence, moe_expert_quant.py, route_picker/proof_ladder changes, and tests. This is a handoff/review marker only: no quantized serving proof, no route/demo promotion, and no MVP-core denominator change.",
+        next_step="Fable can recover with git stash apply stash@{0}; review/commit the foundation before server-side quantized loading, int4 packing, or quantized proof rows.",
+    ),
 )
 
 

@@ -438,6 +438,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
+    assert post_mvp["quantization_routing_handoff"]["status"] == "stashed_for_fable_review"
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.1
+    assert "stash@{0}" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
