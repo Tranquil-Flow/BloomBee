@@ -237,6 +237,17 @@ does not expose an option to ingest external phone-provided draft token IDs. The
 next real implementation therefore needs a custom llama.cpp binding path or a
 CLI extension before phone-backed speedup can be measured honestly.
 
+Binding verifier follow-up: `llama-cpp-python` was installed locally after
+preinstalling build deps (`cmake`, `ninja`, `scikit-build-core`) with build
+isolation disabled. `mvp_capabilities/phone_llama_cpp_binding_verifier.py`
+renders the exact CLI chat template observed via `llama-cli --verbose-prompt`
+and verifies the phone draft text bytes against context-generated target tokens.
+Tracked artifact:
+`mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json`.
+It accepts 33/33 UTF-8 bytes and 8 context-generated target tokens
+(`[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]`). It still does **not**
+ingest external phone token IDs and does **not** prove speedup.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

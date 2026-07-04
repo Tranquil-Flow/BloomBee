@@ -3739,6 +3739,62 @@ def test_local_same_gguf_llama_speculative_harness_tracked_reference_accepts_all
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_llama_cpp_binding_verifier_renders_cli_chat_template():
+    from mvp_capabilities.phone_llama_cpp_binding_verifier import render_llama_cpp_chat_prompt
+
+    assert render_llama_cpp_chat_prompt("Once upon a time") == (
+        "<|im_start|>user\n"
+        "Once upon a time<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+
+
+def test_phone_llama_cpp_binding_verifier_builds_fail_closed_prefix_report():
+    from mvp_capabilities.phone_llama_cpp_binding_verifier import build_text_prefix_verifier_report
+
+    report = build_text_prefix_verifier_report(
+        prompt="Once upon a time",
+        draft_text="One day, a little girl named Lucy",
+        generated_token_ids=[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846],
+        generated_token_bytes=[b"One", b" day", b",", b" a", b" little", b" girl", b" named", b" Lucy"],
+        elapsed_s=0.25,
+        model_sha256="61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+        llama_cpp_python_version="0.3.test",
+    )
+
+    assert report["claim_boundary"] == "phone_draft_llama_cpp_binding_text_prefix_verifier_no_external_token_ingest_no_speedup_claim"
+    assert report["prompt_template"] == "llama_cpp_chat_template_im_start_end"
+    assert report["text_prefix_acceptance_proven"] is True
+    assert report["accepted_utf8_byte_count"] == 33
+    assert report["proposed_utf8_byte_count"] == 33
+    assert report["accepted_generated_token_count"] == 8
+    assert report["generated_context_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert report["phone_external_token_ids_ingested"] is False
+    assert report["phone_integrated_verifier_proven"] is True
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
+def test_phone_llama_cpp_binding_verifier_tracked_evidence_accepts_phone_draft_text():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "phone_draft_llama_cpp_binding_text_prefix_verifier_no_external_token_ingest_no_speedup_claim"
+    assert report["model_sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert report["prompt_template"] == "llama_cpp_chat_template_im_start_end"
+    assert report["draft_text"] == "One day, a little girl named Lucy"
+    assert report["accepted_utf8_byte_count"] == 33
+    assert report["proposed_utf8_byte_count"] == 33
+    assert report["accepted_generated_token_count"] == 8
+    assert report["generated_context_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert report["generated_context_token_texts"] == ["One", " day", ",", " a", " little", " girl", " named", " Lucy"]
+    assert report["text_prefix_acceptance_proven"] is True
+    assert report["phone_external_token_ids_ingested"] is False
+    assert report["phone_integrated_verifier_proven"] is True
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
 def test_phone_integrated_verifier_preflight_records_external_token_blocker():
     path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json"
     report = json.loads(path.read_text(encoding="utf-8"))

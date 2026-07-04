@@ -190,6 +190,11 @@ Already proven:
   does not involve the phone. Phone-token integrated-verifier preflight at
   `mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json`
   shows the existing CLI cannot ingest phone-provided external draft token IDs.
+  The binding verifier at
+  `mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json`
+  accepts the phone draft text bytes under the exact llama.cpp chat template with
+  8 context-generated target tokens, but still does not ingest external phone
+  token IDs or prove speedup.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -623,12 +628,13 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     wrapped it as a draft-provider-candidate JSON bridge, and compared it against
     positive-control, live Qwen0.5B verifier text, a same-GGUF local verifier,
     same-GGUF tokenizer IDs, a fail-closed wall-clock gate, a local
-    same-GGUF llama.cpp speculative harness, and phone-token verifier preflight;
+    same-GGUF llama.cpp speculative harness, phone-token verifier preflight, and
+    llama-cpp-python binding verifier;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
     verifier-comparison, tokenizer-ID, wall-clock gate, local-speculative
-    harness, and phone-token preflight evidence files are tracked;
+    harness, phone-token preflight, and binding-verifier evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    claiming speculative speedup. Next: add a custom verifier binding or CLI
+    claiming speculative speedup. Next: add external phone-token ingestion or a CLI
     extension for phone-provided draft tokens, and wire a BloomBee execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the

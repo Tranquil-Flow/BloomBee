@@ -176,7 +176,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   tiny-GGUF generation proof, draft-provider-candidate bridge proof, and
   verifier-prefix comparison evidence including same-GGUF local acceptance,
   tokenizer-ID match evidence, a fail-closed wall-clock gate, and a local
-  speculative harness reference, and phone-token verifier preflight now live under
+  speculative harness reference, phone-token verifier preflight, and binding-verifier
+  text-prefix evidence now live under
   `mvp_capabilities/distributed_evidence/phone/`;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active

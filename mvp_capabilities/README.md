@@ -298,6 +298,7 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json
 #     mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json
 #     mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json
+#     mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -394,7 +395,9 @@ As of the current implementation slice:
   promoted. A local `llama-speculative` same-GGUF reference accepts 8/8 draft
   tokens but does not involve the phone; phone-token integrated verifier preflight
   is blocked until a llama.cpp binding or CLI extension can ingest external draft
-  token IDs;
+  token IDs; llama-cpp-python binding verifier accepts the phone draft text bytes
+  under the exact CLI chat template, but still does not ingest external phone
+  token IDs or prove speedup;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.
