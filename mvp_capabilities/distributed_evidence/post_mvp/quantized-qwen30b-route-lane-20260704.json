@@ -1,0 +1,66 @@
+{
+  "can_inherit_fp16_proof": false,
+  "can_update_fp16_proof_row": false,
+  "claim_boundary": "quantized_route_lane_planning_only_no_serving_proof",
+  "compression_ratio_used": 1.996,
+  "demo_safe_allowed": false,
+  "fp16_proof_status": {
+    "cache_generation": "pending",
+    "full_generation": "pending",
+    "multi_block": "passed",
+    "multi_request_load": "pending",
+    "one_block_server": "passed",
+    "prescan": "passed"
+  },
+  "fp16_route": {
+    "memory_fit": false,
+    "placement": "unsupported",
+    "reason": "requires 70.0GB free; swarm has 37.0GB",
+    "required_free_gb": 70.0,
+    "solo_hosts": [],
+    "supported": false,
+    "swarm_free_gb": 37.0
+  },
+  "guardrails": [
+    "do not update Qwen/Qwen3-30B-A3B fp16 proof row",
+    "do not inherit fp16 proof gates into Qwen/Qwen3-30B-A3B@int8",
+    "do not mark demo_safe until exact quantized full_generation/cache_generation/multi_request_load gates pass"
+  ],
+  "live_server_proven": false,
+  "memory_reduction_source": "quantized_block_spike_random_weight_qwen3_moe_layer",
+  "model_id": "Qwen/Qwen3-30B-A3B",
+  "next_gate": "prescan",
+  "operator_next_steps": [
+    "wire server-side INT8 quantized loading for qwen3_moe blocks behind the existing quant_type flag",
+    "run a quantized one-block server proof and write it under the Qwen/Qwen3-30B-A3B@int8 proof row",
+    "run quantized full_generation/cache_generation/multi_request_load gates before any safe-demo promotion"
+  ],
+  "quant_scheme": "moe_int8_experts+qint8_attn",
+  "quant_type": "int8",
+  "quantized_proof_key": "Qwen/Qwen3-30B-A3B@int8",
+  "quantized_proof_status": {
+    "cache_generation": "pending",
+    "full_generation": "pending",
+    "multi_block": "pending",
+    "multi_request_load": "pending",
+    "one_block_server": "pending",
+    "prescan": "pending"
+  },
+  "quantized_route": {
+    "memory_fit": true,
+    "placement": "solo",
+    "reason": "1 peer(s) have >= 35.1GB free",
+    "required_free_gb": 35.1,
+    "solo_hosts": [
+      "m4pro"
+    ],
+    "supported": true,
+    "swarm_free_gb": 37.0
+  },
+  "route_id": "Qwen/Qwen3-30B-A3B@int8",
+  "server_proof_status": "not_run",
+  "source": "quantized_route_lane.py",
+  "source_spike_artifact": "mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json",
+  "speedup_proven": false,
+  "verification_status": "passed"
+}

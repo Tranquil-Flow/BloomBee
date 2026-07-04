@@ -152,10 +152,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="quantization_routing_handoff",
         label="Quantization + route override handoff",
         weight=5,
-        completion=0.25,
-        status="foundation_committed",
-        evidence="Fable's quantization/routing foundation is now committed for review: docs/quantization-routing-handover.md, mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json, src/bloombee/utils/moe_expert_quant.py, route_picker/proof_ladder demo_safe-gate alignment, route_report CLI behavior, and default-suite quantization tests. This is still a post-MVP foundation only: no quantized serving proof, no route/demo promotion, and no MVP-core denominator change.",
-        next_step="use the committed foundation for server-side quantized loading, int4 expert packing, and separate quantized proof rows before any demo-safe promotion",
+        completion=0.45,
+        status="route_lane_committed",
+        evidence="Fable's quantization/routing foundation is committed and now has a claim-bounded Qwen3-30B-A3B@int8 route lane artifact: docs/quantization-routing-handover.md, mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json, mvp_capabilities/distributed_evidence/post_mvp/quantized-qwen30b-route-lane-20260704.json, src/bloombee/utils/moe_expert_quant.py, route_picker/proof_ladder demo_safe-gate alignment, route_report CLI behavior, and default-suite quantization tests. This is still post-MVP only: no quantized serving proof, no fp16 proof-row promotion, no route/demo promotion, and no MVP-core denominator change.",
+        next_step="wire server-side INT8 quantized loading behind the existing quant_type flag, run Qwen3-30B-A3B@int8 one-block proof, then full/cache/load gates before any demo-safe promotion",
     ),
 )
 

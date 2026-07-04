@@ -491,10 +491,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
-    assert post_mvp["quantization_routing_handoff"]["status"] == "foundation_committed"
-    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.25
+    assert post_mvp["quantization_routing_handoff"]["status"] == "route_lane_committed"
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.45
     assert "moe_expert_quant.py" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "quantized-block-spike-20260704T203500Z.json" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "quantized-qwen30b-route-lane-20260704.json" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
