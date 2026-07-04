@@ -273,12 +273,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 75
-    assert report["overall_bar"] == "███████████████░░░░░ 75%"
-    assert report["remaining_percent"] == 25
+    assert report["overall_percent"] == 76
+    assert report["overall_bar"] == "███████████████░░░░░ 76%"
+    assert report["remaining_percent"] == 24
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 5, "partial": 6, "pending": 4, "blocked": 2, "total": 17}
+    assert report["task_summary"] == {"complete": 5, "partial": 7, "pending": 3, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "partial"
@@ -291,7 +291,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████░░░░░ 75%" in text
+    assert "███████████████░░░░░ 76%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "## Planned tasks" in text
@@ -312,8 +312,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 75
-    assert payload["overall_bar"].endswith("75%")
+    assert payload["overall_percent"] == 76
+    assert payload["overall_bar"].endswith("76%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert payload["task_summary"]["blocked"] == 2
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
@@ -2809,6 +2809,71 @@ def test_join_http_server_bootstrap_sh_requires_token(tmp_path: Path):
     assert content_type == "text/plain; charset=utf-8"
     assert "missing token" in body.decode("utf-8")
     assert "coordinator_error_no_inference_proof" in body.decode("utf-8")
+
+
+def test_draft_provider_contract_counts_accept_reject_and_fallback():
+    from mvp_capabilities.draft_provider import StaticDraftProvider, build_draft_provider_report
+
+    report = build_draft_provider_report(
+        provider=StaticDraftProvider((10, 11, 12), provider_id="phone-fake"),
+        prompt_tokens=(1, 2, 3),
+        verifier_tokens=(10, 99, 100),
+        max_draft_tokens=3,
+    )
+
+    assert report["claim_boundary"] == "draft_provider_contract_only_no_generation_proof"
+    assert report["provider"]["phone_compatible_interface"] is True
+    assert report["provider"]["can_serve_transformer_blocks"] is False
+    assert report["proposal"]["draft_tokens"] == [10, 11, 12]
+    assert report["verdict"]["accepted_tokens"] == [10]
+    assert report["verdict"]["rejected_tokens"] == [11, 12]
+    assert report["verdict"]["verifier_fallback_token"] == 99
+    assert report["verdict"]["committed_tokens"] == [10, 99]
+    assert report["dashboard_counters"] == {"proposed": 3, "accepted": 1, "rejected": 2, "acceptance_rate": 0.333333}
+    assert report["generation_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["can_update_proof_status"] is False
+
+
+def test_draft_provider_hash_fake_is_deterministic():
+    from mvp_capabilities.draft_provider import DeterministicHashDraftProvider
+
+    provider = DeterministicHashDraftProvider(vocab_size=128, seed="moon")
+    first = provider.propose((4, 5, 6), 4)
+    second = provider.propose((4, 5, 6), 4)
+
+    assert first.draft_tokens == second.draft_tokens
+    assert len(first.draft_tokens) == 4
+    assert all(0 <= token < 128 for token in first.draft_tokens)
+    assert first.provider_kind == "deterministic_hash_fake"
+
+
+def test_draft_provider_cli_outputs_dashboard_counters():
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/draft_provider.py",
+            "--prompt-tokens",
+            "1,2,3",
+            "--draft-tokens",
+            "5,6,7",
+            "--verifier-tokens",
+            "5,6,8",
+            "--max-draft-tokens",
+            "3",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["source"] == "draft_provider.py"
+    assert payload["dashboard_counters"] == {"proposed": 3, "accepted": 2, "rejected": 1, "acceptance_rate": 0.666667}
+    assert payload["verdict"]["verifier_fallback_token"] == 8
+    assert payload["generation_proven"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():

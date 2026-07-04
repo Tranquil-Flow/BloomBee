@@ -62,7 +62,7 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 75%
+███████████████░░░░░ 76%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -152,11 +152,14 @@ Already proven:
   before proof promotion.
 - Speculative decode planning exists: `speculative_decode_plan.py` defines
   verifier-authoritative draft-provider roles, exact-token acceptance contracts,
-  and a phone-as-draft-only policy. Coordinator `/speculative`, `/handoff`, and
-  the dashboard expose the plan without claiming generation or speedup proof.
-  `demo_dashboard.py --chain-schedule ... --request-log ... --speculative-plan ...`
-  renders planned waves, live request telemetry, and draft-provider plans without
-  claiming load or speculative speedup proof.
+  and a phone-as-draft-only policy. `draft_provider.py` now implements the
+  dependency-free `DraftProvider.propose(prompt_tokens, max_draft_tokens)`
+  contract plus verifier-prefix accepted/rejected counters. Coordinator
+  `/speculative`, `/handoff`, and the dashboard expose the plan/report without
+  claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
+  --request-log ... --speculative-plan ... --draft-report ...` renders planned
+  waves, live request telemetry, draft-provider plans, and accepted/rejected
+  counters without claiming load or speculative speedup proof.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 
@@ -574,9 +577,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
 10. Exact speculative verifier loop with cheap draft provider. **Planning slice
     complete**: `speculative_decode_plan.py` defines verifier-authoritative
     draft-provider roles, exact-token acceptance contracts, and phone-as-draft-
-    only policy; `/speculative`, `/handoff`, and the dashboard surface the plan
-    without running generation. Next: measure draft-provider latency/match rate
-    and wire an execution harness only after verifier generation passes.
+    only policy; `draft_provider.py` adds the deterministic provider contract
+    and proposed/accepted/rejected dashboard counters; `/speculative`,
+    `/handoff`, and the dashboard surface the plan/report without running live
+    generation. Next: run the same contract over a phone bridge, measure
+    draft-provider latency/match rate, and wire an execution harness only after
+    verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.
 12. LayerExecutor backend interface for quantized frontier serving backends.

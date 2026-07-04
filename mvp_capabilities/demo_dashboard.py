@@ -213,6 +213,7 @@ def build_dashboard_document(
     handoff_bundle_path: str | Path | None = None,
     proof_orchestration_path: str | Path | None = None,
     speculative_plan_path: str | Path | None = None,
+    draft_report_path: str | Path | None = None,
     multi_block_diagnostics_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
@@ -248,6 +249,7 @@ def build_dashboard_document(
     speculative_plan = _read_json(speculative_plan_path, None)
     if speculative_plan is None and isinstance(handoff_bundle, dict):
         speculative_plan = handoff_bundle.get("speculative_plan")
+    draft_report = _read_json(draft_report_path, None)
     multi_block_diagnostics = _read_json(multi_block_diagnostics_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
@@ -272,6 +274,7 @@ def build_dashboard_document(
         "handoff_bundle": handoff_bundle,
         "proof_orchestration": proof_orchestration,
         "speculative_plan": speculative_plan,
+        "draft_report": draft_report,
         "multi_block_diagnostics": multi_block_diagnostics,
         "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
@@ -834,6 +837,36 @@ def _speculative_plan_panel(plan: dict[str, Any] | None) -> str:
     """
 
 
+def _draft_report_panel(report: dict[str, Any] | None) -> str:
+    if not report:
+        return ""
+    provider = report.get("provider") or {}
+    proposal = report.get("proposal") or {}
+    verdict = report.get("verdict") or {}
+    counters = report.get("dashboard_counters") or {}
+    accepted = ", ".join(str(token) for token in verdict.get("accepted_tokens") or []) or "—"
+    rejected = ", ".join(str(token) for token in verdict.get("rejected_tokens") or []) or "—"
+    committed = ", ".join(str(token) for token in verdict.get("committed_tokens") or []) or "—"
+    return f"""
+      <section class="card wide draft-report">
+        <h2>Draft-provider contract smoke</h2>
+        <div class="grid two">
+          <div><span class="label">Provider</span><strong>{_esc(provider.get('provider_id') or proposal.get('provider_id') or '—')}</strong></div>
+          <div><span class="label">Kind</span><strong>{_esc(provider.get('provider_kind') or proposal.get('provider_kind') or '—')}</strong></div>
+          <div><span class="label">Proposed / accepted / rejected</span><strong>{_esc(counters.get('proposed'))} / {_esc(counters.get('accepted'))} / {_esc(counters.get('rejected'))}</strong></div>
+          <div><span class="label">Acceptance rate</span><strong>{_esc(counters.get('acceptance_rate'))}</strong></div>
+          <div><span class="label">Verifier fallback</span><strong>{_esc(verdict.get('verifier_fallback_token') if verdict.get('verifier_fallback_token') is not None else '—')}</strong></div>
+          <div><span class="label">Boundary</span><code>{_esc(report.get('claim_boundary'))}</code></div>
+        </div>
+        <table>
+          <thead><tr><th>Accepted prefix</th><th>Rejected draft suffix</th><th>Committed tokens</th></tr></thead>
+          <tbody><tr><td>{_esc(accepted)}</td><td>{_esc(rejected)}</td><td>{_esc(committed)}</td></tr></tbody>
+        </table>
+        <p class="muted">Verifier remains authoritative. This is a provider-contract smoke only: generation speedup and phone inference are not proven.</p>
+      </section>
+    """
+
+
 def _multi_block_diagnostics_panel(report: dict[str, Any] | None) -> str:
     if not report:
         return ""
@@ -968,6 +1001,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_handoff_bundle_panel(document.get('handoff_bundle'))}
     {_proof_orchestration_panel(document.get('proof_orchestration'))}
     {_speculative_plan_panel(document.get('speculative_plan'))}
+    {_draft_report_panel(document.get('draft_report'))}
     {_multi_block_diagnostics_panel(document.get('multi_block_diagnostics'))}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
@@ -1009,6 +1043,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
     parser.add_argument("--proof-orchestration", default=None, help="Optional JSON from proof_orchestrator.py or join_http_server.py /proof-orchestration")
     parser.add_argument("--speculative-plan", default=None, help="Optional JSON from speculative_decode_plan.py or join_http_server.py /speculative")
+    parser.add_argument("--draft-report", default=None, help="Optional JSON from draft_provider.py")
     parser.add_argument("--multi-block-diagnostics", default=None, help="Optional JSON from multi_block_diagnostics.py")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
@@ -1033,6 +1068,7 @@ def main(argv: list[str] | None = None) -> int:
             handoff_bundle_path=args.handoff_bundle,
             proof_orchestration_path=args.proof_orchestration,
             speculative_plan_path=args.speculative_plan,
+            draft_report_path=args.draft_report,
             multi_block_diagnostics_path=args.multi_block_diagnostics,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,

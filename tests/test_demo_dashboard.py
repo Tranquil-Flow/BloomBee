@@ -281,6 +281,46 @@ def _write_speculative_plan(path: Path) -> None:
     )
 
 
+def _write_draft_report(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "draft_provider_contract_only_no_generation_proof",
+                "source": "draft_provider.py",
+                "provider": {
+                    "provider_id": "phone-fake",
+                    "provider_kind": "deterministic_fake",
+                    "phone_compatible_interface": True,
+                    "can_serve_transformer_blocks": False,
+                },
+                "proposal": {
+                    "provider_id": "phone-fake",
+                    "provider_kind": "deterministic_fake",
+                    "draft_tokens": [10, 11, 12],
+                    "draft_token_count": 3,
+                    "elapsed_ms": 0.04,
+                },
+                "verdict": {
+                    "accepted_tokens": [10],
+                    "rejected_tokens": [11, 12],
+                    "accepted_count": 1,
+                    "rejected_count": 2,
+                    "proposed_count": 3,
+                    "acceptance_rate": 0.333333,
+                    "verifier_fallback_token": 99,
+                    "committed_tokens": [10, 99],
+                    "verifier_authoritative": True,
+                },
+                "dashboard_counters": {"proposed": 3, "accepted": 1, "rejected": 2, "acceptance_rate": 0.333333},
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _write_request_log(path: Path) -> None:
     path.write_text(
         "[direct] model=Qwen/Qwen3-8B\n"
@@ -354,6 +394,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_handoff_bundle(handoff_bundle)
     speculative_plan = tmp_path / "speculative-plan.json"
     _write_speculative_plan(speculative_plan)
+    draft_report = tmp_path / "draft-report.json"
+    _write_draft_report(draft_report)
     multi_block_diagnostics = tmp_path / "multi-block-diagnostics.json"
     _write_multi_block_diagnostics(multi_block_diagnostics)
     request_log = tmp_path / "direct-client.log"
@@ -368,6 +410,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         chain_schedule_path=chain_schedule,
         handoff_bundle_path=handoff_bundle,
         speculative_plan_path=speculative_plan,
+        draft_report_path=draft_report,
         multi_block_diagnostics_path=multi_block_diagnostics,
         request_logs=[request_log],
         synthetic_m4_laptops=10,
@@ -384,7 +427,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 75
+    assert doc["mvp_status"]["overall_percent"] == 76
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
     assert doc["mvp_status"]["task_summary"]["blocked"] == 2
@@ -403,6 +446,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["proof_orchestration"]["proof_steps"][0]["proof_gate"] == "multi_block"
     assert doc["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
     assert doc["speculative_plan"]["verifier"]["authoritative"] is True
+    assert doc["draft_report"]["claim_boundary"] == "draft_provider_contract_only_no_generation_proof"
+    assert doc["draft_report"]["dashboard_counters"] == {"proposed": 3, "accepted": 1, "rejected": 2, "acceptance_rate": 0.333333}
     assert doc["multi_block_diagnostics"]["summary"]["status"] == "unhealthy_servers_detected"
     assert doc["multi_block_diagnostics"]["coverage"]["missing_layers"] == 18
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
@@ -411,11 +456,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "███████████████░░░░░ 75%" in html
+    assert "███████████████░░░░░ 76%" in html
     assert "Qwen3-8B multi-block or full-generation proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Planned tasks" in html
-    assert "Task summary: 5 complete, 6 partial, 4 pending, 2 blocked" in html
+    assert "Task summary: 5 complete, 7 partial, 3 pending, 2 blocked" in html
     assert "TinyLlama distributed fallback generation proof" in html
     assert "Physical/self-serve N-laptop showcase" in html
     assert "Qwen35B candidate branch" in html
@@ -463,6 +508,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Verifier authoritative" in html
     assert "phone-a" in html
     assert "phones as draft providers only" in html
+    assert "Draft-provider contract smoke" in html
+    assert "draft_provider_contract_only_no_generation_proof" in html
+    assert "Proposed / accepted / rejected" in html
+    assert "3 / 1 / 2" in html
+    assert "0.333333" in html
     assert "Multi-block diagnostics" in html
     assert "multi_block_diagnostics_observability_only_no_inference_proof" in html
     assert "unhealthy_servers_detected" in html
@@ -522,6 +572,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_handoff_bundle(handoff_bundle)
     speculative_plan = tmp_path / "speculative-plan.json"
     _write_speculative_plan(speculative_plan)
+    draft_report = tmp_path / "draft-report.json"
+    _write_draft_report(draft_report)
     multi_block_diagnostics = tmp_path / "multi-block-diagnostics.json"
     _write_multi_block_diagnostics(multi_block_diagnostics)
     out = tmp_path / "dashboard.html"
@@ -546,6 +598,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(handoff_bundle),
             "--speculative-plan",
             str(speculative_plan),
+            "--draft-report",
+            str(draft_report),
             "--multi-block-diagnostics",
             str(multi_block_diagnostics),
             "--out",
@@ -568,7 +622,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "███████████████░░░░░ 75%" in text
+    assert "███████████████░░░░░ 76%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text
@@ -579,6 +633,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "proof_orchestration_plan_only_no_live_inference" in text
     assert "Speculative decode plan" in text
     assert "speculative_decode_plan_only_no_generation_proof" in text
+    assert "Draft-provider contract smoke" in text
+    assert "draft_provider_contract_only_no_generation_proof" in text
     assert "Multi-block diagnostics" in text
     assert "multi_block_diagnostics_observability_only_no_inference_proof" in text
     assert "coordinator_handoff_bundle_only_no_server_started" in text

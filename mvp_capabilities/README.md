@@ -43,7 +43,7 @@ BloomBee's runtime already maintains.
 | 16. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
 | 17. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
 | 18. Proof orchestration | `proof_orchestrator.py` | Turns a coordinator handoff bundle into an ordered no-execution operator checklist: start servers, capture multiaddrs, run proof clients, verify, and only then promote proof status. It flags unresolved placeholders and forbidden legacy peer flags. | JSON orchestration checklist |
-| 19. Speculative decode plan | `speculative_decode_plan.py` | Defines verifier-authoritative draft-provider roles, including phone-as-draft-only policy and exact-token correctness contract. This is speedup planning only, not generation proof. | JSON speculative plan |
+| 19. Speculative decode plan | `speculative_decode_plan.py` + `draft_provider.py` | Defines verifier-authoritative draft-provider roles, including phone-as-draft-only policy and exact-token correctness contract. `draft_provider.py` adds a dependency-free provider contract and accepted/rejected token counters for dashboard smoke reports. This is speedup planning only, not generation proof. | JSON speculative plan / draft-provider smoke report |
 | 20. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
 | 21. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
@@ -246,6 +246,12 @@ python mvp_capabilities/speculative_decode_plan.py \
   --draft-model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --max-draft-tokens 4 > .local/speculative-plan.json
 
+python mvp_capabilities/draft_provider.py \
+  --prompt-tokens 1,2,3 \
+  --draft-tokens 5,6,7 \
+  --verifier-tokens 5,6,8 \
+  --max-draft-tokens 3 > .local/draft-report.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -256,6 +262,7 @@ python mvp_capabilities/demo_dashboard.py \
   --handoff-bundle .local/handoff-bundle.json \
   --proof-orchestration .local/proof-orchestration.json \
   --speculative-plan .local/speculative-plan.json \
+  --draft-report .local/draft-report.json \
   --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
@@ -305,7 +312,7 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████░░░░░ 75%` built from the plan, with claim boundary
+  `███████████████░░░░░ 76%` built from the plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
   full-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
@@ -315,9 +322,11 @@ As of the current implementation slice:
   coordinator handoff bundles into ordered no-execution proof checklists and
   flags unresolved placeholders/legacy peer flags; `speculative_decode_plan.py`
   emits verifier-authoritative draft-provider plans with phones limited to
-  draft-only roles; `multi_request_load_proof.py` verifies repeated direct-client
-  logs before proof promotion, but actual multi-request load and speculative speed
-  gates remain pending until real traffic/latency evidence passes.
+  draft-only roles; `draft_provider.py` adds the provider interface plus
+  proposed/accepted/rejected exact-token counters for dashboard smoke reports;
+  `multi_request_load_proof.py` verifies repeated direct-client logs before proof
+  promotion, but actual multi-request load and speculative speed gates remain
+  pending until real traffic/latency evidence passes.
 - One-block proof harness (`one_block_proof.py`) exists. It emits exact
   Qwen3-8B server/client commands and verifies captured logs before allowing the
   `one_block_server` gate to be marked passed. Qwen3-8B `one_block_server` is

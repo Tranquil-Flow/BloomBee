@@ -83,6 +83,8 @@ def build_speculative_decode_plan(
         },
         "draft": {
             "mode": "async_draft_provider",
+            "provider_contract": "DraftProvider.propose(prompt_tokens, max_draft_tokens) -> draft_tokens",
+            "contract_module": "mvp_capabilities/draft_provider.py",
             "model_id": draft_model_id,
             "max_draft_tokens": bounded_max_draft,
             "acceptance_window": bounded_window,

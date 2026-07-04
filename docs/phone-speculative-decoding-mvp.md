@@ -87,7 +87,7 @@ A phone speculative-decoding contribution counts only after these proof gates pa
 
 ## Suggested implementation slices
 
-### Slice 1: phone draft protocol without Android dependency
+### Slice 1: phone draft protocol without Android dependency — built
 
 Build a deterministic draft-provider interface and tests on the laptop first:
 
@@ -97,8 +97,10 @@ Verifier accepts/rejects tokens
 Dashboard displays proposed/accepted/rejected/acceptance_rate
 ```
 
-Use a fake deterministic draft provider for RED/GREEN tests, then a local tiny
-model provider.
+`mvp_capabilities/draft_provider.py` now provides the dependency-free contract,
+a deterministic hash fake, a static fake for RED/GREEN tests, verifier-prefix
+accept/reject accounting, CLI JSON output, and dashboard counters. It still does
+not prove live generation speedup or phone transport.
 
 ### Slice 2: remote phone transport
 

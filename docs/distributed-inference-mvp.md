@@ -72,7 +72,7 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 75%
+███████████████░░░░░ 76%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
@@ -164,7 +164,9 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   HTTP. `/bootstrap` returns a token-scoped peer-scan + bounded-heartbeat JSON
   runbook; `/bootstrap.sh` returns the same runbook as plain shell; `/route`
   returns proof-aware dynamic model selection for current heartbeats;
-  `/speculative` returns a verifier-authoritative draft-provider plan;
+  `/speculative` returns a verifier-authoritative draft-provider plan, and
+  `mvp_capabilities/draft_provider.py` adds a dependency-free provider contract
+  plus proposed/accepted/rejected counters for dashboard smoke reports;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active
   roster, bootstrap runbook, speculative plan, auto route, launch plan, proof
