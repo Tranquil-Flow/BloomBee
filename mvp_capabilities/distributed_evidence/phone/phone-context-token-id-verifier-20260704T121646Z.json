@@ -1,0 +1,67 @@
+{
+  "accepted_context_token_ids": [
+    6716,
+    2462,
+    29892,
+    263,
+    2217,
+    7826,
+    4257,
+    28846
+  ],
+  "accepted_external_token_count": 8,
+  "accepted_text": "One day, a little girl named Lucy",
+  "bloombee_block_serving_proven": false,
+  "claim_boundary": "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim",
+  "draft_text": "One day, a little girl named Lucy",
+  "elapsed_s": 0.541554,
+  "external_context_token_id_acceptance_proven": true,
+  "generated_context_token_ids": [
+    6716,
+    2462,
+    29892,
+    263,
+    2217,
+    7826,
+    4257,
+    28846
+  ],
+  "generated_context_token_texts": [
+    "One",
+    " day",
+    ",",
+    " a",
+    " little",
+    " girl",
+    " named",
+    " Lucy"
+  ],
+  "llama_cpp_python_version": "0.3.32",
+  "mismatch": null,
+  "model_id": "ggml-org/tiny-llamas/stories15M.gguf",
+  "model_path": ".local/models/stories15M-phone-exact.gguf",
+  "model_sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+  "operator_next_steps": [
+    "replace the same-device verifier loop with a network bridge that receives phone token IDs live",
+    "measure phone-backed draft-plus-verifier wall clock against verifier-only before speedup claims"
+  ],
+  "phone_context_draft_token_ids": [
+    6716,
+    2462,
+    29892,
+    263,
+    2217,
+    7826,
+    4257,
+    28846
+  ],
+  "phone_external_token_id_source": "termux_llama_tokenize_context_suffix",
+  "phone_external_token_ids_ingested": true,
+  "phone_integrated_verifier_proven": true,
+  "prompt": "Once upon a time",
+  "prompt_template": "llama_cpp_chat_template_im_start_end",
+  "proposed_external_token_count": 8,
+  "rejected_external_token_count": 0,
+  "rendered_prompt": "<|im_start|>user\nOnce upon a time<|im_end|>\n<|im_start|>assistant\n",
+  "speedup_proven": false
+}

@@ -394,13 +394,15 @@ As of the current implementation slice:
   but the fail-closed wall-clock gate shows sequential phone-draft+verifier is
   slower than verifier-only (2.403479s vs 1.837976s), so no speculative proof is
   promoted. A local `llama-speculative` same-GGUF reference accepts 8/8 draft
-  tokens but does not involve the phone; phone-token integrated verifier preflight
-  is blocked until a llama.cpp binding or CLI extension can ingest external draft
-  token IDs; llama-cpp-python binding verifier accepts the phone draft text bytes
-  under the exact CLI chat template, but still does not ingest external phone
-  token IDs or prove speedup; phone BloomBee block-serving preflight explicitly
-  keeps GGUF draft evidence separate from BloomBee block serving and records the
-  missing Termux Python stack blockers;
+  tokens but does not involve the phone; phone-token integrated verifier preflight showed the raw llama.cpp CLI path
+  cannot ingest external draft token IDs; llama-cpp-python binding verifier
+  accepts the phone draft text bytes under the exact CLI chat template, and the
+  follow-up context-token proof ingests Termux-emitted draft token IDs from
+  `termux-context-token-ids-20260704T121646Z.json` and accepts 8/8 external
+  phone context tokens in `phone-context-token-id-verifier-20260704T121646Z.json`;
+  this still does not prove live phone-backed speedup. Phone BloomBee
+  block-serving preflight explicitly keeps GGUF draft evidence separate from
+  BloomBee block serving and records the missing Termux Python stack blockers;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.

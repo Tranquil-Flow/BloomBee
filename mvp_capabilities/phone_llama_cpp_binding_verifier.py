@@ -20,6 +20,7 @@ CLAIM_BOUNDARY = (
     "phone_draft_llama_cpp_binding_text_prefix_verifier_"
     "no_external_token_ingest_no_speedup_claim"
 )
+EXTERNAL_TOKEN_CLAIM_BOUNDARY = "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim"
 PROMPT_TEMPLATE = "llama_cpp_chat_template_im_start_end"
 
 
@@ -137,6 +138,159 @@ def build_text_prefix_verifier_report(
     }
 
 
+def parse_token_id_list(value: str) -> list[int]:
+    """Parse a JSON or comma-separated token-id list."""
+
+    value = value.strip()
+    if not value:
+        return []
+    if value.startswith("["):
+        parsed = json.loads(value)
+        if not isinstance(parsed, list):
+            raise ValueError("token-id JSON must be a list")
+        return [int(token) for token in parsed]
+    return [int(part.strip()) for part in value.split(",") if part.strip()]
+
+
+def build_external_context_token_verifier_report(
+    *,
+    prompt: str,
+    draft_text: str,
+    phone_context_draft_token_ids: Sequence[int],
+    generated_token_ids: Sequence[int],
+    generated_token_bytes: Sequence[bytes],
+    elapsed_s: float,
+    model_sha256: str,
+    llama_cpp_python_version: str,
+    phone_token_id_source: str,
+    model_id: str = "ggml-org/tiny-llamas/stories15M.gguf",
+    model_path: str | None = None,
+) -> dict[str, Any]:
+    """Build a verifier report for externally supplied context draft token IDs."""
+
+    phone_ids = [int(token) for token in phone_context_draft_token_ids]
+    generated_ids = [int(token) for token in generated_token_ids]
+    accepted_ids: list[int] = []
+    accepted_bytes: list[bytes] = []
+    mismatch: dict[str, Any] | None = None
+
+    for index, phone_token in enumerate(phone_ids):
+        if index >= len(generated_ids):
+            mismatch = {
+                "token_index": index,
+                "phone_token_id": phone_token,
+                "target_token_id": None,
+                "reason": "target_generation_ended_before_phone_token",
+            }
+            break
+        target_token = generated_ids[index]
+        target_piece = generated_token_bytes[index]
+        if phone_token == target_token:
+            accepted_ids.append(phone_token)
+            accepted_bytes.append(target_piece)
+            continue
+        mismatch = {
+            "token_index": index,
+            "phone_token_id": phone_token,
+            "target_token_id": target_token,
+            "target_token_text": target_piece.decode("utf-8", errors="replace"),
+            "reason": "phone_token_id_did_not_match_verifier_greedy_token",
+        }
+        break
+
+    accepted_text = _text_from_bytes(accepted_bytes)
+    accepted = len(accepted_ids)
+    proposed = len(phone_ids)
+    proven = proposed > 0 and accepted == proposed and mismatch is None
+    return {
+        "claim_boundary": EXTERNAL_TOKEN_CLAIM_BOUNDARY,
+        "prompt": prompt,
+        "rendered_prompt": render_llama_cpp_chat_prompt(prompt),
+        "prompt_template": PROMPT_TEMPLATE,
+        "model_id": model_id,
+        "model_path": model_path,
+        "model_sha256": model_sha256,
+        "llama_cpp_python_version": llama_cpp_python_version,
+        "draft_text": draft_text,
+        "phone_external_token_id_source": phone_token_id_source,
+        "phone_context_draft_token_ids": phone_ids,
+        "generated_context_token_ids": generated_ids,
+        "generated_context_token_texts": [
+            token.decode("utf-8", errors="replace") for token in generated_token_bytes
+        ],
+        "accepted_context_token_ids": accepted_ids,
+        "accepted_text": accepted_text,
+        "accepted_external_token_count": accepted,
+        "proposed_external_token_count": proposed,
+        "rejected_external_token_count": proposed - accepted,
+        "external_context_token_id_acceptance_proven": proven,
+        "phone_external_token_ids_ingested": True,
+        "phone_integrated_verifier_proven": proven,
+        "mismatch": mismatch,
+        "speedup_proven": False,
+        "bloombee_block_serving_proven": False,
+        "elapsed_s": round(float(elapsed_s), 6),
+        "operator_next_steps": [
+            "replace the same-device verifier loop with a network bridge that receives phone token IDs live",
+            "measure phone-backed draft-plus-verifier wall clock against verifier-only before speedup claims",
+        ],
+    }
+
+
+def verify_external_context_tokens_with_llama_cpp(
+    *,
+    model_path: Path,
+    prompt: str,
+    draft_text: str,
+    phone_context_draft_token_ids: Sequence[int],
+    phone_token_id_source: str = "termux_llama_tokenize_context_suffix",
+    n_ctx: int = 64,
+    n_threads: int = 4,
+    n_gpu_layers: int = 0,
+) -> dict[str, Any]:
+    """Consume externally supplied context draft token IDs and compare to target tokens."""
+
+    from llama_cpp import Llama
+    import llama_cpp
+
+    model_path = Path(model_path)
+    start = time.perf_counter()
+    llm = Llama(
+        model_path=str(model_path),
+        n_ctx=n_ctx,
+        n_threads=n_threads,
+        n_gpu_layers=n_gpu_layers,
+        verbose=False,
+    )
+    rendered = render_llama_cpp_chat_prompt(prompt)
+    prompt_tokens = llm.tokenize(rendered.encode("utf-8"), add_bos=True)
+    llm.eval(prompt_tokens)
+
+    generated_ids: list[int] = []
+    generated_bytes: list[bytes] = []
+    for phone_token in phone_context_draft_token_ids:
+        target_token = int(llm.sample(temp=0.0, top_k=0, top_p=1.0, min_p=0.0))
+        target_piece = bytes(llm.detokenize([target_token]))
+        generated_ids.append(target_token)
+        generated_bytes.append(target_piece)
+        if int(phone_token) != target_token:
+            break
+        llm.eval([int(phone_token)])
+
+    return build_external_context_token_verifier_report(
+        prompt=prompt,
+        draft_text=draft_text,
+        phone_context_draft_token_ids=phone_context_draft_token_ids,
+        generated_token_ids=generated_ids,
+        generated_token_bytes=generated_bytes,
+        elapsed_s=time.perf_counter() - start,
+        model_sha256=_sha256(model_path),
+        llama_cpp_python_version=getattr(llama_cpp, "__version__", "unknown"),
+        phone_token_id_source=phone_token_id_source,
+        model_path=str(model_path),
+    )
+
+
 def verify_draft_text_with_llama_cpp(
     *,
     model_path: Path,
@@ -212,22 +366,38 @@ def main() -> int:
     parser.add_argument("--draft-text", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--max-tokens", type=int, default=None)
+    parser.add_argument(
+        "--phone-context-token-ids",
+        default=None,
+        help="JSON or comma-separated context-token IDs emitted by the phone for the draft suffix.",
+    )
+    parser.add_argument("--phone-token-id-source", default="termux_llama_tokenize_context_suffix")
     args = parser.parse_args()
 
-    report = verify_draft_text_with_llama_cpp(
-        model_path=Path(args.model),
-        prompt=args.prompt,
-        draft_text=args.draft_text,
-        max_tokens=args.max_tokens,
-    )
+    if args.phone_context_token_ids:
+        report = verify_external_context_tokens_with_llama_cpp(
+            model_path=Path(args.model),
+            prompt=args.prompt,
+            draft_text=args.draft_text,
+            phone_context_draft_token_ids=parse_token_id_list(args.phone_context_token_ids),
+            phone_token_id_source=args.phone_token_id_source,
+        )
+    else:
+        report = verify_draft_text_with_llama_cpp(
+            model_path=Path(args.model),
+            prompt=args.prompt,
+            draft_text=args.draft_text,
+            max_tokens=args.max_tokens,
+        )
     Path(args.out).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         json.dumps(
             {
-                "accepted": report["accepted_utf8_byte_count"],
-                "proposed": report["proposed_utf8_byte_count"],
-                "tokens": report["accepted_generated_token_count"],
-                "proven": report["text_prefix_acceptance_proven"],
+                "accepted": report.get("accepted_utf8_byte_count", report.get("accepted_external_token_count")),
+                "proposed": report.get("proposed_utf8_byte_count", report.get("proposed_external_token_count")),
+                "tokens": report.get("accepted_generated_token_count", report.get("accepted_external_token_count")),
+                "proven": report.get("text_prefix_acceptance_proven", report.get("external_context_token_id_acceptance_proven")),
+                "phone_external_token_ids_ingested": report["phone_external_token_ids_ingested"],
                 "speedup_proven": report["speedup_proven"],
             },
             sort_keys=True,

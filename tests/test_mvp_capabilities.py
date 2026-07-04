@@ -3800,6 +3800,61 @@ def test_phone_llama_cpp_binding_verifier_tracked_evidence_accepts_phone_draft_t
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_llama_cpp_binding_verifier_builds_external_context_token_report():
+    from mvp_capabilities.phone_llama_cpp_binding_verifier import build_external_context_token_verifier_report
+
+    report = build_external_context_token_verifier_report(
+        prompt="Once upon a time",
+        draft_text="One day, a little girl named Lucy",
+        phone_context_draft_token_ids=[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846],
+        generated_token_ids=[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846],
+        generated_token_bytes=[b"One", b" day", b",", b" a", b" little", b" girl", b" named", b" Lucy"],
+        elapsed_s=0.25,
+        model_sha256="61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+        llama_cpp_python_version="0.3.test",
+        phone_token_id_source="termux_llama_tokenize_context_suffix",
+    )
+
+    assert report["claim_boundary"] == "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim"
+    assert report["prompt_template"] == "llama_cpp_chat_template_im_start_end"
+    assert report["phone_external_token_ids_ingested"] is True
+    assert report["phone_external_token_id_source"] == "termux_llama_tokenize_context_suffix"
+    assert report["external_context_token_id_acceptance_proven"] is True
+    assert report["phone_integrated_verifier_proven"] is True
+    assert report["accepted_external_token_count"] == 8
+    assert report["proposed_external_token_count"] == 8
+    assert report["accepted_text"] == "One day, a little girl named Lucy"
+    assert report["mismatch"] is None
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
+def test_phone_context_token_id_verifier_tracked_evidence_ingests_phone_tokens():
+    token_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-20260704T121646Z.json"
+    verifier_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-20260704T121646Z.json"
+    token_report = json.loads(token_path.read_text(encoding="utf-8"))
+    verifier_report = json.loads(verifier_path.read_text(encoding="utf-8"))
+
+    assert token_report["claim_boundary"] == "phone_context_token_ids_from_termux_llama_tokenize_no_verifier_no_speedup_claim"
+    assert token_report["phone_context_token_ids_emitted"] is True
+    assert token_report["phone_context_draft_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert token_report["phone_integrated_verifier_proven"] is False
+    assert token_report["speedup_proven"] is False
+
+    assert verifier_report["claim_boundary"] == "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim"
+    assert verifier_report["phone_context_draft_token_ids"] == token_report["phone_context_draft_token_ids"]
+    assert verifier_report["generated_context_token_ids"] == token_report["phone_context_draft_token_ids"]
+    assert verifier_report["phone_external_token_id_source"] == "termux_llama_tokenize_context_suffix"
+    assert verifier_report["phone_external_token_ids_ingested"] is True
+    assert verifier_report["external_context_token_id_acceptance_proven"] is True
+    assert verifier_report["phone_integrated_verifier_proven"] is True
+    assert verifier_report["accepted_external_token_count"] == 8
+    assert verifier_report["proposed_external_token_count"] == 8
+    assert verifier_report["accepted_text"] == "One day, a little girl named Lucy"
+    assert verifier_report["speedup_proven"] is False
+    assert verifier_report["bloombee_block_serving_proven"] is False
+
+
 def test_phone_integrated_verifier_preflight_records_external_token_blocker():
     path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json"
     report = json.loads(path.read_text(encoding="utf-8"))

@@ -245,12 +245,20 @@ and verifies the phone draft text bytes against context-generated target tokens.
 Tracked artifact:
 `mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json`.
 It accepts 33/33 UTF-8 bytes and 8 context-generated target tokens
-(`[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]`). It still does **not**
-ingest external phone token IDs and does **not** prove speedup.
+(`[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]`).
 Important tokenization pitfall: standalone tokenization of the draft text starts
 with `3118`, while retokenizing `rendered_prompt + draft_text` in verifier
 context starts with `6716`; the binding artifact records both and marks the
 standalone/context mismatch explicitly.
+
+External context-token follow-up:
+`mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-20260704T121646Z.json`
+was emitted by Pixel 8 Pro Termux `llama-tokenize` over the exact rendered prompt
+and draft suffix. The binding verifier then consumed those external phone context
+token IDs and accepted 8/8 in
+`mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-20260704T121646Z.json`.
+This proves token-ID ingestion/comparison mechanics for this same-GGUF path, but
+still does **not** prove live phone-backed speedup.
 
 BloomBee block-serving preflight:
 `mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json`

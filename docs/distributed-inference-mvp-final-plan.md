@@ -193,8 +193,13 @@ Already proven:
   The binding verifier at
   `mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json`
   accepts the phone draft text bytes under the exact llama.cpp chat template with
-  8 context-generated target tokens, but still does not ingest external phone
-  token IDs or prove speedup. Phone block-serving preflight at
+  8 context-generated target tokens. Pixel 8 Pro Termux then emitted the same
+  context-token draft suffix at
+  `mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-20260704T121646Z.json`,
+  and the binding verifier ingested/accepted those 8/8 external phone context
+  tokens at
+  `mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-20260704T121646Z.json`.
+  This still does not prove speedup. Phone block-serving preflight at
   `mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json`
   records that GGUF draft generation is not BloomBee block serving and Termux is
   missing the Python stack needed for `one_block_proof.py verify`.
@@ -632,13 +637,14 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     positive-control, live Qwen0.5B verifier text, a same-GGUF local verifier,
     same-GGUF tokenizer IDs, a fail-closed wall-clock gate, a local
     same-GGUF llama.cpp speculative harness, phone-token verifier preflight,
-    llama-cpp-python binding verifier, and block-serving preflight;
+    llama-cpp-python binding verifier, external context-token ingestion verifier,
+    and block-serving preflight;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
     verifier-comparison, tokenizer-ID, wall-clock gate, local-speculative
-    harness, phone-token preflight, binding-verifier, and block-serving preflight evidence files are tracked;
+    harness, phone-token preflight, binding-verifier, external-token-ingestion verifier, and block-serving preflight evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    claiming speculative speedup. Next: add external phone-token ingestion or a CLI
-    extension for phone-provided draft tokens, and wire a BloomBee execution harness only after
+    claiming speculative speedup. Next: bridge live phone token transport into the verifier wall-clock path,
+    and wire a BloomBee execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.
