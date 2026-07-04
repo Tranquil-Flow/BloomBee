@@ -479,10 +479,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 9, "partial": 5, "pending": 2, "blocked": 1, "total": 17}
+    assert report["task_summary"] == {"complete": 9, "partial": 6, "pending": 1, "blocked": 1, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
     assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 5, "pending": 2, "blocked": 1, "total": 8}
+    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 6, "pending": 1, "blocked": 1, "total": 8}
     assert report["core_tasks_complete"] is True
     assert {item["status"] for item in report["core_tasks"]} == {"complete"}
     assert {item["id"] for item in report["post_mvp_tasks"]} == {
@@ -509,6 +509,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "integrated non-sequential verifier path" in tasks["phone_worker"]["next_step"]
     assert "bridge live token transport" not in tasks["speculative_decode"]["next_step"]
     assert "integrated non-sequential verifier path" in tasks["speculative_decode"]["next_step"]
+    assert tasks["continuous_batching"]["status"] == "partial"
+    assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
+    assert "no live server" in tasks["continuous_batching"]["evidence"]
+    assert "wire the scheduler into the live decode request loop" in tasks["continuous_batching"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "full_attention block contract" in tasks["qwen35b_candidate"]["evidence"]
@@ -530,8 +534,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "## MVP-core tasks" in markdown
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
     assert "## Post-MVP backlog tasks" in markdown
-    assert "Post-MVP backlog task summary: 0 complete, 5 partial, 2 pending, 1 blocked" in markdown
-    assert "All-task summary: 9 complete, 5 partial, 2 pending, 1 blocked" in markdown
+    assert "Post-MVP backlog task summary: 0 complete, 6 partial, 1 pending, 1 blocked" in markdown
+    assert "All-task summary: 9 complete, 6 partial, 1 pending, 1 blocked" in markdown
 
 
 
@@ -660,7 +664,7 @@ def test_mvp_status_cli_outputs_json():
     assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 1
-    assert payload["task_summary"]["partial"] == 5
+    assert payload["task_summary"]["partial"] == 6
     assert payload["task_summary"]["complete"] == 9
     assert any(task["id"] == "qwen35b_candidate" and task["status"] == "partial" for task in payload["planned_tasks"])
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])

@@ -1,0 +1,105 @@
+{
+  "average_batch_fill": 0.833333,
+  "can_update_demo_status": false,
+  "claim_boundary": "continuous_batching_scheduler_simulation_no_live_server_proof",
+  "completed_request_ids": [
+    "req-a",
+    "req-b"
+  ],
+  "expected_by_request": {
+    "req-a": [
+      10,
+      11,
+      12
+    ],
+    "req-b": [
+      20,
+      21
+    ]
+  },
+  "live_server_proven": false,
+  "max_batch_size": 2,
+  "operator_next_steps": [
+    "wire the scheduler into the live decode request loop behind an opt-in flag",
+    "run same-prompt parity against verifier-only decode with concurrent arrivals",
+    "measure wall-clock throughput before any demo or speedup promotion"
+  ],
+  "outputs_by_request": {
+    "req-a": [
+      10,
+      11,
+      12
+    ],
+    "req-b": [
+      20,
+      21
+    ]
+  },
+  "request_count": 2,
+  "serial_decode_batches": 5,
+  "source": "continuous_batching.py",
+  "speedup_proven": false,
+  "timeline": [
+    {
+      "finished_request_ids": [],
+      "input_token_ids": [
+        101
+      ],
+      "output_token_ids": [
+        10
+      ],
+      "positions": [
+        0
+      ],
+      "request_ids": [
+        "req-a"
+      ],
+      "tick": 0
+    },
+    {
+      "finished_request_ids": [],
+      "input_token_ids": [
+        10,
+        202
+      ],
+      "output_token_ids": [
+        11,
+        20
+      ],
+      "positions": [
+        1,
+        0
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 1
+    },
+    {
+      "finished_request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "input_token_ids": [
+        11,
+        20
+      ],
+      "output_token_ids": [
+        12,
+        21
+      ],
+      "positions": [
+        2,
+        1
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 2
+    }
+  ],
+  "total_decode_batches": 3,
+  "verification_status": "passed"
+}

@@ -278,9 +278,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="continuous_batching",
         label="True continuous batching",
-        status="pending",
-        evidence="not yet implemented",
-        next_step="post-MVP after correctness/showcase gates; keep separate from proof of basic distributed generation",
+        status="partial",
+        evidence="continuous_batching.py adds a pure round-robin decode scheduler simulation with late-arrival admission, padded batch inputs, per-request deinterleaving, and claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json; no live server integration, parity proof, wall-clock speedup, or demo promotion yet",
+        next_step="wire the scheduler into the live decode request loop behind an opt-in flag, prove parity with concurrent arrivals, then measure wall-clock throughput before any demo or speedup promotion",
     ),
     PlanTask(
         id="kv_prefix_reuse",
