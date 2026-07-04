@@ -357,22 +357,39 @@ def test_layerexecutor_quantized_backend_spike_artifact_is_conservative():
     assert payload["mvp_core_status_unchanged"] is True
     assert payload["recommended_next_step"] == "base_qwen30b_full_generation_before_frontier_backend_spike"
 
-    targets = {target["model_id"]: target for target in payload["target_models"]}
-    expected = {
+    targets = {item["model_id"]: item for item in payload["target_models"]}
+    assert set(targets) == {
         "MiniMaxAI/MiniMax-M3",
         "zai-org/GLM-5.2",
         "deepseek-ai/DeepSeek-V4-Flash",
         "moonshotai/Kimi-K2-Instruct",
     }
-    assert set(targets) == expected
-    assert all(target["claim_level"] == "blocked" for target in targets.values())
-    assert all(target["minimal_proof"] for target in targets.values())
-    assert all(target["blocked_reasons"] for target in targets.values())
-
-    assert "glm_moe_dsa" in targets["zai-org/GLM-5.2"]["blocked_reasons"][0]
-    assert "quantization_config=fp8" in " ".join(targets["deepseek-ai/DeepSeek-V4-Flash"]["blocked_reasons"])
-    assert "quantization_config=fp8" in " ".join(targets["moonshotai/Kimi-K2-Instruct"]["blocked_reasons"])
+    assert targets["deepseek-ai/DeepSeek-V4-Flash"]["config_facts"]["quantization_method"] == "fp8"
+    assert targets["moonshotai/Kimi-K2-Instruct"]["config_facts"]["quantization_method"] == "fp8"
+    assert targets["zai-org/GLM-5.2"]["hf_model_type"] == "glm_moe_dsa"
     assert "minimax_m3_vl" in targets["MiniMaxAI/MiniMax-M3"]["blocked_reasons"][0]
+
+
+
+def test_qwen_agentworld_wrapper_scout_blocks_copying_qwen3_moe_wrapper():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "post_mvp_wrapper_scout_no_runtime_proof_no_demo_promotion"
+    assert payload["model_id"] == "Qwen/Qwen-AgentWorld-35B-A3B"
+    assert payload["wrapper_code_written"] is False
+    assert payload["runnable_backend_proven"] is False
+    assert payload["can_update_mvp_status"] is False
+    assert payload["recommended_next_step"] == "qwen3_5_moe_import_and_config_tdd_before_any_live_proof"
+    assert payload["config_scan"]["hf_model_type"] == "qwen3_5_moe"
+    assert payload["config_scan"]["hf_text_model_type"] == "qwen3_5_moe_text"
+    assert payload["config_scan"]["claim_level"] == "blocked"
+    assert payload["attention_contract"]["has_linear_attention_layers"] is True
+    assert payload["attention_contract"]["has_full_attention_layers"] is True
+    assert payload["attention_contract"]["full_attention_interval"] == 4
+    assert "linear_attention" in payload["blocked_reasons"][0]
+    assert "Qwen3MoeDecoderLayer" in payload["why_existing_qwen3_moe_wrapper_is_insufficient"]
+
 
 
 def test_mvp_status_report_has_weighted_progress_bar():
@@ -408,6 +425,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
+    assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "Qwen3MoeDecoderLayer wrapper is unsafe" in tasks["qwen35b_candidate"]["evidence"]
+    assert "RED import/config-dispatch tests" in tasks["qwen35b_candidate"]["next_step"]
     assert tasks["fresh_laptop_join"]["status"] == "complete"
     assert tasks["physical_showcase"]["status"] == "complete"
     assert "Pixel 8 Pro camera/browser QR scan" in tasks["fresh_laptop_join"]["evidence"]

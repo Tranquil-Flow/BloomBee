@@ -223,7 +223,17 @@ Do not make both base 30B and 2507 required for the same post-MVP milestone. Exa
 
 ### Task 8: qwen3_5_moe wrapper feasibility for AgentWorld-35B-A3B
 
+**Status:** Config-only wrapper scout complete. Wrapper remains blocked; no runtime proof or demo promotion.
+
 **Objective:** Decide whether `Qwen/Qwen-AgentWorld-35B-A3B` can become a native BloomBee stretch target.
+
+**Completed artifact:**
+- Evidence: `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`
+- Test: `tests/test_mvp_capabilities.py::test_qwen_agentworld_wrapper_scout_blocks_copying_qwen3_moe_wrapper`
+
+**Claim boundary:** `post_mvp_wrapper_scout_no_runtime_proof_no_demo_promotion`
+
+**Decision:** Do not copy the existing `qwen3_moe` wrapper. AgentWorld config uses `qwen3_5_moe` / `qwen3_5_moe_text`, alternating `linear_attention` and `full_attention` layers, mRoPE parameters, and linear-attention head fields; import/config-dispatch TDD must come before any wrapper code or one-block proof.
 
 **Files:**
 - Create or modify: `src/bloombee/models/qwen3_5_moe/`

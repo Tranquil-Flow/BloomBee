@@ -113,6 +113,18 @@ Review questions:
 - Should PEFT live tests move to an explicit network CI job with cache/token setup?
 - Should there be a local fixture-only PEFT safety test that still runs by default?
 
+### `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`
+
+Completed a config-only wrapper scout for Task 8, before writing any `qwen3_5_moe` code. Result: **do not copy the existing `qwen3_moe` wrapper**. AgentWorld exposes top-level `model_type=qwen3_5_moe` plus text tower `model_type=qwen3_5_moe_text`, 40 layers, 30 `linear_attention` layers, 10 `full_attention` layers, `full_attention_interval=4`, mRoPE parameters, and linear-attention head fields. Current `WrappedQwen3MoeBlock` is based on `Qwen3MoeDecoderLayer` with standard Qwen3-MoE attention/cache assumptions, so it is not a proof of the AgentWorld attention/cache contract.
+
+Claim boundary:
+
+```text
+post_mvp_wrapper_scout_no_runtime_proof_no_demo_promotion
+```
+
+Next step if Fable wants this lane: write RED import/config-dispatch tests for `qwen3_5_moe` and `qwen3_5_moe_text` first. Do not run one-block proof or mark `architecture_supported=true` until that wrapper layer is green.
+
 ### `docs/layerexecutor-quantized-backend-spike.md` and stretch evidence
 
 Completed a bounded research spike for Task 9:
@@ -162,6 +174,7 @@ Use the project venv.
 
 ```bash
 source .venv/bin/activate
+.venv/bin/python -m json.tool mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json >/dev/null
 .venv/bin/python -m json.tool mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json >/dev/null
 .venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py tests/test_pytest_config.py -q
 .venv/bin/python -m pytest -q
@@ -172,8 +185,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused MVP/dashboard/config suite: `188 passed, 1 warning`.
-- Unfiltered default suite: `384 passed, 23 skipped, 4 warnings`.
+- Focused MVP/dashboard/config suite: `189 passed, 1 warning`.
+- Unfiltered default suite: `385 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
   - `tests/test_cache.py::test_cache_usage` is skipped with a reason because it reproducibly hangs in the multiprocessing memory-cache integration path pending `memory_cache.py` repair.
@@ -226,7 +239,7 @@ Post-MVP workstreams to review and possibly reorder:
 | KV prefix reuse | pending | cache reuse can silently change outputs | Require exact-token/logit parity plus timing delta. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
-| qwen3_5_moe / AgentWorld-35B | blocked | wrapper family differs from existing qwen3_moe | Do a compatibility scout before writing wrapper code. |
+| qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper still blocked | text tower uses alternating linear_attention/full_attention plus mRoPE/linear-attention fields, so qwen3_moe wrapper copy is unsafe | Write RED import/config-dispatch tests for qwen3_5_moe/qwen3_5_moe_text before wrapper code or live proof. |
 | MiniMax/GLM/DeepSeek/Kimi LayerExecutor | research spike complete | no runnable backend proof; all scanned targets blocked by missing wrappers and/or quantized/sparse-attention runtime needs | Keep as separate backend lane; do not touch route/demo status. If continued, pick one target and start with external-runtime smoke, not native BloomBee claims. |
 
 ---
