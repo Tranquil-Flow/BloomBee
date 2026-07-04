@@ -280,9 +280,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 90
-    assert report["overall_bar"] == "██████████████████░░ 90%"
-    assert report["remaining_percent"] == 10
+    assert report["overall_percent"] == 92
+    assert report["overall_bar"] == "██████████████████░░ 92%"
+    assert report["remaining_percent"] == 8
     assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
@@ -299,6 +299,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["status"] == "partial"
     assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
+    assert "server-placement alignment" in tasks["physical_showcase"]["evidence"]
     assert "proof_orchestrator.py" in tasks["physical_showcase"]["evidence"]
 
 
@@ -307,7 +308,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "██████████████████░░ 90%" in text
+    assert "██████████████████░░ 92%" in text
     assert "physical/self-serve showcase with fresh joined devices" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
@@ -330,8 +331,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 90
-    assert payload["overall_bar"].endswith("90%")
+    assert payload["overall_percent"] == 92
+    assert payload["overall_bar"].endswith("92%")
     assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
@@ -688,6 +689,266 @@ def test_physical_showcase_proof_accepts_qwen8_operator_evidence_without_overcla
     assert report["can_update_mvp_status"] is True
     assert report["mvp_status_update"] == {"physical_showcase": "passed"}
     assert report["failed_checks"] == []
+
+
+
+def test_physical_showcase_cross_artifact_verifier_passes_when_joined_plan_generation_load_and_operator_evidence_align(tmp_path: Path):
+    from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
+
+    def write_json(name: str, payload: dict) -> Path:
+        path = tmp_path / name
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    active = write_json(
+        "active.json",
+        {
+            "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+            "active_peers": [
+                {
+                    "peer_id": "peer-a",
+                    "timestamp": 100,
+                    "capabilities": {"hostname": "peer-a", "memory": {"free_gb": 8}, "accelerator": {"device": "mps"}},
+                    "claim_boundary": "heartbeat_only_no_inference_proof",
+                },
+                {
+                    "peer_id": "peer-b",
+                    "timestamp": 100,
+                    "capabilities": {"hostname": "peer-b", "memory": {"free_gb": 8}, "accelerator": {"device": "mps"}},
+                    "claim_boundary": "heartbeat_only_no_inference_proof",
+                },
+            ],
+        },
+    )
+    joined_plan = write_json(
+        "joined-plan.json",
+        {
+            "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+            "source": "coordinator_http_active",
+            "model_id": "test/SixLayer",
+            "active_peer_count": 2,
+            "placement": {
+                "supported": True,
+                "num_layers": 6,
+                "assigned_layers": 6,
+                "assignments": [
+                    {"hostname": "peer-a", "block_range": "0:3", "start_layer": 0, "end_layer": 3},
+                    {"hostname": "peer-b", "block_range": "3:6", "start_layer": 3, "end_layer": 6},
+                ],
+            },
+            "inference_proven": False,
+        },
+    )
+    generation = write_json(
+        "cache-generation.json",
+        {
+            "proof_gate": "cache_generation",
+            "model_id": "test/SixLayer",
+            "cache_generation_proven": True,
+            "parity": {
+                "ok": True,
+                "mode": "generate-api",
+                "model": "test/SixLayer",
+                "generated_ids_match": True,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "server_placements": [
+                    {"host": "peer-a", "layers": [0, 3], "server_maddr": "/ip4/127.0.0.1/tcp/41000/p2p/seed"},
+                    {"host": "peer-b", "layers": [3, 6], "server_maddr": "/ip4/127.0.0.1/tcp/41001/p2p/tail"},
+                ],
+            },
+            "verify": {"status": "passed", "proof_gate": "cache_generation", "can_update_proof_status": True},
+        },
+    )
+    load = write_json(
+        "load.json",
+        {
+            "claim_boundary": "verified_multi_request_load_evidence",
+            "proof_gate": "multi_request_load",
+            "model_id": "test/SixLayer",
+            "status": "passed",
+            "block_range": "0:6",
+            "expected_request_count": 2,
+            "can_update_proof_status": True,
+            "request_results": [
+                {"ok": True, "model": "test/SixLayer", "block_range": [0, 6], "outputs_finite": True, "grad_finite": True},
+                {"ok": True, "model": "test/SixLayer", "block_range": [0, 6], "outputs_finite": True, "grad_finite": True},
+            ],
+        },
+    )
+    operator_evidence = write_json(
+        "operator-evidence.json",
+        {
+            "claim_boundary": "physical_showcase_operator_evidence",
+            "model_id": "test/SixLayer",
+            "fresh_join": {
+                "physical_scanner_interop_proven": True,
+                "fresh_devices": [
+                    {"peer_id": "peer-a", "hostname": "peer-a", "transport": "physical_qr_scan", "heartbeat_count": 3},
+                    {"peer_id": "peer-b", "hostname": "peer-b", "transport": "physical_qr_scan", "heartbeat_count": 3},
+                ],
+                "heartbeat_loop": {
+                    "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                    "inference_proven": False,
+                    "results": [
+                        {"server_response": {"ok": True}, "peer_id": "peer-a"},
+                        {"server_response": {"ok": True}, "peer_id": "peer-a"},
+                        {"server_response": {"ok": True}, "peer_id": "peer-b"},
+                    ],
+                },
+            },
+            "dashboard": {"rendered": True, "observed_peer_ids": ["peer-a", "peer-b"]},
+        },
+    )
+    proof_status = {
+        "test/SixLayer": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
+        }
+    }
+
+    report = verify_physical_showcase_evidence(
+        active_roster_path=active,
+        joined_layer_plan_path=joined_plan,
+        generation_evidence_path=generation,
+        load_evidence_path=load,
+        operator_evidence_path=operator_evidence,
+        proof_status=proof_status,
+        now=130,
+        max_heartbeat_age_seconds=60,
+        min_joined_peers=2,
+    )
+
+    assert report["claim_boundary"] == "physical_showcase_evidence_verifier_no_remote_execution"
+    assert report["proof_gate"] == "physical_showcase"
+    assert report["status"] == "passed"
+    assert report["physical_showcase_proven"] is True
+    assert report["inference_proven"] is True
+    assert report["fresh_joined_peer_count"] == 2
+    assert report["fresh_peer_ids"] == ["peer-a", "peer-b"]
+    assert report["selected_model"] == "test/SixLayer"
+    assert report["generation"]["server_placements_match_joined_plan"] is True
+    assert report["load"]["status"] == "passed"
+    assert report["operator_evidence"]["physical_scanner_interop_proven"] is True
+    assert report["failed_checks"] == []
+    assert report["can_update_mvp_status"] is True
+    assert report["can_update_proof_status"] is False
+
+
+
+def test_physical_showcase_cross_artifact_verifier_rejects_generation_not_tied_to_joined_devices(tmp_path: Path):
+    from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
+
+    def write_json(name: str, payload: dict) -> Path:
+        path = tmp_path / name
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return path
+
+    active = write_json(
+        "active.json",
+        {
+            "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+            "active_peers": [
+                {"peer_id": "peer-a", "timestamp": 100, "capabilities": {"hostname": "peer-a"}, "claim_boundary": "heartbeat_only_no_inference_proof"},
+                {"peer_id": "peer-b", "timestamp": 100, "capabilities": {"hostname": "peer-b"}, "claim_boundary": "heartbeat_only_no_inference_proof"},
+            ],
+        },
+    )
+    joined_plan = write_json(
+        "joined-plan.json",
+        {
+            "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+            "source": "coordinator_http_active",
+            "model_id": "test/SixLayer",
+            "placement": {
+                "supported": True,
+                "num_layers": 6,
+                "assigned_layers": 6,
+                "assignments": [
+                    {"hostname": "peer-a", "block_range": "0:3", "start_layer": 0, "end_layer": 3},
+                    {"hostname": "peer-b", "block_range": "3:6", "start_layer": 3, "end_layer": 6},
+                ],
+            },
+        },
+    )
+    generation = write_json(
+        "m4pro-generation.json",
+        {
+            "proof_gate": "cache_generation",
+            "model_id": "test/SixLayer",
+            "cache_generation_proven": True,
+            "parity": {
+                "ok": True,
+                "mode": "generate-api",
+                "model": "test/SixLayer",
+                "generated_ids_match": True,
+                "generated_text_match": True,
+                "next_token_match": True,
+                "server_placements": [
+                    {"host": "m4pro-full", "layers": [0, 6], "server_maddr": "/ip4/127.0.0.1/tcp/31357/p2p/m4pro"}
+                ],
+            },
+            "verify": {"status": "passed", "proof_gate": "cache_generation", "can_update_proof_status": True},
+        },
+    )
+    operator_evidence = write_json(
+        "operator-evidence.json",
+        {
+            "claim_boundary": "physical_showcase_operator_evidence",
+            "model_id": "test/SixLayer",
+            "fresh_join": {
+                "physical_scanner_interop_proven": True,
+                "fresh_devices": [
+                    {"peer_id": "peer-a", "hostname": "peer-a", "transport": "physical_qr_scan", "heartbeat_count": 3},
+                    {"peer_id": "peer-b", "hostname": "peer-b", "transport": "physical_qr_scan", "heartbeat_count": 3},
+                ],
+                "heartbeat_loop": {
+                    "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                    "inference_proven": False,
+                    "results": [
+                        {"server_response": {"ok": True}, "peer_id": "peer-a"},
+                        {"server_response": {"ok": True}, "peer_id": "peer-a"},
+                        {"server_response": {"ok": True}, "peer_id": "peer-b"},
+                    ],
+                },
+            },
+            "dashboard": {"rendered": True, "observed_peer_ids": ["peer-a", "peer-b"]},
+        },
+    )
+    proof_status = {
+        "test/SixLayer": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
+        }
+    }
+
+    report = verify_physical_showcase_evidence(
+        active_roster_path=active,
+        joined_layer_plan_path=joined_plan,
+        generation_evidence_path=generation,
+        load_evidence_path=None,
+        operator_evidence_path=operator_evidence,
+        proof_status=proof_status,
+        now=130,
+        max_heartbeat_age_seconds=60,
+        min_joined_peers=2,
+        require_load=False,
+    )
+
+    assert report["status"] == "failed"
+    assert report["physical_showcase_proven"] is False
+    assert report["generation"]["status"] == "passed"
+    assert report["generation"]["server_placements_match_joined_plan"] is False
+    assert "generation server placements do not match joined layer plan" in report["failed_checks"]
+    assert report["can_update_mvp_status"] is False
 
 
 

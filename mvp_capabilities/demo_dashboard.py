@@ -212,6 +212,7 @@ def build_dashboard_document(
     chain_schedule_path: str | Path | None = None,
     handoff_bundle_path: str | Path | None = None,
     proof_orchestration_path: str | Path | None = None,
+    physical_showcase_path: str | Path | None = None,
     speculative_plan_path: str | Path | None = None,
     draft_report_path: str | Path | None = None,
     multi_block_diagnostics_path: str | Path | None = None,
@@ -246,6 +247,7 @@ def build_dashboard_document(
     proof_orchestration = _read_json(proof_orchestration_path, None)
     if proof_orchestration is None and isinstance(handoff_bundle, dict):
         proof_orchestration = handoff_bundle.get("proof_orchestration")
+    physical_showcase = _read_json(physical_showcase_path, None)
     speculative_plan = _read_json(speculative_plan_path, None)
     if speculative_plan is None and isinstance(handoff_bundle, dict):
         speculative_plan = handoff_bundle.get("speculative_plan")
@@ -273,6 +275,7 @@ def build_dashboard_document(
         "chain_schedule": chain_schedule,
         "handoff_bundle": handoff_bundle,
         "proof_orchestration": proof_orchestration,
+        "physical_showcase": physical_showcase,
         "speculative_plan": speculative_plan,
         "draft_report": draft_report,
         "multi_block_diagnostics": multi_block_diagnostics,
@@ -816,6 +819,32 @@ def _proof_orchestration_panel(plan: dict[str, Any] | None) -> str:
     """
 
 
+def _physical_showcase_panel(report: dict[str, Any] | None) -> str:
+    if not report:
+        return ""
+    failed_checks = ", ".join(str(item) for item in report.get("failed_checks") or []) or "none"
+    fresh_peers = ", ".join(str(item) for item in report.get("fresh_peer_ids") or []) or "none"
+    generation = report.get("generation") or {}
+    load = report.get("load") or {}
+    return f"""
+      <section class="card wide physical-showcase-evidence">
+        <h2>Physical showcase evidence</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(report.get('selected_model') or report.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Status</span><strong>{_esc(report.get('status') or '—')}</strong></div>
+          <div><span class="label">Showcase proven</span><strong>{_esc(report.get('physical_showcase_proven'))}</strong></div>
+          <div><span class="label">Fresh joined peers</span><strong>{_esc(report.get('fresh_joined_peer_count') or 0)} · {_esc(fresh_peers)}</strong></div>
+          <div><span class="label">Generation proof</span><strong>{_esc(generation.get('proof_gate') or '—')} / {_esc(generation.get('status') or '—')}</strong></div>
+          <div><span class="label">Joined placement match</span><strong>{_esc(generation.get('server_placements_match_joined_plan'))}</strong></div>
+          <div><span class="label">Load proof</span><strong>{_esc(load.get('proof_gate') or '—')} / {_esc(load.get('status') or '—')} · requests {_esc(load.get('request_count') or 0)}</strong></div>
+          <div><span class="label">Boundary</span><code>{_esc(report.get('claim_boundary') or '—')}</code></div>
+        </div>
+        <p class="reason">Failed checks: {_esc(failed_checks)}</p>
+      </section>
+    """
+
+
+
 def _speculative_plan_panel(plan: dict[str, Any] | None) -> str:
     if not plan:
         return ""
@@ -1018,6 +1047,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_chain_schedule_panel(document.get('chain_schedule'))}
     {_handoff_bundle_panel(document.get('handoff_bundle'))}
     {_proof_orchestration_panel(document.get('proof_orchestration'))}
+    {_physical_showcase_panel(document.get('physical_showcase'))}
     {_speculative_plan_panel(document.get('speculative_plan'))}
     {_draft_report_panel(document.get('draft_report'))}
     {_multi_block_diagnostics_panel(document.get('multi_block_diagnostics'))}
@@ -1060,6 +1090,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chain-schedule", default=None, help="Optional JSON from chain_scheduler.py")
     parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
     parser.add_argument("--proof-orchestration", default=None, help="Optional JSON from proof_orchestrator.py or join_http_server.py /proof-orchestration")
+    parser.add_argument("--physical-showcase", default=None, help="Optional JSON from physical_showcase_proof.py")
     parser.add_argument("--speculative-plan", default=None, help="Optional JSON from speculative_decode_plan.py or join_http_server.py /speculative")
     parser.add_argument("--draft-report", default=None, help="Optional JSON from draft_provider.py")
     parser.add_argument("--multi-block-diagnostics", default=None, help="Optional JSON from multi_block_diagnostics.py")
@@ -1085,6 +1116,7 @@ def main(argv: list[str] | None = None) -> int:
             chain_schedule_path=args.chain_schedule,
             handoff_bundle_path=args.handoff_bundle,
             proof_orchestration_path=args.proof_orchestration,
+            physical_showcase_path=args.physical_showcase,
             speculative_plan_path=args.speculative_plan,
             draft_report_path=args.draft_report,
             multi_block_diagnostics_path=args.multi_block_diagnostics,

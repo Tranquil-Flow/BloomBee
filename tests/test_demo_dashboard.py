@@ -438,7 +438,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 90
+    assert doc["mvp_status"]["overall_percent"] == 92
     assert doc["mvp_status"]["scope"] == "mvp_core"
     assert doc["mvp_status"]["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
@@ -470,7 +470,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "██████████████████░░ 90%" in html
+    assert "██████████████████░░ 92%" in html
     assert "physical/self-serve showcase with fresh joined devices" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Planned tasks" in html
@@ -542,6 +542,48 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "DHT bootstrap failed before RPC" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
+
+
+
+def test_dashboard_surfaces_physical_showcase_report_without_overclaiming(tmp_path: Path):
+    from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
+
+    report_path = tmp_path / "physical-showcase.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "physical_showcase_evidence_verifier_no_remote_execution",
+                "proof_gate": "physical_showcase",
+                "status": "failed",
+                "physical_showcase_proven": False,
+                "selected_model": "Qwen/Qwen3-8B",
+                "fresh_joined_peer_count": 2,
+                "fresh_peer_ids": ["peer-a", "peer-b"],
+                "generation": {
+                    "proof_gate": "cache_generation",
+                    "status": "passed",
+                    "server_placements_match_joined_plan": False,
+                },
+                "load": {"proof_gate": "multi_request_load", "status": "passed", "request_count": 3},
+                "failed_checks": ["generation server placements do not match joined layer plan"],
+                "can_update_mvp_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    doc = build_dashboard_document(physical_showcase_path=report_path)
+    html = render_dashboard_html(doc, refresh_seconds=0)
+
+    assert doc["physical_showcase"]["status"] == "failed"
+    assert doc["physical_showcase"]["physical_showcase_proven"] is False
+    assert "Physical showcase evidence" in html
+    assert "physical_showcase_evidence_verifier_no_remote_execution" in html
+    assert "Qwen/Qwen3-8B" in html
+    assert "fresh joined peers" in html.lower()
+    assert "generation server placements do not match joined layer plan" in html
+    assert "showcase proven" in html.lower()
+
 
 
 def test_dashboard_request_telemetry_formats_zero_latency_as_unmeasured():
@@ -639,7 +681,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "██████████████████░░ 90%" in text
+    assert "██████████████████░░ 92%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text
