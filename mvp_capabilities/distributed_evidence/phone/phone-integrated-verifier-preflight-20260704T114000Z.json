@@ -1,0 +1,32 @@
+{
+  "available_tools": {
+    "local_llama_speculative": "/opt/homebrew/bin/llama-speculative",
+    "local_llama_speculative_simple": "/opt/homebrew/bin/llama-speculative-simple",
+    "local_llama_tokenize": "/opt/homebrew/bin/llama-tokenize"
+  },
+  "bloombee_block_serving_proven": false,
+  "claim_boundary": "phone_token_integrated_verifier_preflight_no_speedup_claim",
+  "cli_capability_assessment": {
+    "evidence": "help exposes --model-draft/-md and draft controls, but no flag for precomputed external draft token IDs",
+    "llama_speculative_accepts_external_draft_token_ids": false,
+    "llama_speculative_accepts_model_draft": true
+  },
+  "inputs": {
+    "local_speculative_harness": "mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json",
+    "phone_draft_token_ids": "mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json"
+  },
+  "missing_bindings": {
+    "system_llama_cpp": "ModuleNotFoundError: No module named llama_cpp",
+    "venv_llama_cpp": "ModuleNotFoundError: No module named llama_cpp"
+  },
+  "operator_next_steps": [
+    "implement a custom verifier against llama.cpp C/Python bindings that can ingest phone draft token IDs",
+    "or extend/patch llama.cpp CLI to accept an external draft-token sequence",
+    "then measure phone-backed draft-plus-verifier wall clock against verifier-only before speedup claims"
+  ],
+  "phone_integrated_verifier_proven": false,
+  "preflight_status": "blocked_without_custom_binding_or_cli_extension",
+  "source": "phone_integrated_verifier_preflight_manual_probe",
+  "speedup_proven": false,
+  "timestamp_utc": "20260704T114000Z"
+}

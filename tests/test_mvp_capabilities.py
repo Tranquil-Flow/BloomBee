@@ -3739,6 +3739,21 @@ def test_local_same_gguf_llama_speculative_harness_tracked_reference_accepts_all
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_integrated_verifier_preflight_records_external_token_blocker():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "phone_token_integrated_verifier_preflight_no_speedup_claim"
+    assert report["preflight_status"] == "blocked_without_custom_binding_or_cli_extension"
+    assert report["available_tools"]["local_llama_speculative"] == "/opt/homebrew/bin/llama-speculative"
+    assert "No module named" in report["missing_bindings"]["venv_llama_cpp"]
+    assert report["cli_capability_assessment"]["llama_speculative_accepts_model_draft"] is True
+    assert report["cli_capability_assessment"]["llama_speculative_accepts_external_draft_token_ids"] is False
+    assert report["phone_integrated_verifier_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

@@ -229,6 +229,14 @@ It accepted 8/8 draft tokens, proving the local llama.cpp integrated speculative
 harness is available. It explicitly does **not** involve the phone and does not
 prove phone-backed speedup.
 
+Phone-token integrated verifier preflight:
+`mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json`
+records the next implementation boundary. Local `llama_cpp` Python bindings are
+missing, and the available `llama-speculative` CLI supports `--model-draft` but
+does not expose an option to ingest external phone-provided draft token IDs. The
+next real implementation therefore needs a custom llama.cpp binding path or a
+CLI extension before phone-backed speedup can be measured honestly.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.
