@@ -285,9 +285,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="kv_prefix_reuse",
         label="Real prefill KV prefix reuse",
-        status="pending",
-        evidence="not yet implemented",
-        next_step="post-MVP optimization after cached-generation correctness remains stable",
+        status="partial",
+        evidence="kv_prefix_reuse.py adds a pure prefix-only reuse planner that proves reused prefix + planned suffix reconstructs every request, rejects non-prefix overlap, and tracks claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/kv-prefix-reuse-planner-20260704.json; no live KV cache tensor reuse, server integration, parity proof, or speedup claim yet",
+        next_step="wire prefix lookup into real prefill/session cache metadata behind an opt-in flag, prove hidden-state/token parity, then measure memory and wall-clock impact before any demo promotion",
     ),
 )
 

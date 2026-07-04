@@ -1,0 +1,83 @@
+{
+  "all_reconstructions_match": true,
+  "cache_entry_count_after_plan": 3,
+  "cache_token_hashes": {
+    "doc-a:full": "7b8289a80aa66fb2",
+    "doc-b:full": "bb1921bdc0e72f9a",
+    "other:full": "294a6563fe771c47"
+  },
+  "can_update_demo_status": false,
+  "claim_boundary": "kv_prefix_reuse_planner_simulation_no_live_cache_proof",
+  "live_kv_cache_reuse_proven": false,
+  "live_server_proven": false,
+  "min_reuse_tokens": 2,
+  "operator_next_steps": [
+    "wire prefix lookup into real prefill/session cache metadata behind an opt-in flag",
+    "prove hidden-state/token parity for reused-prefix and full-prefill paths",
+    "measure memory and wall-clock impact before any demo or speedup promotion"
+  ],
+  "plan": [
+    {
+      "matched_cache_id": null,
+      "prefill_token_ids": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "reconstructed_token_ids": [
+        101,
+        102,
+        103,
+        104
+      ],
+      "reconstruction_matches": true,
+      "request_id": "doc-a",
+      "reused_token_count": 0,
+      "reused_token_ids": []
+    },
+    {
+      "matched_cache_id": "doc-a:full",
+      "prefill_token_ids": [
+        205
+      ],
+      "reconstructed_token_ids": [
+        101,
+        102,
+        103,
+        205
+      ],
+      "reconstruction_matches": true,
+      "request_id": "doc-b",
+      "reused_token_count": 3,
+      "reused_token_ids": [
+        101,
+        102,
+        103
+      ]
+    },
+    {
+      "matched_cache_id": null,
+      "prefill_token_ids": [
+        7,
+        8
+      ],
+      "reconstructed_token_ids": [
+        7,
+        8
+      ],
+      "reconstruction_matches": true,
+      "request_id": "other",
+      "reused_token_count": 0,
+      "reused_token_ids": []
+    }
+  ],
+  "request_count": 3,
+  "reuse_event_count": 1,
+  "saved_prefill_tokens": 3,
+  "source": "kv_prefix_reuse.py",
+  "speedup_proven": false,
+  "total_original_prefill_tokens": 10,
+  "total_planned_prefill_tokens": 7,
+  "verification_status": "passed"
+}
