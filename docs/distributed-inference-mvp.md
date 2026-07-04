@@ -72,7 +72,7 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████████░ 94%
+███████████████████░ 96%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
@@ -81,9 +81,11 @@ fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
 dashboard now fail-closed verify and surface operator-captured physical evidence
 plus cross-artifact active-roster/layer-plan/generation-placement/load alignment.
 A real Pixel 8 Pro Termux run proved a fresh physical-device `join_client.py`
-3-heartbeat active-roster path via ADB UI, but physical camera QR scan,
-selected-model server launch from that fresh joined plan, and the final
-`physical_showcase_proof.py` cross-artifact pass remain uncaptured. Qwen3-30B and larger/model-optimisation work remains
+3-heartbeat active-roster path via ADB UI, and a later Pixel 8 Pro camera/browser
+scan proved physical QR transport plus a matching 3-heartbeat Termux join loop.
+Selected-model server launch from that fresh joined plan and the final
+`physical_showcase_proof.py` cross-artifact pass remain blocked because the
+Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B and larger/model-optimisation work remains
 visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
@@ -200,11 +202,12 @@ visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
   renders an SVG join card with exact URL metadata and copy/paste sidecars.
   `mvp_capabilities/join_qr_preflight.py` reports missing QR encoder/decoder
   dependencies fail-closed, and `mvp_capabilities/join_qr_proof.py` can generate
-  a true QR PNG and decode it back to the exact join URL locally. Physical
-  camera scanner interop remains unproven. Pixel 8 Pro Termux via ADB UI now
-  proves a fresh physical-device 3-heartbeat `join_client.py` roster path, but
-  physical camera QR scan remains unproven. This is bootstrap/roster state only
-  and explicitly does not claim inference proof.
+  a true QR PNG and decode it back to the exact join URL locally. Pixel 8 Pro
+  camera/browser scan now proves physical QR transport for the displayed QR, and
+  Pixel 8 Pro Termux via ADB UI proves a fresh physical-device 3-heartbeat
+  `join_client.py` roster path for that QR-scanned offer. This is bootstrap/roster
+  state only and explicitly does not claim inference proof or selected-model
+  server-placement alignment.
   `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
   launch-ready layer-placement runbooks from local state or HTTP `/active`
   without starting servers; `--include-launch-readiness` adds a checklist that

@@ -288,9 +288,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 94
-    assert report["overall_bar"] == "███████████████████░ 94%"
-    assert report["remaining_percent"] == 6
+    assert report["overall_percent"] == 96
+    assert report["overall_bar"] == "███████████████████░ 96%"
+    assert report["remaining_percent"] == 4
     assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
@@ -310,9 +310,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["status"] == "partial"
     assert "Pixel 8 Pro Termux heartbeat" in tasks["fresh_laptop_join"]["evidence"]
-    assert "physical camera scanner interop remains unproven" in tasks["fresh_laptop_join"]["evidence"]
+    assert "Pixel 8 Pro camera/browser scan" in tasks["fresh_laptop_join"]["evidence"]
     assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
     assert "server-placement alignment" in tasks["physical_showcase"]["evidence"]
+    assert "Pixel Termux peer did not report usable Qwen3-8B layer capacity" in tasks["physical_showcase"]["evidence"]
     assert "proof_orchestrator.py" in tasks["physical_showcase"]["evidence"]
     assert "multi-block 0:2" in tasks["qwen3_30b_core_proof"]["evidence"]
     assert "full-generation parity" in tasks["qwen3_30b_core_proof"]["next_step"]
@@ -359,12 +360,41 @@ def test_pixel_fresh_join_evidence_is_redacted_and_no_inference_overclaim():
 
 
 
+def test_pixel_physical_qr_join_evidence_is_redacted_and_keeps_cross_artifact_gate_blocked():
+    evidence_path = Path("mvp_capabilities/distributed_evidence/phone/pixel-physical-qr-join-20260704T151429Z.json")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert evidence["claim_boundary"] == "physical_qr_scan_and_termux_heartbeat_evidence_no_server_placement_claim"
+    assert evidence["status"] == "passed"
+    assert evidence["physical_scanner_interop_proven"] is True
+    assert evidence["fresh_device_heartbeat_loop_proven"] is True
+    assert evidence["fresh_peer_seen_in_active_roster"] is True
+    assert evidence["heartbeat_count"] == 3
+    assert evidence["phone_model"] == "Pixel 8 Pro"
+    assert evidence["physical_showcase_proven"] is False
+    assert evidence["selected_model_server_placement_alignment_proven"] is False
+    assert evidence["inference_proven"] is False
+    assert evidence["can_update_mvp_status"] is False
+    assert evidence["operator_evidence"]["fresh_join"]["physical_scanner_interop_proven"] is True
+    assert evidence["operator_evidence"]["fresh_join"]["fresh_devices"][0]["transport"] == "physical_qr_scan"
+    assert evidence["operator_evidence_verifier"]["status"] == "passed"
+    assert evidence["strict_cross_artifact_verifier"]["status"] == "failed"
+    assert "joined layer plan is not supported" in evidence["strict_cross_artifact_verifier"]["failed_checks"]
+    assert "generation server placements do not match joined layer plan" in evidence["strict_cross_artifact_verifier"]["failed_checks"]
+    assert evidence["strict_cross_artifact_verifier"]["fresh_joined_peer_count"] == 1
+    assert evidence["strict_cross_artifact_verifier"]["layer_plan"]["supported"] is False
+    serialized = json.dumps(evidence)
+    assert "token\": \"physical-qr-20260704" not in serialized
+    assert "bloombee://join" not in serialized
+
+
+
 def test_mvp_status_markdown_contains_status_bar_and_next_gate():
     from mvp_capabilities.mvp_status import build_status_report, render_markdown
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████████░ 94%" in text
+    assert "███████████████████░ 96%" in text
     assert "physical/self-serve showcase with fresh joined devices" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
@@ -387,8 +417,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 94
-    assert payload["overall_bar"].endswith("94%")
+    assert payload["overall_percent"] == 96
+    assert payload["overall_bar"].endswith("96%")
     assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2

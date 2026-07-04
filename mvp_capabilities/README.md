@@ -362,16 +362,18 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████████░ 94%` built from the MVP-core plan, with claim boundary
+  `███████████████████░ 96%` built from the MVP-core plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: physical/self-serve showcase
   with fresh joined devices. `physical_showcase_proof.py`, `proof_orchestrator.py`,
   and `demo_dashboard.py` now provide the fail-closed operator-evidence verifier,
   cross-artifact active-roster/layer-plan/generation-placement/load alignment,
   evidence template, verifier command, missing-evidence blocker, and report panel.
   A real Pixel 8 Pro Termux run proved a fresh physical-device 3-heartbeat
-  `join_client.py` active-roster path via ADB UI, but physical camera QR scan,
-  selected-model server launch from that joined plan, and final
-  `physical_showcase_proof.py` cross-artifact pass remain uncaptured. Qwen3-30B and optimisation work is tracked as
+  `join_client.py` active-roster path via ADB UI, and a Pixel 8 Pro camera/browser
+  scan proved physical QR transport plus a matching 3-heartbeat Termux join loop.
+  Selected-model server launch from that joined plan and final
+  `physical_showcase_proof.py` cross-artifact pass remain blocked because the
+  Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B and optimisation work is tracked as
   post-MVP/stretch, not as part of the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
@@ -498,9 +500,10 @@ As of the current implementation slice:
   Dry-run mode prints the exact request without network side effects.
 - SVG join-card renderer (`join_card.py`) exists: it embeds the exact join URL
   in text/data attributes, renders a deterministic visual grid, and can write
-  `.join.json` / `.join.txt` copy-paste sidecars for phones/operators. It carries
-  `scanner_interop_unproven`; true QR scanner compatibility is still a future
-  proof gate.
+  `.join.json` / `.join.txt` copy-paste sidecars for phones/operators. Pixel 8
+  Pro camera/browser scan now proves physical QR scanner transport for the
+  displayed QR; this still does not prove inference or selected-model server
+  placement.
 - QR scanner preflight/proof (`join_qr_preflight.py`, `join_qr_proof.py`) exists:
   preflight checks for encoder (`qrcode+PIL` or `segno`) and decoder (`cv2` or
   `pyzbar`) options fail-closed, while proof mode generates a true QR PNG and

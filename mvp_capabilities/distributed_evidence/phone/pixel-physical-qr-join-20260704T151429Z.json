@@ -1,0 +1,197 @@
+{
+  "active_roster_redacted": {
+    "active_peers": [
+      {
+        "capabilities": {
+          "accelerator": {
+            "device": "cpu",
+            "gpus": [],
+            "unified_memory": false,
+            "vram_free_gb": null,
+            "vram_total_gb": null
+          },
+          "cpu": {
+            "logical": 9,
+            "model": null,
+            "physical": null
+          },
+          "hostname": "localhost",
+          "huggingface_cache": {
+            "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+            "path": "/data/data/com.termux/files/home/.cache/huggingface"
+          },
+          "memory": {
+            "free_gb": null,
+            "total_gb": null
+          },
+          "mobile": {
+            "cpu_abi": "arm64-v8a",
+            "is_mobile": true,
+            "kind": "android",
+            "manufacturer": "Google",
+            "model": "Pixel 8 Pro",
+            "runtime": "termux",
+            "sdk": "36",
+            "soc": "Tensor G3"
+          },
+          "peers": {},
+          "platform": "android",
+          "python": "3.14.6",
+          "scanned_at": 1783178437.3692367,
+          "schema_version": 1,
+          "tailscale_ip": null,
+          "torch": null,
+          "vram_free_gb": null,
+          "vram_total_gb": null
+        },
+        "claim_boundary": "heartbeat_only_no_inference_proof",
+        "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+        "timestamp": 1783178431,
+        "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2"
+      }
+    ],
+    "claim_boundary": "heartbeat_roster_only_no_inference_proof"
+  },
+  "blocked_remaining_checks": [
+    "server_placements_from_selected_model_generation_must_match_fresh_joined_layer_plan",
+    "multi_request_load_or_generation_artifact_must_be_re-run_through_the_fresh_joined_showcase_path"
+  ],
+  "can_update_mvp_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "physical_qr_scan_and_termux_heartbeat_evidence_no_server_placement_claim",
+  "fresh_device_heartbeat_loop_proven": true,
+  "fresh_peer_seen_in_active_roster": true,
+  "heartbeat_count": 3,
+  "inference_proven": false,
+  "join_url_sha256": "e0d08c92eb739ff51607afa353cabf858500e7e14fe24561df92444b8b0fbc58",
+  "model_id": "Qwen/Qwen3-8B",
+  "operator_evidence": {
+    "claim_boundary": "physical_showcase_operator_evidence",
+    "dashboard": {
+      "active_roster_claim_boundary": "heartbeat_roster_only_no_inference_proof",
+      "observed_peer_ids": [
+        "pixel8pro-physical-qr-20260704T151429Z"
+      ],
+      "rendered": true
+    },
+    "fresh_join": {
+      "fresh_devices": [
+        {
+          "android_release": "16",
+          "device_model": "Pixel 8 Pro",
+          "heartbeat_count": 3,
+          "hostname": "localhost",
+          "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+          "transport": "physical_qr_scan"
+        }
+      ],
+      "heartbeat_loop": {
+        "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+        "heartbeat_count": 3,
+        "inference_proven": false,
+        "interval_seconds": 2.0,
+        "requested_count": 3,
+        "results": [
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 1,
+            "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+            "server_response": {
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+              "timestamp": 1783178431,
+              "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2"
+            },
+            "url_sha256": "5867432558ff130c8416415681cf2828febac81af61103173a34ee7e6828865e"
+          },
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 2,
+            "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+            "server_response": {
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+              "timestamp": 1783178431,
+              "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2"
+            },
+            "url_sha256": "5867432558ff130c8416415681cf2828febac81af61103173a34ee7e6828865e"
+          },
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 3,
+            "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+            "server_response": {
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T151429Z",
+              "timestamp": 1783178431,
+              "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2"
+            },
+            "url_sha256": "5867432558ff130c8416415681cf2828febac81af61103173a34ee7e6828865e"
+          }
+        ]
+      },
+      "physical_scanner_interop_proven": true,
+      "scanner_capture": {
+        "claim_boundary": "physical_qr_camera_scan_capture_http_landing_no_inference",
+        "expected_join_url_sha256": "e0d08c92eb739ff51607afa353cabf858500e7e14fe24561df92444b8b0fbc58",
+        "join_url_sha256": "e0d08c92eb739ff51607afa353cabf858500e7e14fe24561df92444b8b0fbc58",
+        "join_url_sha256_match": true,
+        "remote_addr": "192.168.178.198",
+        "status": "passed",
+        "timestamp": 1783178380,
+        "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2",
+        "transport": "physical_camera_scan_to_http_landing_with_embedded_bloombee_join_url",
+        "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
+      }
+    },
+    "model_id": "Qwen/Qwen3-8B"
+  },
+  "operator_evidence_verifier": {
+    "claim_boundary": "verified_physical_showcase_evidence",
+    "failed_checks": [],
+    "physical_showcase_proven_by_operator_evidence_only": true,
+    "status": "passed",
+    "successful_heartbeat_count": 3
+  },
+  "phone_android_release": "16",
+  "phone_model": "Pixel 8 Pro",
+  "physical_scanner_interop_proven": true,
+  "physical_showcase_proven": false,
+  "run_id": "20260704T151429Z",
+  "selected_model_server_placement_alignment_proven": false,
+  "status": "passed",
+  "strict_cross_artifact_verifier": {
+    "can_update_mvp_status": false,
+    "claim_boundary": "physical_showcase_evidence_verifier_no_remote_execution",
+    "failed_checks": [
+      "joined layer plan is not supported",
+      "joined layer plan does not cover every model layer",
+      "generation server placements do not match joined layer plan",
+      "load evidence did not pass multi_request_load gate"
+    ],
+    "fresh_joined_peer_count": 1,
+    "fresh_peer_ids": [
+      "pixel8pro-physical-qr-20260704T151429Z"
+    ],
+    "generation_server_placements_match_joined_plan": false,
+    "layer_plan": {
+      "assigned_layers": 0,
+      "assignments": [],
+      "num_layers": 36,
+      "source": "local_state_dir",
+      "supported": false
+    },
+    "load_status": "failed",
+    "operator_evidence": {
+      "failed_checks": [],
+      "physical_scanner_interop_proven": true,
+      "status": "passed"
+    },
+    "physical_showcase_proven": false,
+    "status": "failed"
+  },
+  "token_sha256": "405aa270b29f669c8d653a97b147efd78a9c2dcce7139cdc7c74456d441ce0d2"
+}
