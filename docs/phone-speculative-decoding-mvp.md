@@ -212,6 +212,16 @@ Prompt IDs match as `[9038, 2501, 263, 931]`; draft IDs match as
 `[3118, 2462, 29892, 263, 2217, 7826, 4257, 28846]`; accepted draft token IDs:
 8/8. This closes the same-GGUF tokenizer-match gate, but not wall-clock speedup.
 
+Wall-clock gate update: `mvp_capabilities/phone_speculative_wallclock_gate.py`
+consumes the phone draft bridge, local same-GGUF verifier, and tokenizer-ID
+comparison artifacts. The tracked report
+`mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json`
+shows sequential phone-draft+verifier is slower than verifier-only:
+0.565503s + 1.837976s = 2.403479s vs 1.837976s. Therefore
+`speedup_proven=false`; the next real speedup gate requires an integrated
+verifier path that validates draft token IDs without rerunning full verifier-only
+decode.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

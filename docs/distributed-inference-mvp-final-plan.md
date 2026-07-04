@@ -181,7 +181,10 @@ Already proven:
   and accepted 33/33 bytes. Same-GGUF tokenizer-ID evidence at
   `mvp_capabilities/distributed_evidence/phone/termux-tokenizer-ids-20260704T111800Z.json`
   plus `mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json`
-  accepted 8/8 draft token IDs. It is still not wall-clock speedup proof.
+  accepted 8/8 draft token IDs. Fail-closed wall-clock evidence at
+  `mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json`
+  shows sequential phone-draft+verifier is slower than verifier-only, so speedup
+  remains unproven.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -614,12 +617,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp,
     wrapped it as a draft-provider-candidate JSON bridge, and compared it against
     positive-control, live Qwen0.5B verifier text, a same-GGUF local verifier,
-    and same-GGUF tokenizer IDs;
+    same-GGUF tokenizer IDs, and a fail-closed wall-clock gate;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
-    verifier-comparison, and tokenizer-ID evidence files are tracked;
+    verifier-comparison, tokenizer-ID, and wall-clock gate evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    claiming speculative speedup. Next: measure phone-draft-plus-verifier wall
-    clock against verifier-only, and wire a BloomBee execution harness only after
+    claiming speculative speedup. Next: build an integrated draft verifier path
+    before speedup claims, and wire a BloomBee execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.

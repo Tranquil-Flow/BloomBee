@@ -3675,6 +3675,50 @@ def test_same_gguf_tokenizer_id_comparison_tracked_evidence_matches_phone_and_lo
     assert compare["can_update_speculative_speedup_status"] is False
 
 
+def test_phone_speculative_wallclock_gate_rejects_sequential_slower_path():
+    from mvp_capabilities.phone_speculative_wallclock_gate import build_phone_speculative_wallclock_gate
+
+    report = build_phone_speculative_wallclock_gate(
+        phone_draft_elapsed_s=0.6,
+        verifier_only_elapsed_s=1.0,
+        verifier_acceptance_proven=True,
+        tokenizer_id_match_proven=True,
+        measured_draft_plus_verifier_elapsed_s=None,
+        source_artifacts=["phone.json", "verifier.json"],
+    )
+
+    assert report["claim_boundary"] == "phone_speculative_wallclock_gate_fail_closed"
+    assert report["sequential_draft_plus_verifier_elapsed_s"] == 1.6
+    assert report["verifier_only_elapsed_s"] == 1.0
+    assert report["verifier_acceptance_proven"] is True
+    assert report["tokenizer_id_match_proven"] is True
+    assert report["wallclock_speedup_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["blocked_reason"] == "sequential_draft_plus_verifier_not_faster_than_verifier_only"
+    assert report["speedup_ratio"] == 0.625
+    assert report["can_update_speculative_speedup_status"] is False
+
+
+def test_phone_speculative_wallclock_gate_tracked_evidence_blocks_speedup():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "phone_speculative_wallclock_gate_fail_closed"
+    assert report["timing_kind"] == "sequential_phone_draft_plus_verifier_only"
+    assert report["phone_draft_elapsed_s"] == 0.565503
+    assert report["verifier_only_elapsed_s"] == 1.837976
+    assert report["sequential_draft_plus_verifier_elapsed_s"] == 2.403479
+    assert report["candidate_draft_plus_verifier_elapsed_s"] == 2.403479
+    assert report["verifier_acceptance_proven"] is True
+    assert report["tokenizer_id_match_proven"] is True
+    assert report["wallclock_speedup_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["blocked_reason"] == "sequential_draft_plus_verifier_not_faster_than_verifier_only"
+    assert report["speedup_ratio"] == 0.764715
+    assert report["can_update_speculative_speedup_status"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
