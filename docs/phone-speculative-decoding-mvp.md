@@ -247,6 +247,10 @@ Tracked artifact:
 It accepts 33/33 UTF-8 bytes and 8 context-generated target tokens
 (`[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]`). It still does **not**
 ingest external phone token IDs and does **not** prove speedup.
+Important tokenization pitfall: standalone tokenization of the draft text starts
+with `3118`, while retokenizing `rendered_prompt + draft_text` in verifier
+context starts with `6716`; the binding artifact records both and marks the
+standalone/context mismatch explicitly.
 
 ### Slice 3: real phone smoke
 

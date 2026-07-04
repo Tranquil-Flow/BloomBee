@@ -3757,6 +3757,8 @@ def test_phone_llama_cpp_binding_verifier_builds_fail_closed_prefix_report():
         draft_text="One day, a little girl named Lucy",
         generated_token_ids=[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846],
         generated_token_bytes=[b"One", b" day", b",", b" a", b" little", b" girl", b" named", b" Lucy"],
+        context_retokenized_token_ids=[6716, 2462, 29892, 263, 2217, 7826, 4257, 28846],
+        standalone_draft_token_ids=[3118, 2462, 29892, 263, 2217, 7826, 4257, 28846],
         elapsed_s=0.25,
         model_sha256="61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
         llama_cpp_python_version="0.3.test",
@@ -3769,6 +3771,9 @@ def test_phone_llama_cpp_binding_verifier_builds_fail_closed_prefix_report():
     assert report["proposed_utf8_byte_count"] == 33
     assert report["accepted_generated_token_count"] == 8
     assert report["generated_context_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert report["context_retokenized_draft_token_ids"] == [6716, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert report["context_retokenization_matches_generated"] is True
+    assert report["standalone_draft_token_ids_known_mismatch"] is True
     assert report["phone_external_token_ids_ingested"] is False
     assert report["phone_integrated_verifier_proven"] is True
     assert report["speedup_proven"] is False

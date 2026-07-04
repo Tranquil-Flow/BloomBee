@@ -47,6 +47,8 @@ def build_text_prefix_verifier_report(
     draft_text: str,
     generated_token_ids: Sequence[int],
     generated_token_bytes: Sequence[bytes],
+    context_retokenized_token_ids: Sequence[int] | None = None,
+    standalone_draft_token_ids: Sequence[int] | None = None,
     elapsed_s: float,
     model_sha256: str,
     llama_cpp_python_version: str,
@@ -85,6 +87,15 @@ def build_text_prefix_verifier_report(
 
     accepted_text = bytes(accepted).decode("utf-8", errors="replace")
     proven = len(accepted) == len(proposed)
+    generated_ids = [int(token) for token in generated_token_ids]
+    context_ids = [
+        int(token) for token in (context_retokenized_token_ids or generated_token_ids)
+    ]
+    standalone_ids = (
+        [int(token) for token in standalone_draft_token_ids]
+        if standalone_draft_token_ids is not None
+        else None
+    )
     return {
         "claim_boundary": CLAIM_BOUNDARY,
         "prompt": prompt,
@@ -97,7 +108,13 @@ def build_text_prefix_verifier_report(
         "draft_text": draft_text,
         "generated_prefix_text": _text_from_bytes(generated_token_bytes),
         "accepted_text": accepted_text,
-        "generated_context_token_ids": [int(token) for token in generated_token_ids],
+        "generated_context_token_ids": generated_ids,
+        "context_retokenized_draft_token_ids": context_ids,
+        "standalone_draft_token_ids": standalone_ids,
+        "context_retokenization_matches_generated": context_ids == generated_ids,
+        "standalone_draft_token_ids_known_mismatch": (
+            standalone_ids is not None and standalone_ids != context_ids
+        ),
         "generated_context_token_texts": [
             token.decode("utf-8", errors="replace") for token in generated_token_bytes
         ],
@@ -147,6 +164,11 @@ def verify_draft_text_with_llama_cpp(
     )
     rendered = render_llama_cpp_chat_prompt(prompt)
     prompt_tokens = llm.tokenize(rendered.encode("utf-8"), add_bos=True)
+    full_prompt_with_draft_tokens = llm.tokenize(
+        (rendered + draft_text).encode("utf-8"), add_bos=True
+    )
+    context_retokenized_token_ids = full_prompt_with_draft_tokens[len(prompt_tokens) :]
+    standalone_draft_token_ids = llm.tokenize(draft_text.encode("utf-8"), add_bos=False)
     llm.eval(prompt_tokens)
 
     proposed = draft_text.encode("utf-8")
@@ -174,6 +196,8 @@ def verify_draft_text_with_llama_cpp(
         draft_text=draft_text,
         generated_token_ids=generated_ids,
         generated_token_bytes=generated_bytes,
+        context_retokenized_token_ids=context_retokenized_token_ids,
+        standalone_draft_token_ids=standalone_draft_token_ids,
         elapsed_s=time.perf_counter() - start,
         model_sha256=_sha256(model_path),
         llama_cpp_python_version=getattr(llama_cpp, "__version__", "unknown"),

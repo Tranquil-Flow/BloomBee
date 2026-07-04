@@ -4,8 +4,19 @@
   "accepted_utf8_byte_count": 33,
   "bloombee_block_serving_proven": false,
   "claim_boundary": "phone_draft_llama_cpp_binding_text_prefix_verifier_no_external_token_ingest_no_speedup_claim",
+  "context_retokenization_matches_generated": true,
+  "context_retokenized_draft_token_ids": [
+    6716,
+    2462,
+    29892,
+    263,
+    2217,
+    7826,
+    4257,
+    28846
+  ],
   "draft_text": "One day, a little girl named Lucy",
-  "elapsed_s": 0.308451,
+  "elapsed_s": 0.180982,
   "generated_context_token_ids": [
     6716,
     2462,
@@ -45,5 +56,16 @@
   "rejected_utf8_byte_count": 0,
   "rendered_prompt": "<|im_start|>user\nOnce upon a time<|im_end|>\n<|im_start|>assistant\n",
   "speedup_proven": false,
+  "standalone_draft_token_ids": [
+    3118,
+    2462,
+    29892,
+    263,
+    2217,
+    7826,
+    4257,
+    28846
+  ],
+  "standalone_draft_token_ids_known_mismatch": true,
   "text_prefix_acceptance_proven": true
 }
