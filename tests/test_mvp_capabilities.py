@@ -284,6 +284,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["qwen3_8b_proof"]["status"] == "partial"
     assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
     assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
+    assert "torch/transformers/tokenizers/llama_cpp/bloombee missing" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["done"] is False
 
@@ -3208,6 +3209,154 @@ def test_termux_draft_latency_tracked_phone_evidence_has_honest_boundaries():
     assert payload["speedup_proven"] is False
     assert payload["inference_proven"] is False
     assert payload["can_update_proof_status"] is False
+
+
+def test_termux_tiny_model_probe_render_contains_read_only_boundaries():
+    from mvp_capabilities.termux_tiny_model_probe import render_termux_tiny_model_probe_script
+
+    script = render_termux_tiny_model_probe_script()
+
+    assert "termux_tiny_model_probe_only_no_inference_proof" in script
+    assert "Read-only: no installs" in script
+    assert "python_modules" in script
+    assert "bloombee_block_serving_ready" in script
+    assert "generation_proven" in script
+
+
+def test_termux_tiny_model_probe_verifier_accepts_termux_payload(tmp_path: Path):
+    from mvp_capabilities.termux_tiny_model_probe import verify_termux_tiny_model_probe
+
+    evidence = tmp_path / "probe.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_tiny_model_probe.sh",
+                "claim_boundary": "termux_tiny_model_probe_only_no_inference_proof",
+                "phone_runtime": {"is_mobile": True, "kind": "android", "runtime": "termux", "is_termux": True},
+                "memory": {"mem_total_gb": 12.0, "mem_available_gb": 8.0, "swap_total_gb": 0.0, "swap_free_gb": 0.0},
+                "storage": {"home": {"free_gb": 10.0}, "prefix": {"free_gb": 10.0}},
+                "python_modules": {"torch": False, "transformers": False, "tokenizers": False, "llama_cpp": False, "bloombee": False},
+                "commands": {"pkg": "/data/data/com.termux/files/usr/bin/pkg", "pip": "/data/data/com.termux/files/usr/bin/pip", "clang": None},
+                "feasibility": {
+                    "static_draft_contract_ready": True,
+                    "python_transformers_tiny_model_ready": False,
+                    "llama_cpp_tiny_model_import_ready": False,
+                    "llama_cpp_tiny_model_build_possible_unproven": False,
+                    "bloombee_block_serving_ready": False,
+                    "known_blockers": ["python_torch_missing_for_transformers_or_bloombee"],
+                    "recommended_next_step": "install a tiny runtime",
+                },
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_tiny_model_probe(evidence)
+
+    assert report["claim_boundary"] == "termux_tiny_model_probe_verifier_only_no_inference_proof"
+    assert report["verification_status"] == "passed"
+    assert report["termux_detected"] is True
+    assert report["feasibility"]["static_draft_contract_ready"] is True
+    assert report["feasibility"]["bloombee_block_serving_ready"] is False
+    assert report["inference_proven"] is False
+
+
+def test_termux_tiny_model_probe_verifier_rejects_inference_claim(tmp_path: Path):
+    from mvp_capabilities.termux_tiny_model_probe import verify_termux_tiny_model_probe
+
+    evidence = tmp_path / "bad-probe.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_tiny_model_probe.sh",
+                "claim_boundary": "termux_tiny_model_probe_only_no_inference_proof",
+                "phone_runtime": {"is_termux": True},
+                "memory": {"mem_total_gb": 12.0, "mem_available_gb": 8.0, "swap_total_gb": 0.0, "swap_free_gb": 0.0},
+                "python_modules": {"torch": False, "transformers": False},
+                "commands": {"pkg": "/bin/pkg"},
+                "feasibility": {"static_draft_contract_ready": True, "known_blockers": []},
+                "generation_proven": True,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_tiny_model_probe(evidence)
+
+    assert report["verification_status"] == "failed"
+    assert "generation_proven must be false" in report["errors"]
+
+
+def test_termux_tiny_model_probe_cli_render_run_and_local_verify(tmp_path: Path):
+    script = tmp_path / "probe.sh"
+    render = subprocess.run(
+        [sys.executable, "mvp_capabilities/termux_tiny_model_probe.py", "render", "--out", str(script), "--json"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert render.returncode == 0, render.stderr
+    render_payload = json.loads(render.stdout)
+    assert render_payload["out"] == str(script)
+    assert render_payload["inference_proven"] is False
+
+    local = subprocess.run(["sh", str(script)], text=True, capture_output=True, check=False, timeout=15)
+    assert local.returncode == 0, local.stderr
+    evidence = tmp_path / "local-probe.json"
+    evidence.write_text(local.stdout, encoding="utf-8")
+    verify = subprocess.run(
+        [sys.executable, "mvp_capabilities/termux_tiny_model_probe.py", "verify", "--evidence", str(evidence), "--allow-non-termux"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert verify.returncode == 0, verify.stderr
+    report = json.loads(verify.stdout)
+    assert report["verification_status"] == "passed"
+    assert "torch" in report["python_modules"]
+    assert "pkg" in report["commands"]
+    assert report["generation_proven"] is False
+
+
+def test_termux_tiny_model_probe_tracked_phone_evidence_has_real_blockers():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["verification_status"] == "passed"
+    assert payload["claim_boundary"] == "termux_tiny_model_probe_verifier_only_no_inference_proof"
+    assert payload["termux_detected"] is True
+    runtime = payload["runtime_summary"]
+    assert runtime["android_model"] == "Pixel 8 Pro"
+    assert runtime["runtime"] == "termux"
+    assert runtime["cpu_count"] == 9
+    assert payload["memory"]["mem_total_gb"] == 11.851
+    assert payload["memory"]["mem_available_gb"] == 2.557
+    modules = payload["python_modules"]
+    assert modules["torch"] is False
+    assert modules["transformers"] is False
+    assert modules["tokenizers"] is False
+    assert modules["llama_cpp"] is False
+    assert modules["bloombee"] is False
+    assert payload["feasibility"]["static_draft_contract_ready"] is True
+    assert payload["feasibility"]["llama_cpp_tiny_model_build_possible_unproven"] is True
+    assert payload["feasibility"]["bloombee_block_serving_ready"] is False
+    assert "python_torch_missing_for_transformers_or_bloombee" in payload["feasibility"]["known_blockers"]
+    assert payload["generation_proven"] is False
+    assert payload["speedup_proven"] is False
+    assert payload["inference_proven"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():

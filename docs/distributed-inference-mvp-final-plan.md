@@ -158,9 +158,11 @@ Already proven:
   exposes the contract over stdio JSONL for Termux/ADB/SSH experiments;
   `termux_draft_smoke.py` renders/verifies a pasteable Termux script when direct
   ADB control is unavailable; `termux_draft_latency.py` measures repeated static
-  contract-loop latency. Tracked Pixel 8 Pro Termux evidence now includes
-  `mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`
-  and `mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json`.
+  contract-loop latency; `termux_tiny_model_probe.py` records installed-runtime
+  blockers. Tracked Pixel 8 Pro Termux evidence now includes
+  `mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`,
+  `mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json`,
+  and `mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json`.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -588,11 +590,11 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     adds stdio JSONL transport groundwork; `termux_draft_smoke.py` adds a
     pasteable phone smoke script/verifier for sandboxed ADB situations;
     `termux_draft_latency.py` adds repeated static-contract latency measurement;
-    real Pixel 8 Pro Termux smoke and latency evidence files are tracked;
+    `termux_tiny_model_probe.py` adds a real installed-runtime/blocker probe;
+    real Pixel 8 Pro Termux smoke, latency, and feasibility evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    running live generation. Next: replace the static phone loop with a real tiny
-    draft provider or compare against verifier-only baseline, and wire an
-    execution harness only after
+    running live generation. Next: install/enable a tiny GGUF draft runtime or
+    keep phone as control-plane/static-draft, and wire an execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.

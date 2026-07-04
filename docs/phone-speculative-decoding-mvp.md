@@ -139,6 +139,17 @@ static in-process contract loop. Boundary:
 tiny-model benchmark, not a network round-trip bridge benchmark, and not a
 speedup proof.
 
+2026-07-04 feasibility update: `mvp_capabilities/termux_tiny_model_probe.py`
+verified the phone environment without installing or downloading anything.
+Tracked report:
+`mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json`.
+Facts from the Pixel 8 Pro: 11.851 GB total RAM, 2.557 GB available RAM,
+28.425 GB free storage, Termux Python 3.13.13, clang/cmake/make/git/pip/pkg
+present. Genuine blockers for real tiny-model draft or BloomBee block serving:
+`torch`, `transformers`, `tokenizers`, `llama_cpp`, and `bloombee` are not
+installed. The likely next path is a tiny GGUF/llama.cpp-style draft runtime;
+Python/PyTorch BloomBee block serving is not ready on this phone.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

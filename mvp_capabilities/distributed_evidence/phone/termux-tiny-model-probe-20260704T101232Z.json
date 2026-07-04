@@ -1,0 +1,158 @@
+{
+  "can_update_proof_status": false,
+  "claim_boundary": "termux_tiny_model_probe_verifier_only_no_inference_proof",
+  "commands": {
+    "clang": "/data/data/com.termux/files/usr/bin/clang",
+    "cmake": "/data/data/com.termux/files/usr/bin/cmake",
+    "git": "/data/data/com.termux/files/usr/bin/git",
+    "make": "/data/data/com.termux/files/usr/bin/make",
+    "pip": "/data/data/com.termux/files/usr/bin/pip",
+    "pip3": "/data/data/com.termux/files/usr/bin/pip3",
+    "pkg": "/data/data/com.termux/files/usr/bin/pkg",
+    "proot-distro": null,
+    "python": "/data/data/com.termux/files/usr/bin/python",
+    "python3": "/data/data/com.termux/files/usr/bin/python3",
+    "termux-info": "/data/data/com.termux/files/usr/bin/termux-info"
+  },
+  "errors": [],
+  "evidence": {
+    "can_update_proof_status": false,
+    "claim_boundary": "termux_tiny_model_probe_only_no_inference_proof",
+    "commands": {
+      "clang": "/data/data/com.termux/files/usr/bin/clang",
+      "cmake": "/data/data/com.termux/files/usr/bin/cmake",
+      "git": "/data/data/com.termux/files/usr/bin/git",
+      "make": "/data/data/com.termux/files/usr/bin/make",
+      "pip": "/data/data/com.termux/files/usr/bin/pip",
+      "pip3": "/data/data/com.termux/files/usr/bin/pip3",
+      "pkg": "/data/data/com.termux/files/usr/bin/pkg",
+      "proot-distro": null,
+      "python": "/data/data/com.termux/files/usr/bin/python",
+      "python3": "/data/data/com.termux/files/usr/bin/python3",
+      "termux-info": "/data/data/com.termux/files/usr/bin/termux-info"
+    },
+    "feasibility": {
+      "bloombee_block_serving_ready": false,
+      "known_blockers": [
+        "python_torch_missing_for_transformers_or_bloombee",
+        "transformers_missing_for_python_tiny_model",
+        "tokenizers_missing_for_hf_tokenization",
+        "llama_cpp_python_missing_for_gguf_tiny_model",
+        "bloombee_python_package_missing_for_block_serving"
+      ],
+      "llama_cpp_tiny_model_build_possible_unproven": true,
+      "llama_cpp_tiny_model_import_ready": false,
+      "python_transformers_tiny_model_ready": false,
+      "recommended_next_step": "install/enable a tiny GGUF draft path if llama_cpp is available, otherwise keep phone as control-plane/static-draft until a tiny runtime is installed",
+      "static_draft_contract_ready": true
+    },
+    "generation_proven": false,
+    "inference_proven": false,
+    "memory": {
+      "mem_available_gb": 2.557,
+      "mem_total_gb": 11.851,
+      "swap_free_gb": 0.373,
+      "swap_total_gb": 5.925
+    },
+    "ok": true,
+    "phone_runtime": {
+      "android_manufacturer": "Google",
+      "android_model": "Pixel 8 Pro",
+      "android_sdk": "36",
+      "cpu_count": 9,
+      "home": "/data/data/com.termux/files/home",
+      "is_mobile": true,
+      "is_termux": true,
+      "kind": "android",
+      "machine": "aarch64",
+      "prefix": "/data/data/com.termux/files/usr",
+      "python": "3.13.13",
+      "runtime": "termux",
+      "soc": "Tensor G3"
+    },
+    "python_modules": {
+      "bloombee": false,
+      "huggingface_hub": false,
+      "llama_cpp": false,
+      "ml_dtypes": false,
+      "numpy": false,
+      "onnxruntime": false,
+      "safetensors": false,
+      "sentencepiece": false,
+      "tokenizers": false,
+      "torch": false,
+      "transformers": false
+    },
+    "source": "termux_tiny_model_probe.sh",
+    "speedup_proven": false,
+    "storage": {
+      "home": {
+        "free_gb": 28.425,
+        "path": "/data/data/com.termux/files/home",
+        "total_gb": 117.743
+      },
+      "prefix": {
+        "free_gb": 28.425,
+        "path": "/data/data/com.termux/files/usr",
+        "total_gb": 117.743
+      }
+    }
+  },
+  "feasibility": {
+    "bloombee_block_serving_ready": false,
+    "known_blockers": [
+      "python_torch_missing_for_transformers_or_bloombee",
+      "transformers_missing_for_python_tiny_model",
+      "tokenizers_missing_for_hf_tokenization",
+      "llama_cpp_python_missing_for_gguf_tiny_model",
+      "bloombee_python_package_missing_for_block_serving"
+    ],
+    "llama_cpp_tiny_model_build_possible_unproven": true,
+    "llama_cpp_tiny_model_import_ready": false,
+    "python_transformers_tiny_model_ready": false,
+    "recommended_next_step": "install/enable a tiny GGUF draft path if llama_cpp is available, otherwise keep phone as control-plane/static-draft until a tiny runtime is installed",
+    "static_draft_contract_ready": true
+  },
+  "generation_proven": false,
+  "inference_proven": false,
+  "memory": {
+    "mem_available_gb": 2.557,
+    "mem_total_gb": 11.851,
+    "swap_free_gb": 0.373,
+    "swap_total_gb": 5.925
+  },
+  "next_step": "install/enable a tiny GGUF draft path if llama_cpp is available, otherwise keep phone as control-plane/static-draft until a tiny runtime is installed",
+  "ok": true,
+  "python_modules": {
+    "bloombee": false,
+    "huggingface_hub": false,
+    "llama_cpp": false,
+    "ml_dtypes": false,
+    "numpy": false,
+    "onnxruntime": false,
+    "safetensors": false,
+    "sentencepiece": false,
+    "tokenizers": false,
+    "torch": false,
+    "transformers": false
+  },
+  "runtime_summary": {
+    "android_manufacturer": "Google",
+    "android_model": "Pixel 8 Pro",
+    "android_sdk": "36",
+    "cpu_count": 9,
+    "home": "/data/data/com.termux/files/home",
+    "is_mobile": true,
+    "is_termux": true,
+    "kind": "android",
+    "machine": "aarch64",
+    "prefix": "/data/data/com.termux/files/usr",
+    "python": "3.13.13",
+    "runtime": "termux",
+    "soc": "Tensor G3"
+  },
+  "source": "termux_tiny_model_probe.py",
+  "speedup_proven": false,
+  "termux_detected": true,
+  "verification_status": "passed"
+}
