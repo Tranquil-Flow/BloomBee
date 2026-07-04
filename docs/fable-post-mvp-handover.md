@@ -237,6 +237,18 @@ Qwen/Qwen3-30B-A3B-Thinking-2507:
   optional unless demo specifically needs thinking/reasoning behavior
 ```
 
+Additional low-grunt remote readiness check before Fable unlock:
+
+```text
+m4pro identity: user=evinova-self, host=m4pro, project_exists=true
+m4pro estimated available memory: 36.94 GB
+Qwen/Qwen3-30B-A3B cache: present, config present, 16 safetensors, ~61.08 GB seen, snapshot ad44e777bcd18fa416d9da3bd8f70d33ebb85d39
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: absent
+Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent
+```
+
+Interpretation for Fable: this makes base 30B the obvious next proof target. The 2507 variants would require fresh download/cache setup before live proof, so reviewing the base full/cache/load ladder is higher-value than debating both 2507 tracks now.
+
 Implemented recommendation:
 
 1. Do **not** make either 2507 variant part of MVP-core. MVP-core is already closed by Qwen3-8B.
