@@ -167,6 +167,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   `/speculative` returns a verifier-authoritative draft-provider plan, and
   `mvp_capabilities/draft_provider.py` adds a dependency-free provider contract
   plus proposed/accepted/rejected counters for dashboard smoke reports;
+  `mvp_capabilities/draft_provider_bridge.py` exposes the same contract over
+  stdio JSONL for Termux/ADB/SSH bridge experiments;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active
   roster, bootstrap runbook, speculative plan, auto route, launch plan, proof

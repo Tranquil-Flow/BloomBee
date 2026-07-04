@@ -102,11 +102,16 @@ a deterministic hash fake, a static fake for RED/GREEN tests, verifier-prefix
 accept/reject accounting, CLI JSON output, and dashboard counters. It still does
 not prove live generation speedup or phone transport.
 
-### Slice 2: remote phone transport
+### Slice 2: remote phone transport — stdio groundwork built
 
 Expose the same provider over a tiny HTTP or stdio bridge. For the user's
 workflow, prefer agent-run Termux commands via ADB/SSH/bridge rather than asking
 the user to type long commands.
+
+`mvp_capabilities/draft_provider_bridge.py` now exposes the same provider
+contract over stdio JSONL, which is the lowest-friction path for Termux/ADB/SSH
+experiments. A real phone run, latency measurement, and acceptance-rate proof are
+still pending.
 
 ### Slice 3: real phone smoke
 

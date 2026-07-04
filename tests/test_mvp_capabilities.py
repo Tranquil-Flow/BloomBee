@@ -2876,6 +2876,69 @@ def test_draft_provider_cli_outputs_dashboard_counters():
     assert payload["generation_proven"] is False
 
 
+def test_draft_provider_bridge_handles_static_request():
+    from mvp_capabilities.draft_provider_bridge import handle_draft_bridge_request
+
+    response = handle_draft_bridge_request(
+        {
+            "request_id": "req-1",
+            "prompt_tokens": [1, 2, 3],
+            "draft_tokens": [5, 6, 7],
+            "verifier_tokens": [5, 9, 10],
+            "max_draft_tokens": 3,
+            "provider_id": "phone-stdio-fake",
+        }
+    )
+
+    assert response["ok"] is True
+    assert response["request_id"] == "req-1"
+    assert response["claim_boundary"] == "draft_provider_stdio_bridge_only_no_generation_proof"
+    assert response["draft_provider_claim_boundary"] == "draft_provider_contract_only_no_generation_proof"
+    assert response["dashboard_counters"] == {"proposed": 3, "accepted": 1, "rejected": 2, "acceptance_rate": 0.333333}
+    assert response["report"]["provider"]["provider_id"] == "phone-stdio-fake"
+    assert response["generation_proven"] is False
+    assert response["can_update_proof_status"] is False
+
+
+def test_draft_provider_bridge_rejects_malformed_payload():
+    from mvp_capabilities.draft_provider_bridge import handle_draft_bridge_request
+
+    response = handle_draft_bridge_request({"request_id": "bad", "prompt_tokens": "1,2,3"})
+
+    assert response["ok"] is False
+    assert response["request_id"] == "bad"
+    assert response["claim_boundary"] == "draft_provider_stdio_bridge_error_no_generation_proof"
+    assert "prompt_tokens must be a JSON list" in response["error"]
+    assert response["inference_proven"] is False
+
+
+def test_draft_provider_bridge_serve_stdio_outputs_jsonl():
+    proc = subprocess.run(
+        [sys.executable, "mvp_capabilities/draft_provider_bridge.py", "serve-stdio"],
+        input=json.dumps(
+            {
+                "request_id": "stdio-1",
+                "prompt_tokens": [1],
+                "draft_tokens": [2, 3],
+                "verifier_tokens": [2, 4],
+                "max_draft_tokens": 2,
+            }
+        )
+        + "\n",
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    lines = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+    assert len(lines) == 1
+    assert lines[0]["ok"] is True
+    assert lines[0]["request_id"] == "stdio-1"
+    assert lines[0]["dashboard_counters"] == {"acceptance_rate": 0.5, "accepted": 1, "proposed": 2, "rejected": 1}
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

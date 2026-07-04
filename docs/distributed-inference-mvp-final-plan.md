@@ -154,7 +154,8 @@ Already proven:
   verifier-authoritative draft-provider roles, exact-token acceptance contracts,
   and a phone-as-draft-only policy. `draft_provider.py` now implements the
   dependency-free `DraftProvider.propose(prompt_tokens, max_draft_tokens)`
-  contract plus verifier-prefix accepted/rejected counters. Coordinator
+  contract plus verifier-prefix accepted/rejected counters; `draft_provider_bridge.py`
+  exposes the contract over stdio JSONL for Termux/ADB/SSH experiments. Coordinator
   `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -578,9 +579,10 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     complete**: `speculative_decode_plan.py` defines verifier-authoritative
     draft-provider roles, exact-token acceptance contracts, and phone-as-draft-
     only policy; `draft_provider.py` adds the deterministic provider contract
-    and proposed/accepted/rejected dashboard counters; `/speculative`,
-    `/handoff`, and the dashboard surface the plan/report without running live
-    generation. Next: run the same contract over a phone bridge, measure
+    and proposed/accepted/rejected dashboard counters; `draft_provider_bridge.py`
+    adds stdio JSONL transport groundwork; `/speculative`, `/handoff`, and the
+    dashboard surface the plan/report without running live generation. Next: run
+    the same contract over a phone bridge, measure
     draft-provider latency/match rate, and wire an execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the

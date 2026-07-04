@@ -117,9 +117,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="chain_scheduler",
         label="Multi-request chain scheduler, speculative decode scaffold, and load proof",
         weight=8,
-        completion=0.62,
+        completion=0.65,
         status="partial",
-        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; proof_orchestrator.py orders handoff launch/proof runbooks and blocks unresolved placeholders or legacy peer flags before operator execution; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; draft_provider.py adds a deterministic DraftProvider.propose contract with verifier-prefix accepted/rejected counters for dashboard smoke reports; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards, treating zero latency as unmeasured; multi_request_load_proof.py verifies repeated direct-client logs and now blocks unmeasured latency before proof promotion",
+        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; proof_orchestrator.py orders handoff launch/proof runbooks and blocks unresolved placeholders or legacy peer flags before operator execution; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; draft_provider.py adds a deterministic DraftProvider.propose contract with verifier-prefix accepted/rejected counters for dashboard smoke reports; draft_provider_bridge.py exposes the same contract over stdio JSONL for Termux/ADB/SSH bridge experiments; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards, treating zero latency as unmeasured; multi_request_load_proof.py verifies repeated direct-client logs and now blocks unmeasured latency before proof promotion",
         next_step="send multi-request live traffic through started servers and pass multi_request_load_proof.py verify; run the draft-provider contract over a real phone bridge and measure latency/match rate before enabling speculative decode",
     ),
     Milestone(
@@ -218,14 +218,14 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="speculative_decode",
         label="Speculative/draft-provider speedup plan",
         status="partial",
-        evidence="speculative_decode_plan.py defines verifier-authoritative draft-provider roles and phone-as-draft-only policy; draft_provider.py provides a deterministic provider interface and accepted/rejected exact-token counters for dashboard smoke reports; no live match-rate/latency proof yet",
+        evidence="speculative_decode_plan.py defines verifier-authoritative draft-provider roles and phone-as-draft-only policy; draft_provider.py provides a deterministic provider interface and accepted/rejected exact-token counters for dashboard smoke reports; draft_provider_bridge.py exposes stdio JSONL transport for phone/Termux bridge tests; no live match-rate/latency proof yet",
         next_step="run the same draft-provider contract over a phone HTTP/stdio bridge, then measure live latency and exact-token acceptance rate before enabling speedup claims",
     ),
     PlanTask(
         id="phone_worker",
         label="Phone as useful inference or draft worker",
         status="partial",
-        evidence="mobile capability fields exist in peer_scan.py and draft_provider.py now defines the phone-compatible draft-provider contract; no real phone throughput, bridge latency, or BloomBee block-serving proof yet",
+        evidence="mobile capability fields exist in peer_scan.py; draft_provider.py defines the phone-compatible draft-provider contract; draft_provider_bridge.py provides stdio JSONL bridge groundwork; no real phone throughput, bridge latency, or BloomBee block-serving proof yet",
         next_step="run peer_scan.py + draft-provider contract over Termux/phone bridge, measure latency/acceptance rate, then try one-block TinyLlama serving before counting phone compute",
     ),
     PlanTask(
