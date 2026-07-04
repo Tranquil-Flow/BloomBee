@@ -438,12 +438,12 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["host"] == "m4pro-seed"
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
-    assert doc["mvp_status"]["overall_percent"] == 96
+    assert doc["mvp_status"]["overall_percent"] == 100
     assert doc["mvp_status"]["scope"] == "mvp_core"
-    assert doc["mvp_status"]["next_gate"] == "physical/self-serve showcase with fresh joined devices"
+    assert doc["mvp_status"]["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
     assert doc["mvp_status"]["task_summary"]["blocked"] == 2
-    assert any(task["id"] == "physical_showcase" and task["done"] is False for task in doc["mvp_status"]["planned_tasks"])
+    assert any(task["id"] == "physical_showcase" and task["done"] is True for task in doc["mvp_status"]["planned_tasks"])
     assert doc["proof_state"]["download_status"] == "complete"
     assert doc["proof_state"]["inference_proven"] is False
     assert doc["joined_layer_plan"]["source"] == "coordinator_http_active"
@@ -470,11 +470,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
-    assert "███████████████████░ 96%" in html
-    assert "physical/self-serve showcase with fresh joined devices" in html
+    assert "████████████████████ 100%" in html
+    assert "MVP core complete; post-MVP improvements next" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Planned tasks" in html
-    assert "Task summary: 7 complete, 6 partial, 2 pending, 2 blocked" in html
+    assert "Task summary: 9 complete, 4 partial, 2 pending, 2 blocked" in html
     assert "TinyLlama distributed fallback generation proof" in html
     assert "Physical/self-serve N-laptop showcase" in html
     assert "Qwen35B candidate branch" in html
@@ -681,7 +681,7 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "BloomBee Distributed Inference Demo Dashboard" in text
     assert "m4pro" in text
     assert "MVP build status" in text
-    assert "███████████████████░ 96%" in text
+    assert "████████████████████ 100%" in text
     assert "Live proof-prep state" in text
     assert "Joined-peer layer plan" in text
     assert "joined-peer-b" in text

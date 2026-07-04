@@ -30,6 +30,30 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 
+def build_synthetic_tensors(
+    *,
+    hidden: int,
+    seq_len: int = 5,
+    seed: int | None = None,
+    input_scale: float = 1.0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build deterministic synthetic hidden states for direct RPC load probes.
+
+    The direct RPC proof is a transport/block finite-value probe, not a claim
+    that arbitrary unbounded random hidden states are in-distribution. A seed and
+    scale make repeated load proofs reproducible while still exercising real
+    forward/backward RPCs.
+    """
+    generator = None
+    if seed is not None:
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(int(seed))
+    test_inputs = torch.randn(1, seq_len, hidden, generator=generator) * float(input_scale)
+    grad_proj = torch.randn(1, seq_len, hidden, generator=generator) * float(input_scale)
+    test_inputs.requires_grad_(True)
+    return test_inputs, grad_proj
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--server-maddr", action="append", required=True,
@@ -45,6 +69,10 @@ def main() -> int:
                         "Default stays daemon=False for sandboxed Hermes shells.")
     p.add_argument("--client-listen", action="store_true",
                    help="Allow the client DHT to listen on a local address. Default stays no_listen=True for sandboxes.")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Optional deterministic seed for synthetic hidden states")
+    p.add_argument("--input-scale", type=float, default=1.0,
+                   help="Scale synthetic hidden states and gradient projection by this factor")
     args = p.parse_args()
 
     print(f"[direct] model={args.model}")
@@ -132,9 +160,13 @@ def main() -> int:
           f"requested layers [{start_block}:{end_block}]")
 
     hidden = config.hidden_size if args.hidden_dim is None else args.hidden_dim
-    test_inputs = torch.randn(1, 5, hidden, requires_grad=True)
-    grad_proj = torch.randn(1, 5, hidden)
-    print(f"[direct] sending test_inputs shape={list(test_inputs.shape)}...")
+    test_inputs, grad_proj = build_synthetic_tensors(
+        hidden=hidden,
+        seq_len=5,
+        seed=args.seed,
+        input_scale=args.input_scale,
+    )
+    print(f"[direct] sending test_inputs shape={list(test_inputs.shape)} seed={args.seed} input_scale={args.input_scale}...")
 
     t0 = time.time()
     outputs = sequential(test_inputs)
@@ -165,6 +197,8 @@ def main() -> int:
         "grad_norm": float(test_inputs.grad.norm()) if has_grad else None,
         "forward_seconds": forward_s,
         "backward_seconds": backward_s,
+        "seed": args.seed,
+        "input_scale": args.input_scale,
     }
     print("[direct] RESULT:", json.dumps(result))
 

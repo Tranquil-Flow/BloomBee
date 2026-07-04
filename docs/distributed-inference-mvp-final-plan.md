@@ -62,21 +62,20 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████████░ 96%
+████████████████████ 100%
 ```
 
-Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
-progress, not public-demo proof. Next gate: **physical/self-serve showcase with
-fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
-dashboard now fail-closed verify and surface operator-captured physical evidence
-plus cross-artifact active-roster/layer-plan/generation-placement/load alignment.
-A real Pixel 8 Pro Termux run proved a fresh physical-device `join_client.py`
-3-heartbeat active-roster path via ADB UI, and a Pixel 8 Pro camera/browser scan
-proved physical QR transport plus a matching 3-heartbeat Termux join loop.
-Selected-model server launch from that fresh joined plan and the final
-`physical_showcase_proof.py` cross-artifact pass remain blocked because the
-Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B/larger models and optimisations are tracked
-as post-MVP/stretch work outside the 100% MVP denominator.
+Claim boundary: `weighted_plan_status_not_demo_proof`. MVP-core is complete and
+post-MVP/stretch work remains outside the 100% denominator. The final same-session
+showcase passed `physical_showcase_proof.py` with a real Pixel 8 Pro camera/browser
+QR scan, a matching Pixel Termux `join_client.py` 3-heartbeat loop with
+`server_response.ok=true`, a fresh `m4pro-full` capacity heartbeat, a joined
+Qwen3-8B layer plan assigning `0:36` to `m4pro-full`, cache-generation parity with
+matching server placements, and a 3/3 deterministic scaled multi-request load
+proof. Redacted evidence is committed at
+`mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json`.
+Qwen3-30B/larger models and optimisations are tracked as post-MVP/stretch work
+outside the 100% MVP denominator.
 
 Already proven:
 
@@ -151,12 +150,11 @@ Already proven:
   physical-device `join_client.py` one-shot or bounded repeated heartbeat
   posting, SVG join-card rendering, QR scanner dependency preflight, local exact
   QR artifact decode proof, a real Pixel 8 Pro Termux 3-heartbeat active-roster
-  run via ADB UI, and a real Pixel 8 Pro camera/browser physical QR scan with a
-  matching 3-heartbeat Termux join loop. Physical QR scanner interoperability is
-  proven for the Pixel path; selected-model server-placement alignment remains
-  unproven until a QR-scanned capacity-reporting peer can receive Qwen3-8B layer
-  assignments, launch servers from that fresh joined plan, and pass
-  `physical_showcase_proof.py`.
+  run via ADB UI, a real Pixel 8 Pro camera/browser physical QR scan with a
+  matching 3-heartbeat Termux join loop, and the final same-session capacity-peer
+  alignment proof where `m4pro-full` joined the same coordinator, received Qwen3-8B
+  layers `0:36`, served the selected model, and passed the strict
+  `physical_showcase_proof.py` cross-artifact verifier.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks using the current `run_server --initial_peers` follower
@@ -644,8 +642,9 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    and cache-generation parity is tracked at
    `mvp_capabilities/distributed_evidence/QWEN3_8B_CACHE_GENERATION_2026-07-04.json`,
    and live full-range multi-request load proof is tracked at
-   `mvp_capabilities/distributed_evidence/QWEN3_8B_MULTI_REQUEST_LOAD_2026-07-04.json`;
-   next gate is the physical/self-serve showcase with fresh joined devices.
+   `mvp_capabilities/distributed_evidence/QWEN3_8B_MULTI_REQUEST_LOAD_2026-07-04.json`,
+   and final same-session physical showcase evidence is tracked at
+   `mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json`.
 8. Qwen3-30B-A3B / Instruct-2507 full-generation/cache/load proof ladder.
    **Qwen3-30B-A3B multi-block slice complete**: clean-archive two-server
    `0:2` direct RPC proof passed with finite forward/backward; next Qwen3-30B

@@ -61,6 +61,7 @@ def record_heartbeat(
 ) -> dict[str, Any]:
     timestamp = _now_seconds() if now is None else int(now)
     payload = {
+        "ok": True,
         "peer_id": peer_id,
         "token": token,
         "timestamp": timestamp,

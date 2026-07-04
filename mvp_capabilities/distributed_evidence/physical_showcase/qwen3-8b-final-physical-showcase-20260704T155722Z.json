@@ -1,0 +1,981 @@
+{
+  "active_roster_redacted": {
+    "active_peers": [
+      {
+        "capabilities": {
+          "accelerator": {
+            "device": "mps",
+            "gpus": [],
+            "unified_memory": true,
+            "vram_free_gb": 30.59,
+            "vram_total_gb": 48.0
+          },
+          "cpu": {
+            "logical": 12,
+            "model": "arm",
+            "physical": 12
+          },
+          "hostname": "m4pro-full",
+          "huggingface_cache": {
+            "free_gb": 115.54,
+            "path": "/Users/evinova-self/.cache/huggingface",
+            "total_gb": 926.35
+          },
+          "memory": {
+            "free_gb": 30.73,
+            "total_gb": 48.0
+          },
+          "mobile": {
+            "is_mobile": false,
+            "kind": null,
+            "runtime": null
+          },
+          "peer_id": "m4pro-full",
+          "peers": {},
+          "platform": "darwin",
+          "python": "3.11.15",
+          "scanned_at": 1783181006.934675,
+          "schema_version": 1,
+          "showcase_role": "selected_qwen3_8b_capacity_peer",
+          "tailscale_ip": "100.84.252.4",
+          "torch": "2.12.1",
+          "vram_free_gb": 30.59,
+          "vram_total_gb": 48.0
+        },
+        "claim_boundary": "heartbeat_only_no_inference_proof",
+        "ok": true,
+        "peer_id": "m4pro-full",
+        "timestamp": 1783181032,
+        "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+      },
+      {
+        "capabilities": {
+          "accelerator": {
+            "device": "cpu",
+            "gpus": [],
+            "unified_memory": false,
+            "vram_free_gb": null,
+            "vram_total_gb": null
+          },
+          "cpu": {
+            "logical": 9,
+            "model": null,
+            "physical": null
+          },
+          "hostname": "localhost",
+          "huggingface_cache": {
+            "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+            "path": "/data/data/com.termux/files/home/.cache/huggingface"
+          },
+          "memory": {
+            "free_gb": null,
+            "total_gb": null
+          },
+          "mobile": {
+            "cpu_abi": "arm64-v8a",
+            "is_mobile": true,
+            "kind": "android",
+            "manufacturer": "Google",
+            "model": "Pixel 8 Pro",
+            "runtime": "termux",
+            "sdk": "36",
+            "soc": "Tensor G3"
+          },
+          "peers": {},
+          "platform": "android",
+          "python": "3.14.6",
+          "scanned_at": 1783180988.9196532,
+          "schema_version": 1,
+          "tailscale_ip": null,
+          "torch": null,
+          "vram_free_gb": null,
+          "vram_total_gb": null
+        },
+        "claim_boundary": "heartbeat_only_no_inference_proof",
+        "ok": true,
+        "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+        "timestamp": 1783180983,
+        "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+      }
+    ],
+    "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+    "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+  },
+  "can_update_mvp_status": true,
+  "claim_boundary": "verified_physical_showcase_same_session_commit_artifact_redacted",
+  "generation_evidence_summary": {
+    "cache_generation_proven": true,
+    "claim_boundary": "verified_qwen3_8b_cache_generation_same_session_physical_showcase",
+    "full_generation_proven": true,
+    "model_id": "Qwen/Qwen3-8B",
+    "parity": {
+      "distributed_dtype": "torch.float16",
+      "distributed_ids": [
+        785,
+        17788,
+        374,
+        264
+      ],
+      "distributed_next_token_id": 264,
+      "distributed_seconds": 17.79561686515808,
+      "distributed_steps": [],
+      "distributed_text": "The moon is a",
+      "distributed_top5": [
+        {
+          "logit": 22.28158187866211,
+          "token_id": 264
+        },
+        {
+          "logit": 21.768047332763672,
+          "token_id": 911
+        },
+        {
+          "logit": 21.148101806640625,
+          "token_id": 13187
+        },
+        {
+          "logit": 21.02904510498047,
+          "token_id": 220
+        },
+        {
+          "logit": 20.382081985473633,
+          "token_id": 279
+        }
+      ],
+      "generated_ids_match": true,
+      "generated_text_match": true,
+      "input_ids": [
+        785,
+        17788,
+        374
+      ],
+      "logits_max_abs_diff": 0.07265353202819824,
+      "logits_mean_abs_diff": 0.025410916656255722,
+      "max_new_tokens": 1,
+      "mode": "generate-api",
+      "model": "Qwen/Qwen3-8B",
+      "next_token_match": true,
+      "ok": true,
+      "prompt": "The moon is",
+      "reference_device": "mps",
+      "reference_dtype": "torch.float16",
+      "reference_ids": [
+        785,
+        17788,
+        374,
+        264
+      ],
+      "reference_next_token_id": 264,
+      "reference_seconds": 1.6533629894256592,
+      "reference_steps": [],
+      "reference_text": "The moon is a",
+      "reference_top5": [
+        {
+          "logit": 22.28125,
+          "token_id": 264
+        },
+        {
+          "logit": 21.78125,
+          "token_id": 911
+        },
+        {
+          "logit": 21.15625,
+          "token_id": 13187
+        },
+        {
+          "logit": 21.046875,
+          "token_id": 220
+        },
+        {
+          "logit": 20.390625,
+          "token_id": 279
+        }
+      ],
+      "server_maddrs": [
+        "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9"
+      ],
+      "server_placements": [
+        {
+          "host": "m4pro-full",
+          "layers": [
+            0,
+            36
+          ],
+          "server_maddr": "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9"
+        }
+      ],
+      "server_to_server": true
+    },
+    "proof_gate": "cache_generation",
+    "verify": {
+      "can_update_proof_status": true,
+      "claim_boundary": "verified_cache_generation_evidence",
+      "evidence_summary": {
+        "distributed_seconds": 17.79561686515808,
+        "generated_ids_match": true,
+        "generated_text_match": true,
+        "max_new_tokens": 1,
+        "mode": "generate-api",
+        "model": "Qwen/Qwen3-8B",
+        "next_token_match": true,
+        "ok": true,
+        "prompt": "The moon is",
+        "reference_seconds": 1.6533629894256592,
+        "server_count": 1,
+        "server_placement_count": 1
+      },
+      "failed_checks": [],
+      "model_id": "Qwen/Qwen3-8B",
+      "proof_gate": "cache_generation",
+      "proof_status_update": {
+        "cache_generation": "passed"
+      },
+      "status": "passed"
+    }
+  },
+  "inference_proven": true,
+  "joined_layer_plan": {
+    "active_heartbeats": [
+      {
+        "capabilities": {
+          "accelerator": {
+            "device": "mps",
+            "gpus": [],
+            "unified_memory": true,
+            "vram_free_gb": 30.59,
+            "vram_total_gb": 48.0
+          },
+          "cpu": {
+            "logical": 12,
+            "model": "arm",
+            "physical": 12
+          },
+          "hostname": "m4pro-full",
+          "huggingface_cache": {
+            "free_gb": 115.54,
+            "path": "/Users/evinova-self/.cache/huggingface",
+            "total_gb": 926.35
+          },
+          "memory": {
+            "free_gb": 30.73,
+            "total_gb": 48.0
+          },
+          "mobile": {
+            "is_mobile": false,
+            "kind": null,
+            "runtime": null
+          },
+          "peer_id": "m4pro-full",
+          "peers": {},
+          "platform": "darwin",
+          "python": "3.11.15",
+          "scanned_at": 1783181006.934675,
+          "schema_version": 1,
+          "showcase_role": "selected_qwen3_8b_capacity_peer",
+          "tailscale_ip": "100.84.252.4",
+          "torch": "2.12.1",
+          "vram_free_gb": 30.59,
+          "vram_total_gb": 48.0
+        },
+        "claim_boundary": "heartbeat_only_no_inference_proof",
+        "ok": true,
+        "peer_id": "m4pro-full",
+        "timestamp": 1783181032,
+        "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+      },
+      {
+        "capabilities": {
+          "accelerator": {
+            "device": "cpu",
+            "gpus": [],
+            "unified_memory": false,
+            "vram_free_gb": null,
+            "vram_total_gb": null
+          },
+          "cpu": {
+            "logical": 9,
+            "model": null,
+            "physical": null
+          },
+          "hostname": "localhost",
+          "huggingface_cache": {
+            "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+            "path": "/data/data/com.termux/files/home/.cache/huggingface"
+          },
+          "memory": {
+            "free_gb": null,
+            "total_gb": null
+          },
+          "mobile": {
+            "cpu_abi": "arm64-v8a",
+            "is_mobile": true,
+            "kind": "android",
+            "manufacturer": "Google",
+            "model": "Pixel 8 Pro",
+            "runtime": "termux",
+            "sdk": "36",
+            "soc": "Tensor G3"
+          },
+          "peers": {},
+          "platform": "android",
+          "python": "3.14.6",
+          "scanned_at": 1783180988.9196532,
+          "schema_version": 1,
+          "tailscale_ip": null,
+          "torch": null,
+          "vram_free_gb": null,
+          "vram_total_gb": null
+        },
+        "claim_boundary": "heartbeat_only_no_inference_proof",
+        "ok": true,
+        "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+        "timestamp": 1783180983,
+        "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+      }
+    ],
+    "active_peer_count": 2,
+    "can_update_proof_status": false,
+    "claim_boundary": "joined_roster_layer_plan_only_no_inference_proof",
+    "heartbeat_claim_boundary": "heartbeat_roster_only_no_inference_proof",
+    "inference_proven": false,
+    "launch_readiness": {
+      "can_update_proof_status": false,
+      "claim_boundary": "launch_readiness_checklist_only_no_server_started",
+      "inference_proven": false,
+      "multiaddr_resolution_claim_boundary": null,
+      "next_step": "resolve placeholders, start servers manually, capture multiaddrs/logs, then run a proof harness",
+      "operator_steps": [
+        "start seed server m4pro-full and capture its announced multiaddr"
+      ],
+      "ready_to_start": true,
+      "server_checks": [
+        {
+          "block_range": "0:36",
+          "blocked_by": [],
+          "hostname": "m4pro-full",
+          "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 0:36 --device mps --torch_dtype float16 --port 31359 --new_swarm",
+          "port": 31359,
+          "ready": true,
+          "role": "seed",
+          "unresolved_placeholders": []
+        }
+      ],
+      "server_count": 1,
+      "unresolved_placeholders": []
+    },
+    "model_id": "Qwen/Qwen3-8B",
+    "next_step": "start generated server commands manually, capture multiaddrs, run direct client proof, then verify with one_block_proof.py or generation parity harness",
+    "placement": {
+      "assigned_layers": 36,
+      "assignments": [
+        {
+          "block_range": "0:36",
+          "capacity_layers": 48,
+          "end_layer": 36,
+          "free_gb": 30.73,
+          "hostname": "m4pro-full",
+          "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 0:36 --device mps --torch_dtype float16 --port 31359 --new_swarm",
+          "layer_count": 36,
+          "port": 31359,
+          "start_layer": 0
+        }
+      ],
+      "claim_boundary": "placement_plan_only_no_inference_proof",
+      "launch_command_defaults": {
+        "base_port": 31359,
+        "device": "mps",
+        "dht_prefix": null,
+        "dtype": "float16"
+      },
+      "launch_command_notes": [
+        "Commands are a runbook only; no server was started by the planner.",
+        "Start the first command, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders in --initial_peers.",
+        "Follower commands use the current run_server --initial_peers CLI flag; BLOOMBEE_INITIAL_PEERS is not read by run_server.py.",
+        "Only promote proof gates after direct client evidence verifies finite outputs/gradients."
+      ],
+      "launch_commands_claim_boundary": "launch_commands_only_no_server_started",
+      "missing_layers": 0,
+      "model_id": "Qwen/Qwen3-8B",
+      "num_layers": 36,
+      "peer_count": 2,
+      "per_layer_required_gb": 0.6389,
+      "reason": "capacity covers all 36 layers across 1 peer(s)",
+      "required_free_gb": 23.0,
+      "supported": true
+    },
+    "planner_peer_count": 2,
+    "planner_peers": [
+      {
+        "accelerator": {
+          "device": "cpu",
+          "gpus": [],
+          "unified_memory": false,
+          "vram_free_gb": null,
+          "vram_total_gb": null
+        },
+        "cpu": {
+          "logical": 9,
+          "model": null,
+          "physical": null
+        },
+        "hostname": "localhost",
+        "huggingface_cache": {
+          "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+          "path": "/data/data/com.termux/files/home/.cache/huggingface"
+        },
+        "join_claim_boundary": "heartbeat_only_no_inference_proof",
+        "joined_at": 1783180983,
+        "joined_peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+        "memory": {
+          "free_gb": null,
+          "total_gb": null
+        },
+        "mobile": {
+          "cpu_abi": "arm64-v8a",
+          "is_mobile": true,
+          "kind": "android",
+          "manufacturer": "Google",
+          "model": "Pixel 8 Pro",
+          "runtime": "termux",
+          "sdk": "36",
+          "soc": "Tensor G3"
+        },
+        "peers": {},
+        "platform": "android",
+        "python": "3.14.6",
+        "scanned_at": 1783180988.9196532,
+        "schema_version": 1,
+        "tailscale_ip": null,
+        "torch": null,
+        "vram_free_gb": null,
+        "vram_total_gb": null
+      },
+      {
+        "accelerator": {
+          "device": "mps",
+          "gpus": [],
+          "unified_memory": true,
+          "vram_free_gb": 30.59,
+          "vram_total_gb": 48.0
+        },
+        "cpu": {
+          "logical": 12,
+          "model": "arm",
+          "physical": 12
+        },
+        "hostname": "m4pro-full",
+        "huggingface_cache": {
+          "free_gb": 115.54,
+          "path": "/Users/evinova-self/.cache/huggingface",
+          "total_gb": 926.35
+        },
+        "join_claim_boundary": "heartbeat_only_no_inference_proof",
+        "joined_at": 1783181032,
+        "joined_peer_id": "m4pro-full",
+        "memory": {
+          "free_gb": 30.73,
+          "total_gb": 48.0
+        },
+        "mobile": {
+          "is_mobile": false,
+          "kind": null,
+          "runtime": null
+        },
+        "peer_id": "m4pro-full",
+        "peers": {},
+        "platform": "darwin",
+        "python": "3.11.15",
+        "scanned_at": 1783181006.934675,
+        "schema_version": 1,
+        "showcase_role": "selected_qwen3_8b_capacity_peer",
+        "tailscale_ip": "100.84.252.4",
+        "torch": "2.12.1",
+        "vram_free_gb": 30.59,
+        "vram_total_gb": 48.0
+      }
+    ],
+    "source": "coordinator_http_active",
+    "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+  },
+  "load_evidence_redacted": {
+    "block_range": "0:36",
+    "can_update_proof_status": true,
+    "claim_boundary": "verified_multi_request_load_evidence",
+    "expected_request_count": 3,
+    "failed_checks": [],
+    "model_id": "Qwen/Qwen3-8B",
+    "proof_gate": "multi_request_load",
+    "proof_status_update": {
+      "multi_request_load": "passed"
+    },
+    "request_results": [
+      {
+        "backward_seconds": 0.3598778247833252,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.38389015197753906,
+        "grad_finite": true,
+        "grad_norm": 4200.2470703125,
+        "input_scale": 0.1,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 9098.0,
+        "seed": 100
+      },
+      {
+        "backward_seconds": 0.3573639392852783,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.3617870807647705,
+        "grad_finite": true,
+        "grad_norm": 2555.892578125,
+        "input_scale": 0.1,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 9403.0,
+        "seed": 101
+      },
+      {
+        "backward_seconds": 0.35368990898132324,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.3828270435333252,
+        "grad_finite": true,
+        "grad_norm": 2376.028564453125,
+        "input_scale": 0.1,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 8985.0,
+        "seed": 102
+      }
+    ],
+    "status": "passed",
+    "telemetry": {
+      "block_ranges": {
+        "0:36": 3
+      },
+      "claim_boundary": "request_telemetry_observability_only_no_load_proof",
+      "errors": [],
+      "latency_seconds": {
+        "backward": {
+          "avg": 0.356977,
+          "count": 3,
+          "max": 0.359878,
+          "min": 0.35369,
+          "p95": 0.359626,
+          "unmeasured_count": 0
+        },
+        "forward": {
+          "avg": 0.376168,
+          "count": 3,
+          "max": 0.38389,
+          "min": 0.361787,
+          "p95": 0.383784,
+          "unmeasured_count": 0
+        }
+      },
+      "live_requests_seen": true,
+      "load_proof_claimed": false,
+      "models": {
+        "Qwen/Qwen3-8B": 3
+      },
+      "next_step": "Run a dedicated multi-request load proof before promoting multi_request_load.",
+      "request_counts": {
+        "failed": 0,
+        "succeeded": 3,
+        "total": 3
+      },
+      "scanned_logs": [
+        "/Users/evinova-self/Projects/distributed-inference-mvp-final-run-20260704T155722Z/.local/final-showcase/20260704T155722Z/logs/qwen3-8b-load2-client-000.log",
+        "/Users/evinova-self/Projects/distributed-inference-mvp-final-run-20260704T155722Z/.local/final-showcase/20260704T155722Z/logs/qwen3-8b-load2-client-001.log",
+        "/Users/evinova-self/Projects/distributed-inference-mvp-final-run-20260704T155722Z/.local/final-showcase/20260704T155722Z/logs/qwen3-8b-load2-client-002.log"
+      ]
+    }
+  },
+  "model_id": "Qwen/Qwen3-8B",
+  "non_secret_notes": [
+    "Raw join URL and coordinator token stayed in .local scratch only.",
+    "Committed heartbeat rows preserve non-secret server_response.ok fields required by the verifier.",
+    "First unscaled random load attempts produced a non-finite gradient; final proof uses deterministic scaled synthetic hidden states with seeds 100,101,102 and input_scale=0.1."
+  ],
+  "operator_evidence_redacted": {
+    "claim_boundary": "physical_showcase_operator_evidence",
+    "dashboard": {
+      "active_peer_count": 2,
+      "active_roster_claim_boundary": "heartbeat_roster_only_no_inference_proof",
+      "observed_peer_ids": [
+        "pixel8pro-physical-qr-20260704T155722Z",
+        "m4pro-full"
+      ],
+      "rendered": true
+    },
+    "fresh_join": {
+      "fresh_devices": [
+        {
+          "android_release": "36",
+          "device_model": "Pixel 8 Pro",
+          "heartbeat_count": 3,
+          "hostname": "localhost",
+          "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+          "transport": "physical_qr_scan"
+        }
+      ],
+      "heartbeat_loop": {
+        "can_update_proof_status": false,
+        "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+        "heartbeat_count": 3,
+        "inference_proven": false,
+        "interval_seconds": 2.0,
+        "requested_count": 3,
+        "results": [
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 1,
+            "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+            "server_response": {
+              "capabilities": {
+                "accelerator": {
+                  "device": "cpu",
+                  "gpus": [],
+                  "unified_memory": false,
+                  "vram_free_gb": null,
+                  "vram_total_gb": null
+                },
+                "cpu": {
+                  "logical": 9,
+                  "model": null,
+                  "physical": null
+                },
+                "hostname": "localhost",
+                "huggingface_cache": {
+                  "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+                  "path": "/data/data/com.termux/files/home/.cache/huggingface"
+                },
+                "memory": {
+                  "free_gb": null,
+                  "total_gb": null
+                },
+                "mobile": {
+                  "cpu_abi": "arm64-v8a",
+                  "is_mobile": true,
+                  "kind": "android",
+                  "manufacturer": "Google",
+                  "model": "Pixel 8 Pro",
+                  "runtime": "termux",
+                  "sdk": "36",
+                  "soc": "Tensor G3"
+                },
+                "peers": {},
+                "platform": "android",
+                "python": "3.14.6",
+                "scanned_at": 1783180988.9196532,
+                "schema_version": 1,
+                "tailscale_ip": null,
+                "torch": null,
+                "vram_free_gb": null,
+                "vram_total_gb": null
+              },
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+              "timestamp": 1783180983,
+              "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+            },
+            "url": "http://192.168.178.37:8787/heartbeat"
+          },
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 2,
+            "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+            "server_response": {
+              "capabilities": {
+                "accelerator": {
+                  "device": "cpu",
+                  "gpus": [],
+                  "unified_memory": false,
+                  "vram_free_gb": null,
+                  "vram_total_gb": null
+                },
+                "cpu": {
+                  "logical": 9,
+                  "model": null,
+                  "physical": null
+                },
+                "hostname": "localhost",
+                "huggingface_cache": {
+                  "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+                  "path": "/data/data/com.termux/files/home/.cache/huggingface"
+                },
+                "memory": {
+                  "free_gb": null,
+                  "total_gb": null
+                },
+                "mobile": {
+                  "cpu_abi": "arm64-v8a",
+                  "is_mobile": true,
+                  "kind": "android",
+                  "manufacturer": "Google",
+                  "model": "Pixel 8 Pro",
+                  "runtime": "termux",
+                  "sdk": "36",
+                  "soc": "Tensor G3"
+                },
+                "peers": {},
+                "platform": "android",
+                "python": "3.14.6",
+                "scanned_at": 1783180988.9196532,
+                "schema_version": 1,
+                "tailscale_ip": null,
+                "torch": null,
+                "vram_free_gb": null,
+                "vram_total_gb": null
+              },
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+              "timestamp": 1783180983,
+              "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+            },
+            "url": "http://192.168.178.37:8787/heartbeat"
+          },
+          {
+            "claim_boundary": "join_client_post_only_no_inference_proof",
+            "iteration": 3,
+            "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+            "server_response": {
+              "capabilities": {
+                "accelerator": {
+                  "device": "cpu",
+                  "gpus": [],
+                  "unified_memory": false,
+                  "vram_free_gb": null,
+                  "vram_total_gb": null
+                },
+                "cpu": {
+                  "logical": 9,
+                  "model": null,
+                  "physical": null
+                },
+                "hostname": "localhost",
+                "huggingface_cache": {
+                  "error": "[Errno 2] No such file or directory: '/data/data/com.termux/files/home/.cache'",
+                  "path": "/data/data/com.termux/files/home/.cache/huggingface"
+                },
+                "memory": {
+                  "free_gb": null,
+                  "total_gb": null
+                },
+                "mobile": {
+                  "cpu_abi": "arm64-v8a",
+                  "is_mobile": true,
+                  "kind": "android",
+                  "manufacturer": "Google",
+                  "model": "Pixel 8 Pro",
+                  "runtime": "termux",
+                  "sdk": "36",
+                  "soc": "Tensor G3"
+                },
+                "peers": {},
+                "platform": "android",
+                "python": "3.14.6",
+                "scanned_at": 1783180988.9196532,
+                "schema_version": 1,
+                "tailscale_ip": null,
+                "torch": null,
+                "vram_free_gb": null,
+                "vram_total_gb": null
+              },
+              "claim_boundary": "heartbeat_only_no_inference_proof",
+              "ok": true,
+              "peer_id": "pixel8pro-physical-qr-20260704T155722Z",
+              "timestamp": 1783180983,
+              "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c"
+            },
+            "url": "http://192.168.178.37:8787/heartbeat"
+          }
+        ]
+      },
+      "physical_scanner_interop_proven": true,
+      "scanner_capture": {
+        "can_update_mvp_status": false,
+        "can_update_proof_status": false,
+        "claim_boundary": "physical_qr_camera_scan_capture_http_landing_no_inference",
+        "expected_join_url_sha256": "dd9a35d67ed7612ab3d42ee739c393f2b217b742cc90a783636936184f82a543",
+        "inference_proven": false,
+        "join_url_sha256": "dd9a35d67ed7612ab3d42ee739c393f2b217b742cc90a783636936184f82a543",
+        "join_url_sha256_match": true,
+        "physical_scanner_interop_proven": true,
+        "raw_join_url_recorded_in_scratch_only": true,
+        "remote_addr": "192.168.178.198",
+        "run_id": "20260704T155722Z",
+        "status": "passed",
+        "timestamp": 1783180839,
+        "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c",
+        "transport": "physical_camera_scan_to_http_landing_with_embedded_bloombee_join_url",
+        "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
+      }
+    },
+    "model_id": "Qwen/Qwen3-8B"
+  },
+  "path_hashes": {
+    "display_html_sha256": "ddcb8aa549e94ba46d0a0444df6dd7cf1e423df5cc0df83a52688a629af8718d",
+    "qr_svg_sha256": "79afa3d9f81d424302e4bcc3c39e13db99905cfb52dac9810141a95f77d91a6a"
+  },
+  "physical_showcase_proven": true,
+  "preferred_server_maddr": "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9",
+  "run_id": "20260704T155722Z",
+  "scan_capture": {
+    "can_update_mvp_status": false,
+    "can_update_proof_status": false,
+    "claim_boundary": "physical_qr_camera_scan_capture_http_landing_no_inference",
+    "expected_join_url_sha256": "dd9a35d67ed7612ab3d42ee739c393f2b217b742cc90a783636936184f82a543",
+    "inference_proven": false,
+    "join_url_sha256": "dd9a35d67ed7612ab3d42ee739c393f2b217b742cc90a783636936184f82a543",
+    "join_url_sha256_match": true,
+    "physical_scanner_interop_proven": true,
+    "raw_join_url_recorded_in_scratch_only": true,
+    "remote_addr": "192.168.178.198",
+    "run_id": "20260704T155722Z",
+    "status": "passed",
+    "timestamp": 1783180839,
+    "token_sha256": "b5254fe78e1725ba70e076e6a83606c008b571d9e301a5c8436d8c51ffec713c",
+    "transport": "physical_camera_scan_to_http_landing_with_embedded_bloombee_join_url",
+    "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36"
+  },
+  "server_maddrs": [
+    "/ip4/100.84.252.4/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9",
+    "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9",
+    "/ip6/::1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9"
+  ],
+  "status": "passed",
+  "strict_verifier": {
+    "can_update_mvp_status": true,
+    "can_update_proof_status": false,
+    "claim_boundary": "physical_showcase_evidence_verifier_no_remote_execution",
+    "failed_checks": [],
+    "fresh_joined_peer_count": 2,
+    "fresh_peer_ids": [
+      "m4pro-full",
+      "pixel8pro-physical-qr-20260704T155722Z"
+    ],
+    "generation": {
+      "joined_plan_assignments": [
+        {
+          "block_range": "0:36",
+          "host": "m4pro-full",
+          "layers": [
+            0,
+            36
+          ]
+        }
+      ],
+      "model_id": "Qwen/Qwen3-8B",
+      "proof_gate": "cache_generation",
+      "server_placements": [
+        {
+          "host": "m4pro-full",
+          "layers": [
+            0,
+            36
+          ],
+          "server_maddr": "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWBAkb4WutEES1QKCsj66yZFF6ns8NxSCpxBKHU9BbGJB9"
+        }
+      ],
+      "server_placements_match_joined_plan": true,
+      "status": "passed"
+    },
+    "inference_proven": true,
+    "join": {
+      "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+      "self_serve_join_proven": true
+    },
+    "layer_plan": {
+      "assigned_layers": 36,
+      "assignments": [
+        {
+          "block_range": "0:36",
+          "host": "m4pro-full",
+          "layers": [
+            0,
+            36
+          ]
+        }
+      ],
+      "num_layers": 36,
+      "source": "coordinator_http_active",
+      "supported": true
+    },
+    "load": {
+      "block_range": "0:36",
+      "covers_model": true,
+      "model_id": "Qwen/Qwen3-8B",
+      "model_matches": true,
+      "proof_gate": "multi_request_load",
+      "request_count": 3,
+      "required": true,
+      "status": "passed",
+      "successful_request_count": 3
+    },
+    "mvp_status_update": {
+      "physical_showcase": "passed"
+    },
+    "operator_evidence": {
+      "failed_checks": [],
+      "physical_scanner_interop_proven": true,
+      "status": "passed"
+    },
+    "physical_showcase_proven": true,
+    "proof_gate": "physical_showcase",
+    "required_joined_peer_count": 1,
+    "selected_model": "Qwen/Qwen3-8B",
+    "selected_model_proof_status": {
+      "cache_generation": "passed",
+      "full_generation": "passed",
+      "multi_block": "passed",
+      "multi_request_load": "passed",
+      "one_block_server": "passed",
+      "prescan": "passed"
+    },
+    "source": "physical_showcase_proof.py",
+    "status": "passed"
+  }
+}

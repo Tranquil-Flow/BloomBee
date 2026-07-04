@@ -1,0 +1,251 @@
+# Fable Post-MVP Review Handover
+
+> **For Fable:** review this implementation as a skeptical engineering reviewer. The goal is not to rubber-stamp 100%; the goal is to find missing proof gates, brittle code, misleading docs/status language, and better post-MVP task ordering.
+
+**Project:** `distributed-inference-mvp`
+
+**Current MVP-core status:** `████████████████████ 100%`
+
+**MVP-core claim boundary:** Qwen3-8B physical/self-serve showcase is proven. Post-MVP work is not complete and must not move the MVP-core denominator.
+
+**Final MVP evidence artifact:**
+
+```text
+mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json
+```
+
+---
+
+## 1. What MVP-core now claims
+
+MVP-core now claims a proof-backed working distributed-inference showcase, not a completed optimization roadmap.
+
+The final strict verifier passed with these aligned artifacts:
+
+1. Real Pixel 8 Pro camera/browser scan of the displayed QR.
+2. Matching Pixel Termux `join_client.py` 3-heartbeat loop.
+3. Non-secret successful heartbeat fields preserved as `server_response.ok=true`.
+4. Same-session `m4pro-full` capacity heartbeat to the same coordinator/token.
+5. Joined Qwen3-8B layer plan assigning layers `0:36` to `m4pro-full`.
+6. Qwen3-8B full-range server launched from that plan.
+7. Cache-generation parity evidence with server placements matching the joined plan.
+8. Deterministic scaled 3/3 direct-client load proof with finite forward/backward.
+9. `physical_showcase_proof.py verify` returned `status: passed`.
+
+MVP-core status is emitted by:
+
+```bash
+.venv/bin/python -m mvp_capabilities.mvp_status --json
+```
+
+Expected headline:
+
+```text
+████████████████████ 100%
+MVP core complete; post-MVP improvements next
+```
+
+---
+
+## 2. Recent code changes to review
+
+### `mvp_capabilities/join_coordinator.py`
+
+Successful heartbeat records now include:
+
+```json
+{"ok": true}
+```
+
+Reason: the strict physical-showcase verifier needs to distinguish successful phone/coordinator heartbeat responses from redacted or failed responses. Raw tokens and raw join URLs remain uncommitted.
+
+Review questions:
+
+- Is `ok=true` only emitted on genuinely successful heartbeat writes?
+- Are failure paths still explicit and fail-closed?
+- Does this preserve backward compatibility for old heartbeat artifacts?
+
+### `scripts/direct_remote_call.py`
+
+Added deterministic scaled synthetic tensor options:
+
+```text
+--seed <int>
+--input-scale <float>
+```
+
+Reason: full-range Qwen3-8B load proof was flaky with unscaled random hidden states; some random backward probes produced non-finite gradients. The proof harness is intended to prove transport/block execution on bounded synthetic tensors, not arbitrary out-of-distribution hidden-state stability.
+
+Review questions:
+
+- Is `input_scale=0.1` honest enough for the load gate, or should the verifier explicitly record/require scale bounds?
+- Should `multi_request_load_proof.py` enforce that deterministic proof metadata is present for Qwen-class load artifacts?
+- Is there a better in-distribution input construction path from token embeddings that still stays cheap?
+
+### Status/docs/tests
+
+Updated MVP status from the previous blocker state to the final artifact-backed 100% state in:
+
+```text
+mvp_capabilities/mvp_status.py
+tests/test_mvp_capabilities.py
+tests/test_demo_dashboard.py
+mvp_capabilities/README.md
+docs/distributed-inference-mvp.md
+docs/distributed-inference-mvp-final-plan.md
+docs/mvp-finish-plan.md
+docs/post-mvp-scope.md
+```
+
+Review questions:
+
+- Are any docs still implying the strict physical showcase is blocked?
+- Does the dashboard/status UI clearly separate MVP-core 100% from post-MVP pending work?
+- Are post-MVP blocked/pending tasks visible enough that a reader will not overclaim?
+
+---
+
+## 3. Verification commands Fable should run
+
+Use the project venv.
+
+```bash
+source .venv/bin/activate
+.venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py -q
+.venv/bin/python -m pytest -q -k 'not test_cache_usage and not peft'
+.venv/bin/python -m mvp_capabilities.mvp_status --json
+/usr/bin/git diff --check
+```
+
+Current verification notes from this handoff commit:
+
+- Focused MVP/dashboard suite: `184 passed, 3 warnings`.
+- Broad local-only suite: `378 passed, 17 skipped, 6 deselected, 6 warnings` with `-k 'not test_cache_usage and not peft'`.
+- Unfiltered full suite is not currently a reliable local gate:
+  - `tests/test_cache.py::test_cache_usage` hangs before this MVP change; the source itself has comments about pending hang fixes in that test area.
+  - `tests/test_peft.py` requires HuggingFace network/cache access and failed here with DNS/connect errors (`nodename nor servname provided`).
+
+Fable should decide whether to make those two areas explicit marks/skips or separate CI jobs before treating unfiltered full-suite failure as a product regression.
+
+Artifact redaction checks:
+
+```bash
+/usr/bin/python3 - <<'PY'
+from pathlib import Path
+p = Path('mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json')
+s = p.read_text()
+for needle in ['bloombee://join', 'token=', '"token":', 'join_url":', 'raw_join_url']:
+    print(needle, s.find(needle))
+PY
+```
+
+Expected: raw-token/raw-join-url patterns should be absent. Hash fields such as `join_url_sha256` and `token_sha256` are expected and allowed.
+
+---
+
+## 4. Post-MVP task map
+
+Canonical plan:
+
+```text
+docs/post-mvp-scope.md
+```
+
+Current task summary from `mvp_status.py`:
+
+```text
+complete: 9
+partial: 4
+pending: 2
+blocked: 2
+total: 17
+```
+
+Post-MVP workstreams to review and possibly reorder:
+
+| Workstream | Current state | Main risk | Suggested next action |
+|---|---:|---|---|
+| Qwen3-30B-A3B full/cache/load | partial/proven lower gates | expensive proof ladder may distract from usability | Finish base 30B full-generation first only if enough compute/time; keep separate from MVP-core. |
+| Qwen3-30B-A3B Instruct/Thinking 2507 | registered, proof pending | same architecture but exact model IDs unproven | Prescan Instruct-2507, then one-block proof before any demo route. Thinking-2507 can wait unless we specifically need reasoning behavior. |
+| Continuous batching | pending | throughput claims can hide correctness regressions | Build fail-closed proof harness with correctness+latency, start on Qwen3-8B/TinyLlama. |
+| KV prefix reuse | pending | cache reuse can silently change outputs | Require exact-token/logit parity plus timing delta. |
+| Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
+| Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
+| qwen3_5_moe / AgentWorld-35B | blocked | wrapper family differs from existing qwen3_moe | Do a compatibility scout before writing wrapper code. |
+| MiniMax/GLM/DeepSeek LayerExecutor | research | native wrappers likely unavailable or huge | Treat as separate backend feasibility, not BloomBee MVP proof. |
+
+---
+
+## 5. Qwen3-30B-A3B vs Qwen3-30B-A3B 2507 recommendation
+
+Short answer: they are **not worth treating as two independent MVP-critical tracks**, but they are also **not identical proof-wise**.
+
+They are effectively the same architecture/memory class in the registry:
+
+- `Qwen/Qwen3-30B-A3B`
+- `Qwen/Qwen3-30B-A3B-Instruct-2507`
+- `Qwen/Qwen3-30B-A3B-Thinking-2507`
+
+All are `qwen3_moe`-family, about `30.5B` total parameters, about `3.3B` active parameters, `hidden_size=2048`, `48` layers, `128` experts, `8` experts per token. That means most infrastructure work should transfer: wrapper compatibility, layer planning, server launch shape, block-range math, memory estimates, and proof harnesses.
+
+But proof status differs today:
+
+```text
+Qwen/Qwen3-30B-A3B:
+  prescan: passed
+  one_block_server: passed
+  multi_block: passed
+  full_generation: pending
+  cache_generation: pending
+  multi_request_load: pending
+
+Qwen/Qwen3-30B-A3B-Instruct-2507:
+  prescan: pending
+  one_block_server: pending
+  multi_block: pending
+  full_generation: pending
+  cache_generation: pending
+  multi_request_load: pending
+
+Qwen/Qwen3-30B-A3B-Thinking-2507:
+  prescan: pending
+  one_block_server: pending
+  multi_block: pending
+  full_generation: pending
+```
+
+Recommendation:
+
+1. Do **not** make both base 30B and 2507 required for “most-MVP.” MVP-core is already closed by Qwen3-8B.
+2. Use the already-proven base `Qwen/Qwen3-30B-A3B` as the substrate/risk reducer because it has prescan + one-block + multi-block proof already.
+3. If we want a product-facing stronger demo after MVP, prioritize **`Qwen/Qwen3-30B-A3B-Instruct-2507`** after base 30B full/cache/load is understood, because instruction tuning is likelier to be user-facing than the base checkpoint.
+4. Treat **Thinking-2507** as optional unless the demo specifically needs thinking/reasoning behavior; it likely adds proof cost without changing infrastructure.
+5. For each exact model ID, still require at least prescan + one-block before route selection, because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
+
+In moonlit terms: one path through the forest is enough to prove the bridge. We should not build two bridges in parallel unless the second one leads to a visibly better demo.
+
+---
+
+## 6. Specific review requests for Fable
+
+Please review with claws out:
+
+1. **Claim hygiene:** find any remaining text/code that overclaims post-MVP work as complete.
+2. **Proof integrity:** check whether final physical showcase evidence can be trusted from committed artifacts alone.
+3. **Load proof semantics:** decide whether deterministic scaled synthetic tensors should be the accepted load gate, or whether the next post-MVP task should move to token-derived hidden states.
+4. **Status model:** verify `mvp_status.py` cannot accidentally count post-MVP work toward MVP-core.
+5. **Route selection:** ensure `safe-demo` cannot select Qwen3-30B or 2507 variants until full/cache/load gates pass.
+6. **Docs coherence:** make sure `docs/distributed-inference-mvp.md`, `docs/distributed-inference-mvp-final-plan.md`, `docs/mvp-finish-plan.md`, and `docs/post-mvp-scope.md` agree.
+7. **Task order:** propose whether post-MVP should prioritize stronger model proof, continuous batching, KV reuse, or phone draft work.
+8. **Code quality:** inspect `join_coordinator.py`, `direct_remote_call.py`, physical-showcase tests, and dashboard/status tests for brittle assumptions.
+
+---
+
+## 7. Non-negotiable guardrails
+
+- Do not re-open MVP-core 100% unless a real verifier/test regression is found.
+- Do not promote Qwen3-30B/2507 to `demo_safe` without exact generated-token parity, cache-generation parity, and multi-request load proof.
+- Do not commit raw tokens, raw `bloombee://join?...` URLs, or scratch `.local/` files.
+- Do not use synthetic peers as real physical evidence.
+- Do not claim phone speculative speedup from standalone phone generation; speedup requires accepted draft tokens and better wall-clock than baseline.
+- Use direct `ssh m4pro` for remote proof work; wrapper failures alone are not M4 Pro unavailability.

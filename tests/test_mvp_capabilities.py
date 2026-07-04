@@ -288,17 +288,17 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 96
-    assert report["overall_bar"] == "███████████████████░ 96%"
-    assert report["remaining_percent"] == 4
-    assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
+    assert report["overall_percent"] == 100
+    assert report["overall_bar"] == "████████████████████ 100%"
+    assert report["remaining_percent"] == 0
+    assert report["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     post_mvp = {item["id"]: item for item in report["post_mvp_milestones"]}
     assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
     assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.35
     assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
-    assert report["task_summary"] == {"complete": 7, "partial": 6, "pending": 2, "blocked": 2, "total": 17}
+    assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
@@ -308,13 +308,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
-    assert tasks["physical_showcase"]["status"] == "partial"
-    assert "Pixel 8 Pro Termux heartbeat" in tasks["fresh_laptop_join"]["evidence"]
-    assert "Pixel 8 Pro camera/browser scan" in tasks["fresh_laptop_join"]["evidence"]
-    assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
-    assert "server-placement alignment" in tasks["physical_showcase"]["evidence"]
-    assert "Pixel Termux peer did not report usable Qwen3-8B layer capacity" in tasks["physical_showcase"]["evidence"]
-    assert "proof_orchestrator.py" in tasks["physical_showcase"]["evidence"]
+    assert tasks["fresh_laptop_join"]["status"] == "complete"
+    assert tasks["physical_showcase"]["status"] == "complete"
+    assert "Pixel 8 Pro camera/browser QR scan" in tasks["fresh_laptop_join"]["evidence"]
+    assert "server_response.ok=true" in tasks["fresh_laptop_join"]["evidence"]
+    assert "Strict physical_showcase_proof.py verifier passed" in tasks["physical_showcase"]["evidence"]
+    assert "m4pro-full capacity heartbeat" in tasks["physical_showcase"]["evidence"]
     assert "multi-block 0:2" in tasks["qwen3_30b_core_proof"]["evidence"]
     assert "full-generation parity" in tasks["qwen3_30b_core_proof"]["next_step"]
 
@@ -388,20 +387,43 @@ def test_pixel_physical_qr_join_evidence_is_redacted_and_keeps_cross_artifact_ga
     assert "bloombee://join" not in serialized
 
 
+def test_final_physical_showcase_artifact_is_redacted_and_closes_mvp_gate():
+    evidence_path = Path("mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert evidence["claim_boundary"] == "verified_physical_showcase_same_session_commit_artifact_redacted"
+    assert evidence["status"] == "passed"
+    assert evidence["physical_showcase_proven"] is True
+    assert evidence["inference_proven"] is True
+    assert evidence["can_update_mvp_status"] is True
+    assert evidence["strict_verifier"]["status"] == "passed"
+    assert evidence["strict_verifier"]["failed_checks"] == []
+    assert evidence["strict_verifier"]["mvp_status_update"] == {"physical_showcase": "passed"}
+    assert evidence["strict_verifier"]["generation"]["server_placements_match_joined_plan"] is True
+    assert evidence["strict_verifier"]["load"]["status"] == "passed"
+    assert evidence["operator_evidence_redacted"]["fresh_join"]["physical_scanner_interop_proven"] is True
+    assert evidence["load_evidence_redacted"]["status"] == "passed"
+    assert len(evidence["load_evidence_redacted"]["request_results"]) == 3
+    assert {row["seed"] for row in evidence["load_evidence_redacted"]["request_results"]} == {100, 101, 102}
+    serialized = json.dumps(evidence)
+    assert '"token":' not in serialized
+    assert "bloombee://join" not in serialized
+    assert "token=" not in serialized
+
 
 def test_mvp_status_markdown_contains_status_bar_and_next_gate():
     from mvp_capabilities.mvp_status import build_status_report, render_markdown
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████████░ 96%" in text
-    assert "physical/self-serve showcase with fresh joined devices" in text
+    assert "████████████████████ 100%" in text
+    assert "MVP core complete; post-MVP improvements next" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
     assert "Post-MVP / stretch milestones" in text
     assert "## Planned tasks" in text
     assert "TinyLlama distributed fallback generation proof | complete | yes" in text
-    assert "Physical/self-serve N-laptop showcase | partial | no" in text
+    assert "Physical/self-serve N-laptop showcase | complete | yes" in text
 
 
 def test_mvp_status_cli_outputs_json():
@@ -417,11 +439,12 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 96
-    assert payload["overall_bar"].endswith("96%")
-    assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
+    assert payload["overall_percent"] == 100
+    assert payload["overall_bar"].endswith("100%")
+    assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
+    assert payload["task_summary"]["complete"] == 9
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
 
@@ -2426,6 +2449,39 @@ def test_join_heartbeat_state_filters_stale_and_wrong_token_peers(tmp_path: Path
 
     assert [peer["peer_id"] for peer in active] == ["fresh-peer"]
     assert active[0]["capabilities"]["memory"]["free_gb"] == 20
+
+
+def test_join_heartbeat_success_record_carries_ok_for_physical_showcase_verifier(tmp_path: Path):
+    from mvp_capabilities.join_coordinator import record_heartbeat
+
+    payload = record_heartbeat(
+        tmp_path / "join-state",
+        token="moon-token",
+        peer_id="fresh-peer",
+        capabilities={"hostname": "fresh-peer", "memory": {"free_gb": 20}},
+        now=1_000,
+    )
+
+    assert payload["ok"] is True
+    assert payload["claim_boundary"] == "heartbeat_only_no_inference_proof"
+    assert payload["peer_id"] == "fresh-peer"
+
+
+def test_direct_remote_call_builds_deterministic_scaled_synthetic_tensors():
+    import torch
+
+    from scripts.direct_remote_call import build_synthetic_tensors
+
+    first_inputs, first_grad = build_synthetic_tensors(hidden=4, seq_len=3, seed=123, input_scale=0.125)
+    second_inputs, second_grad = build_synthetic_tensors(hidden=4, seq_len=3, seed=123, input_scale=0.125)
+    unscaled_inputs, _ = build_synthetic_tensors(hidden=4, seq_len=3, seed=123, input_scale=1.0)
+
+    assert first_inputs.requires_grad is True
+    assert torch.equal(first_inputs, second_inputs)
+    assert torch.equal(first_grad, second_grad)
+    assert torch.allclose(first_inputs.detach(), unscaled_inputs.detach() * 0.125)
+    assert torch.isfinite(first_inputs).all()
+    assert torch.isfinite(first_grad).all()
 
 
 def test_join_coordinator_cli_offer_outputs_json():

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 CLAIM_BOUNDARY = "weighted_plan_status_not_demo_proof"
-NEXT_GATE = "physical/self-serve showcase with fresh joined devices"
+NEXT_GATE = "MVP core complete; post-MVP improvements next"
 MVP_SCOPE = "mvp_core"
 MVP_COMPLETION_DEFINITION = (
     "MVP reaches 100% when a fresh/self-serve joined swarm can run a selected "
@@ -73,10 +73,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="join_flow",
         label="Self-serve join flow, QR/link, heartbeat, live coordinator service",
         weight=10,
-        completion=0.98,
-        status="partial",
-        evidence="join_coordinator.py creates link offers/heartbeats; join_http_server.py exposes health/offer/heartbeat/active/route/plan/speculative/bootstrap/bootstrap.sh/handoff/proof-orchestration endpoints with auto model selection, token-scoped JSON and plain-shell bootstrap scripts, verifier-authoritative speculative plans, embedded proof orchestration checklists, and operator proof-runbook bundles; join_handoff.py fetches/redacts dashboard-ready handoff artifacts; join_client.py posts one-shot or bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; join_qr_proof.py generated a true QR PNG and decoded it back to the exact redacted join URL locally with qrcode+PIL/cv2; generated follower launch runbooks use current run_server --initial_peers join path",
-        next_step="scan the generated QR artifact with physical devices, then run repeated-heartbeat fresh-device showcase through the HTTP coordinator",
+        completion=1.00,
+        status="complete",
+        evidence="join_coordinator.py creates link offers/heartbeats with successful ok:true response records; join_http_server.py exposes health/offer/heartbeat/active/route/plan/speculative/bootstrap/bootstrap.sh/handoff/proof-orchestration endpoints; join_client.py posts bounded repeated peer heartbeats; join_card.py renders SVG cards plus exact URL JSON/TXT sidecars; join_qr_preflight.py reports scanner-proof dependency blockers fail-closed; join_qr_proof.py generated a true QR PNG and decoded it back to the exact redacted join URL locally; the final same-session physical showcase captured a real Pixel camera/browser QR scan plus Pixel Termux heartbeat loop and m4pro capacity heartbeat in mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json",
     ),
     Milestone(
         id="layer_planning",
@@ -123,10 +122,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="physical_showcase",
         label="Physical/self-serve live showcase with fresh joined devices",
         weight=14,
-        completion=0.70,
-        status="partial",
-        evidence="physical_showcase_proof.py now fail-closed verifies operator-captured physical QR scan, repeated fresh-device heartbeat loop, dashboard observation, selected-model proof status, fresh active roster, joined layer plan coverage, generation server placements, and multi-request load evidence; Pixel 8 Pro Termux via ADB UI produced a real 3-heartbeat join_client.py loop and active-roster evidence at mvp_capabilities/distributed_evidence/phone/pixel-fresh-join-heartbeat-20260704T145211Z.json; a real Pixel 8 Pro camera/browser scan of the physical QR plus matching Termux join_client.py 3-heartbeat loop passed at mvp_capabilities/distributed_evidence/phone/pixel-physical-qr-join-20260704T151429Z.json; proof_orchestrator.py and demo_dashboard.py surface the physical-showcase evidence template, verifier command, missing-evidence blocker, and report panel in operator artifacts; selected-model server-placement alignment through the fresh joined plan remains unproven because the Pixel Termux peer did not report usable Qwen3-8B layer capacity",
-        next_step="run a fresh QR-scanned capacity-reporting laptop/peer, launch selected Qwen3-8B proof-backed path from that joined layer plan, and pass the strict cross-artifact physical_showcase_proof.py verifier",
+        completion=1.00,
+        status="complete",
+        evidence="physical_showcase_proof.py strict cross-artifact verifier passed in the same session for Qwen/Qwen3-8B: real Pixel 8 Pro camera/browser QR scan, Pixel Termux join_client.py 3-heartbeat loop with server_response.ok=true, fresh m4pro-full capacity heartbeat, joined layer plan assigning 0:36 to m4pro-full, cache-generation exact ID/text parity with server_placements=m4pro-full:0:36, and deterministic scaled 3/3 multi-request load proof with finite forward/backward. Redacted commit artifact: mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json",
     ),
 )
 
@@ -154,9 +152,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="fresh_laptop_join",
         label="Fresh laptop can join through link/QR without bespoke setup",
-        status="partial",
-        evidence="copy/paste join URL, bootstrap.sh, bounded heartbeat client, SVG join card sidecars, QR dependency preflight, and local true-QR exact decode proof exist; Pixel 8 Pro Termux heartbeat loop via ADB UI proved a real fresh physical-device join_client.py 3-heartbeat roster path at mvp_capabilities/distributed_evidence/phone/pixel-fresh-join-heartbeat-20260704T145211Z.json; a real Pixel 8 Pro camera/browser scan of the displayed physical QR captured the matching join URL hash and the same QR-scanned offer produced 3 successful Termux heartbeats at mvp_capabilities/distributed_evidence/phone/pixel-physical-qr-join-20260704T151429Z.json",
-        next_step="repeat with a fresh capacity-reporting laptop/peer so the joined layer plan can assign Qwen3-8B server ranges",
+        status="complete",
+        evidence="copy/paste join URL, bootstrap.sh, bounded heartbeat client, SVG join card sidecars, QR dependency preflight, and local true-QR exact decode proof exist; final same-session showcase captured a real Pixel 8 Pro camera/browser QR scan, matching scan URL hash, and 3 successful Termux join_client.py heartbeats with server_response.ok=true at mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json",
+        next_step=None,
     ),
     PlanTask(
         id="dashboard_real_devices",
@@ -241,9 +239,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="physical_showcase",
         label="Physical/self-serve N-laptop showcase",
-        status="partial",
-        evidence="physical_showcase_proof.py provides a fail-closed verifier for operator-captured physical QR scan, repeated fresh-device heartbeats, dashboard observation, selected Qwen3-8B proof status, active roster freshness, joined layer plan coverage, generation server-placement alignment, and multi-request load evidence; Pixel 8 Pro Termux via ADB UI produced real fresh-device heartbeat evidence; Pixel 8 Pro camera/browser scan plus matching Termux join_client.py 3-heartbeat loop proved physical QR transport at mvp_capabilities/distributed_evidence/phone/pixel-physical-qr-join-20260704T151429Z.json; proof_orchestrator.py and demo_dashboard.py now expose the physical evidence template, verifier command, missing-evidence blocker, and report panel; server-placement alignment remains blocked because the Pixel Termux peer did not report usable Qwen3-8B layer capacity",
-        next_step="run a fresh QR-scanned capacity-reporting laptop/peer, launch selected Qwen3-8B servers from its joined layer plan, capture physical evidence, and pass the strict cross-artifact physical_showcase_proof.py verifier",
+        status="complete",
+        evidence="Strict physical_showcase_proof.py verifier passed in a same-session final run: Pixel physical QR scan and heartbeat loop, m4pro-full capacity heartbeat, Qwen3-8B joined layer plan 0:36, live server placement alignment, cache-generation parity, and 3/3 deterministic scaled multi-request load proof. Redacted artifact: mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json",
+        next_step=None,
     ),
     PlanTask(
         id="continuous_batching",

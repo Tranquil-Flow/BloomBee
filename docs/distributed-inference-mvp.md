@@ -72,23 +72,23 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████████░ 96%
+████████████████████ 100%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
-progress, not public-demo proof. Next gate: **physical/self-serve showcase with
-fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
-dashboard now fail-closed verify and surface operator-captured physical evidence
-plus cross-artifact active-roster/layer-plan/generation-placement/load alignment.
-A real Pixel 8 Pro Termux run proved a fresh physical-device `join_client.py`
-3-heartbeat active-roster path via ADB UI, and a later Pixel 8 Pro camera/browser
-scan proved physical QR transport plus a matching 3-heartbeat Termux join loop.
-Selected-model server launch from that fresh joined plan and the final
-`physical_showcase_proof.py` cross-artifact pass remain blocked because the
-Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B and larger/model-optimisation work remains
-visible as post-MVP/stretch work and does not drag the 100% MVP denominator. The
-MVP finish runbook is tracked in `docs/mvp-finish-plan.md`, and the post-MVP task
-scope is tracked in `docs/post-mvp-scope.md`.
+status backed by the final same-session proof artifact, not a claim that
+post-MVP optimisation work is complete. The final gate passed: a real Pixel 8 Pro
+camera/browser scan of the displayed QR, a matching Pixel Termux `join_client.py`
+3-heartbeat loop with `server_response.ok=true`, a same-session `m4pro-full`
+capacity heartbeat, a joined Qwen3-8B layer plan assigning `0:36` to
+`m4pro-full`, cache-generation parity with matching server placements, and a
+3/3 deterministic scaled multi-request load proof all passed
+`physical_showcase_proof.py`. Redacted evidence is committed at
+`mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json`.
+Qwen3-30B and larger/model-optimisation work remains visible as post-MVP/stretch
+work and does not drag the 100% MVP denominator. The completed finish runbook is
+tracked in `docs/mvp-finish-plan.md`, and the post-MVP task scope is tracked in
+`docs/post-mvp-scope.md`.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /

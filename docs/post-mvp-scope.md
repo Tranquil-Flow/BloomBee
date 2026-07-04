@@ -19,13 +19,15 @@
 
 ## MVP-tail handoff boundary
 
-The only remaining MVP-core gate is still the strict physical showcase:
+MVP-core is complete. The strict physical showcase passed in the final same-session artifact:
 
-1. Fresh physical QR/device join evidence is proven on Pixel 8 Pro.
-2. The final pass still needs a QR-scanned capacity-reporting peer whose joined layer plan can launch selected Qwen3-8B servers.
-3. `physical_showcase_proof.py` must pass cross-artifact active-roster, joined-plan, generation-placement, load, and operator-evidence checks.
+```text
+mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json
+```
 
-Post-MVP work below should start only in parallel-safe files or after that final gate is not at risk.
+That artifact closes the old cross-artifact gate: Pixel physical QR scan, Pixel Termux heartbeats, `m4pro-full` capacity heartbeat, joined Qwen3-8B layer plan, matching cache-generation placements, deterministic scaled 3/3 load proof, and `physical_showcase_proof.py` pass.
+
+Post-MVP work below must not mutate the MVP-core 100% denominator. It may improve stronger-model capability, throughput, cache reuse, phone draft work, or route clarity only when each new claim has its own proof artifact and fail-closed tests.
 
 ---
 

@@ -362,19 +362,20 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████████░ 96%` built from the MVP-core plan, with claim boundary
-  `weighted_plan_status_not_demo_proof`. Next gate: physical/self-serve showcase
-  with fresh joined devices. `physical_showcase_proof.py`, `proof_orchestrator.py`,
-  and `demo_dashboard.py` now provide the fail-closed operator-evidence verifier,
+  `████████████████████ 100%` built from the MVP-core plan, with claim boundary
+  `weighted_plan_status_not_demo_proof`. MVP-core is complete; post-MVP/stretch
+  work remains separate. `physical_showcase_proof.py`, `proof_orchestrator.py`,
+  and `demo_dashboard.py` provide the fail-closed operator-evidence verifier,
   cross-artifact active-roster/layer-plan/generation-placement/load alignment,
-  evidence template, verifier command, missing-evidence blocker, and report panel.
-  A real Pixel 8 Pro Termux run proved a fresh physical-device 3-heartbeat
-  `join_client.py` active-roster path via ADB UI, and a Pixel 8 Pro camera/browser
-  scan proved physical QR transport plus a matching 3-heartbeat Termux join loop.
-  Selected-model server launch from that joined plan and final
-  `physical_showcase_proof.py` cross-artifact pass remain blocked because the
-  Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B and optimisation work is tracked as
-  post-MVP/stretch, not as part of the 100% denominator.
+  evidence template, verifier command, and report panel. The final same-session
+  run captured a real Pixel 8 Pro camera/browser QR scan, a matching Pixel Termux
+  `join_client.py` 3-heartbeat loop with `server_response.ok=true`, a fresh
+  `m4pro-full` capacity heartbeat, a joined Qwen3-8B layer plan assigning `0:36`
+  to `m4pro-full`, cache-generation parity, and 3/3 deterministic scaled
+  multi-request load proof; the strict verifier passed. Redacted evidence is at
+  `mvp_capabilities/distributed_evidence/physical_showcase/qwen3-8b-final-physical-showcase-20260704T155722Z.json`.
+  Qwen3-30B and optimisation work is tracked as post-MVP/stretch, not as part of
+  the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
