@@ -48,7 +48,7 @@ def compare_phone_draft_to_verifier(
     accepted_text = bytes(verdict["accepted_tokens"]).decode("utf-8", errors="replace")
     rejected_text = bytes(verdict["rejected_tokens"]).decode("utf-8", errors="replace")
     committed_text = bytes(verdict["committed_tokens"]).decode("utf-8", errors="replace")
-    live_model = verifier_kind == "live_model_generation"
+    live_model = verifier_kind == "live_model_generation" or verifier_kind.endswith("_live_model_generation")
     comparison_valid = bool(draft_text) and bool(verifier_text) and evidence.get("generation_proven") is True
     return {
         "source": SOURCE,

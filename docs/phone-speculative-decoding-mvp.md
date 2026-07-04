@@ -189,6 +189,19 @@ accepted 0/33 phone-draft bytes:
 This proves comparison machinery and a real verifier mismatch; it still does not
 prove tokenizer-level speculative decoding or speedup.
 
+Same-GGUF verifier update: Hugging Face re-download of the tiny GGUF was flaky,
+so the exact proven phone model was copied from Termux to `/sdcard/Download/`,
+pulled through m4pro ADB, and run locally with `/opt/homebrew/bin/llama-cli`.
+The local verifier artifact
+`mvp_capabilities/distributed_evidence/phone/local-stories15M-phone-exact-verifier-20260704T111215Z.json`
+has the same SHA256
+`61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a`
+and generated the same text, `One day, a little girl named Lucy`. The comparison
+artifact
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-same-gguf-20260704T111215Z.json`
+accepted 33/33 UTF-8 bytes. This is nonzero independent verifier acceptance for
+the same GGUF, but tokenizer IDs and wall-clock speedup are still unproven.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

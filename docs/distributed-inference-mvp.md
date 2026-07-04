@@ -174,7 +174,7 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   Pixel 8 Pro Termux smoke, repeated static-contract latency, tiny-runtime
   blocker evidence, guarded no-install GGUF runtime plan, standalone
   tiny-GGUF generation proof, draft-provider-candidate bridge proof, and
-  verifier-prefix comparison evidence now live under
+  verifier-prefix comparison evidence including same-GGUF local acceptance now live under
   `mvp_capabilities/distributed_evidence/phone/`;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active

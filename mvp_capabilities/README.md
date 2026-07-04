@@ -291,6 +291,8 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-bridge-20260704T105400Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json
+#     mvp_capabilities/distributed_evidence/phone/local-stories15M-phone-exact-verifier-20260704T111215Z.json
+#     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-same-gguf-20260704T111215Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -380,7 +382,9 @@ As of the current implementation slice:
   standalone tiny-GGUF draft-candidate generation — not verifier acceptance,
   speculative speedup, or BloomBee block serving. Positive-control comparison
   accepts 33/33 UTF-8 bytes; live Qwen/Qwen2.5-0.5B-Instruct comparison accepts
-  0/33 bytes, so no speculative proof is promoted;
+  0/33 bytes; independent local `llama-cli` over the exact phone-copied GGUF
+  accepts 33/33 bytes, but tokenizer-ID and wall-clock speedup proof remain
+  unproven, so no speculative proof is promoted;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.

@@ -174,7 +174,11 @@ Already proven:
   `mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json`,
   and `mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json`.
   The live Qwen/Qwen2.5-0.5B-Instruct comparison accepted 0/33 phone-draft bytes,
-  so it is evidence for comparison machinery and mismatch handling, not speedup.
+  so it is evidence for comparison machinery and mismatch handling. A same-GGUF
+  local verifier using the exact phone-copied model is tracked at
+  `mvp_capabilities/distributed_evidence/phone/local-stories15M-phone-exact-verifier-20260704T111215Z.json`
+  plus `mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-same-gguf-20260704T111215Z.json`
+  and accepted 33/33 bytes, but it is still not tokenizer-ID or wall-clock speedup proof.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -604,9 +608,9 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     `termux_draft_latency.py` adds repeated static-contract latency measurement;
     `termux_tiny_model_probe.py` adds a real installed-runtime/blocker probe;
     `termux_gguf_runtime_plan.py` adds a guarded no-install GGUF runtime plan;
-    approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp
+    approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp,
     wrapped it as a draft-provider-candidate JSON bridge, and compared it against
-    positive-control plus live Qwen0.5B verifier text;
+    positive-control, live Qwen0.5B verifier text, and a same-GGUF local verifier;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
     and verifier-comparison evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without

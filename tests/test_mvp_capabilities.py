@@ -3581,13 +3581,35 @@ def test_phone_draft_verifier_compare_rejects_mismatch_without_overclaim():
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_draft_verifier_compare_marks_same_gguf_kind_as_live_generation():
+    from mvp_capabilities.phone_draft_verifier_compare import compare_phone_draft_to_verifier
+
+    report = compare_phone_draft_to_verifier(
+        {"draft_response": {"generated_text": "One day"}, "draft_request": {"prompt": "x"}, "generation_proven": True},
+        verifier_text="One day",
+        verifier_source="local-same-gguf",
+        verifier_kind="same_gguf_live_model_generation",
+    )
+
+    assert report["verifier"]["kind"] == "same_gguf_live_model_generation"
+    assert report["verifier"]["live_model_generation_proven"] is True
+    assert report["verifier_acceptance_proven"] is True
+    assert report["full_draft_accepted"] is True
+    assert report["tokenizer_match_proven"] is False
+    assert report["speedup_proven"] is False
+
+
 def test_phone_draft_verifier_compare_tracked_evidence_keeps_speedup_false():
     positive_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json"
     live_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json"
     verifier_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/qwen05-live-verifier-20260704T110000Z.json"
+    same_gguf_verifier_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/local-stories15M-phone-exact-verifier-20260704T111215Z.json"
+    same_gguf_compare_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-same-gguf-20260704T111215Z.json"
     positive = json.loads(positive_path.read_text(encoding="utf-8"))
     live = json.loads(live_path.read_text(encoding="utf-8"))
     verifier = json.loads(verifier_path.read_text(encoding="utf-8"))
+    same_gguf_verifier = json.loads(same_gguf_verifier_path.read_text(encoding="utf-8"))
+    same_gguf_compare = json.loads(same_gguf_compare_path.read_text(encoding="utf-8"))
 
     assert verifier["generation_proven"] is True
     assert verifier["model_id"] == "Qwen/Qwen2.5-0.5B-Instruct"
@@ -3608,6 +3630,19 @@ def test_phone_draft_verifier_compare_tracked_evidence_keeps_speedup_false():
     assert live["speedup_proven"] is False
     assert live["bloombee_block_serving_proven"] is False
     assert live["can_update_speculative_speedup_status"] is False
+    assert same_gguf_verifier["generation_proven"] is True
+    assert same_gguf_verifier["model_copied_from_phone"] is True
+    assert same_gguf_verifier["model_sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert same_gguf_verifier["generated_text"] == "One day, a little girl named Lucy"
+    assert same_gguf_compare["verification_status"] == "passed"
+    assert same_gguf_compare["verifier"]["kind"] == "same_gguf_live_model_generation"
+    assert same_gguf_compare["verifier"]["live_model_generation_proven"] is True
+    assert same_gguf_compare["dashboard_counters"] == {"proposed": 33, "accepted": 33, "rejected": 0, "acceptance_rate": 1.0}
+    assert same_gguf_compare["verifier_acceptance_proven"] is True
+    assert same_gguf_compare["full_draft_accepted"] is True
+    assert same_gguf_compare["tokenizer_match_proven"] is False
+    assert same_gguf_compare["speedup_proven"] is False
+    assert same_gguf_compare["can_update_speculative_speedup_status"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
