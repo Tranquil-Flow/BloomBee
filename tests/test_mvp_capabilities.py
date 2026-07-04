@@ -281,6 +281,73 @@ def test_qwen3_dense_fallbacks_promote_qwen8_after_full_and_cache_generation():
     assert qwen14["next_gate"] == "one_block_server"
 
 
+def test_qwen30b_priority_report_prefers_base_then_instruct_then_optional_thinking():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.qwen30b_priority import build_qwen30b_priority_report
+    from mvp_capabilities.route_picker import load_registry
+
+    report = build_qwen30b_priority_report(
+        registry=load_registry(REGISTRY_PATH),
+        proof_status=load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml"),
+    )
+
+    assert report["claim_boundary"] == "post_mvp_qwen30b_prioritization_only_no_new_inference_proof"
+    assert report["mvp_core_dependency"] == "none_mvp_core_closed_by_qwen3_8b"
+    assert report["recommendation_summary"] == (
+        "Use base Qwen3-30B-A3B as the post-MVP substrate, then Instruct-2507 if a user-facing stronger demo is needed; keep Thinking-2507 optional."
+    )
+    assert report["priority_order"] == [
+        "Qwen/Qwen3-30B-A3B",
+        "Qwen/Qwen3-30B-A3B-Instruct-2507",
+        "Qwen/Qwen3-30B-A3B-Thinking-2507",
+    ]
+    assert report["shared_architecture"]["all_qwen3_moe"] is True
+    assert report["shared_architecture"]["hidden_size"] == 2048
+    assert report["shared_architecture"]["num_layers"] == 48
+    assert report["shared_architecture"]["num_experts"] == 128
+    assert report["shared_architecture"]["num_experts_per_tok"] == 8
+
+    by_model = {item["model_id"]: item for item in report["models"]}
+    base = by_model["Qwen/Qwen3-30B-A3B"]
+    assert base["priority_role"] == "substrate_risk_reducer"
+    assert base["priority_rank"] == 1
+    assert base["gates_already_passed"] == ["prescan", "one_block_server", "multi_block"]
+    assert base["next_gate"] == "full_generation"
+    assert base["safe_demo_selectable"] is False
+    assert base["mvp_critical"] is False
+
+    instruct = by_model["Qwen/Qwen3-30B-A3B-Instruct-2507"]
+    assert instruct["priority_role"] == "user_facing_followup"
+    assert instruct["priority_rank"] == 2
+    assert instruct["recommended_after_base_gates"] == ["full_generation", "cache_generation", "multi_request_load"]
+    assert instruct["next_gate"] == "prescan"
+    assert instruct["safe_demo_selectable"] is False
+
+    thinking = by_model["Qwen/Qwen3-30B-A3B-Thinking-2507"]
+    assert thinking["priority_role"] == "optional_reasoning_variant"
+    assert thinking["priority_rank"] == 3
+    assert thinking["optional"] is True
+    assert thinking["defer_unless"] == "demo_specifically_needs_thinking_or_reasoning_behavior"
+    assert thinking["safe_demo_selectable"] is False
+
+
+def test_qwen30b_priority_cli_outputs_review_ready_json():
+    proc = subprocess.run(
+        [sys.executable, "-m", "mvp_capabilities.qwen30b_priority"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "post_mvp_qwen30b_prioritization_only_no_new_inference_proof"
+    assert payload["priority_order"][0] == "Qwen/Qwen3-30B-A3B"
+    assert payload["models"][0]["next_gate"] == "full_generation"
+    assert payload["models"][1]["next_gate"] == "prescan"
+    assert payload["models"][2]["optional"] is True
+
+
 def test_mvp_status_report_has_weighted_progress_bar():
     from mvp_capabilities.mvp_status import build_status_report
 
@@ -298,6 +365,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
     assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.35
     assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "qwen30b_priority.py" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "Instruct-2507 follow-up" in post_mvp["qwen3_30b_proof_ladder"]["label"]
     assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
@@ -316,6 +385,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "m4pro-full capacity heartbeat" in tasks["physical_showcase"]["evidence"]
     assert "multi-block 0:2" in tasks["qwen3_30b_core_proof"]["evidence"]
     assert "full-generation parity" in tasks["qwen3_30b_core_proof"]["next_step"]
+    assert "Instruct-2507" in tasks["qwen3_30b_2507_shelf"]["label"]
+    assert "Thinking-2507 optional" in tasks["qwen3_30b_2507_shelf"]["label"]
+    assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "defer Thinking-2507" in tasks["qwen3_30b_2507_shelf"]["next_step"]
 
 
 

@@ -28,7 +28,7 @@ BloomBee's runtime already maintains.
 | 1. Hardware | `peer_scan.py` | Probes the local node: hostname, Tailscale IP, CPU model & counts, RAM, MPS/CUDA VRAM, ping latency to peers, free disk on `~/.cache/huggingface`. | JSON to stdout AND `~/.bloombee/capabilities/<hostname>.json` |
 | 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for candidate models (TinyLlama through Qwen35B/MiniMax-M3 blocked frontier shelves, dense and MoE). | YAML, loaded by the scheduler |
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. `route_picker.py` also infers registry model types so unsupported wrappers cannot be selected for showcase/safe-demo just because memory fits. | JSON compatibility report |
-| 4. Proof ladder | `proof_ladder.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. This is audit state only, not inference proof. | JSON proof-ladder report |
+| 4. Proof ladder | `proof_ladder.py` + `qwen30b_priority.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. `qwen30b_priority.py` encodes the post-MVP Qwen3-30B family order: base 30B substrate first, Instruct-2507 follow-up, Thinking-2507 optional. This is audit state only, not inference proof. | JSON proof-ladder / priority report |
 | 5. One-block proof harness | `one_block_proof.py` | Emits exact one-block server/client commands and verifies captured logs before a proof gate can be promoted. Planning mode is not proof. | JSON plan / verification report |
 | 6. Full-generation proof harness | `full_generation_proof.py` | Emits `text_generation_parity.py` runbooks and verifies exact distributed/reference generated IDs and text before allowing `full_generation` proof promotion. Planning mode is not proof. | JSON plan / verification report |
 | 7. Cache-generation proof harness | `cache_generation_proof.py` | Emits `text_generation_parity.py --mode generate-api` runbooks and verifies cached generate parity before allowing `cache_generation` proof promotion. Planning mode is not proof. | JSON plan / verification report |
@@ -76,6 +76,9 @@ python mvp_capabilities/model_compat_scan.py \
 
 # 4. Audit prepared proof ladders and next gates.
 python mvp_capabilities/proof_ladder.py --fallback-ladder
+
+#    Audit post-MVP Qwen3-30B-family priority without changing proof status.
+python -m mvp_capabilities.qwen30b_priority
 
 # 5. Generate the Qwen3-8B one-block proof runbook.
 python mvp_capabilities/one_block_proof.py plan --model Qwen/Qwen3-8B

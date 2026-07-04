@@ -29,6 +29,22 @@ That artifact closes the old cross-artifact gate: Pixel physical QR scan, Pixel 
 
 Post-MVP work below must not mutate the MVP-core 100% denominator. It may improve stronger-model capability, throughput, cache reuse, phone draft work, or route clarity only when each new claim has its own proof artifact and fail-closed tests.
 
+## Qwen3-30B family priority decision
+
+The Qwen3-30B-family ordering is now encoded in a test-backed audit helper:
+
+```bash
+.venv/bin/python -m mvp_capabilities.qwen30b_priority
+```
+
+Use this order unless Fable finds a concrete reason to change it:
+
+1. `Qwen/Qwen3-30B-A3B` — substrate/risk reducer; already has prescan + one-block + multi-block proof, next gate `full_generation`.
+2. `Qwen/Qwen3-30B-A3B-Instruct-2507` — user-facing follow-up after base 30B full/cache/load behavior is understood; next gate `prescan`.
+3. `Qwen/Qwen3-30B-A3B-Thinking-2507` — optional reasoning variant; do not spend proof budget unless the demo specifically needs thinking/reasoning behavior.
+
+Do not make both base 30B and 2507 required for the same post-MVP milestone. Exact 2507 model IDs still need prescan + one-block before route selection.
+
 ---
 
 ### Task 1: Promote Qwen3-30B-A3B from multi-block to full-generation proof
@@ -81,9 +97,9 @@ Post-MVP work below must not mutate the MVP-core 100% denominator. It may improv
 
 ---
 
-### Task 3: Scope Qwen3-30B-A3B Instruct/Thinking 2507 proof ladder
+### Task 3: Scope Qwen3-30B-A3B Instruct-2507 first; keep Thinking-2507 optional
 
-**Objective:** Turn registered 2507 variants from shelf entries into measured candidates.
+**Objective:** Turn the user-facing Instruct-2507 checkpoint from a shelf entry into a measured candidate, while keeping Thinking-2507 deferred unless the demo specifically needs reasoning behavior.
 
 **Files:**
 - Modify: `mvp_capabilities/MODEL_REGISTRY.yaml`
@@ -92,11 +108,13 @@ Post-MVP work below must not mutate the MVP-core 100% denominator. It may improv
 - Test: `tests/test_mvp_capabilities.py`
 
 **Steps:**
-1. Run prescan against each cached/fetched 2507 config.
-2. Record exact `model_type`, layer count, hidden size, expert count, and top-k routing.
-3. Run one-block live server proof before any multi-block attempt.
-4. Keep both variants blocked from `safe-demo` until full/cache/load gates pass.
-5. Add tests that 2507 route selection reports pending proof blockers.
+1. Run `python -m mvp_capabilities.qwen30b_priority` and confirm the priority order is still base 30B → Instruct-2507 → optional Thinking-2507.
+2. Run prescan against `Qwen/Qwen3-30B-A3B-Instruct-2507` first.
+3. Record exact `model_type`, layer count, hidden size, expert count, and top-k routing.
+4. Run one-block live server proof before any multi-block attempt.
+5. Keep Instruct-2507 blocked from `safe-demo` until full/cache/load gates pass.
+6. Add tests that Instruct-2507 route selection reports pending proof blockers.
+7. Only repeat the same prescan/one-block ladder for Thinking-2507 if the demo spec requires reasoning-style behavior.
 
 **Verification command:**
 

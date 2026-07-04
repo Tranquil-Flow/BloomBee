@@ -82,6 +82,22 @@ Review questions:
 - Should `multi_request_load_proof.py` enforce that deterministic proof metadata is present for Qwen-class load artifacts?
 - Is there a better in-distribution input construction path from token embeddings that still stays cheap?
 
+### `mvp_capabilities/qwen30b_priority.py`
+
+Added a deterministic post-MVP priority report so Fable does not need to spend review tokens reconstructing the Qwen3-30B recommendation from scattered registry/proof state:
+
+```bash
+.venv/bin/python -m mvp_capabilities.qwen30b_priority
+```
+
+The report is audit/planning metadata only. It does not mutate `PROOF_STATUS.yaml` and does not promote any Qwen3-30B-family model to `demo_safe`.
+
+Review questions:
+
+- Is the encoded priority order right: base 30B substrate → Instruct-2507 user-facing follow-up → Thinking-2507 optional?
+- Should the 2507 follow-up wait for all three base gates (`full_generation`, `cache_generation`, `multi_request_load`) or only base `full_generation`?
+- Should the route/dashboard UI surface this priority report directly?
+
 ### Status/docs/tests
 
 Updated MVP status from the previous blocker state to the final artifact-backed 100% state in:
@@ -114,6 +130,7 @@ source .venv/bin/activate
 .venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py -q
 .venv/bin/python -m pytest -q -k 'not test_cache_usage and not peft'
 .venv/bin/python -m mvp_capabilities.mvp_status --json
+.venv/bin/python -m mvp_capabilities.qwen30b_priority
 /usr/bin/git diff --check
 ```
 
@@ -178,6 +195,20 @@ Post-MVP workstreams to review and possibly reorder:
 
 ## 5. Qwen3-30B-A3B vs Qwen3-30B-A3B 2507 recommendation
 
+This recommendation is now encoded in a test-backed helper so Fable can inspect one JSON report instead of reconstructing it from prose:
+
+```bash
+.venv/bin/python -m mvp_capabilities.qwen30b_priority
+```
+
+Expected priority order:
+
+```text
+1. Qwen/Qwen3-30B-A3B — substrate_risk_reducer
+2. Qwen/Qwen3-30B-A3B-Instruct-2507 — user_facing_followup
+3. Qwen/Qwen3-30B-A3B-Thinking-2507 — optional_reasoning_variant
+```
+
 Short answer: they are **not worth treating as two independent MVP-critical tracks**, but they are also **not identical proof-wise**.
 
 They are effectively the same architecture/memory class in the registry:
@@ -188,39 +219,31 @@ They are effectively the same architecture/memory class in the registry:
 
 All are `qwen3_moe`-family, about `30.5B` total parameters, about `3.3B` active parameters, `hidden_size=2048`, `48` layers, `128` experts, `8` experts per token. That means most infrastructure work should transfer: wrapper compatibility, layer planning, server launch shape, block-range math, memory estimates, and proof harnesses.
 
-But proof status differs today:
+But proof status differs today, and the helper records this explicitly:
 
 ```text
 Qwen/Qwen3-30B-A3B:
-  prescan: passed
-  one_block_server: passed
-  multi_block: passed
-  full_generation: pending
-  cache_generation: pending
-  multi_request_load: pending
+  lower gates passed: prescan, one_block_server, multi_block
+  next gate: full_generation
 
 Qwen/Qwen3-30B-A3B-Instruct-2507:
-  prescan: pending
-  one_block_server: pending
-  multi_block: pending
-  full_generation: pending
-  cache_generation: pending
-  multi_request_load: pending
+  lower gates passed: none
+  next gate: prescan
+  wait until base gates understood: full_generation, cache_generation, multi_request_load
 
 Qwen/Qwen3-30B-A3B-Thinking-2507:
-  prescan: pending
-  one_block_server: pending
-  multi_block: pending
-  full_generation: pending
+  lower gates passed: none
+  next gate: prescan
+  optional unless demo specifically needs thinking/reasoning behavior
 ```
 
-Recommendation:
+Implemented recommendation:
 
-1. Do **not** make both base 30B and 2507 required for “most-MVP.” MVP-core is already closed by Qwen3-8B.
-2. Use the already-proven base `Qwen/Qwen3-30B-A3B` as the substrate/risk reducer because it has prescan + one-block + multi-block proof already.
-3. If we want a product-facing stronger demo after MVP, prioritize **`Qwen/Qwen3-30B-A3B-Instruct-2507`** after base 30B full/cache/load is understood, because instruction tuning is likelier to be user-facing than the base checkpoint.
-4. Treat **Thinking-2507** as optional unless the demo specifically needs thinking/reasoning behavior; it likely adds proof cost without changing infrastructure.
-5. For each exact model ID, still require at least prescan + one-block before route selection, because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
+1. Do **not** make either 2507 variant part of MVP-core. MVP-core is already closed by Qwen3-8B.
+2. Use base `Qwen/Qwen3-30B-A3B` as the immediate post-MVP substrate because it already has prescan + one-block + multi-block proof.
+3. Only after base 30B full/cache/load behavior is understood, spend proof budget on **`Qwen/Qwen3-30B-A3B-Instruct-2507`** for a stronger user-facing demo.
+4. Keep **Thinking-2507** optional unless the demo specifically needs thinking/reasoning behavior.
+5. For each exact model ID, still require prescan + one-block before route selection, because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
 
 In moonlit terms: one path through the forest is enough to prove the bridge. We should not build two bridges in parallel unless the second one leads to a visibly better demo.
 
