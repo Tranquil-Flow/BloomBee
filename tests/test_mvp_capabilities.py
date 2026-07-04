@@ -503,6 +503,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "missing torch/transformers/tokenizers/llama_cpp/bloombee Python modules" in tasks["phone_worker"]["evidence"]
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
+    assert "phone-context-token-id-verifier-20260704T121646Z.json" in tasks["phone_worker"]["evidence"]
+    assert "termux-same-gguf-wallclock-gate-20260704T112500Z.json" in tasks["phone_worker"]["evidence"]
+    assert "bridge live token transport" not in tasks["phone_worker"]["next_step"]
+    assert "integrated non-sequential verifier path" in tasks["phone_worker"]["next_step"]
+    assert "bridge live token transport" not in tasks["speculative_decode"]["next_step"]
+    assert "integrated non-sequential verifier path" in tasks["speculative_decode"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "full_attention block contract" in tasks["qwen35b_candidate"]["evidence"]
