@@ -30,7 +30,7 @@ try:
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
-    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, load_proof_status, load_registry, route_report
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -46,7 +46,7 @@ except ModuleNotFoundError:  # direct script execution
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
-    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, explain_route, load_proof_status, load_registry
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, load_proof_status, load_registry, route_report
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
@@ -353,7 +353,7 @@ def _route_from_query(
     active = _active_for_query(query, state_dir=state_dir, token=token)
     peers = _peers_from_heartbeats(active)
     try:
-        payload = explain_route(
+        payload = route_report(
             peers,
             load_registry(registry),
             scenario=_first(query, "scenario"),

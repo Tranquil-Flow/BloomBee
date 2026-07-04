@@ -456,6 +456,83 @@ def explain_route(
     }
 
 
+def route_report(
+    peers: list[dict[str, Any]],
+    registry: list[dict[str, Any]],
+    *,
+    scenario: str | None = None,
+    requested_model: str | None = None,
+    bench_matrix: dict[str, Any] | None = None,
+    proof_status: dict[str, dict[str, str]] | None = None,
+    selector_mode: str = "planning",
+) -> dict[str, Any]:
+    """Return auto-pick plus requested-model serving/refusal metadata.
+
+    ``explain_route`` answers "what would the router pick?". This report also
+    answers "what did the operator pin, can we serve that pin under the selected
+    mode, and if not what will actually be served?" No inference is run here.
+    """
+    auto = explain_route(
+        peers,
+        registry,
+        scenario=scenario,
+        bench_matrix=bench_matrix,
+        proof_status=proof_status,
+        selector_mode=selector_mode,
+    )
+    best_available = dict(auto.get("picked") or {})
+    requested_evaluation: dict[str, Any] | None = None
+    normalized_request = requested_model if requested_model not in (None, "", "auto") else None
+    serving = best_available
+    override_active = False
+    override_refused = False
+    override_reason = "auto / none"
+
+    if normalized_request:
+        requested = explain_route(
+            peers,
+            registry,
+            scenario=scenario,
+            requested_model=normalized_request,
+            bench_matrix=bench_matrix,
+            proof_status=proof_status,
+            selector_mode=selector_mode,
+        )
+        requested_evaluation = dict(requested.get("picked") or {})
+        requested_supported = requested_evaluation.get("supported") is True
+        requested_allowed = requested_evaluation.get("selector_allowed") is True
+        if requested_supported and requested_allowed:
+            serving = requested_evaluation
+            if serving.get("model_id") != best_available.get("model_id"):
+                override_active = True
+                override_reason = f"serving requested model; auto-pick would be {best_available.get('model_id')}"
+            else:
+                override_reason = "requested model matches best_available"
+        else:
+            override_refused = True
+            if not requested_supported:
+                override_reason = str(requested_evaluation.get("reason") or "requested model does not fit current swarm")
+            else:
+                override_reason = str(requested_evaluation.get("selector_blocked_reason") or "requested model is disallowed by selector mode")
+
+    report = dict(auto)
+    report.update(
+        {
+            "picked": serving,
+            "serving": serving,
+            "best_available": best_available,
+            "requested_model": normalized_request,
+            "requested_evaluation": requested_evaluation,
+            "override_active": override_active,
+            "override_refused": override_refused,
+            "override_reason": override_reason,
+            "inference_proven": False,
+            "can_update_proof_status": False,
+        }
+    )
+    return report
+
+
 def _peer_summary(peers: list[dict[str, Any]]) -> dict[str, Any]:
     free_by_host = {
         peer.get("hostname", "unknown"): _peer_free_gb(peer) for peer in peers
@@ -489,6 +566,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Print full candidate evidence (peer summary, near-misses, all placements).",
     )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Print route report with best_available, requested-model override/refusal, and serving model.",
+    )
     args = parser.parse_args(argv)
 
     bench_matrix = None
@@ -505,6 +587,19 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     registry = load_registry(args.registry)
+
+    if args.report:
+        report = route_report(
+            peers,
+            registry,
+            scenario=args.scenario,
+            requested_model=args.requested_model,
+            bench_matrix=bench_matrix,
+            proof_status=proof_status,
+            selector_mode=args.selector_mode,
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
 
     if args.explain:
         explainable = explain_route(

@@ -431,7 +431,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     html = render_dashboard_html(doc, refresh_seconds=15)
 
     assert doc["real_route"]["picked"]["model_id"]
+    assert doc["real_route"]["best_available"]["model_id"] == doc["real_route"]["picked"]["model_id"]
+    assert doc["real_route"]["override_active"] is False
+    assert doc["real_route"]["override_refused"] is False
     assert doc["synthetic_10_laptop_route"]["picked"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert doc["synthetic_10_laptop_route"]["best_available"]["model_id"] == "Qwen/Qwen3-30B-A3B"
     assert doc["roster"]["summary"]["peer_count"] == 2
     assert doc["benchmarks"]["m4pro"]["models"]["TinyLlama/TinyLlama-1.1B-Chat-v1.0"]["decode_tok_per_s"] == 17.66
     assert doc["evidence"][0]["generated_text_match"] is True
@@ -473,6 +477,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
+    assert "Best available" in html
+    assert "Route override" in html
+    assert "auto / none" in html
     assert "MVP build status" in html
     assert "████████████████████ 100%" in html
     assert "MVP core complete; post-MVP improvements next" in html

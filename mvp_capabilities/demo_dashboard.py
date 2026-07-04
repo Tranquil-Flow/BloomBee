@@ -25,8 +25,8 @@ try:
     from mvp_capabilities.request_telemetry import build_request_telemetry
     from mvp_capabilities.route_picker import (
         DEFAULT_REGISTRY,
-        explain_route,
         load_registry,
+        route_report,
         synthetic_m4_laptops as make_synthetic_m4_laptops,
     )
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster, roster_document
@@ -36,8 +36,8 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
     from mvp_capabilities.request_telemetry import build_request_telemetry  # type: ignore[no-redef]
     from mvp_capabilities.route_picker import (  # type: ignore[no-redef]
         DEFAULT_REGISTRY,
-        explain_route,
         load_registry,
+        route_report,
         synthetic_m4_laptops as make_synthetic_m4_laptops,
     )
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster, roster_document  # type: ignore[no-redef]
@@ -226,10 +226,10 @@ def build_dashboard_document(
     real_peers = load_roster(list(cap_dirs or [DEFAULT_CAP_DIR]))
     registry = load_registry(registry_path)
     bench_matrix = _read_json(bench_matrix_path, {})
-    real_route = explain_route(real_peers, registry, bench_matrix=bench_matrix)
+    real_route = route_report(real_peers, registry, bench_matrix=bench_matrix)
     synthetic_route = None
     if synthetic_m4_laptops > 0:
-        synthetic_route = explain_route(
+        synthetic_route = route_report(
             make_synthetic_m4_laptops(
                 count=synthetic_m4_laptops,
                 total_gb=synthetic_total_gb,
@@ -294,6 +294,14 @@ def _esc(value: Any) -> str:
 
 def _route_card(title: str, route: dict[str, Any]) -> str:
     picked = route.get("picked") or {}
+    best_available = route.get("best_available") or picked
+    requested = route.get("requested_model") or "auto / none"
+    if route.get("override_refused"):
+        override = f"refused: {route.get('override_reason') or 'requested model refused'}"
+    elif route.get("override_active"):
+        override = f"active: {route.get('override_reason') or 'serving requested model'}"
+    else:
+        override = str(route.get("override_reason") or "auto / none")
     return f"""
       <section class="card route">
         <h2>{_esc(title)}</h2>
@@ -303,6 +311,10 @@ def _route_card(title: str, route: dict[str, Any]) -> str:
           <div><span class="label">Supported</span><strong>{_bool_badge(picked.get('supported'))}</strong></div>
           <div><span class="label">Swarm free GB</span><strong>{_fmt_num(picked.get('swarm_free_gb'), 1)}</strong></div>
           <div><span class="label">Measured decode tok/s</span><strong>{_fmt_measured_rate(picked.get('measured_decode_tok_per_s'))}</strong></div>
+          <div><span class="label">Best available</span><strong>{_esc(best_available.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Route override</span><strong>{_esc(override)}</strong></div>
+          <div><span class="label">Requested model</span><strong>{_esc(requested)}</strong></div>
+          <div><span class="label">Selector mode</span><strong>{_esc(route.get('selector_mode') or picked.get('selector_mode') or 'planning')}</strong></div>
         </div>
         <p class="reason">{_esc(picked.get('reason'))}</p>
       </section>

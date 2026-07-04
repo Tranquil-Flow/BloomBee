@@ -2352,6 +2352,52 @@ def test_safe_demo_selector_picks_only_full_generation_proven_model():
     assert route["selector_allowed"] is True
 
 
+def test_route_report_refuses_unsafe_pin_and_serves_best_available():
+    from mvp_capabilities.route_picker import route_report
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    report = route_report(
+        peers,
+        _tiny_route_registry(),
+        requested_model="Qwen/Qwen3-30B-A3B",
+        proof_status=_proof_status_fixture(),
+        selector_mode="safe-demo",
+    )
+
+    assert report["picked"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["serving"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["best_available"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["requested_model"] == "Qwen/Qwen3-30B-A3B"
+    assert report["requested_evaluation"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert report["requested_evaluation"]["selector_allowed"] is False
+    assert report["override_refused"] is True
+    assert report["override_active"] is False
+    assert "safe-demo" in report["override_reason"]
+    assert report["inference_proven"] is False
+
+
+def test_route_report_marks_allowed_pin_as_active_override():
+    from mvp_capabilities.route_picker import route_report
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    report = route_report(
+        peers,
+        _tiny_route_registry(),
+        requested_model="demo-safe/Tiny-Proven",
+        proof_status=_proof_status_fixture(),
+        selector_mode="showcase-attempt",
+    )
+
+    assert report["best_available"]["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert report["picked"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["serving"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["override_active"] is True
+    assert report["override_refused"] is False
+    assert report["override_reason"] == "serving requested model; auto-pick would be Qwen/Qwen3-30B-A3B"
+
+
 def test_showcase_attempt_allows_experimental_but_blocks_wrapper_blocked():
     from mvp_capabilities.route_picker import explain_route
 
@@ -2880,8 +2926,65 @@ models:
     assert route["claim_boundary"] == "coordinator_route_only_no_inference_proof"
     assert route["source"] == "coordinator_http_route_endpoint"
     assert route["picked"]["model_id"] == "test/Bigger"
+    assert route["best_available"]["model_id"] == "test/Bigger"
+    assert route["serving"]["model_id"] == "test/Bigger"
+    assert route["override_active"] is False
+    assert route["override_refused"] is False
     assert route["peer_summary"]["peer_count"] == 1
     assert route["selector_mode"] == "planning"
+    assert route["inference_proven"] is False
+
+
+def test_join_http_server_route_report_refuses_unproven_safe_demo_pin(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    params_b: 1.1
+    num_layers: 22
+    recommended_min_free_mem_gb: 4
+  - model_id: Qwen/Qwen3-30B-A3B
+    params_b: 30.5
+    active_params_b: 3.3
+    supports_moe: true
+    num_layers: 48
+    recommended_min_free_mem_gb: 70
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    status, _ = handle_post(
+        "/heartbeat",
+        body=json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": "joined-peer",
+                "capabilities": {"hostname": "joined-peer", "memory": {"free_gb": 100}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8"),
+        state_dir=state_dir,
+    )
+    assert status == 200
+
+    status, route = handle_get(
+        "/route?token=moon-token&model=Qwen/Qwen3-30B-A3B&now=110&max_age_seconds=60&selector_mode=safe-demo",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert route["picked"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["best_available"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["requested_model"] == "Qwen/Qwen3-30B-A3B"
+    assert route["requested_evaluation"]["selector_allowed"] is False
+    assert route["override_refused"] is True
+    assert route["override_active"] is False
+    assert "safe-demo" in route["override_reason"]
     assert route["inference_proven"] is False
 
 
