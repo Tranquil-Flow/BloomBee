@@ -151,8 +151,9 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused MVP/dashboard suite: `186 passed, 3 warnings`.
-- Unfiltered default suite: `382 passed, 23 skipped, 6 warnings`.
+- Focused MVP/dashboard suite: `186 passed, 1 warning`.
+- Unfiltered default suite: `383 passed, 23 skipped, 4 warnings`.
+- Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
   - `tests/test_cache.py::test_cache_usage` is skipped with a reason because it reproducibly hangs in the multiprocessing memory-cache integration path pending `memory_cache.py` repair.
   - `tests/test_peft.py` keeps two no-network PEFT safety tests in the default suite and skips only the five live HuggingFace PEFT network/cache tests unless `BLOOMBEE_RUN_HF_PEFT=1`.
