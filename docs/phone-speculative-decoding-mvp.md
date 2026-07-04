@@ -255,7 +255,7 @@ External context-token follow-up:
 `mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-20260704T121646Z.json`
 was emitted by Pixel 8 Pro Termux `llama-tokenize` over the exact rendered prompt
 and draft suffix. The binding verifier then consumed those external phone context
-token IDs and accepted 8/8 in
+token IDs and accepted 8/8 with forced-batch `logits_all` argmax checks in
 `mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-20260704T121646Z.json`.
 This proves token-ID ingestion/comparison mechanics for this same-GGUF path, but
 still does **not** prove live phone-backed speedup.

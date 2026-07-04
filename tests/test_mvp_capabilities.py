@@ -3833,20 +3833,76 @@ def test_phone_llama_cpp_binding_verifier_builds_external_context_token_report()
         model_sha256="61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
         llama_cpp_python_version="0.3.test",
         phone_token_id_source="termux_llama_tokenize_context_suffix",
+        verifier_method="forced_batch_logits_all_argmax",
+        logit_checks=[
+            {
+                "token_index": 0,
+                "score_row": 31,
+                "phone_token_id": 6716,
+                "target_argmax_token_id": 6716,
+                "target_token_text": "One",
+                "phone_token_logit": 17.1049,
+                "target_argmax_logit": 17.1049,
+                "accepted": True,
+            }
+        ],
     )
 
     assert report["claim_boundary"] == "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim"
     assert report["prompt_template"] == "llama_cpp_chat_template_im_start_end"
     assert report["phone_external_token_ids_ingested"] is True
     assert report["phone_external_token_id_source"] == "termux_llama_tokenize_context_suffix"
+    assert report["verifier_method"] == "forced_batch_logits_all_argmax"
     assert report["external_context_token_id_acceptance_proven"] is True
     assert report["phone_integrated_verifier_proven"] is True
     assert report["accepted_external_token_count"] == 8
     assert report["proposed_external_token_count"] == 8
     assert report["accepted_text"] == "One day, a little girl named Lucy"
+    assert report["logit_checks"][0]["score_row"] == 31
+    assert report["logit_checks"][0]["accepted"] is True
     assert report["mismatch"] is None
     assert report["speedup_proven"] is False
     assert report["bloombee_block_serving_proven"] is False
+
+
+def test_phone_llama_cpp_binding_verifier_rejects_standalone_token_ids():
+    from mvp_capabilities.phone_llama_cpp_binding_verifier import build_external_context_token_verifier_report
+
+    report = build_external_context_token_verifier_report(
+        prompt="Once upon a time",
+        draft_text="One day, a little girl named Lucy",
+        phone_context_draft_token_ids=[3118, 2462, 29892, 263, 2217, 7826, 4257, 28846],
+        generated_token_ids=[6716],
+        generated_token_bytes=[b"One"],
+        elapsed_s=0.25,
+        model_sha256="61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+        llama_cpp_python_version="0.3.test",
+        phone_token_id_source="standalone_llama_tokenize_wrong_context_control",
+        verifier_method="forced_batch_logits_all_argmax",
+        logit_checks=[
+            {
+                "token_index": 0,
+                "score_row": 31,
+                "phone_token_id": 3118,
+                "target_argmax_token_id": 6716,
+                "target_token_text": "One",
+                "phone_token_logit": 4.8485,
+                "target_argmax_logit": 17.1049,
+                "accepted": False,
+            }
+        ],
+    )
+
+    assert report["phone_external_token_ids_ingested"] is True
+    assert report["external_context_token_id_acceptance_proven"] is False
+    assert report["phone_integrated_verifier_proven"] is False
+    assert report["accepted_external_token_count"] == 0
+    assert report["proposed_external_token_count"] == 8
+    assert report["mismatch"]["token_index"] == 0
+    assert report["mismatch"]["phone_token_id"] == 3118
+    assert report["mismatch"]["target_token_id"] == 6716
+    assert report["logit_checks"][0]["accepted"] is False
+    assert report["speedup_proven"] is False
 
 
 def test_phone_context_token_id_verifier_tracked_evidence_ingests_phone_tokens():
@@ -3865,12 +3921,18 @@ def test_phone_context_token_id_verifier_tracked_evidence_ingests_phone_tokens()
     assert verifier_report["phone_context_draft_token_ids"] == token_report["phone_context_draft_token_ids"]
     assert verifier_report["generated_context_token_ids"] == token_report["phone_context_draft_token_ids"]
     assert verifier_report["phone_external_token_id_source"] == "termux_llama_tokenize_context_suffix"
+    assert verifier_report["verifier_method"] == "forced_batch_logits_all_argmax"
     assert verifier_report["phone_external_token_ids_ingested"] is True
     assert verifier_report["external_context_token_id_acceptance_proven"] is True
     assert verifier_report["phone_integrated_verifier_proven"] is True
     assert verifier_report["accepted_external_token_count"] == 8
     assert verifier_report["proposed_external_token_count"] == 8
     assert verifier_report["accepted_text"] == "One day, a little girl named Lucy"
+    assert len(verifier_report["logit_checks"]) == 8
+    assert verifier_report["logit_checks"][0]["score_row"] == 31
+    assert verifier_report["logit_checks"][0]["phone_token_id"] == 6716
+    assert verifier_report["logit_checks"][0]["target_argmax_token_id"] == 6716
+    assert all(item["accepted"] is True for item in verifier_report["logit_checks"])
     assert verifier_report["speedup_proven"] is False
     assert verifier_report["bloombee_block_serving_proven"] is False
 

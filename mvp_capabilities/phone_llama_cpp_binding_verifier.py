@@ -163,6 +163,8 @@ def build_external_context_token_verifier_report(
     model_sha256: str,
     llama_cpp_python_version: str,
     phone_token_id_source: str,
+    verifier_method: str = "target_token_sequence_comparison",
+    logit_checks: Sequence[dict[str, Any]] | None = None,
     model_id: str = "ggml-org/tiny-llamas/stories15M.gguf",
     model_path: str | None = None,
 ) -> dict[str, Any]:
@@ -211,6 +213,7 @@ def build_external_context_token_verifier_report(
         "model_path": model_path,
         "model_sha256": model_sha256,
         "llama_cpp_python_version": llama_cpp_python_version,
+        "verifier_method": verifier_method,
         "draft_text": draft_text,
         "phone_external_token_id_source": phone_token_id_source,
         "phone_context_draft_token_ids": phone_ids,
@@ -226,6 +229,7 @@ def build_external_context_token_verifier_report(
         "external_context_token_id_acceptance_proven": proven,
         "phone_external_token_ids_ingested": True,
         "phone_integrated_verifier_proven": proven,
+        "logit_checks": list(logit_checks or []),
         "mismatch": mismatch,
         "speedup_proven": False,
         "bloombee_block_serving_proven": False,
@@ -248,34 +252,69 @@ def verify_external_context_tokens_with_llama_cpp(
     n_threads: int = 4,
     n_gpu_layers: int = 0,
 ) -> dict[str, Any]:
-    """Consume externally supplied context draft token IDs and compare to target tokens."""
+    """Consume externally supplied context draft token IDs and compare target logits.
+
+    Forced-batch verification evaluates ``prompt_tokens + external_ids`` with
+    ``logits_all=True`` and checks each supplied token against the target model's
+    greedy argmax at the corresponding previous-token score row. Verification
+    stops at the first mismatch because later rows are conditioned on rejected
+    external tokens and must not count toward acceptance.
+    """
 
     from llama_cpp import Llama
     import llama_cpp
+    import numpy as np
 
     model_path = Path(model_path)
     start = time.perf_counter()
     llm = Llama(
         model_path=str(model_path),
         n_ctx=n_ctx,
+        n_batch=n_ctx,
         n_threads=n_threads,
         n_gpu_layers=n_gpu_layers,
+        logits_all=True,
         verbose=False,
     )
     rendered = render_llama_cpp_chat_prompt(prompt)
     prompt_tokens = llm.tokenize(rendered.encode("utf-8"), add_bos=True)
-    llm.eval(prompt_tokens)
+    phone_ids = [int(token) for token in phone_context_draft_token_ids]
+    if len(prompt_tokens) + len(phone_ids) > n_ctx:
+        raise ValueError(
+            "prompt plus phone context draft tokens exceeds n_ctx: "
+            f"{len(prompt_tokens)} + {len(phone_ids)} > {n_ctx}"
+        )
+    llm.eval(prompt_tokens + phone_ids)
 
     generated_ids: list[int] = []
     generated_bytes: list[bytes] = []
-    for phone_token in phone_context_draft_token_ids:
-        target_token = int(llm.sample(temp=0.0, top_k=0, top_p=1.0, min_p=0.0))
-        target_piece = bytes(llm.detokenize([target_token]))
+    logit_checks: list[dict[str, Any]] = []
+    accepted_ids: list[int] = []
+    for index, phone_token in enumerate(phone_ids):
+        row = len(prompt_tokens) - 1 + index
+        logits = llm.scores[row]
+        target_token = int(np.argmax(logits))
+        target_piece = bytes(
+            llm.detokenize([target_token], prev_tokens=prompt_tokens + accepted_ids)
+        )
         generated_ids.append(target_token)
         generated_bytes.append(target_piece)
-        if int(phone_token) != target_token:
+        accepted = phone_token == target_token
+        logit_checks.append(
+            {
+                "token_index": index,
+                "score_row": row,
+                "phone_token_id": phone_token,
+                "target_argmax_token_id": target_token,
+                "target_token_text": target_piece.decode("utf-8", errors="replace"),
+                "phone_token_logit": float(logits[phone_token]),
+                "target_argmax_logit": float(logits[target_token]),
+                "accepted": accepted,
+            }
+        )
+        if not accepted:
             break
-        llm.eval([int(phone_token)])
+        accepted_ids.append(phone_token)
 
     return build_external_context_token_verifier_report(
         prompt=prompt,
@@ -287,6 +326,8 @@ def verify_external_context_tokens_with_llama_cpp(
         model_sha256=_sha256(model_path),
         llama_cpp_python_version=getattr(llama_cpp, "__version__", "unknown"),
         phone_token_id_source=phone_token_id_source,
+        verifier_method="forced_batch_logits_all_argmax",
+        logit_checks=logit_checks,
         model_path=str(model_path),
     )
 

@@ -202,7 +202,7 @@ Already proven:
   context-token draft suffix at
   `mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-20260704T121646Z.json`,
   and the binding verifier ingested/accepted those 8/8 external phone context
-  tokens at
+  tokens with forced-batch `logits_all` argmax checks at
   `mvp_capabilities/distributed_evidence/phone/phone-context-token-id-verifier-20260704T121646Z.json`.
   This still does not prove speedup. Phone block-serving preflight at
   `mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json`

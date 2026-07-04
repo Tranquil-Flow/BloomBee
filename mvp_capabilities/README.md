@@ -399,7 +399,8 @@ As of the current implementation slice:
   accepts the phone draft text bytes under the exact CLI chat template, and the
   follow-up context-token proof ingests Termux-emitted draft token IDs from
   `termux-context-token-ids-20260704T121646Z.json` and accepts 8/8 external
-  phone context tokens in `phone-context-token-id-verifier-20260704T121646Z.json`;
+  phone context tokens via forced-batch `logits_all` argmax checks in
+  `phone-context-token-id-verifier-20260704T121646Z.json`;
   this still does not prove live phone-backed speedup. Phone BloomBee
   block-serving preflight explicitly keeps GGUF draft evidence separate from
   BloomBee block serving and records the missing Termux Python stack blockers;

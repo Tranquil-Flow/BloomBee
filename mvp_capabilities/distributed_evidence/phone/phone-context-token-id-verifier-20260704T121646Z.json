@@ -14,7 +14,7 @@
   "bloombee_block_serving_proven": false,
   "claim_boundary": "phone_context_token_id_llama_cpp_binding_verifier_no_speedup_claim",
   "draft_text": "One day, a little girl named Lucy",
-  "elapsed_s": 0.541554,
+  "elapsed_s": 0.291743,
   "external_context_token_id_acceptance_proven": true,
   "generated_context_token_ids": [
     6716,
@@ -37,6 +37,88 @@
     " Lucy"
   ],
   "llama_cpp_python_version": "0.3.32",
+  "logit_checks": [
+    {
+      "accepted": true,
+      "phone_token_id": 6716,
+      "phone_token_logit": 17.104921340942383,
+      "score_row": 31,
+      "target_argmax_logit": 17.104921340942383,
+      "target_argmax_token_id": 6716,
+      "target_token_text": "One",
+      "token_index": 0
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 2462,
+      "phone_token_logit": 11.224371910095215,
+      "score_row": 32,
+      "target_argmax_logit": 11.224371910095215,
+      "target_argmax_token_id": 2462,
+      "target_token_text": " day",
+      "token_index": 1
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 29892,
+      "phone_token_logit": 11.959643363952637,
+      "score_row": 33,
+      "target_argmax_logit": 11.959643363952637,
+      "target_argmax_token_id": 29892,
+      "target_token_text": ",",
+      "token_index": 2
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 263,
+      "phone_token_logit": 7.739551544189453,
+      "score_row": 34,
+      "target_argmax_logit": 7.739551544189453,
+      "target_argmax_token_id": 263,
+      "target_token_text": " a",
+      "token_index": 3
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 2217,
+      "phone_token_logit": 5.393412113189697,
+      "score_row": 35,
+      "target_argmax_logit": 5.393412113189697,
+      "target_argmax_token_id": 2217,
+      "target_token_text": " little",
+      "token_index": 4
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 7826,
+      "phone_token_logit": 7.108511924743652,
+      "score_row": 36,
+      "target_argmax_logit": 7.108511924743652,
+      "target_argmax_token_id": 7826,
+      "target_token_text": " girl",
+      "token_index": 5
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 4257,
+      "phone_token_logit": 9.54250717163086,
+      "score_row": 37,
+      "target_argmax_logit": 9.54250717163086,
+      "target_argmax_token_id": 4257,
+      "target_token_text": " named",
+      "token_index": 6
+    },
+    {
+      "accepted": true,
+      "phone_token_id": 28846,
+      "phone_token_logit": 6.8455095291137695,
+      "score_row": 38,
+      "target_argmax_logit": 6.8455095291137695,
+      "target_argmax_token_id": 28846,
+      "target_token_text": " Lucy",
+      "token_index": 7
+    }
+  ],
   "mismatch": null,
   "model_id": "ggml-org/tiny-llamas/stories15M.gguf",
   "model_path": ".local/models/stories15M-phone-exact.gguf",
@@ -63,5 +145,6 @@
   "proposed_external_token_count": 8,
   "rejected_external_token_count": 0,
   "rendered_prompt": "<|im_start|>user\nOnce upon a time<|im_end|>\n<|im_start|>assistant\n",
-  "speedup_proven": false
+  "speedup_proven": false,
+  "verifier_method": "forced_batch_logits_all_argmax"
 }
