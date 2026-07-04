@@ -1,0 +1,151 @@
+{
+  "claim_boundary": "post_mvp_research_spike_no_runnable_backend_proof",
+  "current_bloombee_supported_model_types": [
+    "bloom",
+    "falcon",
+    "gemma4",
+    "llama",
+    "mixtral",
+    "qwen3",
+    "qwen3_moe"
+  ],
+  "decision": {
+    "do_not_claim": [
+      "No listed frontier target is demo-safe in BloomBee today.",
+      "No LayerExecutor or quantized backend has been run by this artifact.",
+      "Memory-fit or external provider availability is not a distributed BloomBee proof."
+    ],
+    "do_now": [
+      "Keep Qwen3-30B-A3B base full-generation/cache/load as the next proof ladder because it is cached and already has lower gates passed.",
+      "Use this spike only as a map for future wrapper/backend research; do not let it alter MVP-core 100%.",
+      "If Fable wants a backend lane, start with a narrow external-runtime smoke harness and an adapter boundary, not native block-serving claims."
+    ]
+  },
+  "external_quantized_runtime_proven": false,
+  "generated_at_utc": "2026-07-04T17:15:11+00:00",
+  "mvp_core_status_unchanged": true,
+  "native_bloombee_support_proven": false,
+  "recommended_next_step": "base_qwen30b_full_generation_before_frontier_backend_spike",
+  "research_question": "Which frontier open-weight families are plausible post-MVP targets for a LayerExecutor or quantized-backend path, and what is the minimal proof before any route/demo claim?",
+  "runnable_backend_proven": false,
+  "scan_method": {
+    "scope": "config-only scans; no model weights downloaded; Kimi config scanned from local config.json to avoid trust_remote_code execution",
+    "scratch_dir_not_committed": ".local/layerexecutor-scan/",
+    "tool": "mvp_capabilities/model_compat_scan.py"
+  },
+  "target_models": [
+    {
+      "architecture_supported_by_current_bloombee": false,
+      "blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=minimax_m3_vl",
+        "Research sources describe MiniMax Sparse Attention and multimodal VLM inputs; current BloomBee wrappers do not expose MSA/multimodal text-tower serving contracts."
+      ],
+      "claim_level": "blocked",
+      "config_facts": {
+        "experts_per_token": 4,
+        "hidden_size": 6144,
+        "max_position_embeddings": 1048576,
+        "num_attention_heads": 64,
+        "num_experts": 128,
+        "num_key_value_heads": 4,
+        "num_layers": 60,
+        "quantization_method": null
+      },
+      "hf_model_type": "minimax_m3_vl",
+      "hf_text_model_type": "minimax_m3_vl_text",
+      "minimal_proof": "Config-only prescan plus text-tower wrapper scout. Do not attempt native BloomBee serving until minimax_m3_vl/minimax_m3_vl_text attention and multimodal wrapper assumptions are mapped. External-runtime smoke should be separate from BloomBee block-serving proof.",
+      "model_id": "MiniMaxAI/MiniMax-M3",
+      "public_summary": "MiniMax M3 is a 428B-total / 22B-active MoE VLM with 1M context, 128 experts, 4 active experts/token, and MiniMax Sparse Attention (MSA). NVIDIA describes deployment paths through TensorRT-LLM, SGLang, vLLM, and Dynamo on NVIDIA GPU infrastructure.",
+      "source_urls": [
+        "https://www.minimax.io/blog/minimax-m3",
+        "https://developer.nvidia.com/blog/deploy-long-context-reasoning-and-agentic-workflows-with-minimax-m3-on-nvidia-accelerated-infrastructure",
+        "https://huggingface.co/MiniMaxAI/MiniMax-M3"
+      ]
+    },
+    {
+      "architecture_supported_by_current_bloombee": false,
+      "blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=glm_moe_dsa",
+        "Research sources describe MLA + Dynamic Sparse Attention / TileLang DSA; current BloomBee wrappers do not implement glm_moe_dsa attention state or sparse kernels."
+      ],
+      "claim_level": "blocked",
+      "config_facts": {
+        "experts_per_token": 8,
+        "hidden_size": 6144,
+        "max_position_embeddings": 1048576,
+        "num_attention_heads": 64,
+        "num_experts": 256,
+        "num_key_value_heads": 64,
+        "num_layers": 78,
+        "quantization_method": null
+      },
+      "hf_model_type": "glm_moe_dsa",
+      "hf_text_model_type": null,
+      "minimal_proof": "Add a wrapper-scout artifact for glm_moe_dsa config fields and DSA attention contract before coding. A runnable proof likely needs a GPU sparse-kernel runtime; macOS/MPS laptop proof is not a credible first target.",
+      "model_id": "zai-org/GLM-5.2",
+      "public_summary": "GLM-5.2 uses the glm_moe_dsa architecture: MoE plus MLA and Dynamic Sparse Attention, with NVIDIA NeMo AutoModel recipes using TileLang DSA, context parallelism, expert parallelism, and pipeline parallelism.",
+      "source_urls": [
+        "https://docs.nvidia.com/nemo/automodel/model-coverage/large-language-models/glm-5-moe-dsa",
+        "https://huggingface.co/zai-org/GLM-5.2"
+      ]
+    },
+    {
+      "architecture_supported_by_current_bloombee": false,
+      "blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=deepseek_v4",
+        "Quantized HF checkpoint declares quantization_config=fp8; current BloomBee HF-block loader instantiates fp16/bf16 PyTorch blocks and does not build GPTQ/AWQ/FP8/NVFP4/MXFP quantized Linear kernels",
+        "Research sources describe DeepSeek-V4 hybrid sparse/compressed attention; current BloomBee wrappers do not implement deepseek_v4 attention state or quantized kernels."
+      ],
+      "claim_level": "blocked",
+      "config_facts": {
+        "experts_per_token": 6,
+        "hidden_size": 4096,
+        "max_position_embeddings": 1048576,
+        "num_attention_heads": 64,
+        "num_experts": 256,
+        "num_key_value_heads": 1,
+        "num_layers": 43,
+        "quantization_method": "fp8"
+      },
+      "hf_model_type": "deepseek_v4",
+      "hf_text_model_type": null,
+      "minimal_proof": "Treat as quantized-backend work, not a native BloomBee wrapper first. Minimal proof is external vLLM/SGLang/TensorRT-LLM config/runtime smoke on suitable NVIDIA hardware, followed by a narrow LayerExecutor adapter proposal.",
+      "model_id": "deepseek-ai/DeepSeek-V4-Flash",
+      "public_summary": "DeepSeek-V4-Flash is a 284B-total / 13B-active MoE with 1M context and hybrid attention (compressed sparse + heavily compressed attention). The HF config declares fp8 quantization.",
+      "source_urls": [
+        "https://build.nvidia.com/deepseek-ai/deepseek-v4-flash/modelcard",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash",
+        "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/blob/main/DeepSeek_V4.pdf"
+      ]
+    },
+    {
+      "architecture_supported_by_current_bloombee": false,
+      "blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=kimi_k2",
+        "Quantized HF checkpoint declares quantization_config=fp8; current BloomBee HF-block loader instantiates fp16/bf16 PyTorch blocks and does not build GPTQ/AWQ/FP8/NVFP4/MXFP quantized Linear kernels",
+        "HF AutoConfig requires trust_remote_code; planning scan used local config.json only and did not execute remote model code."
+      ],
+      "claim_level": "blocked",
+      "config_facts": {
+        "experts_per_token": 8,
+        "hidden_size": 7168,
+        "max_position_embeddings": 131072,
+        "num_attention_heads": 64,
+        "num_experts": 384,
+        "num_key_value_heads": 64,
+        "num_layers": 61,
+        "quantization_method": "fp8"
+      },
+      "hf_model_type": "kimi_k2",
+      "hf_text_model_type": null,
+      "minimal_proof": "Avoid trust_remote_code during planning. Use local config.json scans only until a wrapper/backend scout explicitly audits custom code. Quantized external-runtime smoke is a separate opt-in proof gate.",
+      "model_id": "moonshotai/Kimi-K2-Instruct",
+      "public_summary": "Kimi K2 Instruct is a 1T-total / 32B-active MoE with 61 layers, 384 experts, 8 selected experts/token, 128K context, MLA attention, and fp8 quantization in the HF config.",
+      "source_urls": [
+        "https://huggingface.co/moonshotai/Kimi-K2-Instruct",
+        "https://moonshotai.github.io/Kimi-K2/",
+        "https://github.com/MoonshotAI/Kimi-K2/blob/main/tech_report.pdf"
+      ]
+    }
+  ]
+}

@@ -113,6 +113,23 @@ Review questions:
 - Should PEFT live tests move to an explicit network CI job with cache/token setup?
 - Should there be a local fixture-only PEFT safety test that still runs by default?
 
+### `docs/layerexecutor-quantized-backend-spike.md` and stretch evidence
+
+Completed a bounded research spike for Task 9:
+
+```text
+docs/layerexecutor-quantized-backend-spike.md
+mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json
+```
+
+Grounded by config-only scans of `MiniMaxAI/MiniMax-M3`, `zai-org/GLM-5.2`, `deepseek-ai/DeepSeek-V4-Flash`, and `moonshotai/Kimi-K2-Instruct`, plus primary/public model-card sources. Result: all four are blocked for current native BloomBee route/demo use because current wrappers only cover `bloom`, `falcon`, `gemma4`, `llama`, `mixtral`, `qwen3`, and `qwen3_moe`; frontier candidates need new model families, custom sparse/MLA/DSA attention contracts, and/or fp8/quantized runtime support.
+
+Review questions:
+
+- Is the recommendation right to keep base Qwen3-30B full/cache/load ahead of any frontier backend lane?
+- If a frontier backend lane starts, should it choose GLM-5.2 (`glm_moe_dsa`) or DeepSeek-V4-Flash (`deepseek_v4` fp8) as the first external-runtime smoke?
+- Is `LayerExecutor` the right adapter boundary, or should this stay outside BloomBee until an external runtime exposes layer-state APIs?
+
 ### Status/docs/tests
 
 Updated MVP status from the previous blocker state to the final artifact-backed 100% state in:
@@ -142,7 +159,8 @@ Use the project venv.
 
 ```bash
 source .venv/bin/activate
-.venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py -q
+.venv/bin/python -m json.tool mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json >/dev/null
+.venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py tests/test_pytest_config.py -q
 .venv/bin/python -m pytest -q
 .venv/bin/python -m mvp_capabilities.mvp_status --json
 .venv/bin/python -m mvp_capabilities.qwen30b_priority
@@ -151,8 +169,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused MVP/dashboard suite: `186 passed, 1 warning`.
-- Unfiltered default suite: `383 passed, 23 skipped, 4 warnings`.
+- Focused MVP/dashboard/config suite: `188 passed, 1 warning`.
+- Unfiltered default suite: `384 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
   - `tests/test_cache.py::test_cache_usage` is skipped with a reason because it reproducibly hangs in the multiprocessing memory-cache integration path pending `memory_cache.py` repair.
@@ -206,7 +224,7 @@ Post-MVP workstreams to review and possibly reorder:
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
 | qwen3_5_moe / AgentWorld-35B | blocked | wrapper family differs from existing qwen3_moe | Do a compatibility scout before writing wrapper code. |
-| MiniMax/GLM/DeepSeek LayerExecutor | research | native wrappers likely unavailable or huge | Treat as separate backend feasibility, not BloomBee MVP proof. |
+| MiniMax/GLM/DeepSeek/Kimi LayerExecutor | research spike complete | no runnable backend proof; all scanned targets blocked by missing wrappers and/or quantized/sparse-attention runtime needs | Keep as separate backend lane; do not touch route/demo status. If continued, pick one target and start with external-runtime smoke, not native BloomBee claims. |
 
 ---
 

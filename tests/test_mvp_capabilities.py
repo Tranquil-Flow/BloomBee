@@ -348,6 +348,33 @@ def test_qwen30b_priority_cli_outputs_review_ready_json():
     assert payload["models"][2]["optional"] is True
 
 
+def test_layerexecutor_quantized_backend_spike_artifact_is_conservative():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "post_mvp_research_spike_no_runnable_backend_proof"
+    assert payload["runnable_backend_proven"] is False
+    assert payload["mvp_core_status_unchanged"] is True
+    assert payload["recommended_next_step"] == "base_qwen30b_full_generation_before_frontier_backend_spike"
+
+    targets = {target["model_id"]: target for target in payload["target_models"]}
+    expected = {
+        "MiniMaxAI/MiniMax-M3",
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4-Flash",
+        "moonshotai/Kimi-K2-Instruct",
+    }
+    assert set(targets) == expected
+    assert all(target["claim_level"] == "blocked" for target in targets.values())
+    assert all(target["minimal_proof"] for target in targets.values())
+    assert all(target["blocked_reasons"] for target in targets.values())
+
+    assert "glm_moe_dsa" in targets["zai-org/GLM-5.2"]["blocked_reasons"][0]
+    assert "quantization_config=fp8" in " ".join(targets["deepseek-ai/DeepSeek-V4-Flash"]["blocked_reasons"])
+    assert "quantization_config=fp8" in " ".join(targets["moonshotai/Kimi-K2-Instruct"]["blocked_reasons"])
+    assert "minimax_m3_vl" in targets["MiniMaxAI/MiniMax-M3"]["blocked_reasons"][0]
+
+
 def test_mvp_status_report_has_weighted_progress_bar():
     from mvp_capabilities.mvp_status import build_status_report
 

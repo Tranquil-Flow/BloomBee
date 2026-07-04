@@ -248,7 +248,16 @@ Do not make both base 30B and 2507 required for the same post-MVP milestone. Exa
 
 ### Task 9: LayerExecutor / quantized-backend feasibility spike
 
+**Status:** Complete as a research spike only. No runnable backend proof. No route/demo promotion.
+
 **Objective:** Create a bounded feasibility report for models that are too large or structurally unsupported for native BloomBee today.
+
+**Completed artifacts:**
+- Doc: `docs/layerexecutor-quantized-backend-spike.md`
+- Evidence: `mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json`
+- Test: `tests/test_mvp_capabilities.py::test_layerexecutor_quantized_backend_spike_artifact_is_conservative`
+
+**Claim boundary:** `post_mvp_research_spike_no_runnable_backend_proof`
 
 **Files:**
 - Create: `docs/layerexecutor-quantized-backend-spike.md`
