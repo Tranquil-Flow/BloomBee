@@ -129,6 +129,16 @@ The proof boundary remains `termux_draft_provider_smoke_verifier_only_no_generat
 it proves Termux can run the draft-provider contract smoke, not speedup,
 transformer-block serving, or useful phone inference yet.
 
+2026-07-04 latency update: `mvp_capabilities/termux_draft_latency.py` measured
+50 static draft-contract iterations on the same Pixel 8 Pro through Termux. The
+verified report is tracked at
+`mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json`.
+It recorded proposed=150, accepted=100, rejected=50, p95=0.001669 ms for the
+static in-process contract loop. Boundary:
+`termux_draft_latency_verifier_only_no_generation_proof`. This is not a real
+tiny-model benchmark, not a network round-trip bridge benchmark, and not a
+speedup proof.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

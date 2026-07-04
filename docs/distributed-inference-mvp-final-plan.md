@@ -157,8 +157,10 @@ Already proven:
   contract plus verifier-prefix accepted/rejected counters; `draft_provider_bridge.py`
   exposes the contract over stdio JSONL for Termux/ADB/SSH experiments;
   `termux_draft_smoke.py` renders/verifies a pasteable Termux script when direct
-  ADB control is unavailable and now has tracked Pixel 8 Pro Termux smoke
-  evidence at `mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`.
+  ADB control is unavailable; `termux_draft_latency.py` measures repeated static
+  contract-loop latency. Tracked Pixel 8 Pro Termux evidence now includes
+  `mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`
+  and `mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json`.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -584,11 +586,13 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     only policy; `draft_provider.py` adds the deterministic provider contract
     and proposed/accepted/rejected dashboard counters; `draft_provider_bridge.py`
     adds stdio JSONL transport groundwork; `termux_draft_smoke.py` adds a
-    pasteable phone smoke script/verifier for sandboxed ADB situations and a
-    real Pixel 8 Pro Termux smoke evidence file;
+    pasteable phone smoke script/verifier for sandboxed ADB situations;
+    `termux_draft_latency.py` adds repeated static-contract latency measurement;
+    real Pixel 8 Pro Termux smoke and latency evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    running live generation. Next: measure repeated phone bridge latency/match
-    rate, and wire an execution harness only after
+    running live generation. Next: replace the static phone loop with a real tiny
+    draft provider or compare against verifier-only baseline, and wire an
+    execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.

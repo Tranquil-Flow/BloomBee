@@ -283,6 +283,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "partial"
     assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
+    assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["done"] is False
 
@@ -3052,6 +3053,153 @@ def test_termux_draft_smoke_tracked_phone_evidence_has_honest_boundaries():
     assert payload["phone_smoke_proven"] is True
     assert payload["termux_detected"] is True
     assert payload["dashboard_counters"] == {"acceptance_rate": 0.666667, "accepted": 2, "proposed": 3, "rejected": 1}
+    runtime = payload["evidence"]["phone_runtime"]
+    assert runtime["android_model"] == "Pixel 8 Pro"
+    assert runtime["runtime"] == "termux"
+    assert runtime["machine"] == "aarch64"
+    assert payload["generation_proven"] is False
+    assert payload["speedup_proven"] is False
+    assert payload["inference_proven"] is False
+    assert payload["can_update_proof_status"] is False
+
+
+def test_termux_draft_latency_render_contains_static_contract_boundaries():
+    from mvp_capabilities.termux_draft_latency import render_termux_latency_script
+
+    script = render_termux_latency_script(iterations=7, warmup=2)
+
+    assert "termux_draft_latency_static_contract_only_no_generation_proof" in script
+    assert "ITERATIONS = 7" in script
+    assert "WARMUP = 2" in script
+    assert "measurement_kind" in script
+    assert "can_serve_transformer_blocks" in script
+
+
+def test_termux_draft_latency_verifier_accepts_termux_repeated_evidence(tmp_path: Path):
+    from mvp_capabilities.termux_draft_latency import verify_termux_latency_evidence
+
+    samples = [0.01, 0.02, 0.015, 0.018]
+    evidence = tmp_path / "termux-latency.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_draft_latency.sh",
+                "claim_boundary": "termux_draft_latency_static_contract_only_no_generation_proof",
+                "measurement_kind": "termux_static_draft_contract_loop",
+                "phone_runtime": {"is_mobile": True, "kind": "android", "runtime": "termux", "is_termux": True},
+                "iterations": 4,
+                "warmup_iterations": 1,
+                "per_iteration_expected_counters": {"proposed": 3, "accepted": 2, "rejected": 1, "acceptance_rate": 0.666667},
+                "aggregate_counters": {"proposed": 12, "accepted": 8, "rejected": 4, "acceptance_rate": 0.666667},
+                "latency_ms": {"min": min(samples), "mean": 0.01575, "median": 0.0165, "p95": 0.0197, "max": max(samples), "samples": samples},
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_latency_evidence(evidence, min_iterations=4)
+
+    assert report["claim_boundary"] == "termux_draft_latency_verifier_only_no_generation_proof"
+    assert report["verification_status"] == "passed"
+    assert report["phone_latency_smoke_proven"] is True
+    assert report["termux_detected"] is True
+    assert report["aggregate_counters"] == {"proposed": 12, "accepted": 8, "rejected": 4, "acceptance_rate": 0.666667}
+    assert report["speedup_proven"] is False
+
+
+def test_termux_draft_latency_verifier_rejects_wrong_iteration_count(tmp_path: Path):
+    from mvp_capabilities.termux_draft_latency import verify_termux_latency_evidence
+
+    evidence = tmp_path / "bad-latency.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_draft_latency.sh",
+                "claim_boundary": "termux_draft_latency_static_contract_only_no_generation_proof",
+                "measurement_kind": "termux_static_draft_contract_loop",
+                "phone_runtime": {"is_termux": True},
+                "iterations": 3,
+                "per_iteration_expected_counters": {"proposed": 3, "accepted": 2, "rejected": 1, "acceptance_rate": 0.666667},
+                "aggregate_counters": {"proposed": 9, "accepted": 6, "rejected": 3, "acceptance_rate": 0.666667},
+                "latency_ms": {"min": 0.1, "mean": 0.1, "median": 0.1, "p95": 0.1, "max": 0.1, "samples": [0.1, 0.1, 0.1]},
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_latency_evidence(evidence, min_iterations=20)
+
+    assert report["verification_status"] == "failed"
+    assert "iterations must be >= 20" in report["errors"]
+    assert report["phone_latency_smoke_proven"] is False
+
+
+def test_termux_draft_latency_cli_render_run_and_local_verify(tmp_path: Path):
+    script = tmp_path / "termux-latency.sh"
+    render = subprocess.run(
+        [sys.executable, "mvp_capabilities/termux_draft_latency.py", "render", "--out", str(script), "--iterations", "6", "--warmup", "1", "--json"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert render.returncode == 0, render.stderr
+    render_payload = json.loads(render.stdout)
+    assert render_payload["iterations"] == 6
+    assert render_payload["phone_latency_smoke_proven"] is False
+
+    local = subprocess.run(["sh", str(script)], text=True, capture_output=True, check=False, timeout=15)
+    assert local.returncode == 0, local.stderr
+    evidence = tmp_path / "local-latency.json"
+    evidence.write_text(local.stdout, encoding="utf-8")
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/termux_draft_latency.py",
+            "verify",
+            "--evidence",
+            str(evidence),
+            "--allow-non-termux",
+            "--min-iterations",
+            "6",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert verify.returncode == 0, verify.stderr
+    report = json.loads(verify.stdout)
+    assert report["verification_status"] == "passed"
+    assert report["iterations"] == 6
+    assert report["aggregate_counters"] == {"acceptance_rate": 0.666667, "accepted": 12, "proposed": 18, "rejected": 6}
+    assert report["latency_ms"]["p95"] >= 0
+    assert report["generation_proven"] is False
+
+
+def test_termux_draft_latency_tracked_phone_evidence_has_honest_boundaries():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["verification_status"] == "passed"
+    assert payload["claim_boundary"] == "termux_draft_latency_verifier_only_no_generation_proof"
+    assert payload["phone_latency_smoke_proven"] is True
+    assert payload["termux_detected"] is True
+    assert payload["iterations"] == 50
+    assert payload["aggregate_counters"] == {"acceptance_rate": 0.666667, "accepted": 100, "proposed": 150, "rejected": 50}
+    assert payload["latency_ms"]["p95"] == 0.001669
     runtime = payload["evidence"]["phone_runtime"]
     assert runtime["android_model"] == "Pixel 8 Pro"
     assert runtime["runtime"] == "termux"
