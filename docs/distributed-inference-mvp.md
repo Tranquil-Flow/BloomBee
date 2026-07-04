@@ -72,12 +72,11 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 76%
+███████████████░░░░░ 77%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B multi-block proof from the clean m4pro
-archive using the project Python 3.11 venv**.
+public-demo proof. Next gate: **Qwen3-8B full-generation or cache-generation proof**.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /
@@ -124,8 +123,9 @@ archive using the project Python 3.11 venv**.
 - `mvp_capabilities/multi_block_proof.py` emits two-or-more-server runbooks and
   verifies multi-block evidence only when each server records start, block-range
   announcement, RPC evidence, and a combined direct-client result. Qwen3-8B
-  multi-block remains pending; initial M4 Pro attempts started both servers but
-  failed at client DHT bootstrap before any RPC proof.
+  minimal two-server multi-block direct RPC now passes from a clean m4pro archive:
+  layers `0:1` and `1:2` served finite forward/backward over combined range `0:2`.
+  Full-generation/cache-generation remain pending.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, coordinator handoff bundles with fresh-device bootstrap scripts,

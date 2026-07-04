@@ -361,9 +361,9 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████░░░░░ 76%` built from the plan, with claim boundary
-  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-block or
-  full-generation proof.
+  `███████████████░░░░░ 77%` built from the plan, with claim boundary
+  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B full-generation or
+  cache-generation proof.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
@@ -425,12 +425,14 @@ As of the current implementation slice:
   server runbooks, uses current `run_server --initial_peers` join flags for
   later servers, and refuses to mark `multi_block` passed unless every server log
   has start/announce/RPC evidence plus a combined direct-client result. The live
-  Qwen3-8B multi-block gate remains pending, but clean-tree m4pro preflight is
-  tracked at `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
+  Qwen3-8B minimal multi-block gate passed with two clean-archive servers
+  (`0:1` and `1:2`) plus a direct client over combined range `0:2`; evidence is
+  tracked at `mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json`.
+  Clean-tree m4pro preflight is tracked at `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
   Qwen3-8B cache is present, the host has 48GB memory, and proof commands should
-  use the project Python 3.11 venv because system `python3` is 3.9. Earlier M4
-  Pro attempts started both block servers, but the direct client failed during
-  DHT bootstrap before RPC.
+  use the project Python 3.11 venv because system `python3` is 3.9. The live
+  multi-block artifact supersedes earlier failed/bootstrap attempts and keeps
+  full-generation/cache-generation as the next proof gates.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.
@@ -452,9 +454,9 @@ As of the current implementation slice:
   MXFP8/NVFP4/GGUF variants are not a shortcut for the current BloomBee path.
 - Proof ladder audit (`proof_ladder.py`) exists. Qwen3-8B and Qwen3-14B have
   passed config-only prescan as `qwen3` dense models, and Qwen3-8B one-block
-  server proof is passed. Multi-block/full-generation/cache-generation/load proof
-  harnesses now exist, but the live gates remain pending; they are experimental, not
-  `safe-demo` selectable.
+  server proof and minimal multi-block direct RPC proof are passed. Full-generation,
+  cache-generation, and load proof gates remain pending; Qwen3-8B is still
+  experimental, not `safe-demo` selectable.
 - Join-link and heartbeat foundation (`join_coordinator.py`) exists: shareable
   `bloombee://join?...` offers and token-scoped active heartbeat rosters.
   `join_http_server.py` exposes `/healthz`, `/offer`, `/heartbeat`, `/active`,

@@ -255,7 +255,7 @@ def test_qwen3_dense_fallbacks_track_one_block_without_safe_demo():
     proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
 
     expected = {
-        "Qwen/Qwen3-8B": ("passed", "multi_block"),
+        "Qwen/Qwen3-8B": ("passed", "full_generation"),
         "Qwen/Qwen3-14B": ("pending", "one_block_server"),
     }
     for model_id, (one_block_status, next_gate) in expected.items():
@@ -273,10 +273,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 76
-    assert report["overall_bar"] == "███████████████░░░░░ 76%"
-    assert report["remaining_percent"] == 24
-    assert report["next_gate"] == "Qwen3-8B multi-block proof from clean m4pro archive"
+    assert report["overall_percent"] == 77
+    assert report["overall_bar"] == "███████████████░░░░░ 77%"
+    assert report["remaining_percent"] == 23
+    assert report["next_gate"] == "Qwen3-8B full-generation or cache-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 5, "partial": 7, "pending": 3, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
@@ -296,8 +296,8 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████░░░░░ 76%" in text
-    assert "Qwen3-8B multi-block proof from clean m4pro archive" in text
+    assert "███████████████░░░░░ 77%" in text
+    assert "Qwen3-8B full-generation or cache-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "## Planned tasks" in text
     assert "TinyLlama distributed fallback generation proof | complete | yes" in text
@@ -317,9 +317,9 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 76
-    assert payload["overall_bar"].endswith("76%")
-    assert payload["next_gate"] == "Qwen3-8B multi-block proof from clean m4pro archive"
+    assert payload["overall_percent"] == 77
+    assert payload["overall_bar"].endswith("77%")
+    assert payload["next_gate"] == "Qwen3-8B full-generation or cache-generation proof"
     assert payload["task_summary"]["blocked"] == 2
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
@@ -438,6 +438,38 @@ def test_qwen3_8b_clean_tree_preflight_tracks_next_gate_without_live_inference()
     assert report["can_run_next_gate"] is True
     assert report["live_inference_run"] is False
     assert "zip(..., strict=True)" in report["system_python_blocker"]
+
+
+def test_qwen3_8b_minimal_multi_block_direct_rpc_artifact_passed_without_generation_claim():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "verified_qwen3_8b_minimal_multi_block_direct_rpc_no_full_generation_claim"
+    assert report["source_commit"] == "b08b01e"
+    assert report["host"] == "m4pro"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["proof_gate"] == "multi_block"
+    assert report["block_ranges"] == ["0:1", "1:2"]
+    assert report["combined_block_range"] == "0:2"
+    assert report["minimal_multi_block_smoke"] is True
+    assert report["full_generation_proven"] is False
+    assert report["cache_generation_proven"] is False
+    assert report["multi_request_load_proven"] is False
+
+    verify = report["verify"]
+    assert verify["status"] == "passed"
+    assert verify["can_update_proof_status"] is True
+    assert verify["failed_checks"] == []
+    assert verify["proof_status_update"] == {"multi_block": "passed"}
+    assert verify["client_result"]["ok"] is True
+    assert verify["client_result"]["outputs_finite"] is True
+    assert verify["client_result"]["grad_finite"] is True
+    assert verify["client_result"]["block_range"] == [0, 2]
+
+    diagnostics = report["diagnostics"]
+    assert diagnostics["summary"]["status"] == "all_servers_healthy_client_passed"
+    assert diagnostics["coverage"] == {"covered_layers": 2, "full_coverage": True, "missing_layers": 0, "total_layers": 2}
+    assert all(server["started"] and server["has_rpc_evidence"] for server in diagnostics["servers"])
 
 
 def test_multi_block_proof_verifier_requires_each_server_and_combined_client():

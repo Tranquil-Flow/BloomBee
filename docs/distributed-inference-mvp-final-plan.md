@@ -62,11 +62,11 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 76%
+███████████████░░░░░ 77%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
+public-demo proof. Next gate: **Qwen3-8B full-generation or cache-generation proof**.
 
 Already proven:
 
@@ -121,9 +121,9 @@ Already proven:
   `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
   current HEAD was archived to m4pro `/tmp`, Qwen3-8B cache is present (19G),
   host memory is 48GB, and proof commands must use the project Python 3.11 venv
-  because system `python3` is 3.9. Qwen3-8B multi-block remains pending; initial
-  M4 Pro attempts started both servers but failed at client DHT bootstrap before
-  RPC proof.
+  because system `python3` is 3.9. Qwen3-8B minimal two-server multi-block direct
+  RPC now passes from a clean archive: layers `0:1` and `1:2` both started, and
+  the direct client verified finite forward/backward over combined range `0:2`.
 - Route picker selector modes are wired: `planning` keeps memory-fit simulation,
   `showcase-attempt` allows experimental supported wrappers while blocking
   missing-wrapper candidates, and `safe-demo` requires `full_generation` proof.
@@ -620,10 +620,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    route + layer-plan report for synthetic/live rosters and failed-host lists.
 7. Qwen3 dense fallback proofs: 8B, then 14B. **Config-only prescan + harness
    slice complete** for both; Qwen3-8B cache snapshot is complete on M4 Pro,
-   one-block server proof passed, and clean-tree m4pro preflight is tracked at
-   `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`;
-   next gate is Qwen3-8B multi-block from the clean archive using the project
-   Python 3.11 venv, then Qwen3-14B one-block proof if memory allows.
+   one-block server proof passed, clean-tree m4pro preflight is tracked at
+   `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`,
+   and minimal two-server multi-block direct RPC is tracked at
+   `mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json`;
+   next gate is Qwen3-8B full-generation or cache-generation parity from a clean
+   archive, then Qwen3-14B one-block proof if memory allows.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
 9. Multi-request chain scheduler. **Initial planning slice complete**:
    `chain_scheduler.py` emits request waves and per-peer utilization from a joined

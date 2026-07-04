@@ -1,0 +1,199 @@
+{
+  "block_ranges": [
+    "0:1",
+    "1:2"
+  ],
+  "cache_generation_proven": false,
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_qwen3_8b_minimal_multi_block_direct_rpc_no_full_generation_claim",
+  "clean_tree_path": "/private/tmp/bloombee-clean-b08b01e-minimal",
+  "client_log_excerpt": [
+    "[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-8B\", \"block_range\": [0, 2], \"input_shape\": [1, 5, 4096], \"output_shape\": [1, 5, 4096], \"outputs_finite\": true, \"outputs_unique\": 8609.0, \"grad_finite\": true, \"grad_norm\": 202.022705078125, \"forward_seconds\": 0.47249412536621094, \"backward_seconds\": 0.5688250064849854}"
+  ],
+  "combined_block_range": "0:2",
+  "diagnostics": {
+    "block_ranges": [
+      "0:1",
+      "1:2"
+    ],
+    "can_update_proof_status": false,
+    "claim_boundary": "multi_block_diagnostics_observability_only_no_inference_proof",
+    "client_result": {
+      "backward_seconds": 0.5688250064849854,
+      "block_range": [
+        0,
+        2
+      ],
+      "forward_seconds": 0.47249412536621094,
+      "grad_finite": true,
+      "grad_norm": 202.022705078125,
+      "input_shape": [
+        1,
+        5,
+        4096
+      ],
+      "model": "Qwen/Qwen3-8B",
+      "ok": true,
+      "output_shape": [
+        1,
+        5,
+        4096
+      ],
+      "outputs_finite": true,
+      "outputs_unique": 8609.0
+    },
+    "combined_block_range": "0:2",
+    "coverage": {
+      "covered_layers": 2,
+      "full_coverage": true,
+      "missing_layers": 0,
+      "total_layers": 2
+    },
+    "inference_proven": false,
+    "model_id": "Qwen/Qwen3-8B",
+    "next_step": "Fix unhealthy servers, re-run proof clients, then use multi_block_proof.py verify to promote proof status.",
+    "operator_actions": [
+      "All servers healthy; client result ok. Ready for multi_block_proof.py verify to promote proof status."
+    ],
+    "server_count": 2,
+    "servers": [
+      {
+        "announced_block_range": true,
+        "block_range": "0:1",
+        "end_layer": 1,
+        "errors": [],
+        "has_rpc_evidence": true,
+        "health": "healthy",
+        "layer_count": 1,
+        "server_index": 0,
+        "start_layer": 0,
+        "started": true
+      },
+      {
+        "announced_block_range": true,
+        "block_range": "1:2",
+        "end_layer": 2,
+        "errors": [],
+        "has_rpc_evidence": true,
+        "health": "healthy",
+        "layer_count": 1,
+        "server_index": 1,
+        "start_layer": 1,
+        "started": true
+      }
+    ],
+    "source": "multi_block_diagnostics.py",
+    "summary": {
+      "healthy_servers": 2,
+      "status": "all_servers_healthy_client_passed",
+      "unhealthy_servers": 0
+    }
+  },
+  "full_generation_proven": false,
+  "host": "m4pro",
+  "minimal_multi_block_smoke": true,
+  "model_id": "Qwen/Qwen3-8B",
+  "multi_request_load_proven": false,
+  "operator_notes": [
+    "This proves two Qwen3-8B block servers compose over direct RPC for layers 0:2.",
+    "This does not prove full 36-layer generation, cache generation, or public demo safety.",
+    "Server auto-throughput measurement stalled; rerun used --throughput 1 to skip measurement."
+  ],
+  "plan": {
+    "block_ranges": [
+      "0:1",
+      "1:2"
+    ],
+    "claim_boundary": "multi_block_proof_harness_only_no_live_inference",
+    "client_command": "PYTHONPATH=.:src python scripts/direct_remote_call.py --server-maddr '<PASTE_SERVER_0_MULTIADDR>' --server-maddr '<PASTE_SERVER_1_MULTIADDR>' --model Qwen/Qwen3-8B --hidden-dim 4096 --block-range 0:2 2>&1 | tee .local/qwen3-8b-min-client.log",
+    "client_log": ".local/qwen3-8b-min-client.log",
+    "combined_block_range": "0:2",
+    "device": "mps",
+    "dtype": "float16",
+    "hidden_size": 4096,
+    "model_id": "Qwen/Qwen3-8B",
+    "notes": [
+      "Planning output is not proof.",
+      "Server 0 starts a private swarm; later servers bootstrap to server 0's multiaddr.",
+      "The client command needs every server multiaddr so RemoteSequential can discover all blocks.",
+      "Do not update PROOF_STATUS.yaml until verify mode returns status=passed."
+    ],
+    "proof_gate": "multi_block",
+    "proof_status_on_success": "multi_block: passed",
+    "server_commands": [
+      "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --new_swarm --block_indices 0:1 --device mps --torch_dtype float16 --port 31347 2>&1 | tee .local/qwen3-8b-min-server-0.log",
+      "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --initial_peers '<PASTE_SEED_MULTIADDR>' --block_indices 1:2 --device mps --torch_dtype float16 --port 31348 2>&1 | tee .local/qwen3-8b-min-server-1.log"
+    ],
+    "server_logs": [
+      ".local/qwen3-8b-min-server-0.log",
+      ".local/qwen3-8b-min-server-1.log"
+    ],
+    "verify_command": "python mvp_capabilities/multi_block_proof.py verify --model Qwen/Qwen3-8B --block-range 0:1 --block-range 1:2 --server-log .local/qwen3-8b-min-server-0.log --server-log .local/qwen3-8b-min-server-1.log --client-log .local/qwen3-8b-min-client.log"
+  },
+  "proof_gate": "multi_block",
+  "proof_status_update": {
+    "multi_block": "passed"
+  },
+  "server_log_excerpts": {
+    "server_0": [
+      "Jul 04 14:58:35.831 [INFO] Running a server on ['/ip4/100.84.252.4/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p', '/ip4/127.0.0.1/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p', '/ip6/::1/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p']",
+      "Jul 04 14:58:35.840 [INFO] Announced that blocks range(0, 1) are joining",
+      "Jul 04 14:58:36.455 [INFO] Started",
+      "Jul 04 14:59:58.521 [INFO] rpc_forward(blocks=0:1, remote_peer=...gv7qmV)",
+      "Jul 04 14:59:59.478 [INFO] rpc_backward(blocks=0:1, remote_peer=...gv7qmV)"
+    ],
+    "server_1": [
+      "Jul 04 14:59:32.072 [INFO] Running a server on ['/ip4/100.84.252.4/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG', '/ip4/127.0.0.1/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG', '/ip6/::1/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG']",
+      "Jul 04 14:59:32.081 [INFO] Announced that blocks range(1, 2) are joining",
+      "Jul 04 14:59:32.635 [INFO] Started",
+      "Jul 04 14:59:58.630 [INFO] rpc_forward(blocks=1:2, remote_peer=...gv7qmV)",
+      "Jul 04 14:59:59.008 [INFO] rpc_backward(blocks=1:2, remote_peer=...gv7qmV)"
+    ]
+  },
+  "server_maddrs": [
+    "['/ip4/100.84.252.4/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p', '/ip4/127.0.0.1/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p', '/ip6/::1/tcp/31347/p2p/12D3KooWREMt2qp2eMDvEX8YP82TsPTepgBJKhR3ND7RXnmtx41p']",
+    "['/ip4/100.84.252.4/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG', '/ip4/127.0.0.1/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG', '/ip6/::1/tcp/31348/p2p/12D3KooWAdvwvCHSRw3N76nNifQm3ook7KiqdeWTAkpdxwwjcFSG']"
+  ],
+  "source_commit": "b08b01e",
+  "timestamp_utc": "20260704T130100Z",
+  "verify": {
+    "block_ranges": [
+      "0:1",
+      "1:2"
+    ],
+    "can_update_proof_status": true,
+    "claim_boundary": "verified_multi_block_server_evidence",
+    "client_result": {
+      "backward_seconds": 0.5688250064849854,
+      "block_range": [
+        0,
+        2
+      ],
+      "forward_seconds": 0.47249412536621094,
+      "grad_finite": true,
+      "grad_norm": 202.022705078125,
+      "input_shape": [
+        1,
+        5,
+        4096
+      ],
+      "model": "Qwen/Qwen3-8B",
+      "ok": true,
+      "output_shape": [
+        1,
+        5,
+        4096
+      ],
+      "outputs_finite": true,
+      "outputs_unique": 8609.0
+    },
+    "combined_block_range": "0:2",
+    "failed_checks": [],
+    "model_id": "Qwen/Qwen3-8B",
+    "proof_gate": "multi_block",
+    "proof_status_update": {
+      "multi_block": "passed"
+    },
+    "status": "passed"
+  }
+}

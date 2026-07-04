@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 CLAIM_BOUNDARY = "weighted_plan_status_not_demo_proof"
-NEXT_GATE = "Qwen3-8B multi-block proof from clean m4pro archive"
+NEXT_GATE = "Qwen3-8B full-generation or cache-generation proof"
 
 
 @dataclass(frozen=True)
@@ -99,10 +99,10 @@ MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_dense_fallbacks",
         label="Qwen3 dense fallback proof ladder: 8B then 14B",
         weight=8,
-        completion=0.70,
+        completion=0.82,
         status="partial",
-        evidence="Qwen3-8B prescan and one-block server proof passed on M4 Pro; Qwen3-14B config-only prescan passed; Qwen3-8B multi-block, full-generation, cache-generation, and load proof harnesses now exist; clean-tree m4pro preflight at mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json confirms cache present, 48GB host memory, clean archive path, and Python 3.11 venv requirement, but live gates remain pending",
-        next_step="Run Qwen3-8B multi-block from the clean archive on M4 Pro using the project Python 3.11 venv, then Qwen3-14B one-block proof if memory allows",
+        evidence="Qwen3-8B prescan, one-block server proof, clean-tree m4pro preflight, and minimal two-server multi-block direct RPC proof passed; Qwen3-14B config-only prescan passed; Qwen3-8B multi-block evidence is tracked at mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json with layers 0:1 + 1:2 and finite direct-client forward/backward over 0:2; full-generation, cache-generation, and load live gates remain pending",
+        next_step="Run Qwen3-8B full-generation or cache-generation parity proof from a clean M4 Pro archive, then Qwen3-14B one-block proof if memory allows",
     ),
     Milestone(
         id="qwen3_30b_proof_ladder",
@@ -174,10 +174,10 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     ),
     PlanTask(
         id="qwen3_8b_proof",
-        label="Qwen3-8B multi-block or full-generation proof",
+        label="Qwen3-8B full-generation/cache-generation proof",
         status="partial",
-        evidence="Qwen3-8B prescan and one-block server proof passed; multi-block/full-generation/cache-generation/load harnesses exist; clean-tree m4pro preflight confirms Qwen3-8B cache, 48GB memory, current git archive path, and Python 3.11 venv requirement; live gates remain pending",
-        next_step="run Qwen3-8B multi-block proof from the clean m4pro archive with project Python 3.11 venv and promote only after verifier logs pass",
+        evidence="Qwen3-8B prescan, one-block server proof, clean-tree m4pro preflight, and minimal two-server multi-block direct RPC proof passed; full-generation/cache-generation/load gates remain pending",
+        next_step="run Qwen3-8B full-generation or cache-generation parity proof from a clean M4 Pro archive and promote only after verifier logs pass",
     ),
     PlanTask(
         id="qwen3_30b_core_proof",
