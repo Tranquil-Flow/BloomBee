@@ -252,6 +252,13 @@ with `3118`, while retokenizing `rendered_prompt + draft_text` in verifier
 context starts with `6716`; the binding artifact records both and marks the
 standalone/context mismatch explicitly.
 
+BloomBee block-serving preflight:
+`mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json`
+consumes the Termux probe and records that GGUF draft generation is not BloomBee
+block serving. It remains fail-closed because Termux is missing `torch`,
+`transformers`, and the `bloombee` Python package, so one-block server/client
+proof cannot be claimed from phone evidence yet.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

@@ -177,7 +177,7 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   verifier-prefix comparison evidence including same-GGUF local acceptance,
   tokenizer-ID match evidence, a fail-closed wall-clock gate, and a local
   speculative harness reference, phone-token verifier preflight, and binding-verifier
-  text-prefix evidence now live under
+  text-prefix evidence, and BloomBee block-serving preflight now live under
   `mvp_capabilities/distributed_evidence/phone/`;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active

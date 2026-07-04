@@ -299,6 +299,7 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json
 #     mvp_capabilities/distributed_evidence/phone/phone-integrated-verifier-preflight-20260704T114000Z.json
 #     mvp_capabilities/distributed_evidence/phone/phone-llama-cpp-binding-verifier-20260704T120000Z.json
+#     mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -397,7 +398,9 @@ As of the current implementation slice:
   is blocked until a llama.cpp binding or CLI extension can ingest external draft
   token IDs; llama-cpp-python binding verifier accepts the phone draft text bytes
   under the exact CLI chat template, but still does not ingest external phone
-  token IDs or prove speedup;
+  token IDs or prove speedup; phone BloomBee block-serving preflight explicitly
+  keeps GGUF draft evidence separate from BloomBee block serving and records the
+  missing Termux Python stack blockers;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.

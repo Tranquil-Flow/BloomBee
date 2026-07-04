@@ -3815,6 +3815,46 @@ def test_phone_integrated_verifier_preflight_records_external_token_blocker():
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_phone_bloombee_block_serving_preflight_blocks_without_python_stack():
+    from mvp_capabilities.phone_bloombee_block_preflight import build_phone_bloombee_block_serving_preflight
+
+    report = build_phone_bloombee_block_serving_preflight(
+        {
+            "runtime_summary": {"android_model": "Pixel 8 Pro", "runtime": "termux", "machine": "aarch64"},
+            "python_modules": {"torch": False, "transformers": False, "bloombee": False, "hivemind": False},
+            "feasibility": {"known_blockers": ["bloombee_python_package_missing_for_block_serving"]},
+            "memory": {"mem_available_gb": 2.557, "mem_total_gb": 11.851},
+        }
+    )
+
+    assert report["claim_boundary"] == "phone_bloombee_block_serving_preflight_no_block_execution_no_speedup_claim"
+    assert report["runtime_summary"]["android_model"] == "Pixel 8 Pro"
+    assert report["bloombee_block_serving_ready"] is False
+    assert report["bloombee_block_serving_proven"] is False
+    assert report["phone_block_worker_proven"] is False
+    assert report["can_update_proof_status"] is False
+    assert "torch_missing_for_bloombee_block_serving" in report["blocking_reasons"]
+    assert "transformers_missing_for_bloombee_block_serving" in report["blocking_reasons"]
+    assert "bloombee_python_package_missing_for_block_serving" in report["blocking_reasons"]
+    assert report["speedup_proven"] is False
+
+
+def test_phone_bloombee_block_serving_preflight_tracked_evidence_stays_fail_closed():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-bloombee-block-serving-preflight-20260704T121500Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "phone_bloombee_block_serving_preflight_no_block_execution_no_speedup_claim"
+    assert report["runtime_summary"]["android_model"] == "Pixel 8 Pro"
+    assert report["gguf_draft_path_is_not_block_serving"] is True
+    assert report["bloombee_block_serving_ready"] is False
+    assert report["bloombee_block_serving_proven"] is False
+    assert report["phone_block_worker_proven"] is False
+    assert report["can_update_proof_status"] is False
+    assert "torch_missing_for_bloombee_block_serving" in report["blocking_reasons"]
+    assert "bloombee_python_package_missing_for_block_serving" in report["blocking_reasons"]
+    assert report["speedup_proven"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
