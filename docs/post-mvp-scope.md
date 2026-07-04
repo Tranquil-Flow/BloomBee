@@ -248,7 +248,64 @@ Post-MVP work below should start only in parallel-safe files or after that final
 
 ---
 
-### Task 10: Post-MVP dashboard and status separation
+### Task 10: Live chain-scheduler proof
+
+**Objective:** Promote `chain_scheduler.py` from no-live-traffic rehearsal to a telemetry-backed live scheduler proof.
+
+**Files:**
+- Modify: `mvp_capabilities/chain_scheduler.py`
+- Modify: `mvp_capabilities/proof_orchestrator.py`
+- Modify: `mvp_capabilities/request_telemetry.py`
+- Modify: `mvp_capabilities/multi_request_load_proof.py`
+- Modify: `mvp_capabilities/demo_dashboard.py`
+- Add evidence: `mvp_capabilities/distributed_evidence/scheduler/chain-scheduler-live-<timestamp>.json`
+- Test: `tests/test_mvp_capabilities.py`, `tests/test_demo_dashboard.py`
+
+**Steps:**
+1. Keep existing `chain_scheduler_plan_only_no_inference_proof` output as rehearsal-only.
+2. Add RED tests for a new live proof artifact with `live_requests_sent: true`, `inference_proven: true`, request results, telemetry, joined-plan assignments, server placements, and fail-closed `failed_checks`.
+3. Add a `run` or `verify-live` command that consumes a joined layer plan, server multiaddrs, selected model, and a schedule JSON.
+4. Reuse `request_telemetry.py` and `multi_request_load_proof.py` checks so every request has finite output/grad and measured nonzero latency.
+5. Fail if joined-plan assignments and server placements differ.
+6. Render live scheduler status in the dashboard separately from rehearsal status.
+7. Commit only after live-proof tests and dashboard tests pass.
+
+**Candidate live command shape:**
+
+```bash
+.venv/bin/python -m mvp_capabilities.chain_scheduler run \
+  --joined-layer-plan .local/joined-layer-plan.json \
+  --schedule .local/qwen30b-chain-schedule.json \
+  --server-maddr '<SERVER_0_MULTIADDR>' \
+  --server-maddr '<SERVER_1_MULTIADDR>' \
+  --model Qwen/Qwen3-30B-A3B \
+  --out mvp_capabilities/distributed_evidence/scheduler/chain-scheduler-live-<timestamp>.json
+```
+
+**Successful artifact shape:**
+
+```json
+{
+  "claim_boundary": "verified_chain_scheduler_live_request_evidence",
+  "live_requests_sent": true,
+  "inference_proven": true,
+  "scheduler_status": "passed",
+  "server_placements_match_joined_plan": true,
+  "request_results": [],
+  "telemetry": {},
+  "failed_checks": []
+}
+```
+
+**Verification command:**
+
+```bash
+.venv/bin/python -m pytest tests/test_mvp_capabilities.py tests/test_demo_dashboard.py -q
+```
+
+---
+
+### Task 11: Post-MVP dashboard and status separation
 
 **Objective:** Keep MVP-core and post-MVP progress visible without mixing denominators.
 
@@ -276,7 +333,7 @@ Post-MVP work below should start only in parallel-safe files or after that final
 
 - **Lane A:** Qwen3-30B full/cache/load proofs on m4pro.
 - **Lane B:** Android/phone capability and draft-provider wall-clock gates.
-- **Lane C:** Continuous batching + KV prefix reuse proof harnesses.
+- **Lane C:** Live chain scheduler + continuous batching + KV prefix reuse proof harnesses.
 - **Lane D:** Wrapper/backend feasibility for qwen3_5_moe and quantized frontier models.
 
 Each lane must return evidence paths, exact commands, test results, and claim boundaries. No lane may mutate MVP-core status without a test proving the denominator remains separate.
