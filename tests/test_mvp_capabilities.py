@@ -3050,3 +3050,167 @@ def test_chain_scheduler_cli_reads_joined_plan_json(tmp_path: Path):
     assert payload["wave_count"] == 2
     assert payload["peer_health"]["joined-c"]["scheduled_tokens"] == 60
     assert payload["can_update_proof_status"] is False
+
+
+# ── multi_block_diagnostics ──────────────────────────────────────────
+
+
+def test_multi_block_diagnostics_surfaces_per_server_state_and_coverage():
+    from mvp_capabilities.multi_block_diagnostics import build_multi_block_diagnostics
+
+    server_logs = [
+        "[INFO] Announced that blocks range(0, 3) are joining\n[INFO] Started\n[INFO] rpc_forward(blocks=0:3, remote_peer=...abc)\n",
+        "[INFO] Announced that blocks range(3, 6) are joining\n[INFO] Started\n[INFO] rpc_backward(blocks=3:6, remote_peer=...abc)\n",
+    ]
+    client_log = (
+        '[direct] RESULT: {"ok": true, "model": "test/SixLayer", "block_range": [0, 6], '
+        '"forward_seconds": 0.47, "backward_seconds": 0.43, '
+        '"outputs_finite": true, "grad_finite": true}\n'
+    )
+
+    report = build_multi_block_diagnostics(
+        model_id="test/SixLayer",
+        block_ranges=["0:3", "3:6"],
+        server_logs=server_logs,
+        client_log=client_log,
+    )
+
+    assert report["claim_boundary"] == "multi_block_diagnostics_observability_only_no_inference_proof"
+    assert report["model_id"] == "test/SixLayer"
+    assert report["combined_block_range"] == "0:6"
+    assert report["server_count"] == 2
+    assert report["coverage"]["covered_layers"] == 6
+    assert report["coverage"]["missing_layers"] == 0
+    assert report["coverage"]["full_coverage"] is True
+
+    assert report["servers"][0]["block_range"] == "0:3"
+    assert report["servers"][0]["started"] is True
+    assert report["servers"][0]["announced_block_range"] is True
+    assert report["servers"][0]["has_rpc_evidence"] is True
+    assert report["servers"][0]["health"] == "healthy"
+
+    assert report["servers"][1]["block_range"] == "3:6"
+    assert report["servers"][1]["health"] == "healthy"
+
+    assert report["client_result"]["ok"] is True
+    assert report["client_result"]["block_range"] == [0, 6]
+    assert report["client_result"]["forward_seconds"] == 0.47
+
+    assert report["summary"]["healthy_servers"] == 2
+    assert report["summary"]["unhealthy_servers"] == 0
+    assert report["summary"]["status"] == "all_servers_healthy_client_passed"
+    assert report["inference_proven"] is False
+    assert report["can_update_proof_status"] is False
+
+
+def test_multi_block_diagnostics_flags_missing_server_and_gapped_coverage():
+    from mvp_capabilities.multi_block_diagnostics import build_multi_block_diagnostics
+
+    # Only one server log for "0:3" — "3:6" is missing entirely.
+    server_logs = [
+        "[INFO] Announced that blocks range(0, 3) are joining\n[INFO] Started\n[INFO] rpc_forward(blocks=0:3, remote_peer=...abc)\n",
+    ]
+    client_log = (
+        '[direct] RESULT: {"ok": true, "model": "test/SixLayer", "block_range": [0, 6], '
+        '"forward_seconds": 1.2, "backward_seconds": 0.0, '
+        '"outputs_finite": true, "grad_finite": true}\n'
+    )
+
+    report = build_multi_block_diagnostics(
+        model_id="test/SixLayer",
+        block_ranges=["0:3", "3:6"],
+        server_logs=server_logs,
+        client_log=client_log,
+    )
+
+    assert report["server_count"] == 2
+    assert report["servers"][0]["health"] == "healthy"
+    assert report["servers"][1]["health"] == "unhealthy"
+    assert report["servers"][1]["errors"] == [
+        "server did not reach Started state",
+        "server did not announce block range 3:6",
+        "server did not record rpc evidence for 3:6",
+    ]
+    assert report["summary"]["healthy_servers"] == 1
+    assert report["summary"]["unhealthy_servers"] == 1
+    assert report["summary"]["status"] == "unhealthy_servers_detected"
+    assert report["coverage"]["covered_layers"] == 3
+    assert report["coverage"]["missing_layers"] == 3
+    assert report["coverage"]["full_coverage"] is False
+    assert report["inference_proven"] is False
+    assert len(report["operator_actions"]) >= 1
+    assert "server 1 (3:6)" in report["operator_actions"][0].lower()
+
+
+def test_multi_block_diagnostics_handles_failed_client_result():
+    from mvp_capabilities.multi_block_diagnostics import build_multi_block_diagnostics
+
+    server_logs = [
+        "[INFO] Announced that blocks range(0, 3) are joining\n[INFO] Started\n",
+        "[INFO] Announced that blocks range(3, 6) are joining\n[INFO] Started\n",
+    ]
+    client_log = "RuntimeError: DHT bootstrap failed before RPC\n"
+
+    report = build_multi_block_diagnostics(
+        model_id="test/SixLayer",
+        block_ranges=["0:3", "3:6"],
+        server_logs=server_logs,
+        client_log=client_log,
+    )
+
+    assert report["servers"][0]["has_rpc_evidence"] is False
+    assert report["servers"][1]["has_rpc_evidence"] is False
+    assert report["client_result"] is None
+    assert report["summary"]["status"] == "client_connection_failed"
+    assert report["coverage"]["full_coverage"] is False
+
+
+def test_multi_block_diagnostics_cli_outputs_operator_report(tmp_path: Path):
+    client_log = tmp_path / "client.log"
+    client_log.write_text(
+        '[direct] RESULT: {"ok": true, "model": "test/TwelveLayer", "block_range": [0, 4], '
+        '"forward_seconds": 0.5, "backward_seconds": 0.3, '
+        '"outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+    server_a = tmp_path / "server-0.log"
+    server_a.write_text(
+        "[INFO] Announced that blocks range(0, 2) are joining\n[INFO] Started\n[INFO] rpc_forward(blocks=0:2, remote_peer=...x)\n",
+        encoding="utf-8",
+    )
+    server_b = tmp_path / "server-1.log"
+    server_b.write_text(
+        "[INFO] Announced that blocks range(2, 4) are joining\n[INFO] Started\n[INFO] rpc_backward(blocks=2:4, remote_peer=...y)\n",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/multi_block_diagnostics.py",
+            "--model",
+            "test/TwelveLayer",
+            "--block-range",
+            "0:2",
+            "--block-range",
+            "2:4",
+            "--server-log",
+            str(server_a),
+            "--server-log",
+            str(server_b),
+            "--client-log",
+            str(client_log),
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["claim_boundary"] == "multi_block_diagnostics_observability_only_no_inference_proof"
+    assert payload["server_count"] == 2
+    assert payload["summary"]["status"] == "all_servers_healthy_client_passed"
+    assert payload["coverage"]["full_coverage"] is True
+    assert payload["inference_proven"] is False
