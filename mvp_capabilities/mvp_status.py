@@ -236,9 +236,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="qwen35b_candidate",
         label="Qwen35B candidate branch",
-        status="blocked",
-        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning but HF model_type=qwen3_5_moe / qwen3_5_moe_text lacks a BloomBee wrapper; config-only wrapper scout at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json shows alternating linear_attention/full_attention layers, mRoPE parameters, and linear-attention head fields, so copying the existing Qwen3MoeDecoderLayer wrapper is unsafe",
-        next_step="write RED import/config-dispatch tests for qwen3_5_moe and qwen3_5_moe_text before any wrapper code or live proof; keep showcase/safe-demo blocked until wrapper tests and one-block proof pass",
+        status="partial",
+        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning. Text-tower qwen3_5_moe_text wrapper/package now has import/config and full_attention block contract tests green at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json; linear_attention cache remains blocked fail-closed, so there is still no one-block server proof and no demo/route promotion.",
+        next_step="implement/test Qwen3.5 linear-attention cache mapping before one-block server proof; keep showcase/safe-demo blocked until linear-attention, one-block, full/cache/load gates pass",
     ),
     PlanTask(
         id="minimax_m3_candidate",

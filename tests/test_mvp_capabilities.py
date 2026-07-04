@@ -431,6 +431,23 @@ def test_qwen_agentworld_wrapper_scout_blocks_copying_qwen3_moe_wrapper():
     assert "Qwen3MoeDecoderLayer" in payload["why_existing_qwen3_moe_wrapper_is_insufficient"]
 
 
+def test_qwen_agentworld_text_wrapper_gate_evidence_is_conservative():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "post_mvp_qwen35b_text_wrapper_contract_only_no_serving_proof"
+    assert payload["model_id"] == "Qwen/Qwen-AgentWorld-35B-A3B"
+    assert payload["wrapper_code_written"] is True
+    assert payload["text_tower_model_type"] == "qwen3_5_moe_text"
+    assert payload["full_attention_block_contract"] == "passed"
+    assert payload["linear_attention_cache_contract"] == "blocked_fail_closed"
+    assert payload["runnable_backend_proven"] is False
+    assert payload["can_update_mvp_status"] is True
+    assert payload["can_update_proof_status"] is True
+    assert payload["proof_status_update"] == {"one_block_server": "blocked-by-linear-attention-cache"}
+    assert "no demo promotion" in payload["do_not_claim"]
+
+
 
 def test_mvp_status_report_has_weighted_progress_bar():
     from mvp_capabilities.mvp_status import build_status_report, render_markdown
@@ -462,10 +479,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
+    assert report["task_summary"] == {"complete": 9, "partial": 5, "pending": 2, "blocked": 1, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
     assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 4, "pending": 2, "blocked": 2, "total": 8}
+    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 5, "pending": 2, "blocked": 1, "total": 8}
     assert report["core_tasks_complete"] is True
     assert {item["status"] for item in report["core_tasks"]} == {"complete"}
     assert {item["id"] for item in report["post_mvp_tasks"]} == {
@@ -486,10 +503,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "missing torch/transformers/tokenizers/llama_cpp/bloombee Python modules" in tasks["phone_worker"]["evidence"]
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
-    assert tasks["qwen35b_candidate"]["status"] == "blocked"
-    assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
-    assert "Qwen3MoeDecoderLayer wrapper is unsafe" in tasks["qwen35b_candidate"]["evidence"]
-    assert "RED import/config-dispatch tests" in tasks["qwen35b_candidate"]["next_step"]
+    assert tasks["qwen35b_candidate"]["status"] == "partial"
+    assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "full_attention block contract" in tasks["qwen35b_candidate"]["evidence"]
+    assert "linear_attention cache remains blocked" in tasks["qwen35b_candidate"]["evidence"]
+    assert "linear-attention cache mapping" in tasks["qwen35b_candidate"]["next_step"]
     assert tasks["fresh_laptop_join"]["status"] == "complete"
     assert tasks["physical_showcase"]["status"] == "complete"
     assert "Pixel 8 Pro camera/browser QR scan" in tasks["fresh_laptop_join"]["evidence"]
@@ -506,8 +524,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "## MVP-core tasks" in markdown
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
     assert "## Post-MVP backlog tasks" in markdown
-    assert "Post-MVP backlog task summary: 0 complete, 4 partial, 2 pending, 2 blocked" in markdown
-    assert "All-task summary: 9 complete, 4 partial, 2 pending, 2 blocked" in markdown
+    assert "Post-MVP backlog task summary: 0 complete, 5 partial, 2 pending, 1 blocked" in markdown
+    assert "All-task summary: 9 complete, 5 partial, 2 pending, 1 blocked" in markdown
 
 
 
@@ -635,8 +653,10 @@ def test_mvp_status_cli_outputs_json():
     assert payload["overall_bar"].endswith("100%")
     assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
-    assert payload["task_summary"]["blocked"] == 2
+    assert payload["task_summary"]["blocked"] == 1
+    assert payload["task_summary"]["partial"] == 5
     assert payload["task_summary"]["complete"] == 9
+    assert any(task["id"] == "qwen35b_candidate" and task["status"] == "partial" for task in payload["planned_tasks"])
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
 
@@ -1958,6 +1978,8 @@ def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wr
     assert model["num_experts_per_tok"] == 8
     assert model["recommended_min_free_mem_gb"] == 80
     assert model["architecture_supported"] is False
+    assert any("linear_attention cache" in reason for reason in model["blocked_reasons"])
+    assert any("full_attention text-tower block" in reason for reason in model["blocked_reasons"])
 
     peers = synthetic_m4_laptops(count=10, total_gb=24, free_gb=20)
     proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
@@ -1981,8 +2003,8 @@ def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wr
         selector_mode="showcase-attempt",
     )
     assert showcase["selector_allowed"] is False
-    assert "wrapper" in showcase["selector_blocked_reason"].lower()
-    assert showcase["proof_status"]["one_block_server"] == "blocked-by-wrapper"
+    assert "linear_attention cache" in showcase["selector_blocked_reason"]
+    assert showcase["proof_status"]["one_block_server"] == "blocked-by-linear-attention-cache"
 
 
 def test_registry_tracks_minimax_m3_as_high_compute_blocked_candidate():

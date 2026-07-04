@@ -217,6 +217,17 @@ def _selector_allowed(selector_mode: str, claim_level: str) -> tuple[bool, str |
     raise ValueError(f"unknown selector_mode={selector_mode!r}; expected one of {SELECTOR_MODES}")
 
 
+def _specific_blocked_reason(model: dict[str, Any], status: dict[str, str]) -> str:
+    parts: list[str] = []
+    blocked_reasons = [str(reason) for reason in (model.get("blocked_reasons") or [])]
+    if blocked_reasons:
+        parts.append("; ".join(blocked_reasons))
+    blocked_gates = [f"{gate}={value}" for gate, value in status.items() if _status_is_blocked(value)]
+    if blocked_gates:
+        parts.append("blocked proof gate(s): " + ", ".join(blocked_gates))
+    return "; ".join(parts) or "blocked by missing wrapper or proof gate"
+
+
 def evaluate_model(
     peers: list[dict[str, Any]],
     model: dict[str, Any],
@@ -249,6 +260,8 @@ def evaluate_model(
     model_proof_status = _proof_status_for(model, proof_status)
     claim_level = _claim_level_for(model, model_proof_status)
     selector_allowed, selector_blocked_reason = _selector_allowed(selector_mode, claim_level)
+    if selector_mode == "showcase-attempt" and not selector_allowed and claim_level == "blocked":
+        selector_blocked_reason = _specific_blocked_reason(model, model_proof_status)
 
     return {
         "model_id": model.get("model_id"),

@@ -5,3 +5,4 @@ from bloombee.models.llama import *
 from bloombee.models.mixtral import *
 from bloombee.models.qwen3 import *
 from bloombee.models.qwen3_moe import *
+from bloombee.models.qwen3_5_moe import *

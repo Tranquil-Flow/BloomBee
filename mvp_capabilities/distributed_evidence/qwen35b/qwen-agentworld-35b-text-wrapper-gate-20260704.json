@@ -1,0 +1,35 @@
+{
+  "claim_boundary": "post_mvp_qwen35b_text_wrapper_contract_only_no_serving_proof",
+  "model_id": "Qwen/Qwen-AgentWorld-35B-A3B",
+  "generated_at_utc": "2026-07-04T22:25:00+00:00",
+  "wrapper_code_written": true,
+  "text_tower_model_type": "qwen3_5_moe_text",
+  "outer_model_type": "qwen3_5_moe",
+  "tested_package": "bloombee.models.qwen3_5_moe",
+  "test_file": "tests/test_qwen3_5_moe_block_contract.py",
+  "test_command": ".venv/bin/python -m pytest tests/test_qwen3_5_moe_block_contract.py -q",
+  "test_result": "5 passed, 2 warnings",
+  "full_attention_block_contract": "passed",
+  "linear_attention_cache_contract": "blocked_fail_closed",
+  "runnable_backend_proven": false,
+  "serving_proof_proven": false,
+  "generation_proof_proven": false,
+  "can_update_mvp_status": true,
+  "can_update_proof_status": true,
+  "proof_status_update": {
+    "one_block_server": "blocked-by-linear-attention-cache"
+  },
+  "blocked_reasons": [
+    "Qwen3.5-MoE text tower alternates linear_attention and full_attention layers; only full_attention block cache/KV contract is green.",
+    "BloomBee KV tuple contract does not yet encode Qwen3.5 linear_attention convolution/state cache, so linear_attention cached serving fails closed.",
+    "Outer qwen3_5_moe multimodal/conditional-generation config remains unserved; this slice registers text_tower model_type=qwen3_5_moe_text only."
+  ],
+  "do_not_claim": [
+    "no demo promotion",
+    "no one-block server proof",
+    "no full-generation proof",
+    "no cache-generation proof",
+    "no multi-request load proof"
+  ],
+  "next_step": "Implement/test Qwen3.5 linear-attention cache mapping before any one-block server proof or route promotion."
+}

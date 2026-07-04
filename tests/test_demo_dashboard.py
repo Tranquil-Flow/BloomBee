@@ -446,9 +446,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["mvp_status"]["scope"] == "mvp_core"
     assert doc["mvp_status"]["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
-    assert doc["mvp_status"]["task_summary"]["blocked"] == 2
+    assert doc["mvp_status"]["task_summary"]["blocked"] == 1
     assert doc["mvp_status"]["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert doc["mvp_status"]["post_mvp_task_summary"] == {"complete": 0, "partial": 4, "pending": 2, "blocked": 2, "total": 8}
+    assert doc["mvp_status"]["post_mvp_task_summary"] == {"complete": 0, "partial": 5, "pending": 2, "blocked": 1, "total": 8}
     assert doc["mvp_status"]["core_tasks_complete"] is True
     post_mvp = {item["id"]: item for item in doc["mvp_status"]["post_mvp_milestones"]}
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
@@ -491,14 +491,14 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Planned tasks" in html
     assert "MVP-core tasks" in html
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in html
-    assert "Post-MVP backlog task summary: 0 complete, 4 partial, 2 pending, 2 blocked" in html
+    assert "Post-MVP backlog task summary: 0 complete, 5 partial, 2 pending, 1 blocked" in html
     assert "Post-MVP backlog tasks" in html
     assert "Post-MVP / stretch milestones" in html
     assert "LayerExecutor / quantized-backend feasibility spike" in html
     assert "Quantization + route override handoff" in html
     assert "foundation_committed" in html
     assert "not part of MVP-core 100%" in html
-    assert "All-task summary: 9 complete, 4 partial, 2 pending, 2 blocked" in html
+    assert "All-task summary: 9 complete, 5 partial, 2 pending, 1 blocked" in html
     assert "TinyLlama distributed fallback generation proof" in html
     assert "Physical/self-serve N-laptop showcase" in html
     assert "Qwen35B candidate branch" in html
