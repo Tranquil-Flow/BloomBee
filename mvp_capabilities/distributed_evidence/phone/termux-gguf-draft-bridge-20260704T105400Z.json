@@ -1,0 +1,51 @@
+{
+  "bloombee_block_serving_proven": false,
+  "can_update_bloombee_block_worker_status": false,
+  "can_update_speculative_speedup_status": false,
+  "claim_boundary": "termux_tiny_gguf_draft_bridge_verifier_no_speedup_claim",
+  "evidence": {
+    "bloombee_block_serving_proven": false,
+    "can_update_bloombee_block_worker_status": false,
+    "can_update_speculative_speedup_status": false,
+    "claim_boundary": "termux_tiny_gguf_draft_bridge_smoke_no_verifier_acceptance_no_speedup_claim",
+    "draft_request": {
+      "n_predict": 8,
+      "prompt": "Once upon a time",
+      "role": "draft_provider_candidate"
+    },
+    "draft_response": {
+      "elapsed_s": 0.565503,
+      "generated_text": "One day, a little girl named Lucy",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout": "\nLoading model... \n\n\n\u2584\u2584 \u2584\u2584\n\u2588\u2588 \u2588\u2588\n\u2588\u2588 \u2588\u2588  \u2580\u2580\u2588\u2584 \u2588\u2588\u2588\u2584\u2588\u2588\u2588\u2584  \u2580\u2580\u2588\u2584    \u2584\u2588\u2588\u2588\u2588 \u2588\u2588\u2588\u2588\u2584 \u2588\u2588\u2588\u2588\u2584\n\u2588\u2588 \u2588\u2588 \u2584\u2588\u2580\u2588\u2588 \u2588\u2588 \u2588\u2588 \u2588\u2588 \u2584\u2588\u2580\u2588\u2588    \u2588\u2588    \u2588\u2588 \u2588\u2588 \u2588\u2588 \u2588\u2588\n\u2588\u2588 \u2588\u2588 \u2580\u2588\u2584\u2588\u2588 \u2588\u2588 \u2588\u2588 \u2588\u2588 \u2580\u2588\u2584\u2588\u2588 \u2588\u2588 \u2580\u2588\u2588\u2588\u2588 \u2588\u2588\u2588\u2588\u2580 \u2588\u2588\u2588\u2588\u2580\n                                    \u2588\u2588    \u2588\u2588\n                                    \u2580\u2580    \u2580\u2580\n\nbuild      : b0-unknown\nmodel      : /data/data/com.termux/files/home/bloombee-models/stories15M.gguf\nmodalities : text\n\navailable commands:\n  /exit or Ctrl+C     stop or exit\n  /regen              regenerate the last response\n  /clear              clear the chat history\n  /read <file>        add a text file\n  /glob <pattern>     add text files using globbing pattern\n\n\n> Once upon a time\n\nOne day, a little girl named Lucy\n\n[ Prompt: 761.5 t/s | Generation: 120.2 t/s ]\n\nExiting...\n"
+    },
+    "generation_proven": true,
+    "model": {
+      "exists": true,
+      "id": "ggml-org/tiny-llamas/stories15M.gguf",
+      "path": "/data/data/com.termux/files/home/bloombee-models/stories15M.gguf",
+      "sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+      "size_bytes": 98357920
+    },
+    "phone_runtime": {
+      "android_model": "Pixel 8 Pro",
+      "android_sdk": "36",
+      "is_termux": true,
+      "machine": "aarch64",
+      "python": "3.14.6",
+      "runtime": "termux",
+      "soc": "Tensor G3"
+    },
+    "source": "termux_gguf_draft_bridge.sh",
+    "speedup_proven": false,
+    "verification_status": "passed",
+    "verifier_acceptance_proven": false
+  },
+  "failed_checks": [],
+  "generated_text": "One day, a little girl named Lucy",
+  "phone_tiny_gguf_draft_bridge_proven": true,
+  "source": "termux_gguf_draft_bridge.py",
+  "speedup_proven": false,
+  "verification_status": "passed"
+}

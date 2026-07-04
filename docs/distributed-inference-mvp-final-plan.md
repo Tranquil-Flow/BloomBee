@@ -161,13 +161,15 @@ Already proven:
   contract-loop latency; `termux_tiny_model_probe.py` records installed-runtime
   blockers; `termux_gguf_runtime_plan.py` records a no-install guarded GGUF
   runtime plan; approved follow-up ran Termux `llama.cpp` CLI on
-  `ggml-org/tiny-llamas/stories15M.gguf`. Tracked Pixel 8 Pro Termux evidence
-  now includes
+  `ggml-org/tiny-llamas/stories15M.gguf`; `termux_gguf_draft_bridge.py` wraps
+  the phone output as a draft-provider-candidate JSON envelope. Tracked Pixel 8
+  Pro Termux evidence now includes
   `mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`,
   `mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json`,
   `mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json`,
   `mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-plan-20260704T101232Z.json`,
-  and `mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json`.
+  `mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json`,
+  and `mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-bridge-20260704T105400Z.json`.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -597,11 +599,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     `termux_draft_latency.py` adds repeated static-contract latency measurement;
     `termux_tiny_model_probe.py` adds a real installed-runtime/blocker probe;
     `termux_gguf_runtime_plan.py` adds a guarded no-install GGUF runtime plan;
-    approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp;
-    real Pixel 8 Pro Termux smoke, latency, feasibility, plan, and generation evidence files are tracked;
+    approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp
+    and wrapped it as a draft-provider-candidate JSON bridge;
+    real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, and bridge evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    claiming speculative speedup. Next: wrap phone GGUF generation as a draft
-    provider and compare verifier-accepted tokens, and wire a BloomBee execution harness only after
+    claiming speculative speedup. Next: compare phone GGUF draft output against
+    verifier-accepted tokens, and wire a BloomBee execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.

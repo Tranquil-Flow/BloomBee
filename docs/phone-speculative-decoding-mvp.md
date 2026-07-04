@@ -169,6 +169,15 @@ Tracked proof:
 This proves standalone tiny-GGUF phone generation, not BloomBee block serving and
 not speculative decoding speedup.
 
+Follow-up bridge proof:
+`mvp_capabilities/termux_gguf_draft_bridge.py` rendered a phone-side JSON bridge
+around `llama-cli`; the Pixel returned a draft-provider-candidate envelope with
+prompt `Once upon a time`, `n_predict=8`, generated text
+`One day, a little girl named Lucy`, and elapsed time 0.565503s. Tracked proof:
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-bridge-20260704T105400Z.json`.
+This advances the phone from standalone tiny-GGUF generation to a bridgeable
+draft-provider candidate, but verifier acceptance and speedup remain unproven.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

@@ -286,6 +286,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
     assert "missing torch/transformers/tokenizers/llama_cpp/bloombee Python modules" in tasks["phone_worker"]["evidence"]
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
+    assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["done"] is False
 
@@ -3468,6 +3469,62 @@ def test_termux_gguf_runtime_generation_tracked_artifact_is_tiny_model_only():
     assert payload["proof_flags"]["speedup_proven"] is False
     assert payload["proof_flags"]["bloombee_block_serving_proven"] is False
     assert payload["proof_flags"]["can_update_bloombee_block_worker_status"] is False
+
+
+def test_termux_gguf_draft_bridge_render_contains_model_and_boundaries():
+    from mvp_capabilities.termux_gguf_draft_bridge import render_termux_gguf_draft_bridge_script
+
+    script = render_termux_gguf_draft_bridge_script(prompt="Once upon a time", n_predict=4)
+
+    assert "llama-cli" in script
+    assert "termux_tiny_gguf_draft_bridge_smoke_no_verifier_acceptance_no_speedup_claim" in script
+    assert "stories15M.gguf" in script
+    assert "bloombee_block_serving_proven" in script
+    assert "speedup_proven" in script
+
+
+def test_termux_gguf_draft_bridge_verify_accepts_generation_payload():
+    from mvp_capabilities.termux_gguf_draft_bridge import verify_termux_gguf_draft_bridge_evidence
+
+    report = verify_termux_gguf_draft_bridge_evidence(
+        {
+            "claim_boundary": "termux_tiny_gguf_draft_bridge_smoke_no_verifier_acceptance_no_speedup_claim",
+            "verification_status": "passed",
+            "phone_runtime": {"is_termux": True, "android_model": "Pixel 8 Pro"},
+            "model": {"id": "ggml-org/tiny-llamas/stories15M.gguf", "exists": True, "sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"},
+            "draft_request": {"prompt": "Once upon a time", "n_predict": 4},
+            "draft_response": {"returncode": 0, "generated_text": "One day", "elapsed_s": 0.25},
+            "generation_proven": True,
+            "verifier_acceptance_proven": False,
+            "speedup_proven": False,
+            "bloombee_block_serving_proven": False,
+        }
+    )
+
+    assert report["verification_status"] == "passed"
+    assert report["phone_tiny_gguf_draft_bridge_proven"] is True
+    assert report["can_update_speculative_speedup_status"] is False
+    assert report["can_update_bloombee_block_worker_status"] is False
+
+
+def test_termux_gguf_draft_bridge_tracked_phone_evidence_has_no_speedup_claim():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-bridge-20260704T105400Z.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["verification_status"] == "passed"
+    assert payload["claim_boundary"] == "termux_tiny_gguf_draft_bridge_verifier_no_speedup_claim"
+    assert payload["phone_tiny_gguf_draft_bridge_proven"] is True
+    assert payload["generated_text"] == "One day, a little girl named Lucy"
+    raw = payload["evidence"]
+    assert raw["draft_request"] == {"prompt": "Once upon a time", "n_predict": 8, "role": "draft_provider_candidate"}
+    assert raw["draft_response"]["returncode"] == 0
+    assert raw["model"]["sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert raw["generation_proven"] is True
+    assert raw["verifier_acceptance_proven"] is False
+    assert payload["speedup_proven"] is False
+    assert payload["bloombee_block_serving_proven"] is False
+    assert payload["can_update_speculative_speedup_status"] is False
+    assert payload["can_update_bloombee_block_worker_status"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
