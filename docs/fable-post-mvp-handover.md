@@ -100,10 +100,12 @@ Review questions:
 
 ### `tests/test_cache.py` and `tests/test_peft.py`
 
-Default full-suite blockers are now explicit skips:
+Default full-suite blockers are now explicit skips, while PEFT keeps a small no-network safety slice in the default suite:
 
 - `test_cache_usage` is skipped because the multiprocessing cache integration test reproducibly hangs; the nearby source comments already point at pending `memory_cache.py` repair.
-- `tests/test_peft.py` is skipped unless `BLOOMBEE_RUN_HF_PEFT=1` because it needs live HuggingFace network/cache access.
+- `tests/test_peft.py` now runs two local safety tests by default: safetensors-path checking and unsafe-repo rejection before adapter/cache access.
+- The five live HuggingFace PEFT tests are skipped unless `BLOOMBEE_RUN_HF_PEFT=1` because they need network/cache access.
+- The live PEFT opt-in tests are deliberately not `forked`: skipped+forked reproduced a pytest setup-state error before `tests/test_phase0_cache_write_parity.py`.
 
 Review questions:
 
@@ -150,12 +152,13 @@ source .venv/bin/activate
 Current verification notes from this handoff commit:
 
 - Focused MVP/dashboard suite: `186 passed, 3 warnings`.
-- Unfiltered default suite: `380 passed, 23 skipped, 6 warnings`.
+- Unfiltered default suite: `382 passed, 23 skipped, 6 warnings`.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
   - `tests/test_cache.py::test_cache_usage` is skipped with a reason because it reproducibly hangs in the multiprocessing memory-cache integration path pending `memory_cache.py` repair.
-  - `tests/test_peft.py` is skipped unless `BLOOMBEE_RUN_HF_PEFT=1` because it performs live HuggingFace PEFT network/cache checks.
+  - `tests/test_peft.py` keeps two no-network PEFT safety tests in the default suite and skips only the five live HuggingFace PEFT network/cache tests unless `BLOOMBEE_RUN_HF_PEFT=1`.
+  - The live PEFT opt-in tests intentionally do **not** carry `@pytest.mark.forked`; skipped+forked PEFT tests reproduced a pytest setup-state error before `tests/test_phase0_cache_write_parity.py`.
 
-Fable should now spend review tokens on whether those skipped gates should become separate CI jobs or repaired tests, not on rediscovering why the default local suite used to hang/fail.
+Fable should now spend review tokens on whether the skipped gates should become separate CI jobs or repaired tests, not on rediscovering why the default local suite used to hang/fail.
 
 Artifact redaction checks:
 
