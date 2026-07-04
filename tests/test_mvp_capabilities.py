@@ -248,23 +248,28 @@ def test_proof_ladder_cli_outputs_fallback_ladder_json():
     assert all("next_gate" in item for item in payload["models"])
 
 
-def test_qwen3_dense_fallbacks_track_one_block_without_safe_demo():
+def test_qwen3_dense_fallbacks_promote_qwen8_after_full_and_cache_generation():
     from mvp_capabilities.model_compat_scan import load_proof_status
     from mvp_capabilities.proof_ladder import build_proof_ladder
 
     proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
 
-    expected = {
-        "Qwen/Qwen3-8B": ("passed", "full_generation"),
-        "Qwen/Qwen3-14B": ("pending", "one_block_server"),
-    }
-    for model_id, (one_block_status, next_gate) in expected.items():
-        report = build_proof_ladder(model_id, proof_status=proof)
-        assert report["proof_status"]["prescan"] == "passed"
-        assert report["proof_status"]["one_block_server"] == one_block_status
-        assert report["claim_level"] == "experimental"
-        assert report["safe_demo_selectable"] is False
-        assert report["next_gate"] == next_gate
+    qwen8 = build_proof_ladder("Qwen/Qwen3-8B", proof_status=proof)
+    assert qwen8["proof_status"]["prescan"] == "passed"
+    assert qwen8["proof_status"]["one_block_server"] == "passed"
+    assert qwen8["proof_status"]["multi_block"] == "passed"
+    assert qwen8["proof_status"]["full_generation"] == "passed"
+    assert qwen8["proof_status"]["cache_generation"] == "passed"
+    assert qwen8["claim_level"] == "demo_safe"
+    assert qwen8["safe_demo_selectable"] is True
+    assert qwen8["next_gate"] == "multi_request_load"
+
+    qwen14 = build_proof_ladder("Qwen/Qwen3-14B", proof_status=proof)
+    assert qwen14["proof_status"]["prescan"] == "passed"
+    assert qwen14["proof_status"]["one_block_server"] == "pending"
+    assert qwen14["claim_level"] == "experimental"
+    assert qwen14["safe_demo_selectable"] is False
+    assert qwen14["next_gate"] == "one_block_server"
 
 
 def test_mvp_status_report_has_weighted_progress_bar():
@@ -272,16 +277,19 @@ def test_mvp_status_report_has_weighted_progress_bar():
 
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
+    assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 77
-    assert report["overall_bar"] == "███████████████░░░░░ 77%"
-    assert report["remaining_percent"] == 23
-    assert report["next_gate"] == "Qwen3-8B full-generation or cache-generation proof"
-    assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 5, "partial": 7, "pending": 3, "blocked": 2, "total": 17}
+    assert report["overall_percent"] == 82
+    assert report["overall_bar"] == "████████████████░░░░ 82%"
+    assert report["remaining_percent"] == 18
+    assert report["next_gate"] == "Qwen3-8B multi-request load proof and physical showcase"
+    assert "MVP reaches 100%" in report["mvp_completion_definition"]
+    assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
+    assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["post_mvp_milestones"])
+    assert report["task_summary"] == {"complete": 6, "partial": 6, "pending": 3, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
-    assert tasks["qwen3_8b_proof"]["status"] == "partial"
+    assert tasks["qwen3_8b_proof"]["status"] == "complete"
     assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
     assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
     assert "missing torch/transformers/tokenizers/llama_cpp/bloombee Python modules" in tasks["phone_worker"]["evidence"]
@@ -296,9 +304,11 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "███████████████░░░░░ 77%" in text
-    assert "Qwen3-8B full-generation or cache-generation proof" in text
+    assert "████████████████░░░░ 82%" in text
+    assert "Qwen3-8B multi-request load proof and physical showcase" in text
     assert "weighted_plan_status_not_demo_proof" in text
+    assert "MVP scope" in text
+    assert "Post-MVP / stretch milestones" in text
     assert "## Planned tasks" in text
     assert "TinyLlama distributed fallback generation proof | complete | yes" in text
     assert "Physical/self-serve N-laptop showcase | pending | no" in text
@@ -317,9 +327,10 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 77
-    assert payload["overall_bar"].endswith("77%")
-    assert payload["next_gate"] == "Qwen3-8B full-generation or cache-generation proof"
+    assert payload["overall_percent"] == 82
+    assert payload["overall_bar"].endswith("82%")
+    assert payload["next_gate"] == "Qwen3-8B multi-request load proof and physical showcase"
+    assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
@@ -470,6 +481,82 @@ def test_qwen3_8b_minimal_multi_block_direct_rpc_artifact_passed_without_generat
     assert diagnostics["summary"]["status"] == "all_servers_healthy_client_passed"
     assert diagnostics["coverage"] == {"covered_layers": 2, "full_coverage": True, "missing_layers": 0, "total_layers": 2}
     assert all(server["started"] and server["has_rpc_evidence"] for server in diagnostics["servers"])
+
+
+def test_qwen3_8b_full_generation_forward_loop_artifact_passed_without_cache_claim():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/QWEN3_8B_FULL_GENERATION_FORWARD_LOOP_2026-07-04.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "verified_qwen3_8b_full_generation_forward_loop_no_cache_generation_claim"
+    assert report["source_commit"] == "3f663a0"
+    assert report["host"] == "m4pro"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["proof_gate"] == "full_generation"
+    assert report["mode"] == "forward-loop"
+    assert report["block_range"] == "0:36"
+    assert report["full_generation_proven"] is True
+    assert report["cache_generation_proven"] is False
+    assert report["multi_request_load_proven"] is False
+    assert report["server_started"] is True
+    assert report["required_hf_cache_dir"] == "/Users/evinova-self/.cache/huggingface/hub"
+    assert report["known_bad_default_cache_dir"] == "/Users/evinova-self/.cache/bloombee"
+
+    parity = report["parity"]
+    assert parity["ok"] is True
+    assert parity["generated_ids_match"] is True
+    assert parity["generated_text_match"] is True
+    assert parity["next_token_match"] is True
+    assert parity["prompt"] == "The moon is"
+    assert parity["max_new_tokens"] == 1
+    assert parity["reference_ids"] == parity["distributed_ids"] == [785, 17788, 374, 264]
+    assert parity["reference_text"] == parity["distributed_text"] == "The moon is a"
+    assert parity["server_placements"] == [
+        {
+            "host": "m4pro-full",
+            "layers": [0, 36],
+            "server_maddr": parity["server_maddrs"][0],
+        }
+    ]
+
+    verify = report["verify"]
+    assert verify["status"] == "passed"
+    assert verify["can_update_proof_status"] is True
+    assert verify["failed_checks"] == []
+    assert verify["proof_status_update"] == {"full_generation": "passed"}
+
+
+def test_qwen3_8b_cache_generation_artifact_passed_without_load_claim():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/QWEN3_8B_CACHE_GENERATION_2026-07-04.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "verified_qwen3_8b_cache_generation_no_load_claim"
+    assert report["source_commit"] == "3f663a0"
+    assert report["host"] == "m4pro"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["proof_gate"] == "cache_generation"
+    assert report["mode"] == "generate-api"
+    assert report["block_range"] == "0:36"
+    assert report["full_generation_proven"] is True
+    assert report["cache_generation_proven"] is True
+    assert report["multi_request_load_proven"] is False
+    assert report["server_started"] is True
+
+    parity = report["parity"]
+    assert parity["ok"] is True
+    assert parity["generated_ids_match"] is True
+    assert parity["generated_text_match"] is True
+    assert parity["next_token_match"] is True
+    assert parity["mode"] == "generate-api"
+    assert parity["reference_steps"] == []
+    assert parity["distributed_steps"] == []
+    assert parity["reference_ids"] == parity["distributed_ids"] == [785, 17788, 374, 264]
+    assert parity["reference_text"] == parity["distributed_text"] == "The moon is a"
+
+    verify = report["verify"]
+    assert verify["status"] == "passed"
+    assert verify["can_update_proof_status"] is True
+    assert verify["failed_checks"] == []
+    assert verify["proof_status_update"] == {"cache_generation": "passed"}
 
 
 def test_multi_block_proof_verifier_requires_each_server_and_combined_client():
@@ -1597,8 +1684,10 @@ def test_cli_safe_demo_mode_uses_proof_status_before_selecting_model():
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["selector_mode"] == "safe-demo"
-    assert payload["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert payload["model_id"] == "Qwen/Qwen3-8B"
     assert payload["claim_level"] == "demo_safe"
+    assert payload["proof_status"]["full_generation"] == "passed"
+    assert payload["proof_status"]["cache_generation"] == "passed"
 
 
 def test_model_compat_scan_marks_qwen3_moe_as_bloombee_supported(tmp_path: Path):

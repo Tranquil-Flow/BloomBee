@@ -361,9 +361,10 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `███████████████░░░░░ 77%` built from the plan, with claim boundary
-  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B full-generation or
-  cache-generation proof.
+  `████████████████░░░░ 82%` built from the MVP-core plan, with claim boundary
+  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-request load
+  proof and physical showcase. Qwen3-30B and optimisation work is tracked as
+  post-MVP/stretch, not as part of the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
   health status. It carries `chain_scheduler_plan_only_no_inference_proof`; live
@@ -428,11 +429,15 @@ As of the current implementation slice:
   Qwen3-8B minimal multi-block gate passed with two clean-archive servers
   (`0:1` and `1:2`) plus a direct client over combined range `0:2`; evidence is
   tracked at `mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json`.
+  Full-generation forward-loop parity is tracked at
+  `mvp_capabilities/distributed_evidence/QWEN3_8B_FULL_GENERATION_FORWARD_LOOP_2026-07-04.json`,
+  and cache-generation generate-api parity is tracked at
+  `mvp_capabilities/distributed_evidence/QWEN3_8B_CACHE_GENERATION_2026-07-04.json`.
   Clean-tree m4pro preflight is tracked at `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
   Qwen3-8B cache is present, the host has 48GB memory, and proof commands should
-  use the project Python 3.11 venv because system `python3` is 3.9. The live
-  multi-block artifact supersedes earlier failed/bootstrap attempts and keeps
-  full-generation/cache-generation as the next proof gates.
+  use the project Python 3.11 venv because system `python3` is 3.9. Full 0:36
+  server startup also requires explicit `--cache_dir /Users/evinova-self/.cache/huggingface/hub`
+  for the complete HF shard cache; the default BloomBee cache was incomplete.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.

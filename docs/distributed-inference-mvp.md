@@ -72,11 +72,13 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 77%
+████████████████░░░░ 82%
 ```
 
-Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B full-generation or cache-generation proof**.
+Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
+progress, not public-demo proof. Next gate: **Qwen3-8B multi-request load proof
+and physical showcase**. Qwen3-30B and larger/model-optimisation work remains
+visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /

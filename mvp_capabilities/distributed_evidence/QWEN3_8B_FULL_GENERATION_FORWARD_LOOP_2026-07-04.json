@@ -1,0 +1,238 @@
+{
+  "block_range": "0:36",
+  "cache_dir_lesson": "Full 0:36 Qwen3-8B server stalled/failed when default BloomBee cache was used; explicit HuggingFace hub cache plus offline env loaded all five safetensor shards and reached Started.",
+  "cache_generation_proven": false,
+  "claim_boundary": "verified_qwen3_8b_full_generation_forward_loop_no_cache_generation_claim",
+  "full_generation_proven": true,
+  "host": "m4pro",
+  "known_bad_default_cache_dir": "/Users/evinova-self/.cache/bloombee",
+  "mode": "forward-loop",
+  "model_id": "Qwen/Qwen3-8B",
+  "multi_request_load_proven": false,
+  "parity": {
+    "distributed_dtype": "torch.float16",
+    "distributed_ids": [
+      785,
+      17788,
+      374,
+      264
+    ],
+    "distributed_next_token_id": 264,
+    "distributed_seconds": 11.645817041397095,
+    "distributed_steps": [
+      {
+        "next_token_id": 264,
+        "seconds": 0.3246331214904785,
+        "step": 0,
+        "top5": [
+          {
+            "logit": 22.28158187866211,
+            "token_id": 264
+          },
+          {
+            "logit": 21.768047332763672,
+            "token_id": 911
+          },
+          {
+            "logit": 21.148101806640625,
+            "token_id": 13187
+          },
+          {
+            "logit": 21.02904510498047,
+            "token_id": 220
+          },
+          {
+            "logit": 20.382081985473633,
+            "token_id": 279
+          }
+        ]
+      }
+    ],
+    "distributed_text": "The moon is a",
+    "distributed_top5": [
+      {
+        "logit": 22.28158187866211,
+        "token_id": 264
+      },
+      {
+        "logit": 21.768047332763672,
+        "token_id": 911
+      },
+      {
+        "logit": 21.148101806640625,
+        "token_id": 13187
+      },
+      {
+        "logit": 21.02904510498047,
+        "token_id": 220
+      },
+      {
+        "logit": 20.382081985473633,
+        "token_id": 279
+      }
+    ],
+    "generated_ids_match": true,
+    "generated_text_match": true,
+    "input_ids": [
+      785,
+      17788,
+      374
+    ],
+    "logits_max_abs_diff": 0.07265353202819824,
+    "logits_mean_abs_diff": 0.025410916656255722,
+    "max_new_tokens": 1,
+    "mode": "forward-loop",
+    "model": "Qwen/Qwen3-8B",
+    "next_token_match": true,
+    "ok": true,
+    "prompt": "The moon is",
+    "reference_device": "mps",
+    "reference_dtype": "torch.float16",
+    "reference_ids": [
+      785,
+      17788,
+      374,
+      264
+    ],
+    "reference_next_token_id": 264,
+    "reference_seconds": 2.161940097808838,
+    "reference_steps": [
+      {
+        "next_token_id": 264,
+        "seconds": 0.09513592720031738,
+        "step": 0,
+        "top5": [
+          {
+            "logit": 22.28125,
+            "token_id": 264
+          },
+          {
+            "logit": 21.78125,
+            "token_id": 911
+          },
+          {
+            "logit": 21.15625,
+            "token_id": 13187
+          },
+          {
+            "logit": 21.046875,
+            "token_id": 220
+          },
+          {
+            "logit": 20.390625,
+            "token_id": 279
+          }
+        ]
+      }
+    ],
+    "reference_text": "The moon is a",
+    "reference_top5": [
+      {
+        "logit": 22.28125,
+        "token_id": 264
+      },
+      {
+        "logit": 21.78125,
+        "token_id": 911
+      },
+      {
+        "logit": 21.15625,
+        "token_id": 13187
+      },
+      {
+        "logit": 21.046875,
+        "token_id": 220
+      },
+      {
+        "logit": 20.390625,
+        "token_id": 279
+      }
+    ],
+    "server_maddrs": [
+      "/ip4/127.0.0.1/tcp/31357/p2p/12D3KooWKnr1mNKRDwSEipb4tKT6uX8vZPo2kkuAUoZCXFqQ34C3"
+    ],
+    "server_placements": [
+      {
+        "host": "m4pro-full",
+        "layers": [
+          0,
+          36
+        ],
+        "server_maddr": "/ip4/127.0.0.1/tcp/31357/p2p/12D3KooWKnr1mNKRDwSEipb4tKT6uX8vZPo2kkuAUoZCXFqQ34C3"
+      }
+    ],
+    "server_to_server": true
+  },
+  "proof_gate": "full_generation",
+  "required_hf_cache_dir": "/Users/evinova-self/.cache/huggingface/hub",
+  "server_log_summary": {
+    "announced_block_range": "0:36",
+    "loaded_layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "port": 31357
+  },
+  "server_started": true,
+  "source_commit": "3f663a0",
+  "verify": {
+    "can_update_proof_status": true,
+    "claim_boundary": "verified_full_generation_evidence",
+    "evidence_path": ".local/qwen3-8b-fullgen-evidence.json",
+    "evidence_summary": {
+      "distributed_seconds": 11.645817041397095,
+      "generated_ids_match": true,
+      "generated_text_match": true,
+      "max_new_tokens": 1,
+      "mode": "forward-loop",
+      "model": "Qwen/Qwen3-8B",
+      "next_token_match": true,
+      "ok": true,
+      "prompt": "The moon is",
+      "reference_seconds": 2.161940097808838,
+      "server_count": 1,
+      "server_placement_count": 1
+    },
+    "failed_checks": [],
+    "model_id": "Qwen/Qwen3-8B",
+    "proof_gate": "full_generation",
+    "proof_status_update": {
+      "full_generation": "passed"
+    },
+    "status": "passed"
+  }
+}

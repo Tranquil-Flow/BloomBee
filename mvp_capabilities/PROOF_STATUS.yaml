@@ -20,8 +20,8 @@ models:
     prescan: passed
     one_block_server: passed
     multi_block: passed
-    full_generation: pending
-    cache_generation: pending
+    full_generation: passed
+    cache_generation: passed
     multi_request_load: pending
 
   Qwen/Qwen3-14B:

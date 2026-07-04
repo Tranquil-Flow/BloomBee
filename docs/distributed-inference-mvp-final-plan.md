@@ -62,11 +62,13 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-███████████████░░░░░ 77%
+████████████████░░░░ 82%
 ```
 
-Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B full-generation or cache-generation proof**.
+Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
+progress, not public-demo proof. Next gate: **Qwen3-8B multi-request load proof
+and physical showcase**. Qwen3-30B/larger models and optimisations are tracked
+as post-MVP/stretch work outside the 100% MVP denominator.
 
 Already proven:
 
@@ -623,9 +625,12 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    one-block server proof passed, clean-tree m4pro preflight is tracked at
    `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`,
    and minimal two-server multi-block direct RPC is tracked at
-   `mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json`;
-   next gate is Qwen3-8B full-generation or cache-generation parity from a clean
-   archive, then Qwen3-14B one-block proof if memory allows.
+   `mvp_capabilities/distributed_evidence/QWEN3_8B_MIN_MULTI_BLOCK_DIRECT_RPC_2026-07-04.json`,
+   full-generation forward-loop parity is tracked at
+   `mvp_capabilities/distributed_evidence/QWEN3_8B_FULL_GENERATION_FORWARD_LOOP_2026-07-04.json`,
+   and cache-generation parity is tracked at
+   `mvp_capabilities/distributed_evidence/QWEN3_8B_CACHE_GENERATION_2026-07-04.json`;
+   next gate is Qwen3-8B multi-request load proof and physical showcase.
 8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
 9. Multi-request chain scheduler. **Initial planning slice complete**:
    `chain_scheduler.py` emits request waves and per-peer utilization from a joined
