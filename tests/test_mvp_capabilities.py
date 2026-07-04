@@ -280,14 +280,14 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 86
-    assert report["overall_bar"] == "█████████████████░░░ 86%"
-    assert report["remaining_percent"] == 14
+    assert report["overall_percent"] == 89
+    assert report["overall_bar"] == "██████████████████░░ 89%"
+    assert report["remaining_percent"] == 11
     assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["post_mvp_milestones"])
-    assert report["task_summary"] == {"complete": 7, "partial": 5, "pending": 3, "blocked": 2, "total": 17}
+    assert report["task_summary"] == {"complete": 7, "partial": 6, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
@@ -297,7 +297,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
-    assert tasks["physical_showcase"]["done"] is False
+    assert tasks["physical_showcase"]["status"] == "partial"
+    assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
 
 
 def test_mvp_status_markdown_contains_status_bar_and_next_gate():
@@ -305,14 +306,14 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "█████████████████░░░ 86%" in text
+    assert "██████████████████░░ 89%" in text
     assert "physical/self-serve showcase with fresh joined devices" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
     assert "Post-MVP / stretch milestones" in text
     assert "## Planned tasks" in text
     assert "TinyLlama distributed fallback generation proof | complete | yes" in text
-    assert "Physical/self-serve N-laptop showcase | pending | no" in text
+    assert "Physical/self-serve N-laptop showcase | partial | no" in text
 
 
 def test_mvp_status_cli_outputs_json():
@@ -328,8 +329,8 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 86
-    assert payload["overall_bar"].endswith("86%")
+    assert payload["overall_percent"] == 89
+    assert payload["overall_bar"].endswith("89%")
     assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
@@ -590,6 +591,103 @@ def test_qwen3_8b_multi_request_load_artifact_passed_without_physical_showcase_c
     assert verify["telemetry"]["latency_seconds"]["forward"]["unmeasured_count"] == 0
     assert verify["telemetry"]["latency_seconds"]["backward"]["unmeasured_count"] == 0
     assert all(row["ok"] and row["outputs_finite"] and row["grad_finite"] for row in verify["request_results"])
+
+
+
+def test_physical_showcase_proof_rejects_missing_physical_scanner_evidence():
+    from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
+
+    proof_status = {
+        "Qwen/Qwen3-8B": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
+        }
+    }
+    evidence = {
+        "claim_boundary": "physical_showcase_operator_evidence",
+        "model_id": "Qwen/Qwen3-8B",
+        "fresh_join": {
+            "physical_scanner_interop_proven": False,
+            "fresh_devices": [
+                {"peer_id": "fresh-macbook", "transport": "copy_paste", "heartbeat_count": 3}
+            ],
+            "heartbeat_loop": {
+                "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                "results": [
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                ],
+            },
+        },
+        "dashboard": {"rendered": True, "observed_peer_ids": ["fresh-macbook"]},
+    }
+
+    report = verify_physical_showcase_evidence(evidence, proof_status=proof_status)
+
+    assert report["status"] == "failed"
+    assert report["proof_gate"] == "physical_showcase"
+    assert report["physical_showcase_proven"] is False
+    assert report["can_update_mvp_status"] is False
+    assert "physical_scanner_interop_unproven" in report["failed_checks"]
+    assert "fresh_device_not_joined_via_physical_qr" in report["failed_checks"]
+
+
+
+def test_physical_showcase_proof_accepts_qwen8_operator_evidence_without_overclaiming_extra_gates():
+    from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
+
+    proof_status = {
+        "Qwen/Qwen3-8B": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
+        }
+    }
+    evidence = {
+        "claim_boundary": "physical_showcase_operator_evidence",
+        "model_id": "Qwen/Qwen3-8B",
+        "fresh_join": {
+            "physical_scanner_interop_proven": True,
+            "fresh_devices": [
+                {"peer_id": "fresh-macbook", "hostname": "fresh-macbook", "transport": "physical_qr_scan", "heartbeat_count": 3}
+            ],
+            "heartbeat_loop": {
+                "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                "inference_proven": False,
+                "results": [
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                ],
+            },
+        },
+        "dashboard": {"rendered": True, "observed_peer_ids": ["fresh-macbook"]},
+    }
+
+    report = verify_physical_showcase_evidence(evidence, proof_status=proof_status)
+
+    assert report["status"] == "passed"
+    assert report["claim_boundary"] == "verified_physical_showcase_evidence"
+    assert report["proof_gate"] == "physical_showcase"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["selected_model_proof_status"]["multi_request_load"] == "passed"
+    assert report["fresh_device_count"] == 1
+    assert report["heartbeat_result_count"] == 3
+    assert report["physical_showcase_proven"] is True
+    assert report["phone_worker_proven"] is False
+    assert report["qwen3_30b_generation_proven"] is False
+    assert report["can_update_mvp_status"] is True
+    assert report["mvp_status_update"] == {"physical_showcase": "passed"}
+    assert report["failed_checks"] == []
+
 
 
 def test_multi_block_proof_verifier_requires_each_server_and_combined_client():

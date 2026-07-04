@@ -43,9 +43,10 @@ BloomBee's runtime already maintains.
 | 16. Request telemetry | `request_telemetry.py` | Summarizes direct-client `[direct] RESULT` logs into success/failure counts, forward/backward latency, model/block coverage, and errors. This is observability only, not a load proof. | JSON request telemetry |
 | 17. Multi-request load proof | `multi_request_load_proof.py` | Emits repeated direct-client runbooks and verifies expected successful request logs before allowing `multi_request_load` proof promotion. Planning mode is not live traffic. | JSON plan / verification report |
 | 18. Proof orchestration | `proof_orchestrator.py` | Turns a coordinator handoff bundle into an ordered no-execution operator checklist: start servers, capture multiaddrs, run proof clients, verify, and only then promote proof status. It flags unresolved placeholders and forbidden legacy peer flags. | JSON orchestration checklist |
-| 19. Speculative decode plan | `speculative_decode_plan.py` + `draft_provider.py` + `draft_provider_bridge.py` + `termux_draft_smoke.py` + `termux_draft_latency.py` + `termux_tiny_model_probe.py` + `termux_gguf_runtime_plan.py` | Defines verifier-authoritative draft-provider roles, including phone-as-draft-only policy and exact-token correctness contract. `draft_provider.py` adds a dependency-free provider contract and accepted/rejected token counters for dashboard smoke reports; `draft_provider_bridge.py` exposes that contract over stdio JSONL for Termux/ADB/SSH bridge experiments; `termux_draft_smoke.py` renders/verifies a pasteable self-contained Termux smoke script; `termux_draft_latency.py` measures repeated static-contract loop latency; `termux_tiny_model_probe.py` checks real tiny-model/BloomBee runtime blockers; `termux_gguf_runtime_plan.py` converts probe evidence into a guarded no-install GGUF runtime plan. This is speedup planning only, not generation proof. | JSON speculative plan / draft-provider smoke report / stdio bridge JSONL / Termux smoke+latency+feasibility+install-plan verifier |
-| 20. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
-| 21. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
+| 19. Speculative decode plan | `speculative_decode_plan.py` + `draft_provider.py` + `draft_provider_bridge.py` + `termux_draft_smoke.py` + `termux_draft_latency.py` + `termux_tiny_model_probe.py` + `termux_gguf_runtime_plan.py` | Defines verifier-authoritative draft-provider roles, including phone-as-draft-only policy and exact-token correctness contract. `draft_provider.py` adds a dependency-free provider contract and accepted/rejected token counters for dashboard smoke reports; `draft_provider_bridge.py` exposes the same contract over stdio JSONL for Termux/ADB/SSH bridge experiments; Termux/phone harnesses track smoke, latency, and GGUF draft evidence without speedup overclaims. | JSON plans / evidence reports |
+| 20. Physical showcase proof | `physical_showcase_proof.py` | Fail-closed verifier for operator-captured physical QR scan, repeated fresh-device heartbeats, dashboard observation, and selected-model proof status. This does not run devices itself; it blocks MVP physical-showcase promotion until real evidence exists. | JSON verification report |
+| 21. Simulator | `swarm_simulator.py` | Rehearses synthetic/live rosters with failed hosts, selected model, route, and layer plan. Simulation only, not inference proof. | JSON scenario report |
+| 22. Sweep planner | `sweep_models.py` | Builds or executes a benchmark sweep for all models that fit a peer. | Dry-run commands or measured JSON |
 
 Layer 1 says *what the hardware is*. Layer 2 says *what models exist and how big they are*. Layer 3 says *whether a model is BloomBee-runnable and how proven it is*. Layer 4 says *which proof gate comes next*. Layer 5 prepares and verifies one-block proof evidence. Layers 6–7 prepare generation/cache proof evidence. Layer 8 says *how much of the plan is built*. Layer 9 says *what each model actually achieves on this hardware*.
 
@@ -361,9 +362,11 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `█████████████████░░░ 86%` built from the MVP-core plan, with claim boundary
+  `██████████████████░░ 89%` built from the MVP-core plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: physical/self-serve showcase
-  with fresh joined devices. Qwen3-30B and optimisation work is tracked as
+  with fresh joined devices. `physical_showcase_proof.py` now provides the
+  fail-closed operator-evidence verifier, but real physical QR/heartbeat/dashboard
+  evidence is still uncaptured. Qwen3-30B and optimisation work is tracked as
   post-MVP/stretch, not as part of the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`

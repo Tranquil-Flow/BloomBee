@@ -72,12 +72,14 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-█████████████████░░░ 86%
+██████████████████░░ 89%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
 progress, not public-demo proof. Next gate: **physical/self-serve showcase with
-fresh joined devices**. Qwen3-30B and larger/model-optimisation work remains
+fresh joined devices**. `physical_showcase_proof.py` now fail-closed verifies
+operator-captured physical evidence, but a real physical showcase has not yet
+been captured. Qwen3-30B and larger/model-optimisation work remains
 visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
