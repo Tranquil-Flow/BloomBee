@@ -119,6 +119,16 @@ Because Hermes cannot start the local `adb` daemon in this sandbox
 script that can be pasted directly into Termux and later verified from its JSON
 output. This is still only draft-contract smoke, not useful phone compute.
 
+2026-07-04 update: with the phone connected to `m4pro`, ADB detected a
+Pixel 8 Pro (`Tensor G3`, Android SDK 36). The agent pushed the smoke script to
+`/sdcard/Download`, typed the short Termux command
+`sh /sdcard/Download/bloombee-run.sh`, pulled the JSON output back, and verified
+it with `termux_draft_smoke.py verify`. Tracked evidence:
+`mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`.
+The proof boundary remains `termux_draft_provider_smoke_verifier_only_no_generation_proof`:
+it proves Termux can run the draft-provider contract smoke, not speedup,
+transformer-block serving, or useful phone inference yet.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

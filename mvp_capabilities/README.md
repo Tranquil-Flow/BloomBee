@@ -264,6 +264,9 @@ python mvp_capabilities/termux_draft_smoke.py render \
 python mvp_capabilities/termux_draft_smoke.py verify \
   --evidence .local/phone/termux-output.json
 
+#     Verified phone evidence from 2026-07-04 is tracked at:
+#     mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -339,7 +342,9 @@ As of the current implementation slice:
   `draft_provider_bridge.py` exposes the same contract over stdio JSONL for
   future Termux/ADB/SSH phone bridge tests; `termux_draft_smoke.py` renders and
   verifies a self-contained pasteable Termux script for cases where ADB daemon
-  startup is blocked by the sandbox;
+  startup is blocked by the sandbox; a real Pixel 8 Pro Termux smoke is tracked
+  at `distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json`, but
+  it proves only draft-contract execution, not speedup or block serving;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.

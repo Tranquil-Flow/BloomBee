@@ -282,6 +282,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "partial"
+    assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["done"] is False
 
@@ -3040,6 +3041,25 @@ def test_termux_draft_smoke_cli_render_and_local_verify(tmp_path: Path):
     assert report["verification_status"] == "passed"
     assert report["dashboard_counters"] == {"acceptance_rate": 0.666667, "accepted": 2, "proposed": 3, "rejected": 1}
     assert report["speedup_proven"] is False
+
+
+def test_termux_draft_smoke_tracked_phone_evidence_has_honest_boundaries():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-draft-smoke-20260704T095557Z.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["verification_status"] == "passed"
+    assert payload["claim_boundary"] == "termux_draft_provider_smoke_verifier_only_no_generation_proof"
+    assert payload["phone_smoke_proven"] is True
+    assert payload["termux_detected"] is True
+    assert payload["dashboard_counters"] == {"acceptance_rate": 0.666667, "accepted": 2, "proposed": 3, "rejected": 1}
+    runtime = payload["evidence"]["phone_runtime"]
+    assert runtime["android_model"] == "Pixel 8 Pro"
+    assert runtime["runtime"] == "termux"
+    assert runtime["machine"] == "aarch64"
+    assert payload["generation_proven"] is False
+    assert payload["speedup_proven"] is False
+    assert payload["inference_proven"] is False
+    assert payload["can_update_proof_status"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():

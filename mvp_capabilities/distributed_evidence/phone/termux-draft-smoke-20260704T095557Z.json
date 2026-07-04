@@ -1,0 +1,100 @@
+{
+  "can_update_proof_status": false,
+  "claim_boundary": "termux_draft_provider_smoke_verifier_only_no_generation_proof",
+  "dashboard_counters": {
+    "acceptance_rate": 0.666667,
+    "accepted": 2,
+    "proposed": 3,
+    "rejected": 1
+  },
+  "errors": [],
+  "evidence": {
+    "can_update_proof_status": false,
+    "claim_boundary": "termux_draft_provider_smoke_only_no_generation_proof",
+    "dashboard_counters": {
+      "acceptance_rate": 0.666667,
+      "accepted": 2,
+      "proposed": 3,
+      "rejected": 1
+    },
+    "generation_proven": false,
+    "inference_proven": false,
+    "ok": true,
+    "operator_next_steps": [
+      "copy this JSON back to the laptop and verify with termux_draft_smoke.py verify",
+      "measure repeated latency before claiming useful phone draft speedup",
+      "do not count this phone as a transformer-block worker without a separate block-serving proof"
+    ],
+    "phone_runtime": {
+      "android_manufacturer": "Google",
+      "android_model": "Pixel 8 Pro",
+      "android_sdk": "36",
+      "is_mobile": true,
+      "is_termux": true,
+      "kind": "android",
+      "machine": "aarch64",
+      "prefix": "/data/data/com.termux/files/usr",
+      "python": "3.13.13",
+      "runtime": "termux",
+      "soc": "Tensor G3"
+    },
+    "prompt_tokens": [
+      1,
+      2,
+      3
+    ],
+    "proposal": {
+      "draft_token_count": 3,
+      "draft_tokens": [
+        5,
+        6,
+        7
+      ],
+      "elapsed_ms": 0.018,
+      "max_draft_tokens": 3
+    },
+    "provider": {
+      "can_serve_transformer_blocks": false,
+      "phone_compatible_interface": true,
+      "provider_id": "termux-static-draft-provider",
+      "provider_kind": "termux_static_fake"
+    },
+    "source": "termux_draft_smoke.sh",
+    "speedup_proven": false,
+    "verdict": {
+      "acceptance_rate": 0.666667,
+      "accepted_count": 2,
+      "accepted_tokens": [
+        5,
+        6
+      ],
+      "accepted_tokens_require_verifier_match": true,
+      "committed_tokens": [
+        5,
+        6,
+        8
+      ],
+      "proposed_count": 3,
+      "rejected_count": 1,
+      "rejected_tokens": [
+        7
+      ],
+      "verifier_authoritative": true,
+      "verifier_fallback_token": 8
+    },
+    "verifier_tokens": [
+      5,
+      6,
+      8
+    ]
+  },
+  "generation_proven": false,
+  "inference_proven": false,
+  "next_step": "measure repeated phone bridge latency and compare against verifier-only baseline",
+  "ok": true,
+  "phone_smoke_proven": true,
+  "source": "termux_draft_smoke.py",
+  "speedup_proven": false,
+  "termux_detected": true,
+  "verification_status": "passed"
+}
