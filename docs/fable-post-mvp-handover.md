@@ -140,16 +140,19 @@ tests/test_mvp_capabilities.py
 tests/test_demo_dashboard.py
 mvp_capabilities/README.md
 docs/distributed-inference-mvp.md
-docs/distributed-inference-mvp-final-plan.md
-docs/mvp-finish-plan.md
-docs/post-mvp-scope.md
 ```
+
+Latest status/dashboard refinement before Fable:
+
+- `mvp_status.py` now exposes the LayerExecutor / quantized-backend feasibility spike as a `post_mvp_milestones` entry with `status=research_complete` and `completion=1.0`, while keeping `scope=mvp_core`, `total_weight=100`, and MVP-core percent unchanged.
+- `demo_dashboard.py` now renders a separate **Post-MVP / stretch milestones** table with the explicit copy `Visible for planning, not part of MVP-core 100%.`
+- Tests assert the LayerExecutor spike appears in `post_mvp_milestones` and in dashboard HTML, so post-MVP research remains visible without contaminating the MVP-core denominator.
 
 Review questions:
 
 - Are any docs still implying the strict physical showcase is blocked?
 - Does the dashboard/status UI clearly separate MVP-core 100% from post-MVP pending work?
-- Are post-MVP blocked/pending tasks visible enough that a reader will not overclaim?
+- Are post-MVP blocked/pending/research-complete tasks visible enough that a reader will not overclaim?
 
 ---
 

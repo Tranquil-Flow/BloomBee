@@ -394,6 +394,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "qwen30b_priority.py" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "Instruct-2507 follow-up" in post_mvp["qwen3_30b_proof_ladder"]["label"]
+    assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
+    assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
+    assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
+    assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True

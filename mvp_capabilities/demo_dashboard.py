@@ -487,6 +487,16 @@ def _status_panel(status: dict[str, Any]) -> str:
             "</tr>"
         )
     planned_tasks = status.get("planned_tasks") or []
+    post_mvp_rows = []
+    for item in status.get("post_mvp_milestones") or []:
+        post_mvp_rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('label'))}</td>"
+            f"<td>{_esc(item.get('status'))}</td>"
+            f"<td>{_esc(item.get('percent'))}%</td>"
+            f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
+            "</tr>"
+        )
     task_rows = []
     for item in planned_tasks:
         done = "yes" if item.get("done") else "no"
@@ -518,6 +528,12 @@ def _status_panel(status: dict[str, Any]) -> str:
         <table>
           <thead><tr><th>Milestone</th><th>Status</th><th>Built</th><th>Evidence / next</th></tr></thead>
           <tbody>{''.join(rows) or '<tr><td colspan="4">No status milestones loaded</td></tr>'}</tbody>
+        </table>
+        <h3>Post-MVP / stretch milestones</h3>
+        <p class="muted">Visible for planning, not part of MVP-core 100%.</p>
+        <table>
+          <thead><tr><th>Milestone</th><th>Status</th><th>Built</th><th>Evidence / next</th></tr></thead>
+          <tbody>{''.join(post_mvp_rows) or '<tr><td colspan="4">No post-MVP milestones loaded</td></tr>'}</tbody>
         </table>
         <h3>Planned tasks</h3>
         <p class="muted">Task summary: {_esc(summary_copy)}</p>

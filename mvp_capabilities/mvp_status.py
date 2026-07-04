@@ -139,6 +139,15 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B, and a clean-archive two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json (finite forward/backward, failed_checks=[]). qwen30b_priority.py now codifies the post-MVP order: base Qwen3-30B-A3B first, Instruct-2507 follow-up, Thinking-2507 optional. This remains post-MVP/stretch and does not move the MVP-core 100% denominator after Qwen3-8B became demo-safe.",
         next_step="full-generation parity for base Qwen3-30B-A3B, then cache-generation and multi-request load; run Instruct-2507 prescan/one-block only after base behavior is understood",
     ),
+    Milestone(
+        id="layerexecutor_quantized_backend_spike",
+        label="LayerExecutor / quantized-backend feasibility spike",
+        weight=5,
+        completion=1.00,
+        status="research_complete",
+        evidence="No runnable backend proof. Config-only scans and research artifact block MiniMaxAI/MiniMax-M3, zai-org/GLM-5.2, deepseek-ai/DeepSeek-V4-Flash, and moonshotai/Kimi-K2-Instruct from native BloomBee route/demo use today; evidence is tracked at mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json and docs/layerexecutor-quantized-backend-spike.md.",
+        next_step="keep base Qwen3-30B full/cache/load ahead of frontier backend work; if continued, pick one target and start with external-runtime smoke only",
+    ),
 )
 
 
