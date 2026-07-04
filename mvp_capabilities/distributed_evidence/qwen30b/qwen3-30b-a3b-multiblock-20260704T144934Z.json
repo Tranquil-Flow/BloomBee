@@ -1,0 +1,119 @@
+{
+  "cache": {
+    "cache_dir": "/Users/evinova-self/.cache/huggingface/hub",
+    "cache_du": "57G /Users/evinova-self/.cache/huggingface/hub/models--Qwen--Qwen3-30B-A3B",
+    "config_model_type": "qwen3_moe",
+    "hidden_size": 2048,
+    "missing_count": 0,
+    "num_experts": 128,
+    "num_experts_per_tok": 8,
+    "num_hidden_layers": 48,
+    "snapshot_commit": "ad44e777bcd18fa416d9da3bd8f70d33ebb85d39",
+    "total_size_bytes_from_index": 61064245248,
+    "weight_file_count": 16
+  },
+  "can_update_mvp_status": false,
+  "can_update_proof_status": true,
+  "claim_boundary": "post_mvp_verified_multi_block_server_evidence_not_demo_safe",
+  "cleanup": {
+    "cleanup_json": "/Users/evinova-self/Projects/distributed-inference-mvp/.local/qwen30b-stretch-20260704T144934Z/status/cleanup.json",
+    "final_ports_listening_31337_31338": false,
+    "final_run_server_processes": [],
+    "servers_stopped": true
+  },
+  "client_result": {
+    "backward_seconds": 0.9037811756134033,
+    "block_range": [
+      0,
+      2
+    ],
+    "forward_seconds": 1.0659260749816895,
+    "grad_finite": true,
+    "grad_norm": 100.3604736328125,
+    "input_shape": [
+      1,
+      5,
+      2048
+    ],
+    "model": "Qwen/Qwen3-30B-A3B",
+    "ok": true,
+    "output_shape": [
+      1,
+      5,
+      2048
+    ],
+    "outputs_finite": true,
+    "outputs_unique": 6382.0
+  },
+  "commit_under_test": "9e8a421",
+  "current_commit_when_committed": "352a2ca",
+  "head_delta_qwen_runtime_files": [],
+  "host": {
+    "device": "mps",
+    "hf_offline": true,
+    "identity": "user=evinova-self\n host=m4pro\n mem=51539607552\n project=yes",
+    "python": "3.11.15",
+    "torch_dtype": "float16",
+    "torch_version": "2.12.1",
+    "transformers_version": "5.12.1"
+  },
+  "log_excerpts": {
+    "client": [
+      "[direct] bootstrap peers (2):",
+      "[direct] requesting block range 0:2",
+      "[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-30B-A3B\", \"block_range\": [0, 2], \"input_shape\": [1, 5, 2048], \"output_shape\": [1, 5, 2048], \"outputs_finite\": true, \"outputs_unique\": 6382.0, \"grad_finite\": true, \"grad_norm\": 100.3604736328125, \"forward_seconds\": 1.0659260749816895, \"backward_seconds\": 0.9037811756134033}"
+    ],
+    "server_0": [
+      "Jul 04 16:51:09.933 [INFO] Running a server on ['/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWKJnT33C9d5iSGygE1kCBAbKjXbrw11AcMpLobKVN4ywa']",
+      "Jul 04 16:51:09.936 [INFO] Reporting throughput: 610.3 tokens/sec for 1 blocks",
+      "Jul 04 16:51:09.972 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-30B-A3B",
+      "Jul 04 16:52:59.268 [INFO] rpc_forward(blocks=0:1, remote_peer=...P5WjHA)",
+      "Jul 04 16:53:01.051 [INFO] rpc_backward(blocks=0:1, remote_peer=...P5WjHA)"
+    ],
+    "server_1": [
+      "Jul 04 16:52:33.609 [INFO] Running a server on ['/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWFpgxxBBP9QWoqDAZEWFkwqGu6DHuHQfc9mFAgLA3Pbsn']",
+      "Jul 04 16:52:33.612 [INFO] Reporting throughput: 610.3 tokens/sec for 1 blocks",
+      "Jul 04 16:52:33.645 [INFO] Loading HF weights for model.layers.1. from Qwen/Qwen3-30B-A3B",
+      "Jul 04 16:52:59.458 [INFO] rpc_forward(blocks=1:2, remote_peer=...P5WjHA)",
+      "Jul 04 16:53:00.351 [INFO] rpc_backward(blocks=1:2, remote_peer=...P5WjHA)"
+    ]
+  },
+  "model_id": "Qwen/Qwen3-30B-A3B",
+  "proof_gate": "multi_block",
+  "proof_status_update": {
+    "multi_block": "passed"
+  },
+  "remaining_gates": [
+    "full_generation",
+    "cache_generation",
+    "multi_request_load"
+  ],
+  "scope_note": "This proves only Qwen3-30B-A3B multi_block direct RPC over blocks 0:2; it does not prove full_generation, cache_generation, load, or demo_safe.",
+  "servers": [
+    {
+      "block_range": "0:1",
+      "index": 0,
+      "multiaddr": "/ip4/192.168.178.37/tcp/31337/p2p/12D3KooWKJnT33C9d5iSGygE1kCBAbKjXbrw11AcMpLobKVN4ywa",
+      "port": 31337
+    },
+    {
+      "block_range": "1:2",
+      "index": 1,
+      "multiaddr": "/ip4/192.168.178.37/tcp/31338/p2p/12D3KooWFpgxxBBP9QWoqDAZEWFkwqGu6DHuHQfc9mFAgLA3Pbsn",
+      "port": 31338
+    }
+  ],
+  "source": "qwen30b_stretch_multiblock_live_proof",
+  "status": "passed",
+  "used_clean_archive_from_local_head": true,
+  "verify": {
+    "block_ranges": [
+      "0:1",
+      "1:2"
+    ],
+    "claim_boundary": "verified_multi_block_server_evidence",
+    "combined_block_range": "0:2",
+    "failed_checks": [],
+    "status": "passed"
+  }
+}

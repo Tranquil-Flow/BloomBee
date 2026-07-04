@@ -545,15 +545,16 @@ As of the current implementation slice:
   two-laptop, three-peer, forward-loop text parity, and cached `.generate()`
   parity evidence, including S2S-enabled cached generation with direct fallback
   as the default correctness path.
-- Qwen3-30B-A3B MoE support has passed config/wrapper tests and one live M4 Pro
-  block-shard proof: block `0:1` loaded real safetensors and served direct RPC
-  forward/backward with finite output and gradient.
+- Qwen3-30B-A3B MoE support has passed config/wrapper tests, one live M4 Pro
+  block-shard proof, and a clean-archive two-server multi-block `0:2` proof:
+  blocks `0:1` + `1:2` loaded real safetensors and served direct RPC
+  forward/backward with finite outputs and gradients.
 - Phone/mobile peer support is at capability-discovery stage: `peer_scan.py`
   now emits a `mobile` profile for Android/Termux devices, but no phone is
   counted as a useful inference worker until it produces throughput evidence and
   successfully serves at least one transformer block in the distributed path.
 - Physical 10-laptop showcase remains part of MVP scope. The next hard gates are
-  full multi-block Qwen3-30B-A3B distributed serving, two-laptop cached
+  Qwen3-30B-A3B full-generation/cache/load proofs, two-laptop cached
   `.generate()` with S2S/default fallback, and then the physical showcase.
 
 ### Measured M4 Pro bf16 bench (2026-07-02)

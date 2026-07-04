@@ -100,7 +100,8 @@ Already proven:
   remains explicitly unproven.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
-- Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
+- Qwen3-30B-A3B MoE one-block live server shard and two-server multi-block
+  `0:2` direct RPC proof on M4 Pro.
 - Model compatibility scanner plus proof-status registry: local `config.json`
   prescan, BloomBee family mapping, unsupported-wrapper blocking, and claim-level
   output are test-covered.
@@ -305,7 +306,7 @@ candidate **only after** its proof gate passes for the selected risk mode.
 | Quality fallback | `Qwen/Qwen3-8B` | exact Qwen3-8B | good dense Qwen3 fallback for small swarms | wrapper exists; proof needed |
 | Strong fallback | `Qwen/Qwen3-14B` | exact Qwen3-14B | better fallback if M4 Pro / few laptops can host it | wrapper exists; proof needed |
 | Core dream | `Qwen/Qwen3-30B-A3B-Instruct-2507` | exact Qwen3-30B verifier output | best practical blend of quality, Apache license, MoE efficiency, and laptop-swarm fit | same family as proven Qwen3-MoE block; checkpoint proof needed |
-| Existing MoE fallback | `Qwen/Qwen3-30B-A3B` | exact Qwen3-30B verifier output | one-block live serving already proven | full generation proof needed |
+| Existing MoE fallback | `Qwen/Qwen3-30B-A3B` | exact Qwen3-30B verifier output | two-server multi-block `0:2` live proof now passed | full generation/cache/load proof needed |
 | Reasoning stretch | `Qwen/Qwen3-30B-A3B-Thinking-2507` | exact Thinking-2507 verifier output | stronger reasoning but longer/slower outputs | proof needed; cap thinking budget |
 | Qwen35B branch | `Qwen/Qwen-AgentWorld-35B-A3B` | exact Qwen3.5-35B verifier output only after wrapper proof | near-term 35B-A3B text-generation candidate; ~65GiB weights, ~80GB recommended free memory, 40 text layers, 256 experts / 8 active | blocked today: HF `model_type=qwen3_5_moe` / text tower `qwen3_5_moe_text`; BloomBee only has `qwen3_moe` wrapper |
 | High-compute exact | `Qwen/Qwen3-235B-A22B-Instruct-2507` | exact Qwen3-235B verifier output | strongest same-family Qwen3-MoE upgrade if huge memory appears | last-stage only; full proof ladder required |
@@ -329,7 +330,7 @@ before demo day.
 1. TinyLlama — current safe infrastructure fallback.
 2. Qwen3-8B — prove dense Qwen3 path on available hardware.
 3. Qwen3-14B — prove if M4 Pro memory allows.
-4. Qwen3-30B-A3B — extend from one-block proof to multi-block proof.
+4. Qwen3-30B-A3B — extend from multi-block proof to full-generation parity.
 5. Qwen3-30B-A3B-Instruct-2507 — prescan and one-block proof; promote only if it
    passes the same gates.
 6. Qwen-AgentWorld-35B-A3B — candidate branch only. It fits a 10×20GB-free
@@ -641,7 +642,10 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
    and live full-range multi-request load proof is tracked at
    `mvp_capabilities/distributed_evidence/QWEN3_8B_MULTI_REQUEST_LOAD_2026-07-04.json`;
    next gate is the physical/self-serve showcase with fresh joined devices.
-8. Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder.
+8. Qwen3-30B-A3B / Instruct-2507 full-generation/cache/load proof ladder.
+   **Qwen3-30B-A3B multi-block slice complete**: clean-archive two-server
+   `0:2` direct RPC proof passed with finite forward/backward; next Qwen3-30B
+   gate is full-generation parity, then cache-generation and multi-request load.
 9. Multi-request chain scheduler. **Initial planning slice complete**:
    `chain_scheduler.py` emits request waves and per-peer utilization from a joined
    layer plan, with `chain_scheduler_plan_only_no_inference_proof`. Live load

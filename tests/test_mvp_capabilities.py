@@ -265,6 +265,14 @@ def test_qwen3_dense_fallbacks_promote_qwen8_after_full_and_cache_generation():
     assert qwen8["safe_demo_selectable"] is True
     assert qwen8["next_gate"] is None
 
+    qwen30b = build_proof_ladder("Qwen/Qwen3-30B-A3B", proof_status=proof)
+    assert qwen30b["proof_status"]["prescan"] == "passed"
+    assert qwen30b["proof_status"]["one_block_server"] == "passed"
+    assert qwen30b["proof_status"]["multi_block"] == "passed"
+    assert qwen30b["proof_status"]["full_generation"] == "pending"
+    assert qwen30b["claim_level"] == "experimental"
+    assert qwen30b["next_gate"] == "full_generation"
+
     qwen14 = build_proof_ladder("Qwen/Qwen3-14B", proof_status=proof)
     assert qwen14["proof_status"]["prescan"] == "passed"
     assert qwen14["proof_status"]["one_block_server"] == "pending"
@@ -286,7 +294,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
-    assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["post_mvp_milestones"])
+    post_mvp = {item["id"]: item for item in report["post_mvp_milestones"]}
+    assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
+    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.35
+    assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert report["task_summary"] == {"complete": 7, "partial": 6, "pending": 2, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
@@ -303,6 +314,29 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "physical_showcase_proof.py" in tasks["physical_showcase"]["evidence"]
     assert "server-placement alignment" in tasks["physical_showcase"]["evidence"]
     assert "proof_orchestrator.py" in tasks["physical_showcase"]["evidence"]
+    assert "multi-block 0:2" in tasks["qwen3_30b_core_proof"]["evidence"]
+    assert "full-generation parity" in tasks["qwen3_30b_core_proof"]["next_step"]
+
+
+
+def test_qwen30b_multiblock_evidence_is_post_mvp_not_demo_safe():
+    evidence_path = Path("mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert evidence["claim_boundary"] == "post_mvp_verified_multi_block_server_evidence_not_demo_safe"
+    assert evidence["status"] == "passed"
+    assert evidence["model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert evidence["proof_gate"] == "multi_block"
+    assert evidence["can_update_proof_status"] is True
+    assert evidence["can_update_mvp_status"] is False
+    assert evidence["proof_status_update"] == {"multi_block": "passed"}
+    assert evidence["client_result"]["ok"] is True
+    assert evidence["client_result"]["outputs_finite"] is True
+    assert evidence["client_result"]["grad_finite"] is True
+    assert evidence["client_result"]["block_range"] == [0, 2]
+    assert evidence["cache"]["missing_count"] == 0
+    assert evidence["head_delta_qwen_runtime_files"] == []
+    assert "full_generation" in evidence["remaining_gates"]
 
 
 

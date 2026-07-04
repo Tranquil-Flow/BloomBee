@@ -106,8 +106,9 @@ visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
 - Qwen3-MoE block wrapper (`src/bloombee/models/qwen3_moe/`) is in place:
   auto-dispatches from real Qwen3-30B-A3B config (48 layers, hidden=2048,
   128 experts @ 8/topk). Wrapper contract tests pass. One live M4 Pro server
-  shard has loaded real Qwen3-30B-A3B safetensors for block `0:1` and served
-  direct RPC forward/backward with finite outputs and gradients.
+  shard loaded real Qwen3-30B-A3B safetensors for block `0:1`; a later
+  clean-archive two-server proof served blocks `0:1` + `1:2` and direct RPC
+  `0:2` forward/backward with finite outputs and gradients.
 - `mvp_capabilities/model_compat_scan.py` and `PROOF_STATUS.yaml` exist. They
   prescan local model configs, map HF `model_type` to BloomBee support, merge
   proof gates, and emit `demo_safe` / `experimental` / `blocked` claim levels.
@@ -343,9 +344,10 @@ Verified gates now include:
   recovery path,
 - three-peer cached `.generate()` parity with S2S enabled by default as an
   opportunistic optimization plus direct client fallback,
-- one-block Qwen3-30B-A3B MoE live-server shard proof on M4 Pro.
+- one-block Qwen3-30B-A3B MoE live-server shard proof on M4 Pro,
+- two-server Qwen3-30B-A3B MoE multi-block `0:2` direct RPC proof on M4 Pro.
 
-Next verification gates are full multi-block Qwen3-30B-A3B distributed serving,
+Next verification gates are Qwen3-30B-A3B full-generation/cache/load proofs,
 two-laptop cached `.generate()` with S2S/default fallback, and the physical
 10-laptop showcase.
 
@@ -384,9 +386,9 @@ environment problem, not a code correctness problem.
 ## No-overclaiming rules
 
 - Do not claim 10 physical laptops have run until the showcase test happens.
-- Do not claim full Qwen3-30B-A3B distributed generation works until all required
-  blocks have been served across a live swarm. One-block live serving is proven;
-  full-model distributed generation is not.
+- Do not claim full Qwen3-30B-A3B distributed generation works until the full
+  generation/cache/load ladder passes. Two-server `0:2` multi-block serving is
+  proven; full-model distributed generation is not.
 - Do not claim a server gate is complete from registry fit alone; fit prediction is not inference proof.
 - Do not claim quantized checkpoints are BloomBee-runnable just because HF/vLLM/
   SGLang/llama.cpp can serve them. Current BloomBee HF-block loading expects

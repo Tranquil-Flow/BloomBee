@@ -136,10 +136,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_30b_proof_ladder",
         label="Qwen3-30B-A3B / Instruct-2507 multi-block and full-generation proof ladder",
         weight=15,
-        completion=0.15,
+        completion=0.35,
         status="stretch",
-        evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B. This remains important stretch work, but it no longer drags the MVP 100% denominator after Qwen3-8B became demo-safe.",
-        next_step="multi-block Qwen3-30B direct RPC proof",
+        evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B, and a clean-archive two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json (finite forward/backward, failed_checks=[]). This remains post-MVP/stretch and does not move the MVP-core 100% denominator after Qwen3-8B became demo-safe.",
+        next_step="full-generation parity for Qwen3-30B-A3B, then cache-generation and multi-request load when enough clean memory/devices are available",
     ),
 )
 
@@ -193,8 +193,8 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="qwen3_30b_core_proof",
         label="Qwen3-30B-A3B core laptop-swarm proof ladder",
         status="partial",
-        evidence="qwen3_moe wrapper exists and one live M4 Pro Qwen3-30B-A3B block shard passed; full distributed generation remains pending",
-        next_step="run multi-block Qwen3-30B direct RPC proof, then full-generation parity when enough clean memory/devices are available",
+        evidence="qwen3_moe wrapper exists; one live M4 Pro Qwen3-30B-A3B block shard passed; clean-archive two-server multi-block 0:2 direct RPC proof passed with finite forward/backward; full distributed generation remains pending",
+        next_step="run full-generation parity for Qwen3-30B-A3B, then cache-generation and multi-request load when enough clean memory/devices are available",
     ),
     PlanTask(
         id="qwen3_30b_2507_shelf",
