@@ -202,6 +202,16 @@ artifact
 accepted 33/33 UTF-8 bytes. This is nonzero independent verifier acceptance for
 the same GGUF, but tokenizer IDs and wall-clock speedup are still unproven.
 
+Tokenizer-ID update: Termux and local `/opt/homebrew/bin/llama-tokenize` now both
+tokenize the same prompt/draft using the exact phone-copied GGUF. Tracked phone
+tokenizer evidence:
+`mvp_capabilities/distributed_evidence/phone/termux-tokenizer-ids-20260704T111800Z.json`.
+Tracked local-vs-phone comparison:
+`mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json`.
+Prompt IDs match as `[9038, 2501, 263, 931]`; draft IDs match as
+`[3118, 2462, 29892, 263, 2217, 7826, 4257, 28846]`; accepted draft token IDs:
+8/8. This closes the same-GGUF tokenizer-match gate, but not wall-clock speedup.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

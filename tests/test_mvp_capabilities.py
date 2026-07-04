@@ -3645,6 +3645,36 @@ def test_phone_draft_verifier_compare_tracked_evidence_keeps_speedup_false():
     assert same_gguf_compare["can_update_speculative_speedup_status"] is False
 
 
+def test_same_gguf_tokenizer_id_comparison_tracked_evidence_matches_phone_and_local():
+    phone_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-tokenizer-ids-20260704T111800Z.json"
+    compare_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json"
+    phone = json.loads(phone_path.read_text(encoding="utf-8"))
+    compare = json.loads(compare_path.read_text(encoding="utf-8"))
+
+    expected_prompt = [9038, 2501, 263, 931]
+    expected_draft = [3118, 2462, 29892, 263, 2217, 7826, 4257, 28846]
+    assert phone["tokenizer_ids_proven"] is True
+    assert phone["tokenizer"]["prompt_ids"] == expected_prompt
+    assert phone["tokenizer"]["draft_ids"] == expected_draft
+    assert phone["speedup_proven"] is False
+    assert compare["claim_boundary"] == "same_gguf_tokenizer_id_comparison_no_speedup_claim"
+    assert compare["local_model"]["copied_from_phone"] is True
+    assert compare["local_model"]["sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert compare["comparison"]["prompt_ids_match"] is True
+    assert compare["comparison"]["draft_ids_match"] is True
+    assert compare["comparison"]["accepted_token_ids"] == expected_draft
+    assert compare["comparison"]["accepted_token_id_count"] == 8
+    assert compare["comparison"]["rejected_token_id_count"] == 0
+    assert compare["comparison"]["acceptance_rate"] == 1.0
+    assert compare["tokenizer_id_match_proven"] is True
+    assert compare["verifier_acceptance_proven"] is True
+    assert compare["full_draft_token_ids_accepted"] is True
+    assert compare["generation_proven"] is False
+    assert compare["speedup_proven"] is False
+    assert compare["bloombee_block_serving_proven"] is False
+    assert compare["can_update_speculative_speedup_status"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

@@ -1,0 +1,46 @@
+{
+  "bloombee_block_serving_proven": false,
+  "claim_boundary": "termux_same_gguf_tokenizer_ids_no_speedup_claim",
+  "generation_proven": false,
+  "model": {
+    "id": "ggml-org/tiny-llamas/stories15M.gguf",
+    "path": "/data/data/com.termux/files/home/bloombee-models/stories15M.gguf",
+    "sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+    "size_bytes": 98357920
+  },
+  "phone_runtime": {
+    "android_model": "Pixel 8 Pro",
+    "android_sdk": "36",
+    "machine": "aarch64",
+    "python": "3.14.6",
+    "runtime": "termux",
+    "soc": "Tensor G3"
+  },
+  "source": "termux_llama_tokenize_same_gguf.sh",
+  "speedup_proven": false,
+  "texts": {
+    "draft": "One day, a little girl named Lucy",
+    "prompt": "Once upon a time"
+  },
+  "tokenizer": {
+    "command": "llama-tokenize",
+    "draft_ids": [
+      3118,
+      2462,
+      29892,
+      263,
+      2217,
+      7826,
+      4257,
+      28846
+    ],
+    "no_bos": true,
+    "prompt_ids": [
+      9038,
+      2501,
+      263,
+      931
+    ]
+  },
+  "tokenizer_ids_proven": true
+}

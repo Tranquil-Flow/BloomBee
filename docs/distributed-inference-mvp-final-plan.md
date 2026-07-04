@@ -178,7 +178,10 @@ Already proven:
   local verifier using the exact phone-copied model is tracked at
   `mvp_capabilities/distributed_evidence/phone/local-stories15M-phone-exact-verifier-20260704T111215Z.json`
   plus `mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-same-gguf-20260704T111215Z.json`
-  and accepted 33/33 bytes, but it is still not tokenizer-ID or wall-clock speedup proof.
+  and accepted 33/33 bytes. Same-GGUF tokenizer-ID evidence at
+  `mvp_capabilities/distributed_evidence/phone/termux-tokenizer-ids-20260704T111800Z.json`
+  plus `mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json`
+  accepted 8/8 draft token IDs. It is still not wall-clock speedup proof.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -610,13 +613,13 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     `termux_gguf_runtime_plan.py` adds a guarded no-install GGUF runtime plan;
     approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp,
     wrapped it as a draft-provider-candidate JSON bridge, and compared it against
-    positive-control, live Qwen0.5B verifier text, and a same-GGUF local verifier;
+    positive-control, live Qwen0.5B verifier text, a same-GGUF local verifier,
+    and same-GGUF tokenizer IDs;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
-    and verifier-comparison evidence files are tracked;
+    verifier-comparison, and tokenizer-ID evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
-    claiming speculative speedup. Next: compare phone GGUF draft output against
-    same-tokenizer verifier IDs or a stronger live verifier with nonzero acceptance,
-    and wire a BloomBee execution harness only after
+    claiming speculative speedup. Next: measure phone-draft-plus-verifier wall
+    clock against verifier-only, and wire a BloomBee execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the
     connected swarm has enough memory and Qwen3-30B generation already works.
