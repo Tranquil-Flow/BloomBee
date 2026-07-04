@@ -160,6 +160,20 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
 )
 
 
+POST_MVP_TASK_IDS = frozenset(
+    {
+        "qwen3_30b_core_proof",
+        "qwen3_30b_2507_shelf",
+        "qwen35b_candidate",
+        "minimax_m3_candidate",
+        "speculative_decode",
+        "phone_worker",
+        "continuous_batching",
+        "kv_prefix_reuse",
+    }
+)
+
+
 PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="join_link_foundation",
@@ -309,16 +323,25 @@ def _task_payload(item: PlanTask) -> dict[str, Any]:
     }
 
 
+def _task_summary(items: list[dict[str, Any]]) -> dict[str, int]:
+    summary = {
+        status: sum(1 for item in items if item["status"] == status)
+        for status in ("complete", "partial", "pending", "blocked")
+    }
+    summary["total"] = len(items)
+    return summary
+
+
 def build_status_report() -> dict[str, Any]:
     total_weight = sum(item.weight for item in MILESTONES)
     earned = sum(item.weight * item.completion for item in MILESTONES)
     overall_percent = round(earned / total_weight * 100) if total_weight else 0
     planned_tasks = [_task_payload(item) for item in PLANNED_TASKS]
-    task_summary = {
-        status: sum(1 for item in planned_tasks if item["status"] == status)
-        for status in ("complete", "partial", "pending", "blocked")
-    }
-    task_summary["total"] = len(planned_tasks)
+    post_mvp_tasks = [item for item in planned_tasks if item["id"] in POST_MVP_TASK_IDS]
+    core_tasks = [item for item in planned_tasks if item["id"] not in POST_MVP_TASK_IDS]
+    task_summary = _task_summary(planned_tasks)
+    core_task_summary = _task_summary(core_tasks)
+    post_mvp_task_summary = _task_summary(post_mvp_tasks)
     return {
         "claim_boundary": CLAIM_BOUNDARY,
         "scope": MVP_SCOPE,
@@ -337,7 +360,13 @@ def build_status_report() -> dict[str, Any]:
         "milestones": [_milestone_payload(item) for item in MILESTONES],
         "post_mvp_milestones": [_milestone_payload(item) for item in POST_MVP_MILESTONES],
         "planned_tasks": planned_tasks,
+        "core_tasks": core_tasks,
+        "post_mvp_tasks": post_mvp_tasks,
         "task_summary": task_summary,
+        "task_summary_scope": "all_tasks_including_post_mvp_backlog",
+        "core_task_summary": core_task_summary,
+        "post_mvp_task_summary": post_mvp_task_summary,
+        "core_tasks_complete": core_task_summary == {"complete": core_task_summary["total"], "partial": 0, "pending": 0, "blocked": 0, "total": core_task_summary["total"]},
     }
 
 
@@ -387,21 +416,47 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"| {item['label']} | {item['weight']} | {item['status']} | "
                 f"{item['percent']}% | {evidence} |"
             )
+    def _summary_text(summary: dict[str, Any]) -> str:
+        return ", ".join(
+            f"{summary.get(key, 0)} {key}" for key in ("complete", "partial", "pending", "blocked")
+        )
+
+    def _append_task_table(title: str, summary_label: str, summary: dict[str, Any], tasks: list[dict[str, Any]]) -> None:
+        lines.extend(
+            [
+                "",
+                f"## {title}",
+                "",
+                f"{summary_label}: {_summary_text(summary)}",
+                "",
+                "| Task | Status | Done? | Evidence / next step |",
+                "|---|---|---:|---|",
+            ]
+        )
+        for item in tasks:
+            evidence = item["evidence"]
+            if item.get("next_step"):
+                evidence = f"{evidence}<br>Next: {item['next_step']}"
+            done = "yes" if item["done"] else "no"
+            lines.append(f"| {item['label']} | {item['status']} | {done} | {evidence} |")
+
     lines.extend(
         [
             "",
             "## Planned tasks",
             "",
-            "| Task | Status | Done? | Evidence / next step |",
-            "|---|---|---:|---|",
+            f"All-task summary: {_summary_text(report.get('task_summary') or {})}",
+            "",
+            "The all-task summary includes post-MVP backlog and should not be read as an MVP-core blocker.",
         ]
     )
-    for item in report["planned_tasks"]:
-        evidence = item["evidence"]
-        if item.get("next_step"):
-            evidence = f"{evidence}<br>Next: {item['next_step']}"
-        done = "yes" if item["done"] else "no"
-        lines.append(f"| {item['label']} | {item['status']} | {done} | {evidence} |")
+    _append_task_table("MVP-core tasks", "MVP-core task summary", report.get("core_task_summary") or {}, report.get("core_tasks") or [])
+    _append_task_table(
+        "Post-MVP backlog tasks",
+        "Post-MVP backlog task summary",
+        report.get("post_mvp_task_summary") or {},
+        report.get("post_mvp_tasks") or [],
+    )
     return "\n".join(lines) + "\n"
 
 

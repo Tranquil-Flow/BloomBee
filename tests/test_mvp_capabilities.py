@@ -416,7 +416,7 @@ def test_qwen_agentworld_wrapper_scout_blocks_copying_qwen3_moe_wrapper():
 
 
 def test_mvp_status_report_has_weighted_progress_bar():
-    from mvp_capabilities.mvp_status import build_status_report
+    from mvp_capabilities.mvp_status import build_status_report, render_markdown
 
     report = build_status_report()
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
@@ -444,6 +444,21 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
+    assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
+    assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
+    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 4, "pending": 2, "blocked": 2, "total": 8}
+    assert report["core_tasks_complete"] is True
+    assert {item["status"] for item in report["core_tasks"]} == {"complete"}
+    assert {item["id"] for item in report["post_mvp_tasks"]} == {
+        "qwen3_30b_core_proof",
+        "qwen3_30b_2507_shelf",
+        "qwen35b_candidate",
+        "minimax_m3_candidate",
+        "speculative_decode",
+        "phone_worker",
+        "continuous_batching",
+        "kv_prefix_reuse",
+    }
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
@@ -468,6 +483,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "Thinking-2507 optional" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
     assert "defer Thinking-2507" in tasks["qwen3_30b_2507_shelf"]["next_step"]
+    markdown = render_markdown(report)
+    assert "## MVP-core tasks" in markdown
+    assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
+    assert "## Post-MVP backlog tasks" in markdown
+    assert "Post-MVP backlog task summary: 0 complete, 4 partial, 2 pending, 2 blocked" in markdown
+    assert "All-task summary: 9 complete, 4 partial, 2 pending, 2 blocked" in markdown
 
 
 

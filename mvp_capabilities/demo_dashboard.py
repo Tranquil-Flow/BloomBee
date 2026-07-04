@@ -499,6 +499,8 @@ def _status_panel(status: dict[str, Any]) -> str:
             "</tr>"
         )
     planned_tasks = status.get("planned_tasks") or []
+    core_tasks = status.get("core_tasks") or []
+    post_mvp_tasks = status.get("post_mvp_tasks") or []
     post_mvp_rows = []
     for item in status.get("post_mvp_milestones") or []:
         post_mvp_rows.append(
@@ -509,21 +511,33 @@ def _status_panel(status: dict[str, Any]) -> str:
             f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
             "</tr>"
         )
-    task_rows = []
-    for item in planned_tasks:
-        done = "yes" if item.get("done") else "no"
-        task_rows.append(
-            "<tr>"
-            f"<td>{_esc(item.get('label'))}</td>"
-            f"<td>{_esc(item.get('status'))}</td>"
-            f"<td>{_esc(done)}</td>"
-            f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
-            "</tr>"
-        )
+    def _task_rows(items: list[dict[str, Any]]) -> list[str]:
+        rows: list[str] = []
+        for item in items:
+            done = "yes" if item.get("done") else "no"
+            rows.append(
+                "<tr>"
+                f"<td>{_esc(item.get('label'))}</td>"
+                f"<td>{_esc(item.get('status'))}</td>"
+                f"<td>{_esc(done)}</td>"
+                f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
+                "</tr>"
+            )
+        return rows
+
+    task_rows = _task_rows(planned_tasks)
+    core_task_rows = _task_rows(core_tasks)
+    post_mvp_task_rows = _task_rows(post_mvp_tasks)
     summary = status.get("task_summary") or {}
-    summary_copy = ", ".join(
-        f"{summary.get(key, 0)} {key}" for key in ("complete", "partial", "pending", "blocked")
-    )
+    core_summary = status.get("core_task_summary") or {}
+    post_mvp_task_summary = status.get("post_mvp_task_summary") or {}
+    def _summary_copy(payload: dict[str, Any]) -> str:
+        return ", ".join(
+            f"{payload.get(key, 0)} {key}" for key in ("complete", "partial", "pending", "blocked")
+        )
+    summary_copy = _summary_copy(summary)
+    core_summary_copy = _summary_copy(core_summary)
+    post_mvp_task_summary_copy = _summary_copy(post_mvp_task_summary)
     return f"""
       <section class="card wide status">
         <h2>MVP build status</h2>
@@ -548,11 +562,26 @@ def _status_panel(status: dict[str, Any]) -> str:
           <tbody>{''.join(post_mvp_rows) or '<tr><td colspan="4">No post-MVP milestones loaded</td></tr>'}</tbody>
         </table>
         <h3>Planned tasks</h3>
-        <p class="muted">Task summary: {_esc(summary_copy)}</p>
+        <p class="muted">All-task summary: {_esc(summary_copy)}. This includes post-MVP backlog and should not be read as an MVP-core blocker.</p>
+        <h4>MVP-core tasks</h4>
+        <p class="muted">MVP-core task summary: {_esc(core_summary_copy)}</p>
         <table>
           <thead><tr><th>Task</th><th>Status</th><th>Done?</th><th>Evidence / next</th></tr></thead>
-          <tbody>{''.join(task_rows) or '<tr><td colspan="4">No planned tasks loaded</td></tr>'}</tbody>
+          <tbody>{''.join(core_task_rows) or '<tr><td colspan="4">No MVP-core tasks loaded</td></tr>'}</tbody>
         </table>
+        <h4>Post-MVP backlog tasks</h4>
+        <p class="muted">Post-MVP backlog task summary: {_esc(post_mvp_task_summary_copy)}</p>
+        <table>
+          <thead><tr><th>Task</th><th>Status</th><th>Done?</th><th>Evidence / next</th></tr></thead>
+          <tbody>{''.join(post_mvp_task_rows) or '<tr><td colspan="4">No post-MVP backlog tasks loaded</td></tr>'}</tbody>
+        </table>
+        <details>
+          <summary>All planned tasks, including post-MVP backlog</summary>
+          <table>
+            <thead><tr><th>Task</th><th>Status</th><th>Done?</th><th>Evidence / next</th></tr></thead>
+            <tbody>{''.join(task_rows) or '<tr><td colspan="4">No planned tasks loaded</td></tr>'}</tbody>
+          </table>
+        </details>
       </section>
     """
 
