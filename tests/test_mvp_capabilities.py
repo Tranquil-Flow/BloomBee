@@ -371,6 +371,25 @@ def test_qwen30b_priority_report_prefers_base_then_instruct_then_optional_thinki
     assert thinking["safe_demo_selectable"] is False
 
 
+def test_instruct2507_seagate_readonly_blocker_artifact_is_claim_bounded():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json"
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "external_storage_blocker_no_model_download_or_inference_proof"
+    assert payload["model_id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert payload["download_completed"] is False
+    assert payload["prescan_status"] == "not_run"
+    assert payload["one_block_proof_status"] == "not_run"
+    assert payload["seagate"]["path"] == "/Volumes/Seagate Portable Drive"
+    assert payload["seagate"]["filesystem"] == "NTFS"
+    assert payload["seagate"]["volume_read_only"] is True
+    assert "Read-only file system" in payload["write_probe_error"]
+    assert "APFS" in payload["required_next_step"]
+    assert "HF_HUB_DISABLE_XET=1" in payload["rerun_requirements"]
+
+
+
 def test_qwen30b_priority_cli_outputs_review_ready_json():
     proc = subprocess.run(
         [sys.executable, "-m", "mvp_capabilities.qwen30b_priority"],
@@ -533,6 +552,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "Instruct-2507" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "Thinking-2507 optional" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "instruct2507-seagate-readonly-blocker-20260704.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "writable Seagate" in tasks["qwen3_30b_2507_shelf"]["next_step"]
     assert "defer Thinking-2507" in tasks["qwen3_30b_2507_shelf"]["next_step"]
     markdown = render_markdown(report)
     assert "## MVP-core tasks" in markdown

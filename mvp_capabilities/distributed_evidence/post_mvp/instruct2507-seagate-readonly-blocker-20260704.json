@@ -1,0 +1,30 @@
+{
+  "claim_boundary": "external_storage_blocker_no_model_download_or_inference_proof",
+  "generated_at_utc": "2026-07-04T22:24:00Z",
+  "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "host": "m4pro",
+  "user": "evinova-self",
+  "memory_bytes": 51539607552,
+  "seagate": {
+    "path": "/Volumes/Seagate Portable Drive",
+    "filesystem": "NTFS",
+    "mount_flags_include_read_only": true,
+    "media_read_only": false,
+    "volume_read_only": true,
+    "mount_observation": "/dev/disk8s2 on /Volumes/Seagate Portable Drive (ntfs, local, nodev, nosuid, read-only, noowners, noatime, fskit)"
+  },
+  "write_probe": "mkdir -p /Volumes/Seagate Portable Drive/.bloombee-write-test",
+  "write_probe_error": "mkdir: /Volumes/Seagate Portable Drive/.bloombee-write-test: Read-only file system",
+  "intended_cache_paths": [
+    "/Volumes/Seagate Portable Drive/huggingface/hub",
+    "/Volumes/Seagate Portable Drive/huggingface/xet",
+    "/Volumes/Seagate Portable Drive/bloombee-proof/instruct2507"
+  ],
+  "download_started": false,
+  "download_completed": false,
+  "prescan_status": "not_run",
+  "one_block_proof_status": "not_run",
+  "reason_download_not_started": "Task required large HF downloads to use the external Seagate volume, but the volume is NTFS-mounted read-only on macOS; starting on internal disk would violate the storage constraint.",
+  "required_next_step": "Provide a writable Seagate/external volume, preferably APFS or exFAT, remount with a working NTFS write driver, or explicitly approve another writable large-volume cache before rerunning the Instruct-2507 download/proof runner.",
+  "rerun_requirements": "Use writable external cache, export HF_TOKEN without printing it, set HF_HUB_DISABLE_XET=1, set HF_HOME/HF_HUB_CACHE/HF_XET_CACHE on the writable volume, and retain logs/progress evidence."
+}

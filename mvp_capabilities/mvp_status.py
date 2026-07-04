@@ -230,8 +230,8 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="qwen3_30b_2507_shelf",
         label="Prepared Qwen3-30B-A3B Instruct-2507 shelf; Thinking-2507 optional",
         status="partial",
-        evidence="2507 variants are registered with config metadata and pending proof gates; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior",
-        next_step="run Instruct-2507 prescan and one-block live proof only after base Qwen3-30B-A3B full/cache/load behavior is understood; defer Thinking-2507 unless required by demo spec",
+        evidence="2507 variants are registered with config metadata and pending proof gates; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior; delegated Seagate-backed download/proof runner is blocked before download because /Volumes/Seagate Portable Drive is NTFS-mounted read-only on m4pro, tracked at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json",
+        next_step="provide a writable Seagate/external cache volume (APFS/exFAT or working NTFS write driver), then rerun Instruct-2507 prescan and one-block live proof with HF_HUB_DISABLE_XET=1; defer Thinking-2507 unless required by demo spec",
     ),
     PlanTask(
         id="qwen35b_candidate",
