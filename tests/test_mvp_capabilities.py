@@ -915,18 +915,19 @@ def test_physical_showcase_proof_accepts_qwen8_operator_evidence_without_overcla
         "fresh_join": {
             "physical_scanner_interop_proven": True,
             "fresh_devices": [
-                {"peer_id": "fresh-macbook", "hostname": "fresh-macbook", "transport": "physical_qr_scan", "heartbeat_count": 3}
+                {"peer_id": "fresh-macbook", "hostname": "fresh-macbook", "transport": "physical_qr_scan", "heartbeat_count": 3, "token_sha256": "a" * 64}
             ],
             "heartbeat_loop": {
                 "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
                 "inference_proven": False,
                 "results": [
-                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
-                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
-                    {"server_response": {"ok": True}, "peer_id": "fresh-macbook"},
+                    {"server_response": {"ok": True, "token_sha256": "a" * 64}, "peer_id": "fresh-macbook", "token_sha256": "a" * 64},
+                    {"server_response": {"ok": True, "token_sha256": "a" * 64}, "peer_id": "fresh-macbook", "token_sha256": "a" * 64},
+                    {"server_response": {"ok": True, "token_sha256": "a" * 64}, "peer_id": "fresh-macbook", "token_sha256": "a" * 64},
                 ],
             },
         },
+        "scanner_capture": {"token_sha256": "a" * 64},
         "dashboard": {"rendered": True, "observed_peer_ids": ["fresh-macbook"]},
     }
 
@@ -939,12 +940,59 @@ def test_physical_showcase_proof_accepts_qwen8_operator_evidence_without_overcla
     assert report["selected_model_proof_status"]["multi_request_load"] == "passed"
     assert report["fresh_device_count"] == 1
     assert report["heartbeat_result_count"] == 3
+    assert report["verifier_params"] == {"min_heartbeat_results": 3}
+    assert report["token_sha256_consistent"] is True
+    assert report["token_sha256_values"] == ["a" * 64]
     assert report["physical_showcase_proven"] is True
     assert report["phone_worker_proven"] is False
     assert report["qwen3_30b_generation_proven"] is False
     assert report["can_update_mvp_status"] is True
     assert report["mvp_status_update"] == {"physical_showcase": "passed"}
     assert report["failed_checks"] == []
+
+
+def test_physical_showcase_operator_verifier_rejects_token_hash_mismatch():
+    from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
+
+    proof_status = {
+        "Qwen/Qwen3-8B": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
+        }
+    }
+    evidence = {
+        "claim_boundary": "physical_showcase_operator_evidence",
+        "model_id": "Qwen/Qwen3-8B",
+        "fresh_join": {
+            "physical_scanner_interop_proven": True,
+            "fresh_devices": [
+                {"peer_id": "fresh-macbook", "hostname": "fresh-macbook", "transport": "physical_qr_scan", "heartbeat_count": 3, "token_sha256": "a" * 64}
+            ],
+            "heartbeat_loop": {
+                "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+                "inference_proven": False,
+                "results": [
+                    {"server_response": {"ok": True, "token_sha256": "b" * 64}, "peer_id": "fresh-macbook", "token_sha256": "b" * 64},
+                    {"server_response": {"ok": True, "token_sha256": "b" * 64}, "peer_id": "fresh-macbook", "token_sha256": "b" * 64},
+                    {"server_response": {"ok": True, "token_sha256": "b" * 64}, "peer_id": "fresh-macbook", "token_sha256": "b" * 64},
+                ],
+            },
+        },
+        "scanner_capture": {"token_sha256": "a" * 64},
+        "dashboard": {"rendered": True, "observed_peer_ids": ["fresh-macbook"]},
+    }
+
+    report = verify_physical_showcase_evidence(evidence, proof_status=proof_status)
+
+    assert report["status"] == "failed"
+    assert report["token_sha256_consistent"] is False
+    assert report["token_sha256_values"] == ["a" * 64, "b" * 64]
+    assert "token_sha256_mismatch" in report["failed_checks"]
+    assert report["can_update_mvp_status"] is False
 
 
 
@@ -1087,6 +1135,13 @@ def test_physical_showcase_cross_artifact_verifier_passes_when_joined_plan_gener
     assert report["fresh_joined_peer_count"] == 2
     assert report["fresh_peer_ids"] == ["peer-a", "peer-b"]
     assert report["selected_model"] == "test/SixLayer"
+    assert report["verifier_params"] == {
+        "now": 130,
+        "max_heartbeat_age_seconds": 60,
+        "min_joined_peers": 2,
+        "min_heartbeat_results": 3,
+        "require_load": True,
+    }
     assert report["generation"]["server_placements_match_joined_plan"] is True
     assert report["load"]["status"] == "passed"
     assert report["operator_evidence"]["physical_scanner_interop_proven"] is True

@@ -55,6 +55,29 @@ def _proof_status_for_model(proof_status: Mapping[str, Mapping[str, str]], model
     return {gate: str(raw.get(gate, "pending")) for gate in REQUIRED_MODEL_GATES}
 
 
+def _token_sha256_values(value: Any) -> list[str]:
+    """Collect token hash values from nested evidence without exposing raw tokens."""
+    found: list[str] = []
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key == "token_sha256" and isinstance(item, str) and item:
+                found.append(item)
+            else:
+                found.extend(_token_sha256_values(item))
+    elif isinstance(value, list):
+        for item in value:
+            found.extend(_token_sha256_values(item))
+    return found
+
+
+def _token_consistency_report(*values: Any) -> dict[str, Any]:
+    unique = sorted(set().union(*(_token_sha256_values(value) for value in values)))
+    return {
+        "token_sha256_values": unique,
+        "token_sha256_consistent": len(unique) <= 1,
+    }
+
+
 def _verify_operator_evidence(
     evidence: Mapping[str, Any],
     *,
@@ -113,12 +136,19 @@ def _verify_operator_evidence(
     if device_ids and not (device_ids <= observed_peer_ids):
         failed_checks.append("dashboard_missing_fresh_device")
 
+    token_report = _token_consistency_report(evidence)
+    if token_report["token_sha256_consistent"] is not True:
+        failed_checks.append("token_sha256_mismatch")
+
     passed = not failed_checks
     return {
         "claim_boundary": PASSED_CLAIM_BOUNDARY if passed else FAILED_CLAIM_BOUNDARY,
         "status": "passed" if passed else "failed",
         "proof_gate": "physical_showcase",
         "model_id": model_id,
+        "verifier_params": {"min_heartbeat_results": min_heartbeat_results},
+        "token_sha256_values": token_report["token_sha256_values"],
+        "token_sha256_consistent": token_report["token_sha256_consistent"],
         "selected_model_proof_status": selected_model_status,
         "fresh_device_count": len(physical_devices),
         "heartbeat_result_count": len(heartbeat_results),
@@ -352,6 +382,10 @@ def _verify_cross_artifacts(
         if operator_report["status"] != "passed":
             failed_checks.extend(f"operator evidence failed: {item}" for item in operator_report.get("failed_checks", []))
 
+    token_report = _token_consistency_report(active_roster, operator_evidence or {})
+    if token_report["token_sha256_consistent"] is not True:
+        failed_checks.append("token_sha256_mismatch")
+
     passed = not failed_checks
     return {
         "claim_boundary": CROSS_ARTIFACT_CLAIM_BOUNDARY,
@@ -361,6 +395,15 @@ def _verify_cross_artifacts(
         "physical_showcase_proven": passed,
         "inference_proven": passed,
         "selected_model": selected_model,
+        "verifier_params": {
+            "now": now,
+            "max_heartbeat_age_seconds": max_heartbeat_age_seconds,
+            "min_joined_peers": min_joined_peers,
+            "min_heartbeat_results": min_heartbeat_results,
+            "require_load": require_load,
+        },
+        "token_sha256_values": token_report["token_sha256_values"],
+        "token_sha256_consistent": token_report["token_sha256_consistent"],
         "selected_model_proof_status": selected_model_status,
         "required_joined_peer_count": min_joined_peers,
         "fresh_joined_peer_count": len(fresh_peers),
