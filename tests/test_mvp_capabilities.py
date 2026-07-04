@@ -284,7 +284,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["qwen3_8b_proof"]["status"] == "partial"
     assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
     assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
-    assert "torch/transformers/tokenizers/llama_cpp/bloombee missing" in tasks["phone_worker"]["evidence"]
+    assert "missing torch/transformers/tokenizers/llama_cpp/bloombee Python modules" in tasks["phone_worker"]["evidence"]
+    assert "stories15M.gguf generated" in tasks["phone_worker"]["evidence"]
     assert tasks["qwen35b_candidate"]["status"] == "blocked"
     assert tasks["physical_showcase"]["done"] is False
 
@@ -3443,6 +3444,30 @@ def test_termux_gguf_runtime_plan_tracked_artifact_is_no_install():
     assert plan["speedup_proven"] is False
     assert plan["inference_proven"] is False
     assert any("side-effecting operator decision" in warning or "modify the phone" in warning for warning in plan["operator_warnings"])
+
+
+def test_termux_gguf_runtime_generation_tracked_artifact_is_tiny_model_only():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json"
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["verification_status"] == "passed"
+    assert payload["claim_boundary"] == "termux_tiny_gguf_runtime_generation_proof_no_bloombee_block_serving_no_speedup_claim"
+    assert payload["phone_runtime"]["android_model"] == "Pixel 8 Pro"
+    assert payload["phone_runtime"]["runtime"] == "termux"
+    assert payload["model"]["id"] == "ggml-org/tiny-llamas/stories15M.gguf"
+    assert payload["model"]["size_bytes"] == 98357920
+    assert payload["model"]["sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert payload["runtime_install"]["llama_cli"].endswith("/llama-cli")
+    assert payload["runtime_install"]["llama_bench"].endswith("/llama-bench")
+    assert payload["runtime_install"]["llama_cpp_python_importable"] is False
+    assert payload["generation"]["generation_proven"] is True
+    assert payload["generation"]["returncode"] == 0
+    assert payload["generation"]["generated_text_summary"] == "One day, a little girl named Lucy"
+    assert payload["bench"]["bench_proven"] is True
+    assert payload["proof_flags"]["tiny_gguf_generation_proven"] is True
+    assert payload["proof_flags"]["speedup_proven"] is False
+    assert payload["proof_flags"]["bloombee_block_serving_proven"] is False
+    assert payload["proof_flags"]["can_update_bloombee_block_worker_status"] is False
 
 
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():

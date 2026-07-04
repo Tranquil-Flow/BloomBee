@@ -172,7 +172,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   `mvp_capabilities/termux_draft_smoke.py` renders/verifies a pasteable Termux
   phone-smoke script when the sandbox cannot start `adb`, and tracked real
   Pixel 8 Pro Termux smoke, repeated static-contract latency, tiny-runtime
-  blocker evidence, and guarded no-install GGUF runtime plan now live under
+  blocker evidence, guarded no-install GGUF runtime plan, and standalone
+  tiny-GGUF generation proof now live under
   `mvp_capabilities/distributed_evidence/phone/`;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active

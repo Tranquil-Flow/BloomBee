@@ -287,6 +287,7 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/termux-draft-latency-20260704T100644Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-plan-20260704T101232Z.json
+#     mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -366,10 +367,13 @@ As of the current implementation slice:
   startup is blocked by the sandbox; `termux_draft_latency.py` measures repeated
   static-contract loop latency; `termux_tiny_model_probe.py` records real
   tiny-model/BloomBee blockers; `termux_gguf_runtime_plan.py` records a guarded
-  no-install GGUF runtime plan. Real Pixel 8 Pro Termux smoke+latency+probe+plan
+  no-install GGUF runtime plan; approved follow-up installed/used Termux
+  `llama.cpp` CLI and ran `ggml-org/tiny-llamas/stories15M.gguf` generation on a
+  Pixel 8 Pro. Real Pixel 8 Pro Termux smoke+latency+probe+plan+generation
   evidence is tracked under `distributed_evidence/phone/`, but it proves only
-  draft-contract execution/latency and environment feasibility/planning, not
-  speedup, real model throughput, or block serving;
+  static draft-contract execution/latency, environment feasibility/planning, and
+  standalone tiny-GGUF generation — not speculative speedup or BloomBee block
+  serving;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.

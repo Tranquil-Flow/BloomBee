@@ -157,6 +157,18 @@ It does **not** execute installs or downloads; it only records that a guarded
 Termux, Python, pip, pkg, clang, cmake, make, git, storage, and memory gates pass.
 Any install remains a side-effecting operator decision.
 
+2026-07-04 approved install/generation update: using `m4pro` ADB into Termux,
+the phone now has Termux `llama.cpp` CLI tools available (`llama-cli`,
+`llama-bench`, `llama-server`) and downloaded
+`ggml-org/tiny-llamas/stories15M.gguf` (98,357,920 bytes,
+SHA256 `61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a`).
+Tracked proof:
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json`.
+`llama-cli` generated `One day, a little girl named Lucy` from prompt
+`Once upon a time` in 0.347524s, and `llama-bench` emitted JSON successfully.
+This proves standalone tiny-GGUF phone generation, not BloomBee block serving and
+not speculative decoding speedup.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.
