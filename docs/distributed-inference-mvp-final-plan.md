@@ -87,7 +87,9 @@ Already proven:
 - Redacted handoff artifacts can be fetched with `join_handoff.py` and fed into
   the dashboard without leaking join tokens.
 - Join cards can emit exact URL JSON/TXT sidecars for copy/paste fallback while
-  scanner interoperability remains explicitly unproven.
+  `join_qr_proof.py` can generate a true QR PNG and prove local exact decode with
+  installed encoder/decoder libraries. Physical phone-camera scanner interop
+  remains explicitly unproven.
 - Three real BloomBee server processes on `m4pro` serving TinyLlama layer ranges
   `0:8`, `8:15`, and `15:22`.
 - Qwen3-30B-A3B MoE one-block live server shard on M4 Pro.
@@ -131,10 +133,10 @@ Already proven:
   operator handoff bundles with bootstrap/speculative runbooks, launch plans,
   plus proof-runbook placeholders,
   physical-device `join_client.py` one-shot or bounded repeated heartbeat
-  posting, SVG join-card rendering, QR scanner dependency preflight, and explicit
-  no-inference-proof claim boundaries.
-  SVG visual-grid scanner interoperability remains unproven until a generated
-  artifact decodes to the exact join URL.
+  posting, SVG join-card rendering, QR scanner dependency preflight, local exact
+  QR artifact decode proof, and explicit no-inference-proof claim boundaries.
+  Physical camera scanner interoperability remains unproven until real devices
+  scan the artifact and join the heartbeat loop.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks using the current `run_server --initial_peers` follower
@@ -160,7 +162,7 @@ Already proven:
 
 Not yet proven:
 
-- self-serve QR/link laptop join,
+- physical-device self-serve QR/link laptop join,
 - automatic layer assignment across arbitrary joined laptops after server launch
   multiaddrs are captured,
 - physical N-laptop showcase,

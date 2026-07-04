@@ -35,7 +35,7 @@ BloomBee's runtime already maintains.
 | 8. MVP status | `mvp_status.py` | Emits the weighted plan-completion percentage, progress bar, and next gate. This is status accounting only, not demo proof. | Markdown or JSON status report |
 | 9. Benchmark | `bench_throughput.py` | Loads a model with transformers, runs prefill + autoregressive decode, prints `prefill_tok_per_s` and `decode_tok_per_s` plus peak memory. | Single JSON line on stdout |
 | 10. Roster | `swarm_roster.py` | Aggregates one or more capability JSON directories, de-duplicates hosts, and prints a swarm summary. | JSON or table |
-| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan/bootstrap/bootstrap.sh/handoff/proof-orchestration endpoints, emits token-scoped fresh-device bootstrap scripts as JSON or plain shell, lets physical devices post one-shot or bounded repeated peer-scan heartbeats, renders SVG join cards, and reports QR scanner-proof dependency blockers fail-closed. This is join/roster/planning state only, not inference proof; SVG visual-grid scanner interop is explicitly unproven. | JSON offer / active heartbeat roster / bootstrap runbook / shell bootstrap script / route decision / joined layer plan / operator handoff bundle / proof orchestration checklist / SVG join card / QR preflight report |
+| 11. Join | `join_coordinator.py` + `join_http_server.py` + `join_client.py` + `join_card.py` + `join_qr_preflight.py` + `join_qr_proof.py` | Creates shareable join-link offers, records token-scoped peer heartbeats, exposes HTTP health/offer/heartbeat/active/route/plan/bootstrap/bootstrap.sh/handoff/proof-orchestration endpoints, emits token-scoped fresh-device bootstrap scripts as JSON or plain shell, lets physical devices post one-shot or bounded repeated peer-scan heartbeats, renders SVG join cards, reports QR scanner-proof dependency blockers fail-closed, and can generate/decode a true QR artifact locally when optional encoder/decoder deps are installed. This is join/roster/planning state only, not inference proof; physical camera scanner interop is still explicitly unproven. | JSON offer / active heartbeat roster / bootstrap runbook / shell bootstrap script / route decision / joined layer plan / operator handoff bundle / proof orchestration checklist / SVG join card / QR preflight report / QR exact-decode proof |
 | 12. Route picker | `route_picker.py` | Chooses the strongest feasible model for the current roster or synthetic 10-laptop MVP scenario. Selector modes now separate planning from proof-gated demo choices. | JSON route decision |
 | 13. Layer planner | `layer_planner.py` | Converts a selected model + roster into deterministic contiguous layer ranges by estimated free-memory capacity. This is placement planning only, not inference proof. | JSON layer-placement plan |
 | 14. Joined layer plans | `join_layer_plan.py` | Converts local state-dir or HTTP `/active` token-scoped coordinator heartbeats into `layer_planner.py` placements, optional launch-command runbooks, operator-captured seed multiaddr substitution, and no-execution launch-readiness checklists. This is coordinator-to-planner handoff only, not inference proof. | JSON joined-roster layer plan |
@@ -165,11 +165,20 @@ python mvp_capabilities/join_client.py \
   --interval-seconds 10
 
 #    Render a dependency-free visual join card for operator handoff.
-#    This embeds the exact URL and writes JSON/TXT copy-paste sidecars, but does not yet claim QR scanner compatibility.
+#    This embeds the exact URL and writes JSON/TXT copy-paste sidecars.
 python mvp_capabilities/join_card.py \
   --join-url 'bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token' \
   --write-sidecars \
   --out .local/join-card.svg
+
+#    Optional true-QR artifact proof: requires qrcode+PIL and cv2/pyzbar.
+#    This proves local exact decode only; physical camera scanning remains a separate gate.
+uv pip install --python .venv/bin/python 'qrcode[pil]' opencv-python
+python mvp_capabilities/join_qr_preflight.py --json
+python mvp_capabilities/join_qr_proof.py \
+  --join-url 'bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token' \
+  --out .local/join-card-qr.png \
+  --json
 
 # 10. Pick the strongest feasible route for real devices.
 python mvp_capabilities/route_picker.py --cap-dir ~/.bloombee/capabilities
@@ -381,10 +390,12 @@ As of the current implementation slice:
   `.join.json` / `.join.txt` copy-paste sidecars for phones/operators. It carries
   `scanner_interop_unproven`; true QR scanner compatibility is still a future
   proof gate.
-- QR scanner preflight (`join_qr_preflight.py`) exists: it checks for encoder
-  (`qrcode+PIL` or `segno`) and decoder (`cv2` or `pyzbar`) options and reports
-  `scanner_interop_blocked_missing_dependencies` fail-closed on this environment.
-  It does not generate/decode QR artifacts and does not replace the visual grid.
+- QR scanner preflight/proof (`join_qr_preflight.py`, `join_qr_proof.py`) exists:
+  preflight checks for encoder (`qrcode+PIL` or `segno`) and decoder (`cv2` or
+  `pyzbar`) options fail-closed, while proof mode generates a true QR PNG and
+  decodes it back to the exact join URL locally. A local qrcode+PIL/cv2 artifact
+  decode has passed; physical phone-camera scanner interop remains a separate
+  proof gate and does not replace the copy/paste fallback.
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans,
   coordinator handoff bundles, proof orchestration checklists, speculative decode

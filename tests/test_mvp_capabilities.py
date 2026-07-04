@@ -3207,12 +3207,79 @@ def test_join_qr_preflight_cli_outputs_fail_closed_json():
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["claim_boundary"] == "qr_scanner_preflight_only_no_scanner_proof"
-    assert payload["ready_for_scanner_proof"] is False
+    assert isinstance(payload["ready_for_scanner_proof"], bool)
     assert payload["scanner_status"] in {
         "scanner_interop_blocked_missing_dependencies",
         "scanner_interop_preflight_ready_no_scan_yet",
     }
+    if payload["ready_for_scanner_proof"]:
+        assert payload["scanner_status"] == "scanner_interop_preflight_ready_no_scan_yet"
+        assert payload["missing_encoder_options"] == []
+        assert payload["missing_decoder_options"] == []
+    else:
+        assert payload["scanner_status"] == "scanner_interop_blocked_missing_dependencies"
     assert payload["inference_proven"] is False
+
+
+def test_join_qr_proof_reports_missing_dependencies_fail_closed(tmp_path: Path):
+    from mvp_capabilities.join_qr_proof import run_qr_artifact_proof
+
+    report = run_qr_artifact_proof(
+        "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+        tmp_path / "join.png",
+        availability={"qrcode": False, "PIL": False, "cv2": False, "pyzbar": False, "segno": False},
+    )
+
+    assert report["claim_boundary"] == "qr_artifact_exact_decode_proof_no_physical_scanner_no_inference"
+    assert report["scanner_status"] == "scanner_interop_blocked_missing_dependencies"
+    assert report["local_exact_decode_proven"] is False
+    assert report["physical_scanner_interop_proven"] is False
+    assert report["scanner_interop_proven"] is False
+    assert report["can_update_proof_status"] is False
+    assert not (tmp_path / "join.png").exists()
+
+
+def test_join_qr_proof_exact_decode_redacts_token_but_matches_hash(tmp_path: Path):
+    from mvp_capabilities.join_qr_proof import run_qr_artifact_proof
+
+    join_url = "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    out = tmp_path / "join.png"
+
+    def fake_encoder(value: str, artifact: Path) -> None:
+        artifact.write_text(value, encoding="utf-8")
+
+    def fake_decoder(artifact: Path) -> str:
+        return artifact.read_text(encoding="utf-8")
+
+    report = run_qr_artifact_proof(join_url, out, encoder=fake_encoder, decoder=fake_decoder)
+
+    assert report["scanner_status"] == "local_qr_exact_decode_proven"
+    assert report["exact_match"] is True
+    assert report["local_exact_decode_proven"] is True
+    assert report["physical_scanner_interop_proven"] is False
+    assert report["expected_url_redacted"].endswith("token=%2A%2A%2A")
+    assert report["decoded_url_redacted"] == report["expected_url_redacted"]
+    assert report["expected_url_sha256"] == report["decoded_url_sha256"]
+    assert "moon-token" not in json.dumps(report)
+
+
+def test_join_qr_proof_detects_decoder_mismatch(tmp_path: Path):
+    from mvp_capabilities.join_qr_proof import run_qr_artifact_proof
+
+    def fake_encoder(value: str, artifact: Path) -> None:
+        artifact.write_text(value, encoding="utf-8")
+
+    report = run_qr_artifact_proof(
+        "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
+        tmp_path / "join.png",
+        encoder=fake_encoder,
+        decoder=lambda _artifact: "bloombee://join?token=wrong",
+    )
+
+    assert report["scanner_status"] == "local_qr_exact_decode_failed"
+    assert report["exact_match"] is False
+    assert report["local_exact_decode_proven"] is False
+    assert report["decoded_url_sha256"] != report["expected_url_sha256"]
 
 
 def test_chain_scheduler_builds_multi_request_waves_from_joined_plan():
