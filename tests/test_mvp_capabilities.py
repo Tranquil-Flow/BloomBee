@@ -276,7 +276,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["overall_percent"] == 76
     assert report["overall_bar"] == "███████████████░░░░░ 76%"
     assert report["remaining_percent"] == 24
-    assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
+    assert report["next_gate"] == "Qwen3-8B multi-block proof from clean m4pro archive"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 5, "partial": 7, "pending": 3, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
@@ -297,7 +297,7 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
     assert "███████████████░░░░░ 76%" in text
-    assert "Qwen3-8B multi-block or full-generation proof" in text
+    assert "Qwen3-8B multi-block proof from clean m4pro archive" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "## Planned tasks" in text
     assert "TinyLlama distributed fallback generation proof | complete | yes" in text
@@ -319,7 +319,7 @@ def test_mvp_status_cli_outputs_json():
     payload = json.loads(proc.stdout)
     assert payload["overall_percent"] == 76
     assert payload["overall_bar"].endswith("76%")
-    assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
+    assert payload["next_gate"] == "Qwen3-8B multi-block proof from clean m4pro archive"
     assert payload["task_summary"]["blocked"] == 2
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
@@ -418,6 +418,26 @@ def test_multi_block_proof_plan_generates_two_server_runbook():
     assert "--server-maddr '<PASTE_SERVER_0_MULTIADDR>'" in plan["client_command"]
     assert "--server-maddr '<PASTE_SERVER_1_MULTIADDR>'" in plan["client_command"]
     assert plan["proof_status_on_success"] == "multi_block: passed"
+
+
+def test_qwen3_8b_clean_tree_preflight_tracks_next_gate_without_live_inference():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "qwen3_8b_clean_tree_preflight_no_live_inference"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["git_sha"] == "e544d9c"
+    assert report["plan_generated_from_clean_tree"] is True
+    assert report["qwen3_8b_cache_present"] is True
+    assert report["qwen3_8b_cache_size"] == "19G"
+    assert report["mem_bytes"] >= 48_000_000_000
+    assert report["plan"]["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
+    assert report["plan"]["block_ranges"] == ["0:18", "18:36"]
+    assert report["plan"]["combined_block_range"] == "0:36"
+    assert report["plan"]["hidden_size"] == 4096
+    assert report["can_run_next_gate"] is True
+    assert report["live_inference_run"] is False
+    assert "zip(..., strict=True)" in report["system_python_blocker"]
 
 
 def test_multi_block_proof_verifier_requires_each_server_and_combined_client():

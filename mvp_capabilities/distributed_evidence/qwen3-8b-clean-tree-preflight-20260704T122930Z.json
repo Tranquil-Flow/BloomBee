@@ -1,0 +1,55 @@
+{
+  "can_run_next_gate": true,
+  "claim_boundary": "qwen3_8b_clean_tree_preflight_no_live_inference",
+  "clean_tree_path": "/private/tmp/bloombee-clean-e544d9c",
+  "git_sha": "e544d9c",
+  "host": "m4pro",
+  "live_inference_run": false,
+  "machine": "arm64",
+  "mem_bytes": 51539607552,
+  "model_id": "Qwen/Qwen3-8B",
+  "next_operator_commands": [
+    "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --new_swarm --block_indices 0:18 --device mps --torch_dtype float16 --port 31337 2>&1 | tee .local/qwen3-8b-clean-server-0.log",
+    "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --initial_peers '<PASTE_SEED_MULTIADDR>' --block_indices 18:36 --device mps --torch_dtype float16 --port 31338 2>&1 | tee .local/qwen3-8b-clean-server-1.log",
+    "PYTHONPATH=.:src python scripts/direct_remote_call.py --server-maddr '<PASTE_SERVER_0_MULTIADDR>' --server-maddr '<PASTE_SERVER_1_MULTIADDR>' --model Qwen/Qwen3-8B --hidden-dim 4096 --block-range 0:36 2>&1 | tee .local/qwen3-8b-clean-client.log",
+    "python mvp_capabilities/multi_block_proof.py verify --model Qwen/Qwen3-8B --block-range 0:18 --block-range 18:36 --server-log .local/qwen3-8b-clean-server-0.log --server-log .local/qwen3-8b-clean-server-1.log --client-log .local/qwen3-8b-clean-client.log"
+  ],
+  "plan": {
+    "block_ranges": [
+      "0:18",
+      "18:36"
+    ],
+    "claim_boundary": "multi_block_proof_harness_only_no_live_inference",
+    "client_command": "PYTHONPATH=.:src python scripts/direct_remote_call.py --server-maddr '<PASTE_SERVER_0_MULTIADDR>' --server-maddr '<PASTE_SERVER_1_MULTIADDR>' --model Qwen/Qwen3-8B --hidden-dim 4096 --block-range 0:36 2>&1 | tee .local/qwen3-8b-clean-client.log",
+    "client_log": ".local/qwen3-8b-clean-client.log",
+    "combined_block_range": "0:36",
+    "device": "mps",
+    "dtype": "float16",
+    "hidden_size": 4096,
+    "model_id": "Qwen/Qwen3-8B",
+    "notes": [
+      "Planning output is not proof.",
+      "Server 0 starts a private swarm; later servers bootstrap to server 0's multiaddr.",
+      "The client command needs every server multiaddr so RemoteSequential can discover all blocks.",
+      "Do not update PROOF_STATUS.yaml until verify mode returns status=passed."
+    ],
+    "proof_gate": "multi_block",
+    "proof_status_on_success": "multi_block: passed",
+    "server_commands": [
+      "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --new_swarm --block_indices 0:18 --device mps --torch_dtype float16 --port 31337 2>&1 | tee .local/qwen3-8b-clean-server-0.log",
+      "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --initial_peers '<PASTE_SEED_MULTIADDR>' --block_indices 18:36 --device mps --torch_dtype float16 --port 31338 2>&1 | tee .local/qwen3-8b-clean-server-1.log"
+    ],
+    "server_logs": [
+      ".local/qwen3-8b-clean-server-0.log",
+      ".local/qwen3-8b-clean-server-1.log"
+    ],
+    "verify_command": "python mvp_capabilities/multi_block_proof.py verify --model Qwen/Qwen3-8B --block-range 0:18 --block-range 18:36 --server-log .local/qwen3-8b-clean-server-0.log --server-log .local/qwen3-8b-clean-server-1.log --client-log .local/qwen3-8b-clean-client.log"
+  },
+  "plan_generated_from_clean_tree": true,
+  "python": "3.11.15",
+  "qwen3_8b_cache_path": "/Users/evinova-self/.cache/huggingface/hub/models--Qwen--Qwen3-8B",
+  "qwen3_8b_cache_present": true,
+  "qwen3_8b_cache_size": "19G",
+  "system_python_blocker": "m4pro system python3 is 3.9 and fails on zip(..., strict=True); use project .venv Python 3.11 for proof commands",
+  "timestamp_utc": "20260704T122930Z"
+}

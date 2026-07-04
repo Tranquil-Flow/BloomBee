@@ -428,7 +428,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][0]["layers"] == [0, 8]
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
     assert doc["mvp_status"]["overall_percent"] == 76
-    assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
+    assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block proof from clean m4pro archive"
     assert doc["mvp_status"]["task_summary"]["total"] == 17
     assert doc["mvp_status"]["task_summary"]["blocked"] == 2
     assert any(task["id"] == "physical_showcase" and task["done"] is False for task in doc["mvp_status"]["planned_tasks"])
@@ -457,7 +457,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "MVP build status" in html
     assert "███████████████░░░░░ 76%" in html
-    assert "Qwen3-8B multi-block or full-generation proof" in html
+    assert "Qwen3-8B multi-block proof from clean m4pro archive" in html
     assert "weighted_plan_status_not_demo_proof" in html
     assert "Planned tasks" in html
     assert "Task summary: 5 complete, 7 partial, 3 pending, 2 blocked" in html

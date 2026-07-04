@@ -424,8 +424,12 @@ As of the current implementation slice:
   server runbooks, uses current `run_server --initial_peers` join flags for
   later servers, and refuses to mark `multi_block` passed unless every server log
   has start/announce/RPC evidence plus a combined direct-client result. The live
-  Qwen3-8B multi-block gate remains pending: M4 Pro attempts started both block
-  servers, but the direct client failed during DHT bootstrap before RPC.
+  Qwen3-8B multi-block gate remains pending, but clean-tree m4pro preflight is
+  tracked at `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
+  Qwen3-8B cache is present, the host has 48GB memory, and proof commands should
+  use the project Python 3.11 venv because system `python3` is 3.9. Earlier M4
+  Pro attempts started both block servers, but the direct client failed during
+  DHT bootstrap before RPC.
 
 - Local `evinova` / `Evis-MacBook-Pro`: M4, 16GB unified memory, MPS.
 - Remote `evinova-self` / `m4pro`: M4 Pro, 48GB unified memory, verified via `ssh m4pro`.

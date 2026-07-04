@@ -76,7 +76,8 @@ Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is plan progress, not
-public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
+public-demo proof. Next gate: **Qwen3-8B multi-block proof from the clean m4pro
+archive using the project Python 3.11 venv**.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /
