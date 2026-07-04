@@ -75,23 +75,23 @@ def _launch_step(assignment: dict[str, Any], index: int) -> tuple[dict[str, Any]
     placeholders = _find_placeholders(command)
     forbidden_flags: list[str] = []
     fix_hint = ""
-    follower_missing_env = False
-    if "--initial_peers" in command:
-        forbidden_flags.append(f"launch step {hostname} uses forbidden --initial_peers")
-        fix_hint = "Use BLOOMBEE_INITIAL_PEERS=<seed multiaddr> before python -m bloombee.cli.run_server for follower runbooks."
-    if role == "follower" and command and "BLOOMBEE_INITIAL_PEERS=" not in command:
-        follower_missing_env = True
+    follower_missing_initial_peers = False
+    if "BLOOMBEE_INITIAL_PEERS=" in command:
+        forbidden_flags.append(f"launch step {hostname} uses ignored BLOOMBEE_INITIAL_PEERS")
+        fix_hint = "Use python -m bloombee.cli.run_server ... --initial_peers <seed multiaddr>; run_server.py does not read BLOOMBEE_INITIAL_PEERS."
+    if role == "follower" and command and "--initial_peers" not in command:
+        follower_missing_initial_peers = True
         if not fix_hint:
-            fix_hint = "Follower runbooks must use BLOOMBEE_INITIAL_PEERS=<seed multiaddr>."
+            fix_hint = "Follower runbooks must pass --initial_peers <seed multiaddr>."
     blocked_by: list[str] = []
     if not command:
         blocked_by.append("missing_launch_command")
     if placeholders:
         blocked_by.append("unresolved_placeholders")
     if forbidden_flags:
-        blocked_by.append("forbidden_initial_peers_flag")
-    if follower_missing_env:
-        blocked_by.append("missing_bloombee_initial_peers_env")
+        blocked_by.append("ignored_bloombee_initial_peers_env")
+    if follower_missing_initial_peers:
+        blocked_by.append("missing_initial_peers_flag")
     ready = bool(command) and not blocked_by
     return (
         {

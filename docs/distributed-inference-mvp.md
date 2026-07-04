@@ -54,12 +54,18 @@ Why:
   model that the connected swarm can prove safe to run.
 
 Last-stage stretch targets are tracked in the final plan and come **after** the
-core live demo works. First choice is the same-family
+core live demo works. The new near-term candidate branch is
+**Qwen/Qwen-AgentWorld-35B-A3B**: it fits the synthetic 10-laptop memory budget
+(~80GB recommended) but is blocked today because HF reports `model_type=qwen3_5_moe`
+with a `qwen3_5_moe_text` tower, and BloomBee only has a `qwen3_moe` wrapper.
+First true high-compute stretch is the same-family
 **Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears. After
 that, a LayerExecutor backend can try quantized frontier serving backends for
-**GLM-5.2** and **DeepSeek-V4-Flash**. DeepSeek-V4-Pro, Kimi K2.x, and giant
-Qwen3-Coder MoEs stay post-MVP unless quantized expert paging or a much larger
-hardware pool exists.
+**MiniMaxAI/MiniMax-M3**, **GLM-5.2**, and **DeepSeek-V4-Flash**. DeepSeek-V4-Pro,
+Kimi K2.x, and giant Qwen3-Coder MoEs stay post-MVP unless quantized expert paging
+or a much larger hardware pool exists. MiniMax M3 is currently blocked for native
+BloomBee by `model_type=minimax_m3_vl`, MiniMax Sparse Attention, and ~809GiB bf16
+weights (~900GB recommended runtime memory).
 
 ## Verified current state
 
@@ -138,8 +144,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/join_layer_plan.py` converts active token-scoped coordinator
   heartbeats from local state or HTTP `/active` into deterministic layer
   placements, launch-command runbooks, and no-execution launch-readiness
-  checklists. Generated follower commands use `BLOOMBEE_INITIAL_PEERS` rather
-  than the legacy CLI flag. Operators can pass captured seed addresses with
+  checklists. Generated follower commands use the current `run_server`
+  `--initial_peers` CLI flag. Operators can pass captured seed addresses with
   `--seed-multiaddr HOST=/ip4/.../p2p/...` to resolve follower placeholders
   before the checklist marks the runbook ready.
 - `mvp_capabilities/route_picker.py` now accepts `--selector-mode planning`,
@@ -196,7 +202,7 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/layer_planner.py` converts a chosen model and peer roster
   into deterministic contiguous layer ranges and can attach exact BloomBee
   server launch commands with `--include-launch-commands`. Follower runbooks use
-  `BLOOMBEE_INITIAL_PEERS`, matching the live-tested multi-block join path. This
+  `--initial_peers`, matching the current `run_server` CLI. This
   is placement and launch planning only; real serving still requires the
   BloomBee server proof ladder.
 - `mvp_capabilities/swarm_simulator.py` rehearses synthetic/live rosters with
@@ -265,7 +271,7 @@ different *block internals* — the routing expert lives *inside* a block on one
 The full multi-peer test (`tests/test_remote_sequential.py`) requires:
 
 1. N≥2 laptops, each running `python -m bloombee.cli.run_server <model_name>`.
-2. Shared `BLOOMBEE_INITIAL_PEERS` (one peer's multiaddr is shared to the other).
+2. Shared `--initial_peers` target (one peer's multiaddr is shared to the other).
 3. Same `MODEL_NAME` and shared `dht_prefix` across peers.
 
 TinyLlama-1.1B two-device rehearsal (the smallest real distributed test):
@@ -278,11 +284,11 @@ python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
     --new_swarm --block_indices 0:11 \
     --device mps --torch_dtype bfloat16 --port 31337
 
-# It prints a BLOOMBEE_INITIAL_PEERS-compatible multiaddr like:
+# It prints a seed multiaddr like:
 #   /ip4/192.168.1.42/tcp/31337/p2p/QmXXX
 # Copy that, then on machine B:
-BLOOMBEE_INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
 python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+    --initial_peers "/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
     --block_indices 11:22 \
     --device mps --torch_dtype bfloat16
 ```
@@ -290,7 +296,7 @@ python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 Then from a third laptop:
 
 ```bash
-BLOOMBEE_INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
+INITIAL_PEERS="/ip4/<A_IP>/tcp/31337/p2p/QmXXX" \
 MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
 pytest tests/test_remote_sequential.py -v -s
 ```
@@ -355,6 +361,11 @@ environment problem, not a code correctness problem.
   blocks have been served across a live swarm. One-block live serving is proven;
   full-model distributed generation is not.
 - Do not claim a server gate is complete from registry fit alone; fit prediction is not inference proof.
+- Do not claim quantized checkpoints are BloomBee-runnable just because HF/vLLM/
+  SGLang/llama.cpp can serve them. Current BloomBee HF-block loading expects
+  normal PyTorch block weights, filters `.safetensors` by block prefix, calls
+  `load_state_dict`, and casts to fp16/bf16; it does not instantiate GPTQ/AWQ/
+  FP8/NVFP4/MXFP quantized kernels.
 - Do not count phones as useful inference workers until a phone produces
   measured throughput and successfully serves at least one transformer block in
   the distributed path.

@@ -117,7 +117,7 @@ def _operator_actions(
     if client_failed:
         actions.append(
             "Client could not reach the DHT swarm or all servers. "
-            "Verify BLOOMBEE_INITIAL_PEERS, server multiaddrs, and DHT prefix match."
+            "Verify follower --initial_peers values, server multiaddrs, and DHT prefix match."
         )
     if not actions:
         actions.append(

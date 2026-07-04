@@ -87,8 +87,8 @@ def build_multi_block_plan(
             prefix_parts = ["PYTHONPATH=.:src"]
             swarm_args = ["--new_swarm"]
         else:
-            prefix_parts = ["PYTHONPATH=.:src", "BLOOMBEE_INITIAL_PEERS='<PASTE_SEED_MULTIADDR>'"]
-            swarm_args = []
+            prefix_parts = ["PYTHONPATH=.:src"]
+            swarm_args = ["--initial_peers '<PASTE_SEED_MULTIADDR>'"]
         server_commands.append(
             _shell_join(
                 [

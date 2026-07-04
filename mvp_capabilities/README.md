@@ -26,7 +26,7 @@ BloomBee's runtime already maintains.
 | Layer | File | What it does | Output |
 |------:|------|--------------|--------|
 | 1. Hardware | `peer_scan.py` | Probes the local node: hostname, Tailscale IP, CPU model & counts, RAM, MPS/CUDA VRAM, ping latency to peers, free disk on `~/.cache/huggingface`. | JSON to stdout AND `~/.bloombee/capabilities/<hostname>.json` |
-| 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for ~20 candidate models (TinyLlama through Qwen3-235B-A22B, dense and MoE). | YAML, loaded by the scheduler |
+| 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for candidate models (TinyLlama through Qwen35B/MiniMax-M3 blocked frontier shelves, dense and MoE). | YAML, loaded by the scheduler |
 | 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. `route_picker.py` also infers registry model types so unsupported wrappers cannot be selected for showcase/safe-demo just because memory fits. | JSON compatibility report |
 | 4. Proof ladder | `proof_ladder.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. This is audit state only, not inference proof. | JSON proof-ladder report |
 | 5. One-block proof harness | `one_block_proof.py` | Emits exact one-block server/client commands and verifies captured logs before a proof gate can be promoted. Planning mode is not proof. | JSON plan / verification report |
@@ -324,7 +324,7 @@ As of the current implementation slice:
   cached generation path before allowing the `cache_generation` gate to be marked
   passed. Forward-loop parity is explicitly rejected for this gate.
 - Multi-block proof harness (`multi_block_proof.py`) exists. It emits two-or-more
-  server runbooks, uses the verified `BLOOMBEE_INITIAL_PEERS` join pattern for
+  server runbooks, uses current `run_server --initial_peers` join flags for
   later servers, and refuses to mark `multi_block` passed unless every server log
   has start/announce/RPC evidence plus a combined direct-client result. The live
   Qwen3-8B multi-block gate remains pending: M4 Pro attempts started both block
@@ -340,6 +340,14 @@ As of the current implementation slice:
 - Prepared Qwen3-30B-A3B 2507 variants (`Instruct-2507`, `Thinking-2507`)
   are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will
   not auto-select them until `full_generation` passes.
+- Qwen35B candidate branch is registered as `Qwen/Qwen-AgentWorld-35B-A3B`:
+  memory-fit for the synthetic 10×20GB-free swarm (~80GB recommended), but
+  blocked for showcase/safe-demo until a native `qwen3_5_moe` / `qwen3_5_moe_text`
+  BloomBee wrapper exists and passes one-block, multi-block, and generation proof.
+- MiniMax M3 is catalogued as a high-compute blocked candidate: bf16 weights are
+  ~809GiB indexed, recommended runtime memory is ~900GB, and native BloomBee lacks
+  both `minimax_m3_vl` wrapper support and MiniMax Sparse Attention state/kernels.
+  MXFP8/NVFP4/GGUF variants are not a shortcut for the current BloomBee path.
 - Proof ladder audit (`proof_ladder.py`) exists. Qwen3-8B and Qwen3-14B have
   passed config-only prescan as `qwen3` dense models, and Qwen3-8B one-block
   server proof is passed. Multi-block/full-generation/cache-generation/load proof
@@ -388,8 +396,8 @@ As of the current implementation slice:
 - Layer planner (`layer_planner.py`) exists: it assigns deterministic contiguous
   layer ranges from a selected model and live/synthetic peer roster. With
   `--include-launch-commands`, it adds exact BloomBee server command runbooks;
-  follower commands use `BLOOMBEE_INITIAL_PEERS`, matching the live-tested
-  multi-block join path. `join_layer_plan.py` can feed active token-scoped
+  follower commands use `--initial_peers`, matching the current `run_server` CLI.
+  `join_layer_plan.py` can feed active token-scoped
   coordinator heartbeats from local state or HTTP `/active` into those
   placements. With
   `--include-launch-readiness`, it also emits a machine-readable checklist that

@@ -80,12 +80,49 @@ def _default_proof_status() -> dict[str, str]:
     return {key: "pending" for key in PROOF_KEYS}
 
 
-def _claim_level(*, architecture_supported: bool, proof_status: dict[str, str]) -> str:
-    if not architecture_supported:
+def _claim_level(
+    *,
+    architecture_supported: bool,
+    proof_status: dict[str, str],
+    runtime_blocked_reasons: list[str] | None = None,
+) -> str:
+    if not architecture_supported or runtime_blocked_reasons:
         return "blocked"
     if proof_status.get("full_generation") == "passed":
         return "demo_safe"
     return "experimental"
+
+
+def _nested_text_config(config: dict[str, Any]) -> dict[str, Any]:
+    text_config = config.get("text_config")
+    return text_config if isinstance(text_config, dict) else {}
+
+
+def _model_body_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Return config section that describes transformer-block dimensions.
+
+    Newer multimodal MoEs such as Qwen3.5-35B-A3B and MiniMax-M3 put the
+    language tower under ``text_config`` while the top-level config describes the
+    multimodal wrapper. BloomBee still needs block-level facts from the language
+    tower even when the wrapper is unsupported.
+    """
+    text_config = _nested_text_config(config)
+    if text_config and not config.get("num_hidden_layers"):
+        return text_config
+    return config
+
+
+def _quantization_method(config: dict[str, Any]) -> str | None:
+    qcfg = config.get("quantization_config")
+    if not isinstance(qcfg, dict):
+        return None
+    method = qcfg.get("quant_method") or qcfg.get("quant_algo")
+    return str(method) if method else "unknown"
+
+
+def _uses_sparse_attention(config: dict[str, Any]) -> bool:
+    sparse_cfg = config.get("sparse_attention_config")
+    return bool(isinstance(sparse_cfg, dict) and sparse_cfg.get("use_sparse_attention"))
 
 
 def scan_model_config(
@@ -96,9 +133,14 @@ def scan_model_config(
     local_files_only: bool = True,
 ) -> dict[str, Any]:
     config = _read_config(source, local_files_only=local_files_only)
+    body_config = _model_body_config(config)
+    text_config = _nested_text_config(config)
     hf_model_type = str(config.get("model_type") or "unknown")
+    text_model_type = text_config.get("model_type")
     support = SUPPORTED_FAMILIES.get(hf_model_type)
     architecture_supported = support is not None
+    quantization_method = _quantization_method(config)
+    uses_sparse_attention = _uses_sparse_attention(body_config)
 
     merged_proof = _default_proof_status()
     merged_proof["prescan"] = "passed"
@@ -109,24 +151,43 @@ def scan_model_config(
     blocked_reasons: list[str] = []
     if not architecture_supported:
         blocked_reasons.append(f"No BloomBee block wrapper registered for model_type={hf_model_type}")
+    if uses_sparse_attention:
+        blocked_reasons.append(
+            "Model text tower uses sparse_attention_config; current BloomBee block wrappers "
+            "do not implement this attention state/kernel contract"
+        )
+    if quantization_method:
+        blocked_reasons.append(
+            "Quantized HF checkpoint declares quantization_config="
+            f"{quantization_method}; current BloomBee HF-block loader instantiates "
+            "fp16/bf16 PyTorch blocks and does not build GPTQ/AWQ/FP8/NVFP4/"
+            "MXFP quantized Linear kernels"
+        )
 
     result: dict[str, Any] = {
         "model_id": model_id or str(source),
         "hf_model_type": hf_model_type,
+        "hf_text_model_type": str(text_model_type) if text_model_type else None,
         "architecture_supported": architecture_supported,
         "bloombee_family": support["bloombee_family"] if support else None,
         "block_prefix": support["block_prefix"] if support else None,
-        "num_layers": config.get("num_hidden_layers") or config.get("n_layer"),
-        "hidden_size": config.get("hidden_size") or config.get("n_embd"),
-        "num_attention_heads": config.get("num_attention_heads") or config.get("n_head"),
-        "num_key_value_heads": config.get("num_key_value_heads") or config.get("n_head_kv"),
-        "num_experts": config.get("num_experts") or config.get("n_routed_experts"),
-        "experts_per_token": config.get("num_experts_per_tok") or config.get("num_experts_per_token"),
+        "num_layers": body_config.get("num_hidden_layers") or body_config.get("n_layer"),
+        "hidden_size": body_config.get("hidden_size") or body_config.get("n_embd"),
+        "num_attention_heads": body_config.get("num_attention_heads") or body_config.get("n_head"),
+        "num_key_value_heads": body_config.get("num_key_value_heads") or body_config.get("n_head_kv"),
+        "num_experts": body_config.get("num_experts") or body_config.get("num_local_experts") or body_config.get("n_routed_experts"),
+        "experts_per_token": body_config.get("num_experts_per_tok") or body_config.get("num_experts_per_token"),
         "architectures": config.get("architectures") or [],
+        "text_architectures": body_config.get("architectures") or [],
+        "max_position_embeddings": body_config.get("max_position_embeddings"),
+        "uses_sparse_attention": uses_sparse_attention,
+        "quantization_method": quantization_method,
+        "quantization_supported": False if quantization_method else None,
         "proof_status": merged_proof,
         "claim_level": _claim_level(
             architecture_supported=architecture_supported,
             proof_status=merged_proof,
+            runtime_blocked_reasons=blocked_reasons,
         ),
         "blocked_reasons": blocked_reasons,
     }

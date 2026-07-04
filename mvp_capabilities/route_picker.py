@@ -52,6 +52,10 @@ def _infer_hf_model_type(model: dict[str, Any]) -> str | None:
     model_id = str(model.get("model_id") or "").lower()
     if not model_id:
         return None
+    if "qwen3.5" in model_id or "qwen3_5" in model_id or "qwen3-5" in model_id:
+        return "qwen3_5_moe"
+    if "minimax-m3" in model_id or "minimax/m3" in model_id:
+        return "minimax_m3_vl"
     if "qwen3" in model_id and ("a3b" in model_id or "a22b" in model_id):
         return "qwen3_moe"
     if "qwen3" in model_id:
@@ -95,6 +99,14 @@ def _annotate_architecture_support(model: dict[str, Any]) -> dict[str, Any]:
     blocked_reasons = list(model.get("blocked_reasons") or [])
     if model.get("architecture_supported") is False:
         reason = f"No BloomBee block wrapper registered for model_type={hf_model_type or 'unknown'}"
+        if reason not in blocked_reasons:
+            blocked_reasons.append(reason)
+    if model.get("quantization_supported") is False or model.get("quantization_method"):
+        method = model.get("quantization_method") or "unknown"
+        reason = (
+            f"Quantized checkpoint ({method}) is not native-selectable: current BloomBee "
+            "HF block loading builds fp16/bf16 PyTorch blocks, not GPTQ/AWQ/FP8/NVFP4/MXFP kernels"
+        )
         if reason not in blocked_reasons:
             blocked_reasons.append(reason)
     if blocked_reasons:
@@ -174,6 +186,8 @@ def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
     if explicit:
         return str(explicit)
     if model.get("architecture_supported") is False:
+        return "blocked"
+    if model.get("blocked_reasons"):
         return "blocked"
     if any(_status_is_blocked(value) for value in status.values()):
         return "blocked"

@@ -137,7 +137,7 @@ Already proven:
   artifact decodes to the exact join URL.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
-  launch command runbooks using the verified `BLOOMBEE_INITIAL_PEERS` follower
+  launch command runbooks using the current `run_server --initial_peers` follower
   join path, operator-captured seed multiaddr substitution, launch-readiness
   checklists, and explicit `launch_commands_only_no_server_started`
   / `launch_multiaddr_resolution_only_no_server_started` / readiness claim
@@ -239,6 +239,7 @@ candidate **only after** its proof gate passes for the selected risk mode.
 | Core dream | `Qwen/Qwen3-30B-A3B-Instruct-2507` | exact Qwen3-30B verifier output | best practical blend of quality, Apache license, MoE efficiency, and laptop-swarm fit | same family as proven Qwen3-MoE block; checkpoint proof needed |
 | Existing MoE fallback | `Qwen/Qwen3-30B-A3B` | exact Qwen3-30B verifier output | one-block live serving already proven | full generation proof needed |
 | Reasoning stretch | `Qwen/Qwen3-30B-A3B-Thinking-2507` | exact Thinking-2507 verifier output | stronger reasoning but longer/slower outputs | proof needed; cap thinking budget |
+| Qwen35B branch | `Qwen/Qwen-AgentWorld-35B-A3B` | exact Qwen3.5-35B verifier output only after wrapper proof | near-term 35B-A3B text-generation candidate; ~65GiB weights, ~80GB recommended free memory, 40 text layers, 256 experts / 8 active | blocked today: HF `model_type=qwen3_5_moe` / text tower `qwen3_5_moe_text`; BloomBee only has `qwen3_moe` wrapper |
 | High-compute exact | `Qwen/Qwen3-235B-A22B-Instruct-2507` | exact Qwen3-235B verifier output | strongest same-family Qwen3-MoE upgrade if huge memory appears | last-stage only; full proof ladder required |
 | Frontier backend experiment | `zai-org/GLM-5.2` / FP8 / quantized variants | exact GLM-5.2 only if GLM-5.2 is verifier | frontier open-weight coding/agentic target | post-core LayerExecutor/quantized-backend path; no native BloomBee wrapper yet |
 | Frontier backend experiment | `deepseek-ai/DeepSeek-V4-Flash` | exact V4 Flash only if V4 Flash is verifier | more plausible DeepSeek V4 target than Pro due to smaller total weights | post-core quantized backend path |
@@ -263,6 +264,9 @@ before demo day.
 4. Qwen3-30B-A3B — extend from one-block proof to multi-block proof.
 5. Qwen3-30B-A3B-Instruct-2507 — prescan and one-block proof; promote only if it
    passes the same gates.
+6. Qwen-AgentWorld-35B-A3B — candidate branch only. It fits a 10×20GB-free
+   swarm on memory math, but cannot be attempted in native BloomBee until a
+   `qwen3_5_moe` block wrapper exists and passes the proof ladder.
 
 ### Last-stage high-compute shelf
 
@@ -276,6 +280,7 @@ should know which bigger models are worth attempting and which are blocked.
 | Model | Rough weight budget | Why consider it | Current blocker | When to attempt |
 |---|---:|---|---|---|
 | `Qwen/Qwen3-235B-A22B-Instruct-2507` | ~560GB+ bf16/fp16 with margin | strongest same-family Qwen3-MoE upgrade; better benchmark class than 30B | huge memory; not cached/proven | after Qwen3-30B full-generation works and connected swarm has ~29 × 20GB-free laptops or ~12 × 48GB-free laptops |
+| `MiniMaxAI/MiniMax-M3` | ~809GiB indexed bf16 weights; ~858GB lower-bound runtime; ~900GB recommended | frontier coding/agentic, 1M context, multimodal, 428B total / ~23B active MoE | no native BloomBee wrapper; `model_type=minimax_m3_vl`; text tower uses MiniMax Sparse Attention and custom state/kernels | post-core only, likely via LayerExecutor wrapping vLLM/SGLang/KTransformers-style backend before native BloomBee work |
 | `zai-org/GLM-5.2` | ~1.8TB bf16, ~0.9TB FP8, ~0.45TB ideal FP4 floor with margin | frontier open-weight coding/agentic target; 744B total / ~40B active class | no native BloomBee wrapper; needs quantized backend or enormous swarm | after core demo works, via LayerExecutor wrapping vLLM/SGLang/llama.cpp-style backend before native BloomBee block work |
 | `deepseek-ai/DeepSeek-V4-Flash` | ~0.68TB bf16, ~0.34TB FP8, ~0.17TB ideal FP4 floor with margin | most plausible DeepSeek V4 family target; much smaller than Pro | no native wrapper; quantized backend path needed | post-core if quantized weights/backend are stable and hardware is large enough |
 | `deepseek-ai/DeepSeek-V4-Pro` | ~3.8TB bf16, ~1.9TB FP8, ~0.96TB ideal FP4 floor with margin | frontier benchmark ceiling | no native wrapper; huge; special attention/MoE state likely | post-MVP / backend research only |
@@ -313,7 +318,13 @@ A model is not `demo_safe` until at least full distributed text generation works
    convolutional state all affect the block wrapper and KV contract.
 4. **Quantisation.** Current BloomBee MVP path is effectively fp16/bf16; do not
    plan on 4-bit/8-bit memory wins unless that path is separately implemented and
-   proven.
+   proven. BloomBee's current HF-block loader instantiates normal PyTorch blocks,
+   filters safetensors by `block_prefix`, calls `block.load_state_dict(...)`, and
+   casts the block to `torch_dtype`. It does not instantiate GPTQ/AWQ/FP8/NVFP4/
+   MXFP quantized Linear modules, does not call `load_in_4bit`/`load_in_8bit`, and
+   the CLI has no quantized-checkpoint selection flag. FlexGen group-wise
+   compression exists in the codebase, but it is not equivalent to serving a HF
+   GPTQ/GGUF/FP8/NVFP4 checkpoint through BloomBee's block-parallel RPC path.
 5. **KV memory and context.** Long-context claims are dangerous. MVP should cap
    context to a proven budget (for example 4K, 8K, or 32K), not attempt 128K+
    just because a model card supports it.

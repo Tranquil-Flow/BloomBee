@@ -397,7 +397,8 @@ def test_multi_block_proof_plan_generates_two_server_runbook():
     assert plan["combined_block_range"] == "0:2"
     assert len(plan["server_commands"]) == 2
     assert "--new_swarm" in plan["server_commands"][0]
-    assert "BLOOMBEE_INITIAL_PEERS='<PASTE_SEED_MULTIADDR>'" in plan["server_commands"][1]
+    assert "--initial_peers '<PASTE_SEED_MULTIADDR>'" in plan["server_commands"][1]
+    assert "BLOOMBEE_INITIAL_PEERS" not in plan["server_commands"][1]
     assert "--server-maddr '<PASTE_SERVER_0_MULTIADDR>'" in plan["client_command"]
     assert "--server-maddr '<PASTE_SERVER_1_MULTIADDR>'" in plan["client_command"]
     assert plan["proof_status_on_success"] == "multi_block: passed"
@@ -1036,6 +1037,79 @@ def test_registry_includes_prepared_qwen3_30b_2507_variants_with_pending_proof()
         assert route["proof_status"]["full_generation"] == "pending"
 
 
+def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wrapper():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.route_picker import choose_best_route, load_registry, synthetic_m4_laptops
+
+    registry = load_registry(REGISTRY_PATH)
+    by_id = {model["model_id"]: model for model in registry}
+    model = by_id["Qwen/Qwen-AgentWorld-35B-A3B"]
+
+    assert model["candidate_branch"] == "qwen35b"
+    assert model["hf_model_type"] == "qwen3_5_moe"
+    assert model["hf_text_model_type"] == "qwen3_5_moe_text"
+    assert model["num_layers"] == 40
+    assert model["hidden_size"] == 2048
+    assert model["num_experts"] == 256
+    assert model["num_experts_per_tok"] == 8
+    assert model["recommended_min_free_mem_gb"] == 80
+    assert model["architecture_supported"] is False
+
+    peers = synthetic_m4_laptops(count=10, total_gb=24, free_gb=20)
+    proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
+    planning = choose_best_route(
+        peers,
+        registry,
+        requested_model="Qwen/Qwen-AgentWorld-35B-A3B",
+        proof_status=proof,
+        selector_mode="planning",
+    )
+    assert planning["memory_fit"] is True
+    assert planning["runtime_supported"] is False
+    assert planning["claim_level"] == "blocked"
+    assert planning["selector_allowed"] is True
+
+    showcase = choose_best_route(
+        peers,
+        registry,
+        requested_model="Qwen/Qwen-AgentWorld-35B-A3B",
+        proof_status=proof,
+        selector_mode="showcase-attempt",
+    )
+    assert showcase["selector_allowed"] is False
+    assert "wrapper" in showcase["selector_blocked_reason"].lower()
+    assert showcase["proof_status"]["one_block_server"] == "blocked-by-wrapper"
+
+
+def test_registry_tracks_minimax_m3_as_high_compute_blocked_candidate():
+    from mvp_capabilities.route_picker import choose_best_route, load_registry, synthetic_m4_laptops
+
+    registry = load_registry(REGISTRY_PATH)
+    by_id = {model["model_id"]: model for model in registry}
+    model = by_id["MiniMaxAI/MiniMax-M3"]
+
+    assert model["hf_model_type"] == "minimax_m3_vl"
+    assert model.get("hf_text_model_type") is None
+    assert model["params_b"] == 428.0
+    assert model["active_params_b"] == 23.0
+    assert model["num_layers"] == 60
+    assert model["hidden_size"] == 6144
+    assert model["supports_sparse_attention"] is True
+    assert model["recommended_min_free_mem_gb"] == 900
+    assert model["architecture_supported"] is False
+
+    route = choose_best_route(
+        synthetic_m4_laptops(count=10, total_gb=24, free_gb=20),
+        registry,
+        requested_model="MiniMaxAI/MiniMax-M3",
+        selector_mode="planning",
+    )
+    assert route["memory_fit"] is False
+    assert route["runtime_supported"] is False
+    assert route["claim_level"] == "blocked"
+    assert any("sparse attention" in reason.lower() for reason in route["blocked_reasons"])
+
+
 def test_layer_planner_assigns_contiguous_ranges_by_peer_capacity():
     from mvp_capabilities.layer_planner import plan_layer_placement
 
@@ -1112,8 +1186,8 @@ def test_layer_planner_can_attach_exact_bloombee_server_commands():
     assert "--block_indices 0:5" in plan["assignments"][0]["launch_command"]
     assert "--block_indices 5:12" in plan["assignments"][1]["launch_command"]
     assert "--dht_prefix demo-prefix" in plan["assignments"][0]["launch_command"]
-    assert "BLOOMBEE_INITIAL_PEERS='<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
-    assert "--initial_peers" not in plan["assignments"][1]["launch_command"]
+    assert "--initial_peers '<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
+    assert "BLOOMBEE_INITIAL_PEERS" not in plan["assignments"][1]["launch_command"]
 
 
 def test_layer_planner_cli_can_include_launch_commands():
@@ -1142,8 +1216,9 @@ def test_layer_planner_cli_can_include_launch_commands():
     assert payload["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
     assert payload["assignments"][0]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
     assert "--new_swarm" in payload["assignments"][0]["launch_command"]
-    assert payload["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS='<SEED_MULTIADDR_FROM_")
-    assert "--initial_peers" not in payload["assignments"][1]["launch_command"]
+    assert payload["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
+    assert "--initial_peers '<SEED_MULTIADDR_FROM_" in payload["assignments"][1]["launch_command"]
+    assert "BLOOMBEE_INITIAL_PEERS" not in payload["assignments"][1]["launch_command"]
 
 
 def test_layer_planner_cli_outputs_json_for_synthetic_swarm():
@@ -1487,6 +1562,103 @@ def test_model_compat_scan_marks_qwen3_moe_as_bloombee_supported(tmp_path: Path)
     assert result["experts_per_token"] == 8
     assert result["proof_status"]["prescan"] == "passed"
     assert result["claim_level"] == "experimental"
+
+
+def test_model_compat_scan_extracts_nested_qwen35b_text_config_and_blocks_wrapper(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "qwen35"
+    _write_hf_config(
+        model_dir,
+        model_type="qwen3_5_moe",
+        architectures=["Qwen3_5MoeForConditionalGeneration"],
+        language_model_only=True,
+        text_config={
+            "model_type": "qwen3_5_moe_text",
+            "architectures": ["Qwen3_5MoeForCausalLM"],
+            "num_hidden_layers": 40,
+            "hidden_size": 2048,
+            "num_attention_heads": 16,
+            "num_key_value_heads": 2,
+            "num_experts": 256,
+            "num_experts_per_tok": 8,
+            "max_position_embeddings": 262144,
+        },
+    )
+
+    result = scan_model_config(model_dir, model_id="Qwen/Qwen-AgentWorld-35B-A3B")
+
+    assert result["hf_model_type"] == "qwen3_5_moe"
+    assert result["hf_text_model_type"] == "qwen3_5_moe_text"
+    assert result["num_layers"] == 40
+    assert result["hidden_size"] == 2048
+    assert result["num_key_value_heads"] == 2
+    assert result["num_experts"] == 256
+    assert result["experts_per_token"] == 8
+    assert result["max_position_embeddings"] == 262144
+    assert result["architecture_supported"] is False
+    assert result["claim_level"] == "blocked"
+    assert "qwen3_5_moe" in result["blocked_reasons"][0]
+
+
+def test_model_compat_scan_marks_quantized_qwen35b_checkpoint_blocked(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "qwen35_gptq"
+    _write_hf_config(
+        model_dir,
+        model_type="qwen3_5_moe",
+        architectures=["Qwen3_5MoeForConditionalGeneration"],
+        quantization_config={"quant_method": "gptq", "bits": 4},
+        text_config={
+            "model_type": "qwen3_5_moe_text",
+            "num_hidden_layers": 40,
+            "hidden_size": 2048,
+        },
+    )
+
+    result = scan_model_config(model_dir, model_id="Qwen/Qwen3.5-35B-A3B-GPTQ-Int4")
+
+    assert result["quantization_method"] == "gptq"
+    assert result["quantization_supported"] is False
+    assert result["claim_level"] == "blocked"
+    assert any("quantized" in reason.lower() for reason in result["blocked_reasons"])
+
+
+def test_model_compat_scan_extracts_minimax_m3_text_config_and_blocks_sparse_wrapper(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "minimax_m3"
+    _write_hf_config(
+        model_dir,
+        model_type="minimax_m3_vl",
+        architectures=["MiniMaxM3SparseForConditionalGeneration"],
+        text_config={
+            "architectures": ["MiniMaxM3SparseForCausalLM"],
+            "num_hidden_layers": 60,
+            "hidden_size": 6144,
+            "num_attention_heads": 64,
+            "num_key_value_heads": 4,
+            "num_local_experts": 128,
+            "num_experts_per_tok": 4,
+            "max_position_embeddings": 1048576,
+            "sparse_attention_config": {"use_sparse_attention": True},
+        },
+    )
+
+    result = scan_model_config(model_dir, model_id="MiniMaxAI/MiniMax-M3")
+
+    assert result["hf_model_type"] == "minimax_m3_vl"
+    assert result["hf_text_model_type"] is None
+    assert result["num_layers"] == 60
+    assert result["hidden_size"] == 6144
+    assert result["num_experts"] == 128
+    assert result["experts_per_token"] == 4
+    assert result["max_position_embeddings"] == 1048576
+    assert result["uses_sparse_attention"] is True
+    assert result["architecture_supported"] is False
+    assert result["claim_level"] == "blocked"
+    assert any("sparse_attention" in reason for reason in result["blocked_reasons"])
 
 
 def test_model_compat_scan_marks_unknown_frontier_family_blocked(tmp_path: Path):
@@ -1891,7 +2063,8 @@ models:
     assert handoff["route_decision"]["picked"]["model_id"] == "test/Bigger"
     assert handoff["plan"]["model_id"] == "test/Bigger"
     assert handoff["plan"]["launch_readiness"]["ready_to_start"] is False
-    assert handoff["plan"]["placement"]["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS=")
+    assert "--initial_peers" in handoff["plan"]["placement"]["assignments"][1]["launch_command"]
+    assert "BLOOMBEE_INITIAL_PEERS" not in handoff["plan"]["placement"]["assignments"][1]["launch_command"]
     assert handoff["proof_runbooks"]["multi_block"]["claim_boundary"] == "multi_block_proof_harness_only_no_live_inference"
     assert handoff["proof_runbooks"]["full_generation"]["claim_boundary"] == "full_generation_proof_harness_only_no_live_generation"
     assert handoff["proof_runbooks"]["cache_generation"]["claim_boundary"] == "cache_generation_proof_harness_only_no_live_generation"
@@ -1909,8 +2082,8 @@ models:
         "verify_then_promote_manually",
     ]
     assert handoff["proof_orchestration"]["launch_steps"][1]["role"] == "follower"
-    assert "BLOOMBEE_INITIAL_PEERS=" in handoff["proof_orchestration"]["launch_steps"][1]["command"]
-    assert "--initial_peers" not in json.dumps(handoff["proof_orchestration"])
+    assert "--initial_peers" in handoff["proof_orchestration"]["launch_steps"][1]["command"]
+    assert "BLOOMBEE_INITIAL_PEERS" not in json.dumps(handoff["proof_orchestration"])
     assert handoff["proof_orchestration"]["summary"]["ready_for_proof_clients"] is False
     assert "<PASTE_SERVER_0_MULTIADDR>" in handoff["proof_orchestration"]["summary"]["unresolved_placeholders"]
     assert handoff["inference_proven"] is False
@@ -1971,7 +2144,7 @@ models:
     assert plan["can_update_proof_status"] is False
 
 
-def test_proof_orchestrator_blocks_forbidden_initial_peers_flag():
+def test_proof_orchestrator_blocks_ignored_bloombee_initial_peers_env():
     from mvp_capabilities.proof_orchestrator import build_proof_orchestration_plan
 
     handoff = {
@@ -1991,7 +2164,7 @@ def test_proof_orchestrator_blocks_forbidden_initial_peers_flag():
                     {
                         "hostname": "tail",
                         "block_range": "3:6",
-                        "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server test/SixLayer --initial_peers /ip4/1/tcp/2/p2p/seed --block_indices 3:6",
+                        "launch_command": "PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS=/ip4/1/tcp/2/p2p/seed python -m bloombee.cli.run_server test/SixLayer --block_indices 3:6",
                     },
                 ]
             },
@@ -2001,10 +2174,10 @@ def test_proof_orchestrator_blocks_forbidden_initial_peers_flag():
 
     plan = build_proof_orchestration_plan(handoff)
 
-    assert plan["summary"]["forbidden_flags"] == ["launch step tail uses forbidden --initial_peers"]
+    assert plan["summary"]["forbidden_flags"] == ["launch step tail uses ignored BLOOMBEE_INITIAL_PEERS"]
     assert plan["launch_steps"][1]["ready"] is False
-    assert "BLOOMBEE_INITIAL_PEERS" in plan["launch_steps"][1]["fix_hint"]
-    assert "--initial_peers" not in " ".join(plan["operator_next_steps"])
+    assert "--initial_peers" in plan["launch_steps"][1]["fix_hint"]
+    assert "BLOOMBEE_INITIAL_PEERS" not in " ".join(plan["operator_next_steps"])
 
 
 def test_proof_orchestrator_cli_writes_no_execution_plan_without_tokens(tmp_path: Path):
@@ -2061,13 +2234,11 @@ def test_proof_orchestrator_cli_writes_no_execution_plan_without_tokens(tmp_path
     assert "moon-token" not in out_path.read_text(encoding="utf-8")
 
 
-def test_distributed_inference_docs_server_recipe_uses_bloombee_initial_peers():
+def test_distributed_inference_docs_server_recipe_uses_initial_peers_cli_flag():
     text = (PROJECT_ROOT / "docs" / "distributed-inference-mvp.md").read_text(encoding="utf-8")
 
-    assert "BLOOMBEE_INITIAL_PEERS" in text
-    assert "--initial_peers" not in text
-    text_without_bloombee_env = text.replace("BLOOMBEE_INITIAL_PEERS", "")
-    assert "INITIAL_PEERS=\"" not in text_without_bloombee_env
+    assert "--initial_peers" in text
+    assert "BLOOMBEE_INITIAL_PEERS" not in text
 
 
 def test_join_handoff_cli_builds_redacted_dashboard_artifact(tmp_path: Path):

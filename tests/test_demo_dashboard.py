@@ -136,7 +136,7 @@ def _write_joined_layer_plan(path: Path) -> None:
                             "end_layer": 36,
                             "layer_count": 18,
                             "port": 41001,
-                            "launch_command": "PYTHONPATH=.:src BLOOMBEE_INITIAL_PEERS='<SEED_MULTIADDR_FROM_joined-peer-a>' python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 18:36",
+                            "launch_command": "PYTHONPATH=.:src python -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 18:36 --initial_peers '<SEED_MULTIADDR_FROM_joined-peer-a>'",
                         },
                     ],
                 },
