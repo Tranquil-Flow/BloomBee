@@ -203,6 +203,7 @@ def build_dashboard_document(
     handoff_bundle_path: str | Path | None = None,
     proof_orchestration_path: str | Path | None = None,
     speculative_plan_path: str | Path | None = None,
+    multi_block_diagnostics_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
@@ -237,6 +238,7 @@ def build_dashboard_document(
     speculative_plan = _read_json(speculative_plan_path, None)
     if speculative_plan is None and isinstance(handoff_bundle, dict):
         speculative_plan = handoff_bundle.get("speculative_plan")
+    multi_block_diagnostics = _read_json(multi_block_diagnostics_path, None)
     layer_placements = collect_layer_placements(evidence)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -260,6 +262,7 @@ def build_dashboard_document(
         "handoff_bundle": handoff_bundle,
         "proof_orchestration": proof_orchestration,
         "speculative_plan": speculative_plan,
+        "multi_block_diagnostics": multi_block_diagnostics,
         "request_telemetry": build_request_telemetry(request_logs),
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
@@ -798,6 +801,58 @@ def _speculative_plan_panel(plan: dict[str, Any] | None) -> str:
     """
 
 
+def _multi_block_diagnostics_panel(report: dict[str, Any] | None) -> str:
+    if not report:
+        return ""
+    summary = report.get("summary") or {}
+    coverage = report.get("coverage") or {}
+    covered = coverage.get("covered_layers")
+    total = coverage.get("total_layers")
+    missing = coverage.get("missing_layers")
+    coverage_copy = (
+        f"coverage {covered}/{total} layers · missing {missing}"
+        if covered is not None and total is not None and missing is not None
+        else "coverage unavailable"
+    )
+    server_rows = "".join(
+        "<tr>"
+        f"<td>{_esc(item.get('server_index'))}</td>"
+        f"<td>{_esc(item.get('block_range') or '—')}</td>"
+        f"<td>{_esc(item.get('health') or '—')}</td>"
+        f"<td>{_bool_badge(item.get('started'))}</td>"
+        f"<td>{_bool_badge(item.get('announced_block_range'))}</td>"
+        f"<td>{_bool_badge(item.get('has_rpc_evidence'))}</td>"
+        f"<td>{_esc(', '.join(item.get('errors') or []) or '—')}</td>"
+        "</tr>"
+        for item in report.get("servers") or []
+        if isinstance(item, dict)
+    )
+    action_rows = "".join(f"<li>{_esc(item)}</li>" for item in report.get("operator_actions") or [])
+    inference_copy = "inference proven" if report.get("inference_proven") else "inference not proven"
+    return f"""
+      <section class="card wide multi-block-diagnostics">
+        <h2>Multi-block diagnostics</h2>
+        <div class="grid two">
+          <div><span class="label">Model</span><strong>{_esc(report.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Status</span><strong>{_esc(summary.get('status') or '—')}</strong></div>
+          <div><span class="label">Combined range</span><strong>{_esc(report.get('combined_block_range') or '—')}</strong></div>
+          <div><span class="label">Layer coverage</span><strong>{_esc(coverage_copy)}</strong></div>
+          <div><span class="label">Healthy / unhealthy servers</span><strong>{_esc(summary.get('healthy_servers'))} / {_esc(summary.get('unhealthy_servers'))}</strong></div>
+          <div><span class="label">Inference claim</span><strong class="warn">{_esc(inference_copy)}</strong></div>
+          <div><span class="label">Boundary</span><code>{_esc(report.get('claim_boundary'))}</code></div>
+          <div><span class="label">Proof promotion</span><strong>{_bool_badge(report.get('can_update_proof_status'))}</strong></div>
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>Layers</th><th>Health</th><th>Started</th><th>Announced</th><th>RPC evidence</th><th>Errors</th></tr></thead>
+          <tbody>{server_rows or '<tr><td colspan="7">No server diagnostics supplied</td></tr>'}</tbody>
+        </table>
+        <h3>Operator actions</h3>
+        <ul>{action_rows or '<li>No operator actions supplied; use multi_block_proof.py verify for proof promotion.</li>'}</ul>
+        <p class="muted">Diagnostics are observability only. They never start servers, send requests, or update proof status.</p>
+      </section>
+    """
+
+
 def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | None = 20) -> str:
     """Render a self-contained dashboard HTML document."""
     roster_summary = document.get("roster", {}).get("summary", {})
@@ -880,6 +935,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_handoff_bundle_panel(document.get('handoff_bundle'))}
     {_proof_orchestration_panel(document.get('proof_orchestration'))}
     {_speculative_plan_panel(document.get('speculative_plan'))}
+    {_multi_block_diagnostics_panel(document.get('multi_block_diagnostics'))}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
@@ -920,6 +976,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--handoff-bundle", default=None, help="Optional JSON from join_http_server.py /handoff")
     parser.add_argument("--proof-orchestration", default=None, help="Optional JSON from proof_orchestrator.py or join_http_server.py /proof-orchestration")
     parser.add_argument("--speculative-plan", default=None, help="Optional JSON from speculative_decode_plan.py or join_http_server.py /speculative")
+    parser.add_argument("--multi-block-diagnostics", default=None, help="Optional JSON from multi_block_diagnostics.py")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
@@ -943,6 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
             handoff_bundle_path=args.handoff_bundle,
             proof_orchestration_path=args.proof_orchestration,
             speculative_plan_path=args.speculative_plan,
+            multi_block_diagnostics_path=args.multi_block_diagnostics,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,

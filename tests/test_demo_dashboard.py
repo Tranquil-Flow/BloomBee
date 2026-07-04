@@ -291,6 +291,47 @@ def _write_request_log(path: Path) -> None:
     )
 
 
+def _write_multi_block_diagnostics(path: Path) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "claim_boundary": "multi_block_diagnostics_observability_only_no_inference_proof",
+                "source": "multi_block_diagnostics.py",
+                "model_id": "Qwen/Qwen3-8B",
+                "combined_block_range": "0:36",
+                "server_count": 2,
+                "summary": {
+                    "healthy_servers": 1,
+                    "unhealthy_servers": 1,
+                    "status": "unhealthy_servers_detected",
+                },
+                "coverage": {
+                    "covered_layers": 18,
+                    "total_layers": 36,
+                    "missing_layers": 18,
+                    "full_coverage": False,
+                },
+                "servers": [
+                    {"server_index": 0, "block_range": "0:18", "health": "healthy", "started": True, "announced_block_range": True, "has_rpc_evidence": True},
+                    {
+                        "server_index": 1,
+                        "block_range": "18:36",
+                        "health": "unhealthy",
+                        "started": False,
+                        "announced_block_range": False,
+                        "has_rpc_evidence": False,
+                        "errors": ["server did not reach Started state"],
+                    },
+                ],
+                "operator_actions": ["server 1 (18:36): server did not reach Started state. Check server logs for crash/port/block-index details."],
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path: Path):
     from mvp_capabilities.demo_dashboard import build_dashboard_document, render_dashboard_html
 
@@ -313,6 +354,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_handoff_bundle(handoff_bundle)
     speculative_plan = tmp_path / "speculative-plan.json"
     _write_speculative_plan(speculative_plan)
+    multi_block_diagnostics = tmp_path / "multi-block-diagnostics.json"
+    _write_multi_block_diagnostics(multi_block_diagnostics)
     request_log = tmp_path / "direct-client.log"
     _write_request_log(request_log)
 
@@ -325,6 +368,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         chain_schedule_path=chain_schedule,
         handoff_bundle_path=handoff_bundle,
         speculative_plan_path=speculative_plan,
+        multi_block_diagnostics_path=multi_block_diagnostics,
         request_logs=[request_log],
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
@@ -356,6 +400,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["proof_orchestration"]["proof_steps"][0]["proof_gate"] == "multi_block"
     assert doc["speculative_plan"]["claim_boundary"] == "speculative_decode_plan_only_no_generation_proof"
     assert doc["speculative_plan"]["verifier"]["authoritative"] is True
+    assert doc["multi_block_diagnostics"]["summary"]["status"] == "unhealthy_servers_detected"
+    assert doc["multi_block_diagnostics"]["coverage"]["missing_layers"] == 18
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
     assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
     assert "evinova" in html
@@ -409,6 +455,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Verifier authoritative" in html
     assert "phone-a" in html
     assert "phones as draft providers only" in html
+    assert "Multi-block diagnostics" in html
+    assert "multi_block_diagnostics_observability_only_no_inference_proof" in html
+    assert "unhealthy_servers_detected" in html
+    assert "coverage 18/36 layers" in html
+    assert "server 1 (18:36)" in html
     assert "Live request telemetry" in html
     assert "request_telemetry_observability_only_no_load_proof" in html
     assert "succeeded 1 / failed 1" in html
@@ -437,6 +488,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     _write_handoff_bundle(handoff_bundle)
     speculative_plan = tmp_path / "speculative-plan.json"
     _write_speculative_plan(speculative_plan)
+    multi_block_diagnostics = tmp_path / "multi-block-diagnostics.json"
+    _write_multi_block_diagnostics(multi_block_diagnostics)
     out = tmp_path / "dashboard.html"
 
     result = subprocess.run(
@@ -459,6 +512,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
             str(handoff_bundle),
             "--speculative-plan",
             str(speculative_plan),
+            "--multi-block-diagnostics",
+            str(multi_block_diagnostics),
             "--out",
             str(out),
             "--refresh-seconds",
@@ -490,6 +545,8 @@ def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     assert "proof_orchestration_plan_only_no_live_inference" in text
     assert "Speculative decode plan" in text
     assert "speculative_decode_plan_only_no_generation_proof" in text
+    assert "Multi-block diagnostics" in text
+    assert "multi_block_diagnostics_observability_only_no_inference_proof" in text
     assert "coordinator_handoff_bundle_only_no_server_started" in text
     assert "joined-peer-a" in text
     assert "240" in text

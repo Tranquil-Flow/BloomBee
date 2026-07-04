@@ -124,8 +124,9 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
 - `mvp_capabilities/demo_dashboard.py` surfaces the weighted MVP status bar,
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, coordinator handoff bundles with fresh-device bootstrap scripts,
-  proof orchestration checklists, speculative decode plans, and chain-scheduler
-  rehearsals beside route/evidence/telemetry panels.
+  proof orchestration checklists, speculative decode plans, multi-block
+  diagnostics, and chain-scheduler rehearsals beside route/evidence/telemetry
+  panels.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped
   from nested fields and URLs before writing/printing.
@@ -187,6 +188,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   silently executing. `mvp_capabilities/request_telemetry.py` summarizes direct-client
   `[direct] RESULT` logs into request success/failure counts, forward/backward
   latency, model/block coverage, and errors for the dashboard.
+  `mvp_capabilities/multi_block_diagnostics.py` reads the same multi-block
+  server/client proof logs and produces a per-server health/coverage/operator
+  action report for dashboard troubleshooting; it remains observability only and
+  cannot promote proof status.
   `mvp_capabilities/multi_request_load_proof.py` emits repeated direct-client
   runbooks and verifies expected successful request logs before allowing proof
   promotion. This is still not a live load proof until real traffic logs pass.
@@ -390,6 +395,14 @@ python mvp_capabilities/proof_orchestrator.py \
   --handoff-bundle .local/handoff-bundle.json \
   --out .local/proof-orchestration.json
 
+python mvp_capabilities/multi_block_diagnostics.py \
+  --model Qwen/Qwen3-8B \
+  --block-range 0:18 \
+  --block-range 18:36 \
+  --server-log .local/qwen3-8b-server-0.log \
+  --server-log .local/qwen3-8b-server-1.log \
+  --client-log .local/qwen3-8b-client.log > .local/multi-block-diagnostics.json
+
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
   --bench-matrix .local/m4pro-bench-matrix.json \
@@ -399,6 +412,7 @@ python mvp_capabilities/demo_dashboard.py \
   --chain-schedule .local/chain-schedule.json \
   --handoff-bundle .local/handoff-bundle.json \
   --proof-orchestration .local/proof-orchestration.json \
+  --multi-block-diagnostics .local/multi-block-diagnostics.json \
   --request-log .local/direct-client.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10
