@@ -222,6 +222,13 @@ shows sequential phone-draft+verifier is slower than verifier-only:
 verifier path that validates draft token IDs without rerunning full verifier-only
 decode.
 
+Local integrated harness reference: local `/opt/homebrew/bin/llama-speculative`
+can run `stories15M.gguf` as both draft and target. Tracked artifact:
+`mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json`.
+It accepted 8/8 draft tokens, proving the local llama.cpp integrated speculative
+harness is available. It explicitly does **not** involve the phone and does not
+prove phone-backed speedup.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

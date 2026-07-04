@@ -3719,6 +3719,26 @@ def test_phone_speculative_wallclock_gate_tracked_evidence_blocks_speedup():
     assert report["bloombee_block_serving_proven"] is False
 
 
+def test_local_same_gguf_llama_speculative_harness_tracked_reference_accepts_all_draft_tokens():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "local_same_gguf_llama_cpp_speculative_harness_no_phone_no_speedup_claim"
+    assert report["model_sha256"] == "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+    assert report["draft_model_same_as_target"] is True
+    assert report["phone_involved"] is False
+    assert report["harness_ran"] is True
+    assert report["local_integrated_speculative_harness_proven"] is True
+    assert report["n_draft"] == 8
+    assert report["n_drafted"] == 8
+    assert report["n_accept"] == 8
+    assert report["accept_percent"] == 100.0
+    assert report["phone_draft_proven"] is False
+    assert report["phone_integrated_verifier_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

@@ -184,7 +184,10 @@ Already proven:
   accepted 8/8 draft token IDs. Fail-closed wall-clock evidence at
   `mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json`
   shows sequential phone-draft+verifier is slower than verifier-only, so speedup
-  remains unproven.
+  remains unproven. Local llama.cpp speculative harness evidence at
+  `mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json`
+  accepts 8/8 draft tokens with the same GGUF as both draft and target, but it
+  does not involve the phone.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
@@ -617,9 +620,11 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     approved follow-up ran standalone tiny-GGUF generation via Termux llama.cpp,
     wrapped it as a draft-provider-candidate JSON bridge, and compared it against
     positive-control, live Qwen0.5B verifier text, a same-GGUF local verifier,
-    same-GGUF tokenizer IDs, and a fail-closed wall-clock gate;
+    same-GGUF tokenizer IDs, a fail-closed wall-clock gate, and a local
+    same-GGUF llama.cpp speculative harness;
     real Pixel 8 Pro Termux smoke, latency, feasibility, plan, generation, bridge,
-    verifier-comparison, tokenizer-ID, and wall-clock gate evidence files are tracked;
+    verifier-comparison, tokenizer-ID, wall-clock gate, and local-speculative
+    harness evidence files are tracked;
     `/speculative`, `/handoff`, and the dashboard surface the plan/report without
     claiming speculative speedup. Next: build an integrated draft verifier path
     before speedup claims, and wire a BloomBee execution harness only after

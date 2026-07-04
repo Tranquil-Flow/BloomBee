@@ -296,6 +296,7 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/termux-tokenizer-ids-20260704T111800Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-local-tokenizer-id-compare-20260704T111800Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-same-gguf-wallclock-gate-20260704T112500Z.json
+#     mvp_capabilities/distributed_evidence/phone/local-same-gguf-llama-speculative-harness-20260704T113600Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -389,7 +390,8 @@ As of the current implementation slice:
   accepts 33/33 bytes and same-GGUF `llama-tokenize` accepts 8/8 draft token IDs,
   but the fail-closed wall-clock gate shows sequential phone-draft+verifier is
   slower than verifier-only (2.403479s vs 1.837976s), so no speculative proof is
-  promoted;
+  promoted. A local `llama-speculative` same-GGUF reference accepts 8/8 draft
+  tokens but does not involve the phone;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.
