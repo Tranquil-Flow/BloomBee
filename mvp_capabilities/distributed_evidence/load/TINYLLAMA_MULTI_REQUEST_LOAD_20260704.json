@@ -1,0 +1,225 @@
+{
+  "block_range": "0:22",
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_multi_request_load_evidence",
+  "claim_note": "Live TinyLlama full-range repeated direct-client load proof; updates only TinyLlama multi_request_load gate.",
+  "expected_request_count": 3,
+  "failed_checks": [],
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "multi_request_load",
+  "proof_host": "m4pro",
+  "proof_status_update": {
+    "multi_request_load": "passed"
+  },
+  "request_log_paths": [
+    ".local/tinyllama-load/client-000.log",
+    ".local/tinyllama-load/client-001.log",
+    ".local/tinyllama-load/client-002.log"
+  ],
+  "request_results": [
+    {
+      "backward_seconds": 0.2502920627593994,
+      "block_range": [
+        0,
+        22
+      ],
+      "forward_seconds": 7.004746913909912,
+      "grad_finite": true,
+      "grad_norm": 110.11812591552734,
+      "input_scale": 0.1,
+      "input_shape": [
+        1,
+        5,
+        2048
+      ],
+      "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "ok": true,
+      "output_shape": [
+        1,
+        5,
+        2048
+      ],
+      "outputs_finite": true,
+      "outputs_unique": 6073.0,
+      "seed": 7000
+    },
+    {
+      "backward_seconds": 0.16358685493469238,
+      "block_range": [
+        0,
+        22
+      ],
+      "forward_seconds": 0.10300207138061523,
+      "grad_finite": true,
+      "grad_norm": 100.9854507446289,
+      "input_scale": 0.1,
+      "input_shape": [
+        1,
+        5,
+        2048
+      ],
+      "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "ok": true,
+      "output_shape": [
+        1,
+        5,
+        2048
+      ],
+      "outputs_finite": true,
+      "outputs_unique": 5979.0,
+      "seed": 7001
+    },
+    {
+      "backward_seconds": 0.1602158546447754,
+      "block_range": [
+        0,
+        22
+      ],
+      "forward_seconds": 0.1075739860534668,
+      "grad_finite": true,
+      "grad_norm": 98.57989501953125,
+      "input_scale": 0.1,
+      "input_shape": [
+        1,
+        5,
+        2048
+      ],
+      "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "ok": true,
+      "output_shape": [
+        1,
+        5,
+        2048
+      ],
+      "outputs_finite": true,
+      "outputs_unique": 6164.0,
+      "seed": 7002
+    }
+  ],
+  "server_log_excerpt": [
+    "Jul 04 21:07:54.994 [INFO] [S1_TO_S2_TRANSFER] Backend 7 | Estimated Transfer Time: 0.01ms | Total Backend Time: 2.98ms | Pure Processing: 2.97ms",
+    "Jul 04 21:07:54.994 [INFO] [PROCESSING_LATENCY] Backend 7 | Task Processing: 2.97ms | Total Backend Time: 2.98ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:54.997 [INFO] [S1_TO_S2_TRANSFER] Backend 8 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.90ms | Pure Processing: 2.90ms",
+    "Jul 04 21:07:54.998 [INFO] [PROCESSING_LATENCY] Backend 8 | Task Processing: 2.90ms | Total Backend Time: 2.90ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.001 [INFO] [S1_TO_S2_TRANSFER] Backend 9 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.05ms | Pure Processing: 3.04ms",
+    "Jul 04 21:07:55.001 [INFO] [PROCESSING_LATENCY] Backend 9 | Task Processing: 3.04ms | Total Backend Time: 3.05ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.004 [INFO] [S1_TO_S2_TRANSFER] Backend 10 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.01ms | Pure Processing: 3.01ms",
+    "Jul 04 21:07:55.004 [INFO] [PROCESSING_LATENCY] Backend 10 | Task Processing: 3.01ms | Total Backend Time: 3.01ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.007 [INFO] [S1_TO_S2_TRANSFER] Backend 11 | Estimated Transfer Time: 0.01ms | Total Backend Time: 3.08ms | Pure Processing: 3.08ms",
+    "Jul 04 21:07:55.008 [INFO] [PROCESSING_LATENCY] Backend 11 | Task Processing: 3.08ms | Total Backend Time: 3.08ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.016 [INFO] [S1_TO_S2_TRANSFER] Backend 12 | Estimated Transfer Time: 0.00ms | Total Backend Time: 8.62ms | Pure Processing: 8.62ms",
+    "Jul 04 21:07:55.017 [INFO] [PROCESSING_LATENCY] Backend 12 | Task Processing: 8.62ms | Total Backend Time: 8.62ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.020 [INFO] [S1_TO_S2_TRANSFER] Backend 13 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.03ms | Pure Processing: 3.02ms",
+    "Jul 04 21:07:55.020 [INFO] [PROCESSING_LATENCY] Backend 13 | Task Processing: 3.02ms | Total Backend Time: 3.03ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.023 [INFO] [S1_TO_S2_TRANSFER] Backend 14 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.06ms | Pure Processing: 3.05ms",
+    "Jul 04 21:07:55.023 [INFO] [PROCESSING_LATENCY] Backend 14 | Task Processing: 3.05ms | Total Backend Time: 3.06ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.026 [INFO] [S1_TO_S2_TRANSFER] Backend 15 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.07ms | Pure Processing: 3.07ms",
+    "Jul 04 21:07:55.026 [INFO] [PROCESSING_LATENCY] Backend 15 | Task Processing: 3.07ms | Total Backend Time: 3.07ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.029 [INFO] [S1_TO_S2_TRANSFER] Backend 16 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.84ms | Pure Processing: 2.84ms",
+    "Jul 04 21:07:55.029 [INFO] [PROCESSING_LATENCY] Backend 16 | Task Processing: 2.84ms | Total Backend Time: 2.84ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.033 [INFO] [S1_TO_S2_TRANSFER] Backend 17 | Estimated Transfer Time: 0.01ms | Total Backend Time: 2.95ms | Pure Processing: 2.94ms",
+    "Jul 04 21:07:55.033 [INFO] [PROCESSING_LATENCY] Backend 17 | Task Processing: 2.94ms | Total Backend Time: 2.95ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.036 [INFO] [S1_TO_S2_TRANSFER] Backend 18 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.95ms | Pure Processing: 2.95ms",
+    "Jul 04 21:07:55.036 [INFO] [PROCESSING_LATENCY] Backend 18 | Task Processing: 2.95ms | Total Backend Time: 2.95ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.039 [INFO] [S1_TO_S2_TRANSFER] Backend 19 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.89ms | Pure Processing: 2.89ms",
+    "Jul 04 21:07:55.039 [INFO] [PROCESSING_LATENCY] Backend 19 | Task Processing: 2.89ms | Total Backend Time: 2.89ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.042 [INFO] [S1_TO_S2_TRANSFER] Backend 20 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.97ms | Pure Processing: 2.97ms",
+    "Jul 04 21:07:55.042 [INFO] [PROCESSING_LATENCY] Backend 20 | Task Processing: 2.97ms | Total Backend Time: 2.97ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.045 [INFO] [S1_TO_S2_TRANSFER] Backend 21 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.91ms | Pure Processing: 2.91ms",
+    "Jul 04 21:07:55.045 [INFO] [PROCESSING_LATENCY] Backend 21 | Task Processing: 2.91ms | Total Backend Time: 2.91ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.045 [INFO] [S1_TO_S2_TRANSFER_SUMMARY] Average Transfer: 0.00ms | Total Transfer: 0.06ms | Transfer Count: 21",
+    "Jul 04 21:07:55.046 [INFO] [CROSS_GPU_TRANSFER_LATENCY] Total: 89.85ms | Backends: 22 | Output Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:55.057 [INFO] rpc_backward(blocks=0:22, remote_peer=...s6CjRZ)",
+    "Jul 04 21:07:59.597 [INFO] rpc_forward(blocks=0:22, remote_peer=...z7jvFo)",
+    "Jul 04 21:07:59.614 [INFO] [PROCESSING_LATENCY] Backend 0 | Task Processing: 16.29ms | Total Backend Time: 16.30ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.618 [INFO] [S1_TO_S2_TRANSFER] Backend 1 | Estimated Transfer Time: 0.01ms | Total Backend Time: 3.81ms | Pure Processing: 3.80ms",
+    "Jul 04 21:07:59.618 [INFO] [PROCESSING_LATENCY] Backend 1 | Task Processing: 3.80ms | Total Backend Time: 3.81ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.622 [INFO] [S1_TO_S2_TRANSFER] Backend 2 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.14ms | Pure Processing: 3.14ms",
+    "Jul 04 21:07:59.622 [INFO] [PROCESSING_LATENCY] Backend 2 | Task Processing: 3.14ms | Total Backend Time: 3.14ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.625 [INFO] [S1_TO_S2_TRANSFER] Backend 3 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.29ms | Pure Processing: 3.29ms",
+    "Jul 04 21:07:59.625 [INFO] [PROCESSING_LATENCY] Backend 3 | Task Processing: 3.29ms | Total Backend Time: 3.29ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.629 [INFO] [S1_TO_S2_TRANSFER] Backend 4 | Estimated Transfer Time: 0.01ms | Total Backend Time: 3.07ms | Pure Processing: 3.06ms",
+    "Jul 04 21:07:59.629 [INFO] [PROCESSING_LATENCY] Backend 4 | Task Processing: 3.06ms | Total Backend Time: 3.07ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.632 [INFO] [S1_TO_S2_TRANSFER] Backend 5 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.00ms | Pure Processing: 3.00ms",
+    "Jul 04 21:07:59.632 [INFO] [PROCESSING_LATENCY] Backend 5 | Task Processing: 3.00ms | Total Backend Time: 3.00ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.635 [INFO] [S1_TO_S2_TRANSFER] Backend 6 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.98ms | Pure Processing: 2.98ms",
+    "Jul 04 21:07:59.635 [INFO] [PROCESSING_LATENCY] Backend 6 | Task Processing: 2.98ms | Total Backend Time: 2.98ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.638 [INFO] [S1_TO_S2_TRANSFER] Backend 7 | Estimated Transfer Time: 0.01ms | Total Backend Time: 3.03ms | Pure Processing: 3.03ms",
+    "Jul 04 21:07:59.639 [INFO] [PROCESSING_LATENCY] Backend 7 | Task Processing: 3.03ms | Total Backend Time: 3.03ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.642 [INFO] [S1_TO_S2_TRANSFER] Backend 8 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.29ms | Pure Processing: 3.29ms",
+    "Jul 04 21:07:59.642 [INFO] [PROCESSING_LATENCY] Backend 8 | Task Processing: 3.29ms | Total Backend Time: 3.29ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.645 [INFO] [S1_TO_S2_TRANSFER] Backend 9 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.04ms | Pure Processing: 3.04ms",
+    "Jul 04 21:07:59.646 [INFO] [PROCESSING_LATENCY] Backend 9 | Task Processing: 3.04ms | Total Backend Time: 3.04ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.649 [INFO] [S1_TO_S2_TRANSFER] Backend 10 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.34ms | Pure Processing: 3.34ms",
+    "Jul 04 21:07:59.649 [INFO] [PROCESSING_LATENCY] Backend 10 | Task Processing: 3.34ms | Total Backend Time: 3.34ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.652 [INFO] [S1_TO_S2_TRANSFER] Backend 11 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.13ms | Pure Processing: 3.12ms",
+    "Jul 04 21:07:59.653 [INFO] [PROCESSING_LATENCY] Backend 11 | Task Processing: 3.12ms | Total Backend Time: 3.13ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.662 [INFO] [S1_TO_S2_TRANSFER] Backend 12 | Estimated Transfer Time: 0.00ms | Total Backend Time: 8.93ms | Pure Processing: 8.93ms",
+    "Jul 04 21:07:59.662 [INFO] [PROCESSING_LATENCY] Backend 12 | Task Processing: 8.93ms | Total Backend Time: 8.93ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.665 [INFO] [S1_TO_S2_TRANSFER] Backend 13 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.24ms | Pure Processing: 3.24ms",
+    "Jul 04 21:07:59.665 [INFO] [PROCESSING_LATENCY] Backend 13 | Task Processing: 3.24ms | Total Backend Time: 3.24ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.669 [INFO] [S1_TO_S2_TRANSFER] Backend 14 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.12ms | Pure Processing: 3.11ms",
+    "Jul 04 21:07:59.669 [INFO] [PROCESSING_LATENCY] Backend 14 | Task Processing: 3.11ms | Total Backend Time: 3.12ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.672 [INFO] [S1_TO_S2_TRANSFER] Backend 15 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.20ms | Pure Processing: 3.20ms",
+    "Jul 04 21:07:59.672 [INFO] [PROCESSING_LATENCY] Backend 15 | Task Processing: 3.20ms | Total Backend Time: 3.20ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.675 [INFO] [S1_TO_S2_TRANSFER] Backend 16 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.97ms | Pure Processing: 2.97ms",
+    "Jul 04 21:07:59.675 [INFO] [PROCESSING_LATENCY] Backend 16 | Task Processing: 2.97ms | Total Backend Time: 2.97ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.679 [INFO] [S1_TO_S2_TRANSFER] Backend 17 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.14ms | Pure Processing: 3.14ms",
+    "Jul 04 21:07:59.679 [INFO] [PROCESSING_LATENCY] Backend 17 | Task Processing: 3.14ms | Total Backend Time: 3.14ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.682 [INFO] [S1_TO_S2_TRANSFER] Backend 18 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.04ms | Pure Processing: 3.04ms",
+    "Jul 04 21:07:59.682 [INFO] [PROCESSING_LATENCY] Backend 18 | Task Processing: 3.04ms | Total Backend Time: 3.04ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.685 [INFO] [S1_TO_S2_TRANSFER] Backend 19 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.14ms | Pure Processing: 3.14ms",
+    "Jul 04 21:07:59.685 [INFO] [PROCESSING_LATENCY] Backend 19 | Task Processing: 3.14ms | Total Backend Time: 3.14ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.689 [INFO] [S1_TO_S2_TRANSFER] Backend 20 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.03ms | Pure Processing: 3.03ms",
+    "Jul 04 21:07:59.689 [INFO] [PROCESSING_LATENCY] Backend 20 | Task Processing: 3.03ms | Total Backend Time: 3.03ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.692 [INFO] [S1_TO_S2_TRANSFER] Backend 21 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.99ms | Pure Processing: 2.99ms",
+    "Jul 04 21:07:59.692 [INFO] [PROCESSING_LATENCY] Backend 21 | Task Processing: 2.99ms | Total Backend Time: 2.99ms | Hidden States Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.692 [INFO] [S1_TO_S2_TRANSFER_SUMMARY] Average Transfer: 0.00ms | Total Transfer: 0.06ms | Transfer Count: 21",
+    "Jul 04 21:07:59.692 [INFO] [CROSS_GPU_TRANSFER_LATENCY] Total: 94.41ms | Backends: 22 | Output Shape: torch.Size([1, 5, 2048])",
+    "Jul 04 21:07:59.703 [INFO] rpc_backward(blocks=0:22, remote_peer=...z7jvFo)"
+  ],
+  "source": "run_tinyllama_load.sh in clean git archive scratch",
+  "status": "passed",
+  "telemetry": {
+    "block_ranges": {
+      "0:22": 3
+    },
+    "claim_boundary": "request_telemetry_observability_only_no_load_proof",
+    "errors": [],
+    "latency_seconds": {
+      "backward": {
+        "avg": 0.191365,
+        "count": 3,
+        "max": 0.250292,
+        "min": 0.160216,
+        "p95": 0.241622,
+        "unmeasured_count": 0
+      },
+      "forward": {
+        "avg": 2.405108,
+        "count": 3,
+        "max": 7.004747,
+        "min": 0.103002,
+        "p95": 6.31503,
+        "unmeasured_count": 0
+      }
+    },
+    "live_requests_seen": true,
+    "load_proof_claimed": false,
+    "models": {
+      "TinyLlama/TinyLlama-1.1B-Chat-v1.0": 3
+    },
+    "next_step": "Run a dedicated multi-request load proof before promoting multi_request_load.",
+    "request_counts": {
+      "failed": 0,
+      "succeeded": 3,
+      "total": 3
+    },
+    "scanned_logs": [
+      ".local/tinyllama-load/client-000.log",
+      ".local/tinyllama-load/client-001.log",
+      ".local/tinyllama-load/client-002.log"
+    ]
+  },
+  "timestamp_utc": "20260704T190802Z"
+}

@@ -248,6 +248,29 @@ def test_proof_ladder_cli_outputs_fallback_ladder_json():
     assert all("next_gate" in item for item in payload["models"])
 
 
+def test_tinyllama_multi_request_load_proof_is_committed_and_passed():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+
+    proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
+    tiny = proof["TinyLlama/TinyLlama-1.1B-Chat-v1.0"]
+    assert tiny["multi_request_load"] == "passed"
+
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/load/TINYLLAMA_MULTI_REQUEST_LOAD_20260704.json"
+    assert evidence_path.exists()
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert payload["claim_boundary"] == "verified_multi_request_load_evidence"
+    assert payload["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert payload["block_range"] == "0:22"
+    assert payload["expected_request_count"] == 3
+    assert payload["status"] == "passed"
+    assert payload["can_update_proof_status"] is True
+    assert payload["failed_checks"] == []
+    assert len(payload["request_results"]) == 3
+    assert [row["seed"] for row in payload["request_results"]] == [7000, 7001, 7002]
+    assert {row["input_scale"] for row in payload["request_results"]} == {0.1}
+    assert all(row["ok"] and row["outputs_finite"] and row["grad_finite"] for row in payload["request_results"])
+
+
 def test_qwen3_dense_fallbacks_promote_qwen8_after_full_and_cache_generation():
     from mvp_capabilities.model_compat_scan import load_proof_status
     from mvp_capabilities.proof_ladder import build_proof_ladder
