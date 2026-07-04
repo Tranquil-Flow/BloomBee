@@ -181,6 +181,13 @@ def _status_is_blocked(value: object) -> bool:
     return str(value).lower().startswith("blocked")
 
 
+# A model is demo_safe only when generation is proven end-to-end AND cached
+# generation parity AND repeated-request load behavior are proven for the
+# exact model id. full_generation alone is not enough: cache paths and load
+# stability fail independently of one-shot generation.
+DEMO_SAFE_GATES = ("full_generation", "cache_generation", "multi_request_load")
+
+
 def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
     explicit = model.get("claim_level")
     if explicit:
@@ -191,7 +198,7 @@ def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
         return "blocked"
     if any(_status_is_blocked(value) for value in status.values()):
         return "blocked"
-    if status.get("full_generation") == "passed":
+    if all(status.get(gate) == "passed" for gate in DEMO_SAFE_GATES):
         return "demo_safe"
     return "experimental"
 
@@ -205,7 +212,7 @@ def _selector_allowed(selector_mode: str, claim_level: str) -> tuple[bool, str |
         return True, None
     if selector_mode == "safe-demo":
         if claim_level != "demo_safe":
-            return False, "safe-demo requires full_generation proof"
+            return False, "safe-demo requires full_generation, cache_generation, and multi_request_load proof"
         return True, None
     raise ValueError(f"unknown selector_mode={selector_mode!r}; expected one of {SELECTOR_MODES}")
 
@@ -372,6 +379,9 @@ def choose_best_route(
     )
 
 
+ROUTE_REPORT_CLAIM_BOUNDARY = "route_report_planning_only_no_serving_proof"
+
+
 def explain_route(
     peers: list[dict[str, Any]],
     registry: list[dict[str, Any]],
@@ -518,14 +528,17 @@ def route_report(
     report = dict(auto)
     report.update(
         {
+            "claim_boundary": ROUTE_REPORT_CLAIM_BOUNDARY,
             "picked": serving,
             "serving": serving,
             "best_available": best_available,
             "requested_model": normalized_request,
+            "requested": requested_evaluation,
             "requested_evaluation": requested_evaluation,
             "override_active": override_active,
             "override_refused": override_refused,
             "override_reason": override_reason,
+            "override_refused_reason": override_reason if override_refused else None,
             "inference_proven": False,
             "can_update_proof_status": False,
         }
@@ -569,7 +582,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--report",
         action="store_true",
-        help="Print route report with best_available, requested-model override/refusal, and serving model.",
+        help=(
+            "Print route report with best_available, requested-model override/refusal, and serving model. "
+            "With --model, refused pins exit nonzero."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -599,7 +615,7 @@ def main(argv: list[str] | None = None) -> int:
             selector_mode=args.selector_mode,
         )
         print(json.dumps(report, indent=2, sort_keys=True))
-        return 0
+        return 1 if report["override_refused"] else 0
 
     if args.explain:
         explainable = explain_route(

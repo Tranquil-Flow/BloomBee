@@ -3,7 +3,8 @@
 # Conservative proof gates for live-demo model selection.
 #
 # Fit math and benchmark quality are not enough for `demo_safe`. A model must
-# pass full distributed generation before safe-demo mode can auto-select it.
+# pass full_generation AND cache_generation AND multi_request_load before
+# safe-demo mode can auto-select it (route_picker.DEMO_SAFE_GATES).
 # Unknown or omitted gates default to `pending` in model_compat_scan.py.
 # ----------------------------------------------------------------------
 

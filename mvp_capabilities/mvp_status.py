@@ -152,10 +152,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="quantization_routing_handoff",
         label="Quantization + route override handoff",
         weight=5,
-        completion=0.10,
-        status="stashed_for_fable_review",
-        evidence="Fable's uncommitted quantization/routing foundation is preserved locally as stash@{0} (fable-quant-routing-uncommitted-20260704T190522Z): docs/quantization-routing-handover.md, quantized-block spike evidence, moe_expert_quant.py, route_picker/proof_ladder changes, and tests. This is a handoff/review marker only: no quantized serving proof, no route/demo promotion, and no MVP-core denominator change.",
-        next_step="Fable can recover with git stash apply stash@{0}; review/commit the foundation before server-side quantized loading, int4 packing, or quantized proof rows.",
+        completion=0.25,
+        status="foundation_committed",
+        evidence="Fable's quantization/routing foundation is now committed for review: docs/quantization-routing-handover.md, mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json, src/bloombee/utils/moe_expert_quant.py, route_picker/proof_ladder demo_safe-gate alignment, route_report CLI behavior, and default-suite quantization tests. This is still a post-MVP foundation only: no quantized serving proof, no route/demo promotion, and no MVP-core denominator change.",
+        next_step="use the committed foundation for server-side quantized loading, int4 expert packing, and separate quantized proof rows before any demo-safe promotion",
     ),
 )
 

@@ -1,0 +1,288 @@
+{
+  "claim_boundary": "post_mvp_quantized_block_spike_no_serving_proof",
+  "do_not_claim": [
+    "distributed serving proof",
+    "generation parity proof",
+    "route/demo promotion",
+    "mvp-core status change"
+  ],
+  "generated_at_utc": "2026-07-04T183226Z",
+  "mps_available": true,
+  "research_question": "Can optimum-quanto weight-only quantization serve as the HF-block quantization path BloomBee lacks for qwen3/qwen3_moe on MPS/CPU?",
+  "runs": [
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "tinyllama_layer0",
+      "compression_ratio": 1.998,
+      "device": "cpu",
+      "fp16_weight_bytes": 88088576,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999971985816956,
+        "max_abs_diff": 0.001953125,
+        "mean_abs_diff": 5.628463259199634e-05,
+        "reference_mean_abs": 0.39834773540496826,
+        "relative_mean_abs_diff": 0.00014129522422105968
+      },
+      "quantized_weight_bytes": 44084252,
+      "rough_forward_seconds": {
+        "fp16": 0.007,
+        "quantized": 0.0155
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint8",
+      "weights_provenance": "real_weights_local_cache"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "tinyllama_layer0",
+      "compression_ratio": 3.764,
+      "device": "cpu",
+      "fp16_weight_bytes": 88088576,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999957084655762,
+        "max_abs_diff": 0.0069580078125,
+        "mean_abs_diff": 0.0005366651457734406,
+        "reference_mean_abs": 0.39834773540496826,
+        "relative_mean_abs_diff": 0.001347227806448695
+      },
+      "quantized_weight_bytes": 23404572,
+      "rough_forward_seconds": {
+        "fp16": 0.0069,
+        "quantized": 0.0706
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint4",
+      "weights_provenance": "real_weights_local_cache"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "tinyllama_layer0",
+      "compression_ratio": 1.998,
+      "device": "mps",
+      "fp16_weight_bytes": 88088576,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 1.0,
+        "max_abs_diff": 0.001953125,
+        "mean_abs_diff": 5.633136970573105e-05,
+        "reference_mean_abs": 0.39834773540496826,
+        "relative_mean_abs_diff": 0.00014141255164526906
+      },
+      "quantized_weight_bytes": 44084252,
+      "rough_forward_seconds": {
+        "fp16": 0.0006,
+        "quantized": 0.0066
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint8",
+      "weights_provenance": "real_weights_local_cache"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "tinyllama_layer0",
+      "compression_ratio": 3.764,
+      "device": "mps",
+      "fp16_weight_bytes": 88088576,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999988675117493,
+        "max_abs_diff": 0.0069580078125,
+        "mean_abs_diff": 0.0005366631085053086,
+        "reference_mean_abs": 0.39834773540496826,
+        "relative_mean_abs_diff": 0.0013472226921529408
+      },
+      "quantized_weight_bytes": 23404572,
+      "rough_forward_seconds": {
+        "fp16": 0.0005,
+        "quantized": 0.1815
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint4",
+      "weights_provenance": "real_weights_local_cache"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.015,
+      "device": "cpu",
+      "fp16_weight_bytes": 1246241280,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.999998152256012,
+        "max_abs_diff": 0.0009765625,
+        "mean_abs_diff": 5.415389023255557e-05,
+        "reference_mean_abs": 0.3980678617954254,
+        "relative_mean_abs_diff": 0.00013604185474381823
+      },
+      "quantized_weight_bytes": 1227381264,
+      "rough_forward_seconds": {
+        "fp16": 0.0186,
+        "quantized": 0.0282
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint8",
+      "weights_provenance": "real_config_random_weights"
+    },
+    {
+      "backend": "bloombee.moe_expert_quant + optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.996,
+      "device": "cpu",
+      "fp16_weight_bytes": 1246241280,
+      "moe_expert_swap": {
+        "compression_ratio": 1.938,
+        "scheme": "int8_symmetric_per_out_channel",
+        "swapped_modules": [
+          "mlp.experts"
+        ],
+        "weight_bytes_after": 643179008,
+        "weight_bytes_before": 1246241280
+      },
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.999998152256012,
+        "max_abs_diff": 0.0009765625,
+        "mean_abs_diff": 5.4167954658623785e-05,
+        "reference_mean_abs": 0.3980678617954254,
+        "relative_mean_abs_diff": 0.0001360771864734504
+      },
+      "quantized_weight_bytes": 624318992,
+      "rough_forward_seconds": {
+        "fp16": 0.0958,
+        "quantized": 0.0953
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "moe_int8_experts+qint8_attn",
+      "weights_provenance": "real_config_random_weights"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.023,
+      "device": "cpu",
+      "fp16_weight_bytes": 1246241280,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999964833259583,
+        "max_abs_diff": 0.0029296875,
+        "mean_abs_diff": 0.0006636406760662794,
+        "reference_mean_abs": 0.3980678617954254,
+        "relative_mean_abs_diff": 0.0016671546230158537
+      },
+      "quantized_weight_bytes": 1218519568,
+      "rough_forward_seconds": {
+        "fp16": 0.0184,
+        "quantized": 0.0301
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint4",
+      "weights_provenance": "real_config_random_weights"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.015,
+      "device": "mps",
+      "fp16_weight_bytes": 1246241280,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999998807907104,
+        "max_abs_diff": 0.0009765625,
+        "mean_abs_diff": 5.4124073358252645e-05,
+        "reference_mean_abs": 0.398067831993103,
+        "relative_mean_abs_diff": 0.00013596696092536912
+      },
+      "quantized_weight_bytes": 1227381264,
+      "rough_forward_seconds": {
+        "fp16": 0.1104,
+        "quantized": 0.3339
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint8",
+      "weights_provenance": "real_config_random_weights"
+    },
+    {
+      "backend": "bloombee.moe_expert_quant + optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.996,
+      "device": "mps",
+      "fp16_weight_bytes": 1246241280,
+      "moe_expert_swap": {
+        "compression_ratio": 1.938,
+        "scheme": "int8_symmetric_per_out_channel",
+        "swapped_modules": [
+          "mlp.experts"
+        ],
+        "weight_bytes_after": 643179008,
+        "weight_bytes_before": 1246241280
+      },
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999998807907104,
+        "max_abs_diff": 0.0009765625,
+        "mean_abs_diff": 5.414644692791626e-05,
+        "reference_mean_abs": 0.398067831993103,
+        "relative_mean_abs_diff": 0.00013602316634531375
+      },
+      "quantized_weight_bytes": 624318992,
+      "rough_forward_seconds": {
+        "fp16": 0.1115,
+        "quantized": 0.5292
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "moe_int8_experts+qint8_attn",
+      "weights_provenance": "real_config_random_weights"
+    },
+    {
+      "backend": "optimum-quanto",
+      "backward_to_input_grad_finite": true,
+      "candidate": "qwen3_30b_a3b_moe_layer",
+      "compression_ratio": 1.023,
+      "device": "mps",
+      "fp16_weight_bytes": 1246241280,
+      "outputs_finite": true,
+      "parity_vs_fp16_same_device": {
+        "cosine_similarity": 0.9999984502792358,
+        "max_abs_diff": 0.0029296875,
+        "mean_abs_diff": 0.0006635204772464931,
+        "reference_mean_abs": 0.398067831993103,
+        "relative_mean_abs_diff": 0.001666852792209518
+      },
+      "quantized_weight_bytes": 1218519568,
+      "rough_forward_seconds": {
+        "fp16": 0.1153,
+        "quantized": 0.1581
+      },
+      "seq_len": 16,
+      "status": "passed",
+      "weights_dtype": "qint4",
+      "weights_provenance": "real_config_random_weights"
+    }
+  ],
+  "seed": 20260704,
+  "versions": {
+    "optimum-quanto": "0.2.7",
+    "torch": "2.12.1",
+    "transformers": "5.12.1"
+  }
+}

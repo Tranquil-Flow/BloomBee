@@ -200,10 +200,12 @@ def test_proof_ladder_reports_ordered_gates_and_next_pending_step():
     assert report["gates"][1]["status"] == "pending"
 
 
-def test_proof_ladder_safe_demo_requires_full_generation_passed():
+def test_proof_ladder_safe_demo_requires_full_cache_and_load_gates():
     from mvp_capabilities.proof_ladder import build_proof_ladder
 
-    report = build_proof_ladder(
+    # full_generation alone must NOT unlock demo_safe: cache parity and
+    # repeated-request load fail independently of one-shot generation.
+    partial = build_proof_ladder(
         "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         proof_status={
             "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
@@ -216,10 +218,25 @@ def test_proof_ladder_safe_demo_requires_full_generation_passed():
             }
         },
     )
+    assert partial["claim_level"] == "experimental"
+    assert partial["safe_demo_selectable"] is False
+    assert partial["next_gate"] == "cache_generation"
 
-    assert report["claim_level"] == "demo_safe"
-    assert report["safe_demo_selectable"] is True
-    assert report["next_gate"] == "cache_generation"
+    proven = build_proof_ladder(
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        proof_status={
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0": {
+                "prescan": "passed",
+                "one_block_server": "passed",
+                "multi_block": "passed",
+                "full_generation": "passed",
+                "cache_generation": "passed",
+                "multi_request_load": "passed",
+            }
+        },
+    )
+    assert proven["claim_level"] == "demo_safe"
+    assert proven["safe_demo_selectable"] is True
 
 
 def test_proof_ladder_cli_outputs_fallback_ladder_json():
@@ -438,10 +455,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
-    assert post_mvp["quantization_routing_handoff"]["status"] == "stashed_for_fable_review"
-    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.1
-    assert "stash@{0}" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert post_mvp["quantization_routing_handoff"]["status"] == "foundation_committed"
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.25
+    assert "moe_expert_quant.py" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "quantized-block-spike-20260704T203500Z.json" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 9, "partial": 4, "pending": 2, "blocked": 2, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
@@ -2339,6 +2358,8 @@ def _proof_status_fixture() -> dict[str, dict[str, str]]:
             "one_block_server": "passed",
             "multi_block": "passed",
             "full_generation": "passed",
+            "cache_generation": "passed",
+            "multi_request_load": "passed",
         },
         "Qwen/Qwen3-30B-A3B": {
             "prescan": "passed",
@@ -2373,6 +2394,32 @@ def test_safe_demo_selector_picks_only_full_generation_proven_model():
     assert route["selector_allowed"] is True
 
 
+def test_full_generation_alone_is_not_demo_safe_in_route_picker():
+    from mvp_capabilities.route_picker import evaluate_model
+
+    peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+    proof_status = {
+        "demo-safe/Tiny-Proven": {
+            "prescan": "passed",
+            "one_block_server": "passed",
+            "multi_block": "passed",
+            "full_generation": "passed",
+            "cache_generation": "pending",
+            "multi_request_load": "pending",
+        }
+    }
+    result = evaluate_model(
+        peers,
+        _tiny_route_registry()[0],
+        proof_status=proof_status,
+        selector_mode="safe-demo",
+    )
+    assert result["claim_level"] == "experimental"
+    assert result["selector_allowed"] is False
+    assert "cache_generation" in result["selector_blocked_reason"]
+    assert "multi_request_load" in result["selector_blocked_reason"]
+
+
 def test_route_report_refuses_unsafe_pin_and_serves_best_available():
     from mvp_capabilities.route_picker import route_report
 
@@ -2386,15 +2433,18 @@ def test_route_report_refuses_unsafe_pin_and_serves_best_available():
         selector_mode="safe-demo",
     )
 
+    assert report["claim_boundary"] == "route_report_planning_only_no_serving_proof"
     assert report["picked"]["model_id"] == "demo-safe/Tiny-Proven"
     assert report["serving"]["model_id"] == "demo-safe/Tiny-Proven"
     assert report["best_available"]["model_id"] == "demo-safe/Tiny-Proven"
     assert report["requested_model"] == "Qwen/Qwen3-30B-A3B"
+    assert report["requested"]["model_id"] == "Qwen/Qwen3-30B-A3B"
     assert report["requested_evaluation"]["model_id"] == "Qwen/Qwen3-30B-A3B"
     assert report["requested_evaluation"]["selector_allowed"] is False
     assert report["override_refused"] is True
     assert report["override_active"] is False
     assert "safe-demo" in report["override_reason"]
+    assert report["override_refused_reason"] == report["override_reason"]
     assert report["inference_proven"] is False
 
 
@@ -2402,6 +2452,16 @@ def test_route_report_marks_allowed_pin_as_active_override():
     from mvp_capabilities.route_picker import route_report
 
     peers = [{"hostname": "swarm", "memory": {"free_gb": 100}, "accelerator": {}}]
+
+    auto = route_report(
+        peers,
+        _tiny_route_registry(),
+        proof_status=_proof_status_fixture(),
+        selector_mode="showcase-attempt",
+    )
+    assert auto["picked"]["model_id"] == auto["best_available"]["model_id"]
+    assert auto["override_active"] is False
+    assert auto["override_refused"] is False
 
     report = route_report(
         peers,
@@ -2414,6 +2474,7 @@ def test_route_report_marks_allowed_pin_as_active_override():
     assert report["best_available"]["model_id"] == "Qwen/Qwen3-30B-A3B"
     assert report["picked"]["model_id"] == "demo-safe/Tiny-Proven"
     assert report["serving"]["model_id"] == "demo-safe/Tiny-Proven"
+    assert report["requested"]["model_id"] == "demo-safe/Tiny-Proven"
     assert report["override_active"] is True
     assert report["override_refused"] is False
     assert report["override_reason"] == "serving requested model; auto-pick would be Qwen/Qwen3-30B-A3B"

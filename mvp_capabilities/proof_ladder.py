@@ -48,10 +48,15 @@ def _default_status() -> dict[str, str]:
     return {gate: "pending" for gate in PROOF_KEYS}
 
 
+# Must stay aligned with route_picker.DEMO_SAFE_GATES: demo_safe requires
+# generation, cached-generation parity, and repeated-request load proof.
+DEMO_SAFE_GATES = ("full_generation", "cache_generation", "multi_request_load")
+
+
 def _claim_level(status: dict[str, str]) -> str:
     if any(_status_is_blocked(value) for value in status.values()):
         return "blocked"
-    if status.get("full_generation") == "passed":
+    if all(status.get(gate) == "passed" for gate in DEMO_SAFE_GATES):
         return "demo_safe"
     return "experimental"
 
