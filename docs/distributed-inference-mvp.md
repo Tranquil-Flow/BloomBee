@@ -58,12 +58,21 @@ core live demo works. The new near-term candidate branch is
 **Qwen/Qwen-AgentWorld-35B-A3B**: it fits the synthetic 10-laptop memory budget
 (~80GB recommended) but is blocked today because HF reports `model_type=qwen3_5_moe`
 with a `qwen3_5_moe_text` tower, and BloomBee only has a `qwen3_moe` wrapper.
+A config-only scout is committed at
+`mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`:
+the text tower alternates `linear_attention` and `full_attention` layers with
+mRoPE/linear-attention head fields, so copying the existing `Qwen3MoeDecoderLayer`
+wrapper would overclaim compatibility.
 First true high-compute stretch is the same-family
 **Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears. After
 that, a LayerExecutor backend can try quantized frontier serving backends for
 **MiniMaxAI/MiniMax-M3**, **GLM-5.2**, and **DeepSeek-V4-Flash**. DeepSeek-V4-Pro,
 Kimi K2.x, and giant Qwen3-Coder MoEs stay post-MVP unless quantized expert paging
-or a much larger hardware pool exists. MiniMax M3 is currently blocked for native
+or a much larger hardware pool exists. The first bounded LayerExecutor/quantized
+backend spike is committed at
+`mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json`;
+it does not prove a runnable backend, and all scanned frontier targets remain
+blocked for native route/demo use. MiniMax M3 is currently blocked for native
 BloomBee by `model_type=minimax_m3_vl`, MiniMax Sparse Attention, and ~809GiB bf16
 weights (~900GB recommended runtime memory).
 

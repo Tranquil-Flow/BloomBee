@@ -2056,6 +2056,23 @@ def test_docs_use_distributed_inference_mvp_name_not_bloombee_mvp():
     assert "distributed-inference-mvp" in text
 
 
+
+def test_docs_post_mvp_status_rows_match_completed_scouts():
+    finish_plan = (PROJECT_ROOT / "docs" / "mvp-finish-plan.md").read_text(encoding="utf-8")
+    main_doc = (PROJECT_ROOT / "docs" / "distributed-inference-mvp.md").read_text(encoding="utf-8")
+
+    assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in finish_plan
+    assert "config-only scout complete; wrapper blocked" in finish_plan
+    assert "bounded feasibility spike complete" in finish_plan
+    assert "post-MVP panel shipped" in finish_plan
+    assert "wrapper feasibility + one-block proof" not in finish_plan
+    assert "LayerExecutor / quantized frontier backends | research |" not in finish_plan
+    assert "Dashboard/status separation | scoped |" not in finish_plan
+    assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in main_doc
+    assert "linear_attention" in main_doc
+
+
+
 def test_peer_scan_marks_non_mobile_hosts_explicitly(monkeypatch):
     from mvp_capabilities import peer_scan
 

@@ -103,8 +103,8 @@ These do **not** block MVP 100%, but they remain tracked:
 
 | Item | Status | Fix path |
 |---|---:|---|
-| `qwen35b_candidate` | blocked | Add/prove native `qwen3_5_moe` / `qwen3_5_moe_text` wrapper before selection. |
-| `minimax_m3_candidate` | blocked | Needs LayerExecutor/quantized backend or native `minimax_m3_vl` + sparse-attention wrapper/kernels. |
+| `qwen35b_candidate` | blocked after scout | Config-only scout complete at `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`; write/import-dispatch tests for `qwen3_5_moe` / `qwen3_5_moe_text` before wrapper code or selection. |
+| `minimax_m3_candidate` | blocked after spike | LayerExecutor/quantized feasibility spike complete; still needs runnable backend proof or native `minimax_m3_vl` + sparse-attention wrapper/kernels. |
 | `continuous_batching` | pending | Build live batching proof harness after MVP correctness. |
 | `kv_prefix_reuse` | pending | Build prefix-cache correctness/timing proof after cache-generation remains stable. |
 
@@ -119,9 +119,9 @@ Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 | KV prefix reuse | pending | exact-token/logit parity plus timing delta against no-reuse baseline. |
 | Phone draft-provider wall-clock | partial | live phone token transport into verifier plus faster-than-baseline wall-clock gate. |
 | Android/Termux capability fidelity | partial | richer peer scan memory/storage reporting without block-serving overclaim. |
-| qwen3_5_moe / AgentWorld-35B | blocked | wrapper feasibility + one-block proof. |
-| LayerExecutor / quantized frontier backends | research | bounded feasibility spike for MiniMax M3, GLM-5.2, DeepSeek-V4-Flash, Kimi/giant Qwen-Coder. |
-| Dashboard/status separation | scoped | post-MVP panel that cannot move MVP-core percent. |
+| qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper blocked | `qwen-agentworld-35b-wrapper-scout-20260704.json` proves the text tower alternates `linear_attention`/`full_attention`; write RED import/config-dispatch tests before wrapper code. |
+| LayerExecutor / quantized frontier backends | bounded feasibility spike complete | `layerexecutor-feasibility-20260704.json`; all scanned targets remain blocked for native route/demo until wrapper/backend proof exists. |
+| Dashboard/status separation | post-MVP panel shipped | status JSON and dashboard show post-MVP/stretch milestones without moving MVP-core percent. |
 
 ---
 
