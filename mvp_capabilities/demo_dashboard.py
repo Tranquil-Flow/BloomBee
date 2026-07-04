@@ -480,6 +480,22 @@ def _status_panel(status: dict[str, Any]) -> str:
             f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
             "</tr>"
         )
+    planned_tasks = status.get("planned_tasks") or []
+    task_rows = []
+    for item in planned_tasks:
+        done = "yes" if item.get("done") else "no"
+        task_rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('label'))}</td>"
+            f"<td>{_esc(item.get('status'))}</td>"
+            f"<td>{_esc(done)}</td>"
+            f"<td>{_esc(item.get('next_step') or item.get('evidence') or '—')}</td>"
+            "</tr>"
+        )
+    summary = status.get("task_summary") or {}
+    summary_copy = ", ".join(
+        f"{summary.get(key, 0)} {key}" for key in ("complete", "partial", "pending", "blocked")
+    )
     return f"""
       <section class="card wide status">
         <h2>MVP build status</h2>
@@ -496,6 +512,12 @@ def _status_panel(status: dict[str, Any]) -> str:
         <table>
           <thead><tr><th>Milestone</th><th>Status</th><th>Built</th><th>Evidence / next</th></tr></thead>
           <tbody>{''.join(rows) or '<tr><td colspan="4">No status milestones loaded</td></tr>'}</tbody>
+        </table>
+        <h3>Planned tasks</h3>
+        <p class="muted">Task summary: {_esc(summary_copy)}</p>
+        <table>
+          <thead><tr><th>Task</th><th>Status</th><th>Done?</th><th>Evidence / next</th></tr></thead>
+          <tbody>{''.join(task_rows) or '<tr><td colspan="4">No planned tasks loaded</td></tr>'}</tbody>
         </table>
       </section>
     """

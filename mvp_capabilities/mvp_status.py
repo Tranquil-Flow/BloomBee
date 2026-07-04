@@ -28,6 +28,15 @@ class Milestone:
     next_step: str | None = None
 
 
+@dataclass(frozen=True)
+class PlanTask:
+    id: str
+    label: str
+    status: str
+    evidence: str
+    next_step: str | None = None
+
+
 MILESTONES: tuple[Milestone, ...] = (
     Milestone(
         id="model_foundation",
@@ -125,6 +134,124 @@ MILESTONES: tuple[Milestone, ...] = (
 )
 
 
+PLANNED_TASKS: tuple[PlanTask, ...] = (
+    PlanTask(
+        id="join_link_foundation",
+        label="Join-link offer, heartbeat roster, bootstrap script, and handoff bundle",
+        status="complete",
+        evidence="join_coordinator.py, join_http_server.py, join_client.py, join_handoff.py, and token-scoped heartbeat state exist and are test-covered",
+    ),
+    PlanTask(
+        id="fresh_laptop_join",
+        label="Fresh laptop can join through link/QR without bespoke setup",
+        status="partial",
+        evidence="copy/paste join URL, bootstrap.sh, bounded heartbeat client, SVG join card sidecars, and QR dependency preflight exist; real QR scanner interop still unproven",
+        next_step="install QR encoder/decoder deps, generate/decode exact QR artifact, then run a fresh physical-device heartbeat loop",
+    ),
+    PlanTask(
+        id="dashboard_real_devices",
+        label="Dashboard shows real connected devices and live claim boundaries",
+        status="complete",
+        evidence="demo_dashboard.py renders real capability/join artifacts, MVP status, proof prep, route decisions, layer plans, handoff bundles, and telemetry panels",
+    ),
+    PlanTask(
+        id="layer_assignment",
+        label="Coordinator assigns concrete start:end layer ranges from joined peers",
+        status="complete",
+        evidence="layer_planner.py and join_layer_plan.py emit deterministic contiguous assignments plus no-server-start launch-readiness checks",
+    ),
+    PlanTask(
+        id="server_launch_runbooks",
+        label="Operator-ready BloomBee server launch runbooks",
+        status="complete",
+        evidence="seed commands use --new_swarm and follower commands use current run_server --initial_peers placeholders with explicit readiness blockers",
+    ),
+    PlanTask(
+        id="tinyllama_distributed_generation",
+        label="TinyLlama distributed fallback generation proof",
+        status="complete",
+        evidence="TinyLlama has two-server/two-laptop/three-peer forward-backward, forward-loop text parity, cached .generate() parity, and S2S opportunistic fallback evidence",
+    ),
+    PlanTask(
+        id="qwen3_8b_proof",
+        label="Qwen3-8B multi-block or full-generation proof",
+        status="partial",
+        evidence="Qwen3-8B prescan and one-block server proof passed; multi-block/full-generation/cache-generation/load harnesses exist but live gates remain pending",
+        next_step="run Qwen3-8B multi-block or full-generation proof on a clean-memory M4 Pro session and promote only after verifier logs pass",
+    ),
+    PlanTask(
+        id="qwen3_30b_core_proof",
+        label="Qwen3-30B-A3B core laptop-swarm proof ladder",
+        status="partial",
+        evidence="qwen3_moe wrapper exists and one live M4 Pro Qwen3-30B-A3B block shard passed; full distributed generation remains pending",
+        next_step="run multi-block Qwen3-30B direct RPC proof, then full-generation parity when enough clean memory/devices are available",
+    ),
+    PlanTask(
+        id="qwen3_30b_2507_shelf",
+        label="Prepared Qwen3-30B-A3B Instruct/Thinking 2507 shelf",
+        status="partial",
+        evidence="2507 variants are registered with config metadata and pending proof gates",
+        next_step="run prescan and one-block live proof for each selected 2507 checkpoint before making either primary",
+    ),
+    PlanTask(
+        id="qwen35b_candidate",
+        label="Qwen35B candidate branch",
+        status="blocked",
+        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning but HF model_type=qwen3_5_moe / qwen3_5_moe_text lacks a BloomBee wrapper",
+        next_step="add and prove native qwen3_5_moe wrapper before any showcase/safe-demo selection",
+    ),
+    PlanTask(
+        id="minimax_m3_candidate",
+        label="MiniMax M3 high-compute candidate",
+        status="blocked",
+        evidence="MiniMaxAI/MiniMax-M3 needs ~900GB runtime memory and lacks minimax_m3_vl + sparse-attention BloomBee support; quantized variants are not native BloomBee-compatible",
+        next_step="defer to post-core LayerExecutor/quantized-backend path or implement native sparse-attention wrapper/kernels",
+    ),
+    PlanTask(
+        id="multi_request_load",
+        label="Multiple requests routed through healthy chains with visible utilisation",
+        status="partial",
+        evidence="chain_scheduler.py, request_telemetry.py, and multi_request_load_proof.py exist; no successful live multi-request traffic proof yet",
+        next_step="send repeated direct-client traffic through started servers and verify multi_request_load proof logs with nonzero measured latency",
+    ),
+    PlanTask(
+        id="speculative_decode",
+        label="Speculative/draft-provider speedup plan",
+        status="partial",
+        evidence="speculative_decode_plan.py defines verifier-authoritative draft-provider roles and phone-as-draft-only policy; no live match-rate/latency proof yet",
+        next_step="measure draft-provider latency and exact-token acceptance rate before enabling speedup claims",
+    ),
+    PlanTask(
+        id="phone_worker",
+        label="Phone as useful inference or draft worker",
+        status="pending",
+        evidence="mobile capability fields exist in peer_scan.py; no committed phone throughput or BloomBee block-serving proof",
+        next_step="run peer_scan.py + CPU throughput benchmark in Termux, then try one-block TinyLlama serving before counting phone compute",
+    ),
+    PlanTask(
+        id="physical_showcase",
+        label="Physical/self-serve N-laptop showcase",
+        status="pending",
+        evidence="not yet run",
+        next_step="run fresh QR/link joined laptop swarm, launch selected model servers, and prove selected generation through the dashboard",
+    ),
+    PlanTask(
+        id="continuous_batching",
+        label="True continuous batching",
+        status="pending",
+        evidence="not yet implemented",
+        next_step="post-MVP after correctness/showcase gates; keep separate from proof of basic distributed generation",
+    ),
+    PlanTask(
+        id="kv_prefix_reuse",
+        label="Real prefill KV prefix reuse",
+        status="pending",
+        evidence="not yet implemented",
+        next_step="post-MVP optimization after cached-generation correctness remains stable",
+    ),
+)
+
+
 def render_bar(percent: int, *, width: int = 20) -> str:
     filled = round(width * max(0, min(percent, 100)) / 100)
     return f"{'█' * filled}{'░' * (width - filled)} {percent}%"
@@ -145,10 +272,27 @@ def _milestone_payload(item: Milestone) -> dict[str, Any]:
     }
 
 
+def _task_payload(item: PlanTask) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "label": item.label,
+        "status": item.status,
+        "done": item.status == "complete",
+        "evidence": item.evidence,
+        "next_step": item.next_step,
+    }
+
+
 def build_status_report() -> dict[str, Any]:
     total_weight = sum(item.weight for item in MILESTONES)
     earned = sum(item.weight * item.completion for item in MILESTONES)
     overall_percent = round(earned / total_weight * 100) if total_weight else 0
+    planned_tasks = [_task_payload(item) for item in PLANNED_TASKS]
+    task_summary = {
+        status: sum(1 for item in planned_tasks if item["status"] == status)
+        for status in ("complete", "partial", "pending", "blocked")
+    }
+    task_summary["total"] = len(planned_tasks)
     return {
         "claim_boundary": CLAIM_BOUNDARY,
         "overall_percent": overall_percent,
@@ -162,6 +306,8 @@ def build_status_report() -> dict[str, Any]:
             "It is not a public-demo proof percentage and does not promote unproven models."
         ),
         "milestones": [_milestone_payload(item) for item in MILESTONES],
+        "planned_tasks": planned_tasks,
+        "task_summary": task_summary,
     }
 
 
@@ -187,6 +333,21 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"| {item['label']} | {item['weight']} | {item['status']} | "
             f"{item['percent']}% | {evidence} |"
         )
+    lines.extend(
+        [
+            "",
+            "## Planned tasks",
+            "",
+            "| Task | Status | Done? | Evidence / next step |",
+            "|---|---|---:|---|",
+        ]
+    )
+    for item in report["planned_tasks"]:
+        evidence = item["evidence"]
+        if item.get("next_step"):
+            evidence = f"{evidence}<br>Next: {item['next_step']}"
+        done = "yes" if item["done"] else "no"
+        lines.append(f"| {item['label']} | {item['status']} | {done} | {evidence} |")
     return "\n".join(lines) + "\n"
 
 

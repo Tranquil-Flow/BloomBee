@@ -386,6 +386,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layer_placements"][2]["host"] == "m4pro-tail"
     assert doc["mvp_status"]["overall_percent"] == 75
     assert doc["mvp_status"]["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
+    assert doc["mvp_status"]["task_summary"]["total"] == 17
+    assert doc["mvp_status"]["task_summary"]["blocked"] == 2
+    assert any(task["id"] == "physical_showcase" and task["done"] is False for task in doc["mvp_status"]["planned_tasks"])
     assert doc["proof_state"]["download_status"] == "complete"
     assert doc["proof_state"]["inference_proven"] is False
     assert doc["joined_layer_plan"]["source"] == "coordinator_http_active"
@@ -411,6 +414,11 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "███████████████░░░░░ 75%" in html
     assert "Qwen3-8B multi-block or full-generation proof" in html
     assert "weighted_plan_status_not_demo_proof" in html
+    assert "Planned tasks" in html
+    assert "Task summary: 5 complete, 6 partial, 4 pending, 2 blocked" in html
+    assert "TinyLlama distributed fallback generation proof" in html
+    assert "Physical/self-serve N-laptop showcase" in html
+    assert "Qwen35B candidate branch" in html
     assert "Live proof-prep state" in html
     assert "Snapshot" in html
     assert "stale partials 4" in html

@@ -278,6 +278,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["remaining_percent"] == 25
     assert report["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
+    assert report["task_summary"] == {"complete": 5, "partial": 6, "pending": 4, "blocked": 2, "total": 17}
+    tasks = {item["id"]: item for item in report["planned_tasks"]}
+    assert tasks["tinyllama_distributed_generation"]["done"] is True
+    assert tasks["qwen3_8b_proof"]["status"] == "partial"
+    assert tasks["qwen35b_candidate"]["status"] == "blocked"
+    assert tasks["physical_showcase"]["done"] is False
 
 
 def test_mvp_status_markdown_contains_status_bar_and_next_gate():
@@ -288,6 +294,9 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
     assert "███████████████░░░░░ 75%" in text
     assert "Qwen3-8B multi-block or full-generation proof" in text
     assert "weighted_plan_status_not_demo_proof" in text
+    assert "## Planned tasks" in text
+    assert "TinyLlama distributed fallback generation proof | complete | yes" in text
+    assert "Physical/self-serve N-laptop showcase | pending | no" in text
 
 
 def test_mvp_status_cli_outputs_json():
@@ -306,6 +315,8 @@ def test_mvp_status_cli_outputs_json():
     assert payload["overall_percent"] == 75
     assert payload["overall_bar"].endswith("75%")
     assert payload["next_gate"] == "Qwen3-8B multi-block or full-generation proof"
+    assert payload["task_summary"]["blocked"] == 2
+    assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
 
 def test_one_block_proof_plan_generates_qwen3_8b_commands():
