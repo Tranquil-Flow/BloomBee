@@ -362,15 +362,16 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `██████████████████░░ 92%` built from the MVP-core plan, with claim boundary
+  `███████████████████░ 94%` built from the MVP-core plan, with claim boundary
   `weighted_plan_status_not_demo_proof`. Next gate: physical/self-serve showcase
   with fresh joined devices. `physical_showcase_proof.py`, `proof_orchestrator.py`,
   and `demo_dashboard.py` now provide the fail-closed operator-evidence verifier,
   cross-artifact active-roster/layer-plan/generation-placement/load alignment,
-  evidence template, verifier command, missing-evidence blocker, and report panel,
-  but real
-  physical QR/heartbeat/dashboard
-  evidence is still uncaptured. Qwen3-30B and optimisation work is tracked as
+  evidence template, verifier command, missing-evidence blocker, and report panel.
+  A real Pixel 8 Pro Termux run proved a fresh physical-device 3-heartbeat
+  `join_client.py` active-roster path via ADB UI, but physical camera QR scan,
+  selected-model server launch from that joined plan, and final
+  `physical_showcase_proof.py` cross-artifact pass remain uncaptured. Qwen3-30B and optimisation work is tracked as
   post-MVP/stretch, not as part of the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`

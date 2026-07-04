@@ -1,0 +1,57 @@
+{
+  "active_roster": {
+    "active_peer_ids": [
+      "pixel8pro-fresh-20260704T145211Z"
+    ],
+    "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+    "fresh_peer_seen": true
+  },
+  "artifacts_not_committed": {
+    "phone_pull_dir": ".local/physical-phone-heartbeat-20260704T145211Z/phone-pull/bloombee-fresh-join-20260704T145211Z",
+    "unredacted_run_dir": ".local/physical-phone-heartbeat-20260704T145211Z"
+  },
+  "can_update_mvp_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "fresh_physical_device_heartbeat_loop_via_adb_ui_no_physical_qr_scan_no_inference",
+  "coordinator": "http://192.168.178.37:8787",
+  "fresh_device_heartbeat_loop_proven": true,
+  "heartbeat_loop": {
+    "claim_boundary": "join_client_heartbeat_loop_only_no_inference_proof",
+    "heartbeat_count": 3,
+    "interval_seconds": 2.0,
+    "requested_count": 3,
+    "server_response_claims": [
+      "heartbeat_only_no_inference_proof"
+    ],
+    "successful_posts": 3,
+    "timestamps": [
+      1783176808,
+      1783176811,
+      1783176813
+    ]
+  },
+  "inference_proven": false,
+  "join_method": "adb_ui_injected_join_url_not_physical_camera_scan",
+  "join_url_sha256": "9d7056a9e3fb767a03aacc8f5cc2ac6a6979e348fd34078a7891f295483ae650",
+  "peer_id": "pixel8pro-fresh-20260704T145211Z",
+  "phone": {
+    "cpu_abi": "arm64-v8a",
+    "is_mobile": true,
+    "kind": "android",
+    "manufacturer": "Google",
+    "model": "Pixel 8 Pro",
+    "runtime": "termux",
+    "sdk": "36",
+    "soc": "Tensor G3"
+  },
+  "physical_scanner_interop_proven": false,
+  "remaining_blockers": [
+    "physical_camera_qr_scan_not_proven",
+    "selected_model_servers_not_launched_from_fresh_joined_plan",
+    "physical_showcase_proof_cross_artifact_report_not_passed"
+  ],
+  "source": "pixel_termux_fresh_join_evidence",
+  "status": "passed",
+  "termux_python": "3.14.6",
+  "token_sha256": "7221c36e94de1a05fa59453a06a5df04deb48238dc7b7ad9b11fed102b01bff4"
+}

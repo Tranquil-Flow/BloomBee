@@ -72,16 +72,18 @@ weights (~900GB recommended runtime memory).
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████████░░ 92%
+███████████████████░ 94%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
 progress, not public-demo proof. Next gate: **physical/self-serve showcase with
 fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
 dashboard now fail-closed verify and surface operator-captured physical evidence
-plus cross-artifact active-roster/layer-plan/generation-placement/load alignment,
-but a real physical showcase has not yet
-been captured. Qwen3-30B and larger/model-optimisation work remains
+plus cross-artifact active-roster/layer-plan/generation-placement/load alignment.
+A real Pixel 8 Pro Termux run proved a fresh physical-device `join_client.py`
+3-heartbeat active-roster path via ADB UI, but physical camera QR scan,
+selected-model server launch from that fresh joined plan, and the final
+`physical_showcase_proof.py` cross-artifact pass remain uncaptured. Qwen3-30B and larger/model-optimisation work remains
 visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
@@ -198,7 +200,9 @@ visible as post-MVP/stretch work and does not drag the 100% MVP denominator.
   `mvp_capabilities/join_qr_preflight.py` reports missing QR encoder/decoder
   dependencies fail-closed, and `mvp_capabilities/join_qr_proof.py` can generate
   a true QR PNG and decode it back to the exact join URL locally. Physical
-  camera scanner interop is still unproven. This is bootstrap/roster state only
+  camera scanner interop remains unproven. Pixel 8 Pro Termux via ADB UI now
+  proves a fresh physical-device 3-heartbeat `join_client.py` roster path, but
+  physical camera QR scan remains unproven. This is bootstrap/roster state only
   and explicitly does not claim inference proof.
   `mvp_capabilities/join_layer_plan.py` then turns those active heartbeats into
   launch-ready layer-placement runbooks from local state or HTTP `/active`

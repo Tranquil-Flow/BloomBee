@@ -62,16 +62,18 @@ The MVP is complete when the following are all true:
 Current weighted engineering-build status from `mvp_capabilities/mvp_status.py`:
 
 ```text
-██████████████████░░ 92%
+███████████████████░ 94%
 ```
 
 Claim boundary: `weighted_plan_status_not_demo_proof`. This is MVP-core plan
 progress, not public-demo proof. Next gate: **physical/self-serve showcase with
 fresh joined devices**. `physical_showcase_proof.py` and the proof-orchestration
 dashboard now fail-closed verify and surface operator-captured physical evidence
-plus cross-artifact active-roster/layer-plan/generation-placement/load alignment,
-but a real physical showcase has not yet
-been captured. Qwen3-30B/larger models and optimisations are tracked
+plus cross-artifact active-roster/layer-plan/generation-placement/load alignment.
+A real Pixel 8 Pro Termux run proved a fresh physical-device `join_client.py`
+3-heartbeat active-roster path via ADB UI, but physical camera QR scan,
+selected-model server launch from that fresh joined plan, and the final
+`physical_showcase_proof.py` cross-artifact pass remain uncaptured. Qwen3-30B/larger models and optimisations are tracked
 as post-MVP/stretch work outside the 100% MVP denominator.
 
 Already proven:
@@ -145,9 +147,11 @@ Already proven:
   plus proof-runbook placeholders,
   physical-device `join_client.py` one-shot or bounded repeated heartbeat
   posting, SVG join-card rendering, QR scanner dependency preflight, local exact
-  QR artifact decode proof, and explicit no-inference-proof claim boundaries.
+  QR artifact decode proof, a real Pixel 8 Pro Termux 3-heartbeat active-roster
+  run via ADB UI, and explicit no-inference-proof claim boundaries.
   Physical camera scanner interoperability remains unproven until real devices
-  scan the artifact and join the heartbeat loop.
+  scan the artifact; selected-model showcase proof remains pending until servers
+  launch from the fresh joined plan and `physical_showcase_proof.py` passes.
 - Layer planner exists: selected model + live/synthetic roster becomes
   deterministic contiguous layer ranges, with optional exact BloomBee server
   launch command runbooks using the current `run_server --initial_peers` follower
