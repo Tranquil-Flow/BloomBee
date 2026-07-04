@@ -10,6 +10,11 @@ UNSAFE_PEFT_REPO = "artek0chumak/bloom-560m-unsafe-peft"
 SAFE_PEFT_REPO = "artek0chumak/bloom-560m-safe-peft"
 TMP_CACHE_DIR = "tmp_cache/"
 
+pytestmark = pytest.mark.skipif(
+    os.environ.get("BLOOMBEE_RUN_HF_PEFT") != "1",
+    reason="live HuggingFace PEFT tests require network/cache; set BLOOMBEE_RUN_HF_PEFT=1 to opt in",
+)
+
 
 def clear_dir(path_to_dir):
     shutil.rmtree(path_to_dir)
