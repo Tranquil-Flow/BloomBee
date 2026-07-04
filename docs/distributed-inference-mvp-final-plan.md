@@ -155,8 +155,10 @@ Already proven:
   and a phone-as-draft-only policy. `draft_provider.py` now implements the
   dependency-free `DraftProvider.propose(prompt_tokens, max_draft_tokens)`
   contract plus verifier-prefix accepted/rejected counters; `draft_provider_bridge.py`
-  exposes the contract over stdio JSONL for Termux/ADB/SSH experiments. Coordinator
-  `/speculative`, `/handoff`, and the dashboard expose the plan/report without
+  exposes the contract over stdio JSONL for Termux/ADB/SSH experiments;
+  `termux_draft_smoke.py` renders/verifies a pasteable Termux script when direct
+  ADB control is unavailable. Coordinator `/speculative`, `/handoff`, and the
+  dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
   --request-log ... --speculative-plan ... --draft-report ...` renders planned
   waves, live request telemetry, draft-provider plans, and accepted/rejected
@@ -580,9 +582,11 @@ Build in this order. Do not let frontier-model dreams block the core swarm demo.
     draft-provider roles, exact-token acceptance contracts, and phone-as-draft-
     only policy; `draft_provider.py` adds the deterministic provider contract
     and proposed/accepted/rejected dashboard counters; `draft_provider_bridge.py`
-    adds stdio JSONL transport groundwork; `/speculative`, `/handoff`, and the
-    dashboard surface the plan/report without running live generation. Next: run
-    the same contract over a phone bridge, measure
+    adds stdio JSONL transport groundwork; `termux_draft_smoke.py` adds a
+    pasteable phone smoke script/verifier for sandboxed ADB situations;
+    `/speculative`, `/handoff`, and the dashboard surface the plan/report without
+    running live generation. Next: capture real Termux JSON, run the same
+    contract over a phone bridge, measure
     draft-provider latency/match rate, and wire an execution harness only after
     verifier generation passes.
 11. Qwen3-235B-A22B-Instruct-2507 last-stage same-family attempt, only if the

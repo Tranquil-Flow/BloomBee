@@ -169,6 +169,8 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   plus proposed/accepted/rejected counters for dashboard smoke reports;
   `mvp_capabilities/draft_provider_bridge.py` exposes the same contract over
   stdio JSONL for Termux/ADB/SSH bridge experiments;
+  `mvp_capabilities/termux_draft_smoke.py` renders/verifies a pasteable Termux
+  phone-smoke script when the sandbox cannot start `adb`;
   `/plan?model=auto` folds that selection into a no-execution joined layer plan
   without requiring shared filesystem access; `/handoff` bundles offer, active
   roster, bootstrap runbook, speculative plan, auto route, launch plan, proof

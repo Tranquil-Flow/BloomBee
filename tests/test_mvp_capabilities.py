@@ -2939,6 +2939,109 @@ def test_draft_provider_bridge_serve_stdio_outputs_jsonl():
     assert lines[0]["dashboard_counters"] == {"acceptance_rate": 0.5, "accepted": 1, "proposed": 2, "rejected": 1}
 
 
+def test_termux_draft_smoke_render_contains_fail_closed_boundaries():
+    from mvp_capabilities.termux_draft_smoke import render_termux_smoke_script
+
+    script = render_termux_smoke_script()
+
+    assert "termux_draft_provider_smoke_only_no_generation_proof" in script
+    assert "python_missing_install_with_pkg_install_python" in script
+    assert "can_serve_transformer_blocks" in script
+    assert "generation_proven" in script
+
+
+def test_termux_draft_smoke_verifier_accepts_real_termux_shaped_payload(tmp_path: Path):
+    from mvp_capabilities.termux_draft_smoke import verify_termux_smoke_evidence
+
+    evidence = tmp_path / "termux-smoke.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_draft_smoke.sh",
+                "claim_boundary": "termux_draft_provider_smoke_only_no_generation_proof",
+                "phone_runtime": {"is_mobile": True, "kind": "android", "runtime": "termux", "is_termux": True},
+                "dashboard_counters": {"proposed": 3, "accepted": 2, "rejected": 1, "acceptance_rate": 0.666667},
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_smoke_evidence(evidence)
+
+    assert report["claim_boundary"] == "termux_draft_provider_smoke_verifier_only_no_generation_proof"
+    assert report["verification_status"] == "passed"
+    assert report["phone_smoke_proven"] is True
+    assert report["termux_detected"] is True
+    assert report["generation_proven"] is False
+
+
+def test_termux_draft_smoke_verifier_rejects_non_termux_when_required(tmp_path: Path):
+    from mvp_capabilities.termux_draft_smoke import verify_termux_smoke_evidence
+
+    evidence = tmp_path / "local-smoke.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source": "termux_draft_smoke.sh",
+                "claim_boundary": "termux_draft_provider_smoke_only_no_generation_proof",
+                "phone_runtime": {"is_termux": False},
+                "dashboard_counters": {"proposed": 3, "accepted": 2, "rejected": 1, "acceptance_rate": 0.666667},
+                "generation_proven": False,
+                "speedup_proven": False,
+                "inference_proven": False,
+                "can_update_proof_status": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = verify_termux_smoke_evidence(evidence)
+
+    assert report["verification_status"] == "failed"
+    assert "evidence was not captured from Termux" in report["errors"]
+    assert report["phone_smoke_proven"] is False
+
+
+def test_termux_draft_smoke_cli_render_and_local_verify(tmp_path: Path):
+    script = tmp_path / "termux-smoke.sh"
+    render = subprocess.run(
+        [sys.executable, "mvp_capabilities/termux_draft_smoke.py", "render", "--out", str(script), "--json"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert render.returncode == 0, render.stderr
+    render_payload = json.loads(render.stdout)
+    assert render_payload["out"] == str(script)
+    assert render_payload["phone_smoke_proven"] is False
+
+    local = subprocess.run(["sh", str(script)], text=True, capture_output=True, check=False, timeout=15)
+    assert local.returncode == 0, local.stderr
+    evidence = tmp_path / "local-output.json"
+    evidence.write_text(local.stdout, encoding="utf-8")
+    verify = subprocess.run(
+        [sys.executable, "mvp_capabilities/termux_draft_smoke.py", "verify", "--evidence", str(evidence), "--allow-non-termux"],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert verify.returncode == 0, verify.stderr
+    report = json.loads(verify.stdout)
+    assert report["verification_status"] == "passed"
+    assert report["dashboard_counters"] == {"acceptance_rate": 0.666667, "accepted": 2, "proposed": 3, "rejected": 1}
+    assert report["speedup_proven"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

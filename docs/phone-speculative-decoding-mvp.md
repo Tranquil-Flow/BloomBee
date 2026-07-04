@@ -113,6 +113,12 @@ contract over stdio JSONL, which is the lowest-friction path for Termux/ADB/SSH
 experiments. A real phone run, latency measurement, and acceptance-rate proof are
 still pending.
 
+Because Hermes cannot start the local `adb` daemon in this sandbox
+(`could not install *smartsocket* listener: Operation not permitted`),
+`mvp_capabilities/termux_draft_smoke.py` now renders a self-contained shell
+script that can be pasted directly into Termux and later verified from its JSON
+output. This is still only draft-contract smoke, not useful phone compute.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.
