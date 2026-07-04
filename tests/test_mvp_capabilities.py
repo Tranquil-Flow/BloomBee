@@ -3359,6 +3359,92 @@ def test_termux_tiny_model_probe_tracked_phone_evidence_has_real_blockers():
     assert payload["inference_proven"] is False
 
 
+def test_termux_gguf_runtime_plan_uses_probe_gates_without_installing():
+    from mvp_capabilities.termux_gguf_runtime_plan import build_termux_gguf_runtime_plan
+
+    plan = build_termux_gguf_runtime_plan(
+        {
+            "evidence": {
+                "claim_boundary": "termux_tiny_model_probe_only_no_inference_proof",
+                "phone_runtime": {"is_termux": True, "android_model": "Pixel 8 Pro"},
+                "memory": {"mem_available_gb": 2.5},
+                "storage": {"home": {"free_gb": 28.0}},
+                "python_modules": {"torch": False, "transformers": False, "tokenizers": False, "llama_cpp": False, "bloombee": False},
+                "commands": {"python": "/bin/python", "pip": "/bin/pip", "pkg": "/bin/pkg", "clang": "/bin/clang", "cmake": "/bin/cmake", "make": "/bin/make", "git": "/bin/git"},
+                "feasibility": {"bloombee_block_serving_ready": False},
+            }
+        }
+    )
+
+    assert plan["claim_boundary"] == "termux_gguf_runtime_plan_only_no_install_no_inference_proof"
+    assert plan["ready_for_guarded_install_attempt"] is True
+    assert plan["recommended_path"] == "tiny_gguf_llama_cpp_draft_runtime"
+    assert plan["install_executed"] is False
+    assert plan["download_executed"] is False
+    assert plan["speedup_proven"] is False
+    assert "torch" in plan["observed_missing_modules"]
+    assert any("llama-cpp-python" in command for command in plan["guarded_commands_not_executed"])
+
+
+def test_termux_gguf_runtime_plan_blocks_without_build_tools():
+    from mvp_capabilities.termux_gguf_runtime_plan import build_termux_gguf_runtime_plan
+
+    plan = build_termux_gguf_runtime_plan(
+        {
+            "claim_boundary": "termux_tiny_model_probe_only_no_inference_proof",
+            "phone_runtime": {"is_termux": True},
+            "memory": {"mem_available_gb": 2.5},
+            "storage": {"home": {"free_gb": 28.0}},
+            "python_modules": {"llama_cpp": False},
+            "commands": {"python": "/bin/python", "pip": "/bin/pip", "pkg": "/bin/pkg", "clang": None, "cmake": None, "make": None, "git": None},
+            "feasibility": {"bloombee_block_serving_ready": False},
+        }
+    )
+
+    assert plan["ready_for_guarded_install_attempt"] is False
+    assert "missing_clang_cmake_make_or_git" in plan["remaining_blockers"]
+    assert plan["inference_proven"] is False
+
+
+def test_termux_gguf_runtime_plan_cli_outputs_guarded_plan():
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/termux_gguf_runtime_plan.py",
+            "--probe",
+            "mvp_capabilities/distributed_evidence/phone/termux-tiny-model-probe-20260704T101232Z.json",
+        ],
+        cwd=PROJECT_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    plan = json.loads(proc.stdout)
+    assert plan["ready_for_guarded_install_attempt"] is True
+    assert plan["observed_runtime"]["android_model"] == "Pixel 8 Pro"
+    assert plan["observed_missing_modules"] == ["torch", "transformers", "tokenizers", "llama_cpp", "bloombee"]
+    assert plan["generation_proven"] is False
+
+
+def test_termux_gguf_runtime_plan_tracked_artifact_is_no_install():
+    plan_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-plan-20260704T101232Z.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+
+    assert plan["claim_boundary"] == "termux_gguf_runtime_plan_only_no_install_no_inference_proof"
+    assert plan["ready_for_guarded_install_attempt"] is True
+    assert plan["recommended_path"] == "tiny_gguf_llama_cpp_draft_runtime"
+    assert plan["observed_runtime"]["android_model"] == "Pixel 8 Pro"
+    assert plan["observed_missing_modules"] == ["torch", "transformers", "tokenizers", "llama_cpp", "bloombee"]
+    assert plan["install_executed"] is False
+    assert plan["download_executed"] is False
+    assert plan["generation_proven"] is False
+    assert plan["speedup_proven"] is False
+    assert plan["inference_proven"] is False
+    assert any("side-effecting operator decision" in warning or "modify the phone" in warning for warning in plan["operator_warnings"])
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

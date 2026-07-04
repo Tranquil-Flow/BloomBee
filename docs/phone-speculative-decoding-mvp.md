@@ -150,6 +150,13 @@ present. Genuine blockers for real tiny-model draft or BloomBee block serving:
 installed. The likely next path is a tiny GGUF/llama.cpp-style draft runtime;
 Python/PyTorch BloomBee block serving is not ready on this phone.
 
+The guarded follow-up plan is tracked at
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-plan-20260704T101232Z.json`.
+It does **not** execute installs or downloads; it only records that a guarded
+`llama-cpp-python`/GGUF draft-runtime install attempt is plausible because
+Termux, Python, pip, pkg, clang, cmake, make, git, storage, and memory gates pass.
+Any install remains a side-effecting operator decision.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

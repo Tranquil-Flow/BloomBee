@@ -1,0 +1,82 @@
+{
+  "can_update_proof_status": false,
+  "claim_boundary": "termux_gguf_runtime_plan_only_no_install_no_inference_proof",
+  "download_executed": false,
+  "gate_checks": {
+    "bloombee_block_serving_not_ready": true,
+    "build_tools_present": true,
+    "llama_cpp_not_already_installed": true,
+    "memory_available_gb_min_1": true,
+    "pip_available": true,
+    "pkg_available": true,
+    "python_available": true,
+    "storage_free_gb_min_2": true,
+    "termux_detected": true
+  },
+  "generation_proven": false,
+  "guarded_commands_not_executed": [
+    "pkg update",
+    "pkg install -y python clang cmake make git",
+    "python -m pip install --upgrade pip setuptools wheel",
+    "CMAKE_ARGS='-DLLAMA_NATIVE=OFF' python -m pip install --no-cache-dir llama-cpp-python",
+    "python - <<'PY'\nfrom llama_cpp import Llama\nprint('llama_cpp_import_ok')\nPY",
+    "# Only after operator supplies a tiny GGUF file: run a one-token local draft smoke"
+  ],
+  "inference_proven": false,
+  "install_executed": false,
+  "observed_memory": {
+    "mem_available_gb": 2.557,
+    "mem_total_gb": 11.851,
+    "swap_free_gb": 0.373,
+    "swap_total_gb": 5.925
+  },
+  "observed_missing_modules": [
+    "torch",
+    "transformers",
+    "tokenizers",
+    "llama_cpp",
+    "bloombee"
+  ],
+  "observed_runtime": {
+    "android_manufacturer": "Google",
+    "android_model": "Pixel 8 Pro",
+    "android_sdk": "36",
+    "cpu_count": 9,
+    "home": "/data/data/com.termux/files/home",
+    "is_mobile": true,
+    "is_termux": true,
+    "kind": "android",
+    "machine": "aarch64",
+    "prefix": "/data/data/com.termux/files/usr",
+    "python": "3.13.13",
+    "runtime": "termux",
+    "soc": "Tensor G3"
+  },
+  "observed_storage": {
+    "home": {
+      "free_gb": 28.425,
+      "path": "/data/data/com.termux/files/home",
+      "total_gb": 117.743
+    },
+    "prefix": {
+      "free_gb": 28.425,
+      "path": "/data/data/com.termux/files/usr",
+      "total_gb": 117.743
+    }
+  },
+  "operator_warnings": [
+    "These commands modify the phone and may take time/battery/storage; do not run without explicit approval",
+    "Do not claim speedup until a real tiny model proposes tokens and an authoritative verifier accepts them",
+    "Do not count phone as a BloomBee block worker without separate BloomBee block-serving proof"
+  ],
+  "ready_for_guarded_install_attempt": true,
+  "recommended_path": "tiny_gguf_llama_cpp_draft_runtime",
+  "remaining_blockers": [],
+  "source": "termux_gguf_runtime_plan.py",
+  "speedup_proven": false,
+  "why_not_bloombee_block_serving": [
+    "BloomBee block serving on the phone still requires torch + transformers + bloombee runtime support",
+    "Termux probe showed those Python modules are missing",
+    "Static contract and GGUF draft-provider paths do not prove transformer-block serving"
+  ]
+}
