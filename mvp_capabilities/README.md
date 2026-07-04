@@ -361,9 +361,9 @@ Default benchmark is `Qwen/Qwen2.5-0.5B-Instruct` at 128 prefill + 64 decode tok
 As of the current implementation slice:
 
 - Weighted engineering-build status from `mvp_status.py`:
-  `████████████████░░░░ 82%` built from the MVP-core plan, with claim boundary
-  `weighted_plan_status_not_demo_proof`. Next gate: Qwen3-8B multi-request load
-  proof and physical showcase. Qwen3-30B and optimisation work is tracked as
+  `█████████████████░░░ 86%` built from the MVP-core plan, with claim boundary
+  `weighted_plan_status_not_demo_proof`. Next gate: physical/self-serve showcase
+  with fresh joined devices. Qwen3-30B and optimisation work is tracked as
   post-MVP/stretch, not as part of the 100% denominator.
 - Chain scheduler (`chain_scheduler.py`) exists: it maps joined layer plans to
   multi-request waves, per-peer scheduled-token estimates, and `planned_no_live_traffic`
@@ -433,6 +433,9 @@ As of the current implementation slice:
   `mvp_capabilities/distributed_evidence/QWEN3_8B_FULL_GENERATION_FORWARD_LOOP_2026-07-04.json`,
   and cache-generation generate-api parity is tracked at
   `mvp_capabilities/distributed_evidence/QWEN3_8B_CACHE_GENERATION_2026-07-04.json`.
+  Live full-range multi-request load proof passed with 3/3 direct-client requests,
+  finite outputs/gradients, and measured forward/backward latency; evidence is
+  tracked at `mvp_capabilities/distributed_evidence/QWEN3_8B_MULTI_REQUEST_LOAD_2026-07-04.json`.
   Clean-tree m4pro preflight is tracked at `mvp_capabilities/distributed_evidence/qwen3-8b-clean-tree-preflight-20260704T122930Z.json`:
   Qwen3-8B cache is present, the host has 48GB memory, and proof commands should
   use the project Python 3.11 venv because system `python3` is 3.9. Full 0:36

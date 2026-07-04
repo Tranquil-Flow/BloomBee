@@ -1,0 +1,204 @@
+{
+  "block_range": "0:36",
+  "cache_generation_proven": true,
+  "claim_boundary": "verified_qwen3_8b_multi_request_load_no_physical_showcase_claim",
+  "clean_tree": "/tmp/bloombee-clean-d4dd84d-qwen8-load",
+  "client_log_excerpt": {
+    "client-000.log": "Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\nJul 04 15:47:58.932 [INFO] Using DHT prefix: Qwen/Qwen3-8B\nJul 04 15:47:59.064 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"\nJul 04 15:47:59.081 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\n[direct] model=Qwen/Qwen3-8B\n[direct] bootstrap peers (1):\n[direct]   /ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA\n[direct] requesting block range 0:36\n[direct] AutoDistributedConfig.from_pretrained...\n[direct]   ... 0.5s, hidden_size=4096, num_layers=36\n[direct] DHT({'initial_peers': ['/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA'], 'client_mode': True, 'start': True, 'daemon': False, 'no_listen': True})...\n[direct]   ... 0.1s\n[direct] RemoteSequential(config, dht=dht)...\n[direct]   ... 0.0s, requested layers [0:36]\n[direct] sending test_inputs shape=[1, 5, 4096]...\n[direct]   ... 0.44s, output shape=[1, 5, 4096]\n[direct]   ... backward 0.42s, grad_finite=True, grad_norm=3632.0039\n[direct] outputs finite: True, unique values: 9477.0\n[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-8B\", \"block_range\": [0, 36], \"input_shape\": [1, 5, 4096], \"output_shape\": [1, 5, 4096], \"outputs_finite\": true, \"outputs_unique\": 9477.0, \"grad_finite\": true, \"grad_norm\": 3632.00390625, \"forward_seconds\": 0.4423811435699463, \"backward_seconds\": 0.4231548309326172}\n",
+    "client-001.log": "Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\nJul 04 15:48:04.258 [INFO] Using DHT prefix: Qwen/Qwen3-8B\nJul 04 15:48:04.400 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"\nJul 04 15:48:04.416 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\n[direct] model=Qwen/Qwen3-8B\n[direct] bootstrap peers (1):\n[direct]   /ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA\n[direct] requesting block range 0:36\n[direct] AutoDistributedConfig.from_pretrained...\n[direct]   ... 0.4s, hidden_size=4096, num_layers=36\n[direct] DHT({'initial_peers': ['/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA'], 'client_mode': True, 'start': True, 'daemon': False, 'no_listen': True})...\n[direct]   ... 0.1s\n[direct] RemoteSequential(config, dht=dht)...\n[direct]   ... 0.0s, requested layers [0:36]\n[direct] sending test_inputs shape=[1, 5, 4096]...\n[direct]   ... 0.35s, output shape=[1, 5, 4096]\n[direct]   ... backward 0.36s, grad_finite=True, grad_norm=40661.6445\n[direct] outputs finite: True, unique values: 11163.0\n[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-8B\", \"block_range\": [0, 36], \"input_shape\": [1, 5, 4096], \"output_shape\": [1, 5, 4096], \"outputs_finite\": true, \"outputs_unique\": 11163.0, \"grad_finite\": true, \"grad_norm\": 40661.64453125, \"forward_seconds\": 0.35363078117370605, \"backward_seconds\": 0.3617699146270752}\n",
+    "client-002.log": "wen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\nJul 04 15:48:09.501 [INFO] Using DHT prefix: Qwen/Qwen3-8B\nJul 04 15:48:09.660 [INFO] HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-8B/resolve/main/config.json \"HTTP/1.1 307 Temporary Redirect\"\nJul 04 15:48:09.686 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Qwen/Qwen3-8B/b968826d9c46dd6066d109eabc6255188de91218/config.json \"HTTP/1.1 200 OK\"\n[direct] model=Qwen/Qwen3-8B\n[direct] bootstrap peers (1):\n[direct]   /ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA\n[direct] requesting block range 0:36\n[direct] AutoDistributedConfig.from_pretrained...\n[direct]   ... 0.4s, hidden_size=4096, num_layers=36\n[direct] DHT({'initial_peers': ['/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA'], 'client_mode': True, 'start': True, 'daemon': False, 'no_listen': True})...\n[direct]   ... 0.1s\n[direct] RemoteSequential(config, dht=dht)...\n[direct]   ... 0.0s, requested layers [0:36]\n[direct] sending test_inputs shape=[1, 5, 4096]...\n[direct]   ... 0.34s, output shape=[1, 5, 4096]\n[direct]   ... backward 0.36s, grad_finite=True, grad_norm=6037.5674\n[direct] outputs finite: True, unique values: 8599.0\n[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-8B\", \"block_range\": [0, 36], \"input_shape\": [1, 5, 4096], \"output_shape\": [1, 5, 4096], \"outputs_finite\": true, \"outputs_unique\": 8599.0, \"grad_finite\": true, \"grad_norm\": 6037.5673828125, \"forward_seconds\": 0.3373289108276367, \"backward_seconds\": 0.362807035446167}\n"
+  },
+  "command_summary": {
+    "client": "python scripts/direct_remote_call.py --server-maddr <server> --model Qwen/Qwen3-8B --hidden-dim 4096 --block-range 0:36",
+    "server": "python -m bloombee.cli.run_server Qwen/Qwen3-8B --new_swarm --block_indices 0:36 --device mps --torch_dtype float16 --port 31359 --throughput 1 --num_handlers 2 --inference_max_length 64 --attn_cache_tokens 64 --max_batch_size 64 --max_chunk_size_bytes 16777216 --cache_dir /Users/evinova-self/.cache/huggingface/hub",
+    "verify": "python mvp_capabilities/multi_request_load_proof.py verify --model Qwen/Qwen3-8B --block-range 0:36 --expected-request-count 3 --request-log ..."
+  },
+  "full_generation_proven": true,
+  "host": "m4pro",
+  "known_bad_default_cache_dir": "/Users/evinova-self/.cache/bloombee",
+  "model_id": "Qwen/Qwen3-8B",
+  "multi_request_load_proven": true,
+  "physical_showcase_proven": false,
+  "proof_gate": "multi_request_load",
+  "request_count": 3,
+  "required_hf_cache_dir": "/Users/evinova-self/.cache/huggingface/hub",
+  "server_layers_loaded": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35
+  ],
+  "server_log_excerpt": "ime: 0.00ms | Total Backend Time: 8.47ms | Pure Processing: 8.47ms\nJul 04 15:48:10.083 [INFO] [PROCESSING_LATENCY] Backend 30 | Task Processing: 8.47ms | Total Backend Time: 8.47ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.086 [INFO] [S1_TO_S2_TRANSFER] Backend 31 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.97ms | Pure Processing: 2.97ms\nJul 04 15:48:10.086 [INFO] [PROCESSING_LATENCY] Backend 31 | Task Processing: 2.97ms | Total Backend Time: 2.97ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.089 [INFO] [S1_TO_S2_TRANSFER] Backend 32 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.90ms | Pure Processing: 2.90ms\nJul 04 15:48:10.089 [INFO] [PROCESSING_LATENCY] Backend 32 | Task Processing: 2.90ms | Total Backend Time: 2.90ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.098 [INFO] [S1_TO_S2_TRANSFER] Backend 33 | Estimated Transfer Time: 0.00ms | Total Backend Time: 8.64ms | Pure Processing: 8.63ms\nJul 04 15:48:10.098 [INFO] [PROCESSING_LATENCY] Backend 33 | Task Processing: 8.63ms | Total Backend Time: 8.64ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.102 [INFO] [S1_TO_S2_TRANSFER] Backend 34 | Estimated Transfer Time: 0.00ms | Total Backend Time: 3.54ms | Pure Processing: 3.54ms\nJul 04 15:48:10.102 [INFO] [PROCESSING_LATENCY] Backend 34 | Task Processing: 3.54ms | Total Backend Time: 3.54ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.105 [INFO] [S1_TO_S2_TRANSFER] Backend 35 | Estimated Transfer Time: 0.00ms | Total Backend Time: 2.92ms | Pure Processing: 2.92ms\nJul 04 15:48:10.105 [INFO] [PROCESSING_LATENCY] Backend 35 | Task Processing: 2.92ms | Total Backend Time: 2.92ms | Hidden States Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.105 [INFO] [S1_TO_S2_TRANSFER_SUMMARY] Average Transfer: 0.00ms | Total Transfer: 0.10ms | Transfer Count: 35\nJul 04 15:48:10.105 [INFO] [CROSS_GPU_TRANSFER_LATENCY] Total: 316.57ms | Backends: 36 | Output Shape: torch.Size([1, 5, 4096])\nJul 04 15:48:10.142 [INFO] rpc_backward(blocks=0:36, remote_peer=...2256fb)\n/Users/evinova-self/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 322 leaked semaphore objects to clean up at shutdown\n  warnings.warn('resource_tracker: There appear to be %d '\n",
+  "server_maddr": "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA",
+  "server_maddrs": [
+    "/ip4/100.84.252.4/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA",
+    "/ip4/127.0.0.1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA",
+    "/ip6/::1/tcp/31359/p2p/12D3KooWHpw1roMJSDATxFYs4TtfQE3mdmUGbt4iy2fpLfiD63zA"
+  ],
+  "server_rpc_counts": {
+    "backward": 3,
+    "forward": 3
+  },
+  "server_started": true,
+  "source_commit": "d4dd84d",
+  "verify": {
+    "block_range": "0:36",
+    "can_update_proof_status": true,
+    "claim_boundary": "verified_multi_request_load_evidence",
+    "expected_request_count": 3,
+    "failed_checks": [],
+    "model_id": "Qwen/Qwen3-8B",
+    "proof_gate": "multi_request_load",
+    "proof_status_update": {
+      "multi_request_load": "passed"
+    },
+    "request_results": [
+      {
+        "backward_seconds": 0.4231548309326172,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.4423811435699463,
+        "grad_finite": true,
+        "grad_norm": 3632.00390625,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 9477.0
+      },
+      {
+        "backward_seconds": 0.3617699146270752,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.35363078117370605,
+        "grad_finite": true,
+        "grad_norm": 40661.64453125,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 11163.0
+      },
+      {
+        "backward_seconds": 0.362807035446167,
+        "block_range": [
+          0,
+          36
+        ],
+        "forward_seconds": 0.3373289108276367,
+        "grad_finite": true,
+        "grad_norm": 6037.5673828125,
+        "input_shape": [
+          1,
+          5,
+          4096
+        ],
+        "model": "Qwen/Qwen3-8B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          4096
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 8599.0
+      }
+    ],
+    "status": "passed",
+    "telemetry": {
+      "block_ranges": {
+        "0:36": 3
+      },
+      "claim_boundary": "request_telemetry_observability_only_no_load_proof",
+      "errors": [],
+      "latency_seconds": {
+        "backward": {
+          "avg": 0.382577,
+          "count": 3,
+          "max": 0.423155,
+          "min": 0.36177,
+          "p95": 0.41712,
+          "unmeasured_count": 0
+        },
+        "forward": {
+          "avg": 0.37778,
+          "count": 3,
+          "max": 0.442381,
+          "min": 0.337329,
+          "p95": 0.433506,
+          "unmeasured_count": 0
+        }
+      },
+      "live_requests_seen": true,
+      "load_proof_claimed": false,
+      "models": {
+        "Qwen/Qwen3-8B": 3
+      },
+      "next_step": "Run a dedicated multi-request load proof before promoting multi_request_load.",
+      "request_counts": {
+        "failed": 0,
+        "succeeded": 3,
+        "total": 3
+      },
+      "scanned_logs": [
+        ".local/qwen3-8b-load-client-000.log",
+        ".local/qwen3-8b-load-client-001.log",
+        ".local/qwen3-8b-load-client-002.log"
+      ]
+    }
+  }
+}

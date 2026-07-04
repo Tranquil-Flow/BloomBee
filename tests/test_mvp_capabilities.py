@@ -260,9 +260,10 @@ def test_qwen3_dense_fallbacks_promote_qwen8_after_full_and_cache_generation():
     assert qwen8["proof_status"]["multi_block"] == "passed"
     assert qwen8["proof_status"]["full_generation"] == "passed"
     assert qwen8["proof_status"]["cache_generation"] == "passed"
+    assert qwen8["proof_status"]["multi_request_load"] == "passed"
     assert qwen8["claim_level"] == "demo_safe"
     assert qwen8["safe_demo_selectable"] is True
-    assert qwen8["next_gate"] == "multi_request_load"
+    assert qwen8["next_gate"] is None
 
     qwen14 = build_proof_ladder("Qwen/Qwen3-14B", proof_status=proof)
     assert qwen14["proof_status"]["prescan"] == "passed"
@@ -279,14 +280,14 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert report["claim_boundary"] == "weighted_plan_status_not_demo_proof"
     assert report["scope"] == "mvp_core"
     assert report["total_weight"] == 100
-    assert report["overall_percent"] == 82
-    assert report["overall_bar"] == "████████████████░░░░ 82%"
-    assert report["remaining_percent"] == 18
-    assert report["next_gate"] == "Qwen3-8B multi-request load proof and physical showcase"
+    assert report["overall_percent"] == 86
+    assert report["overall_bar"] == "█████████████████░░░ 86%"
+    assert report["remaining_percent"] == 14
+    assert report["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     assert any(item["id"] == "qwen3_30b_proof_ladder" for item in report["post_mvp_milestones"])
-    assert report["task_summary"] == {"complete": 6, "partial": 6, "pending": 3, "blocked": 2, "total": 17}
+    assert report["task_summary"] == {"complete": 7, "partial": 5, "pending": 3, "blocked": 2, "total": 17}
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
@@ -304,8 +305,8 @@ def test_mvp_status_markdown_contains_status_bar_and_next_gate():
 
     text = render_markdown(build_status_report())
     assert "Distributed Inference MVP status" in text
-    assert "████████████████░░░░ 82%" in text
-    assert "Qwen3-8B multi-request load proof and physical showcase" in text
+    assert "█████████████████░░░ 86%" in text
+    assert "physical/self-serve showcase with fresh joined devices" in text
     assert "weighted_plan_status_not_demo_proof" in text
     assert "MVP scope" in text
     assert "Post-MVP / stretch milestones" in text
@@ -327,9 +328,9 @@ def test_mvp_status_cli_outputs_json():
 
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
-    assert payload["overall_percent"] == 82
-    assert payload["overall_bar"].endswith("82%")
-    assert payload["next_gate"] == "Qwen3-8B multi-request load proof and physical showcase"
+    assert payload["overall_percent"] == 86
+    assert payload["overall_bar"].endswith("86%")
+    assert payload["next_gate"] == "physical/self-serve showcase with fresh joined devices"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 2
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
@@ -557,6 +558,38 @@ def test_qwen3_8b_cache_generation_artifact_passed_without_load_claim():
     assert verify["can_update_proof_status"] is True
     assert verify["failed_checks"] == []
     assert verify["proof_status_update"] == {"cache_generation": "passed"}
+
+
+def test_qwen3_8b_multi_request_load_artifact_passed_without_physical_showcase_claim():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/QWEN3_8B_MULTI_REQUEST_LOAD_2026-07-04.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "verified_qwen3_8b_multi_request_load_no_physical_showcase_claim"
+    assert report["source_commit"] == "d4dd84d"
+    assert report["host"] == "m4pro"
+    assert report["model_id"] == "Qwen/Qwen3-8B"
+    assert report["proof_gate"] == "multi_request_load"
+    assert report["block_range"] == "0:36"
+    assert report["request_count"] == 3
+    assert report["full_generation_proven"] is True
+    assert report["cache_generation_proven"] is True
+    assert report["multi_request_load_proven"] is True
+    assert report["physical_showcase_proven"] is False
+    assert report["server_started"] is True
+    assert report["required_hf_cache_dir"] == "/Users/evinova-self/.cache/huggingface/hub"
+
+    verify = report["verify"]
+    assert verify["status"] == "passed"
+    assert verify["can_update_proof_status"] is True
+    assert verify["failed_checks"] == []
+    assert verify["proof_status_update"] == {"multi_request_load": "passed"}
+    assert verify["telemetry"]["request_counts"] == {"total": 3, "succeeded": 3, "failed": 0}
+    assert verify["telemetry"]["block_ranges"] == {"0:36": 3}
+    assert verify["telemetry"]["latency_seconds"]["forward"]["count"] == 3
+    assert verify["telemetry"]["latency_seconds"]["backward"]["count"] == 3
+    assert verify["telemetry"]["latency_seconds"]["forward"]["unmeasured_count"] == 0
+    assert verify["telemetry"]["latency_seconds"]["backward"]["unmeasured_count"] == 0
+    assert all(row["ok"] and row["outputs_finite"] and row["grad_finite"] for row in verify["request_results"])
 
 
 def test_multi_block_proof_verifier_requires_each_server_and_combined_client():
