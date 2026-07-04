@@ -53,8 +53,8 @@ _PRIORITY_META: dict[str, dict[str, Any]] = {
         "optional": False,
         "defer_unless": None,
         "why": (
-            "Instruct-2507 is the likely product-facing stronger demo target, but exact-model "
-            "proof gates are still pending and should not distract from base 30B substrate proof."
+            "Instruct-2507 is the likely product-facing stronger demo target. Its exact-model "
+            "prescan and one-block proof have passed; multi-block/full-generation gates remain."
         ),
     },
     THINKING_2507_MODEL_ID: {

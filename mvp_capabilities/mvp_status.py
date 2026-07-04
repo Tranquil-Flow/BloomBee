@@ -134,10 +134,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_30b_proof_ladder",
         label="Qwen3-30B-A3B base-first proof ladder with Instruct-2507 follow-up",
         weight=15,
-        completion=0.35,
+        completion=0.45,
         status="stretch",
-        evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B, and a clean-archive two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json (finite forward/backward, failed_checks=[]). qwen30b_priority.py now codifies the post-MVP order: base Qwen3-30B-A3B first, Instruct-2507 follow-up, Thinking-2507 optional. This remains post-MVP/stretch and does not move the MVP-core 100% denominator after Qwen3-8B became demo-safe.",
-        next_step="full-generation parity for base Qwen3-30B-A3B, then cache-generation and multi-request load; run Instruct-2507 prescan/one-block only after base behavior is understood",
+        evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B, and a clean-archive two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json (finite forward/backward, failed_checks=[]). Instruct-2507 now has a Seagate-backed prescan + one-block live RPC proof at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json. qwen30b_priority.py codifies the post-MVP order: base Qwen3-30B-A3B first, Instruct-2507 follow-up, Thinking-2507 optional. This remains post-MVP/stretch and does not move the MVP-core 100% denominator after Qwen3-8B became demo-safe.",
+        next_step="full-generation parity for base Qwen3-30B-A3B, then cache-generation and multi-request load; for Instruct-2507, multi-block/full-generation gates remain before any route/demo promotion",
     ),
     Milestone(
         id="layerexecutor_quantized_backend_spike",
@@ -229,9 +229,9 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="qwen3_30b_2507_shelf",
         label="Prepared Qwen3-30B-A3B Instruct-2507 shelf; Thinking-2507 optional",
-        status="partial",
-        evidence="2507 variants are registered with config metadata and pending proof gates; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior; delegated Seagate-backed download/proof runner is blocked before download because /Volumes/Seagate Portable Drive is NTFS-mounted read-only on m4pro, tracked at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json",
-        next_step="provide a writable Seagate/external cache volume (APFS/exFAT or working NTFS write driver), then rerun Instruct-2507 prescan and one-block live proof with HF_HUB_DISABLE_XET=1; defer Thinking-2507 unless required by demo spec",
+        status="complete",
+        evidence="2507 variants are registered with config metadata; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior. The earlier Seagate NTFS blocker is tracked at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json; after APFS+exFAT setup, the Seagate-backed Instruct-2507 download, prescan, and one-block live RPC proof passed at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json. Multi-block/full-generation/cache/load remain separate promotion gates.",
+        next_step=None,
     ),
     PlanTask(
         id="qwen35b_candidate",

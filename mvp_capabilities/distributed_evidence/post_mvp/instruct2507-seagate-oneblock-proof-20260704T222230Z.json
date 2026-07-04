@@ -1,0 +1,116 @@
+{
+  "block_range": "0:1",
+  "cache_incomplete_files": [],
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_instruct2507_prescan_and_one_block_server_no_multiblock_or_generation_claim",
+  "client_excerpt": [
+    "[direct] model=Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "[direct] bootstrap peers (1):",
+    "[direct]   /ip4/127.0.0.1/tcp/31357/p2p/<redacted-peer>",
+    "[direct] requesting block range 0:1",
+    "[direct] AutoDistributedConfig.from_pretrained...",
+    "[direct]   ... 0.0s, hidden_size=2048, num_layers=48",
+    "[direct] DHT({'initial_peers': ['/ip4/127.0.0.1/tcp/31357/p2p/<redacted-peer>'], 'client_mode': True, 'start': True, 'daemon': False, 'no_listen': True})...",
+    "[direct]   ... 0.0s",
+    "[direct] RemoteSequential(config, dht=dht)...",
+    "[direct]   ... 0.0s, requested layers [0:1]",
+    "[direct] sending test_inputs shape=[1, 5, 2048] seed=2507 input_scale=0.1...",
+    "[direct]   ... 0.11s, output shape=[1, 5, 2048]",
+    "[direct]   ... backward 0.11s, grad_finite=True, grad_norm=10.0806",
+    "[direct] outputs finite: True, unique values: 6372.0",
+    "[direct] RESULT: {\"ok\": true, \"model\": \"Qwen/Qwen3-30B-A3B-Instruct-2507\", \"block_range\": [0, 1], \"input_shape\": [1, 5, 2048], \"output_shape\": [1, 5, 2048], \"outputs_finite\": true, \"outputs_unique\": 6372.0, \"grad_finite\": true, \"grad_norm\": 10.080649375915527, \"forward_seconds\": 0.10545778274536133, \"backward_seconds\": 0.10992622375488281, \"seed\": 2507, \"input_scale\": 0.1}"
+  ],
+  "client_result": {
+    "backward_seconds": 0.10992622375488281,
+    "block_range": [
+      0,
+      1
+    ],
+    "forward_seconds": 0.10545778274536133,
+    "grad_finite": true,
+    "grad_norm": 10.080649375915527,
+    "input_scale": 0.1,
+    "input_shape": [
+      1,
+      5,
+      2048
+    ],
+    "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "ok": true,
+    "output_shape": [
+      1,
+      5,
+      2048
+    ],
+    "outputs_finite": true,
+    "outputs_unique": 6372.0,
+    "seed": 2507
+  },
+  "do_not_claim": [
+    "multi_block",
+    "full_generation",
+    "cache_generation",
+    "multi_request_load",
+    "safe_demo_selectable"
+  ],
+  "download_log": "/Users/evinova-self/Projects/distributed-inference-mvp/.local/logs/instruct2507-seagate-download-watchdog-20260704T220450Z.log",
+  "download_message": "one-block-required Instruct-2507 files are present on Seagate HF cache",
+  "download_scope": "one_block_required_files",
+  "download_status": "downloaded",
+  "exchange_volume": "/Volumes/Exchange",
+  "failed_checks": [],
+  "generated_at_utc": "2026-07-04T22:22:30Z",
+  "hf_hub_cache": "/Volumes/Seagate Portable Drive/huggingface/hub",
+  "host": "m4pro",
+  "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "one_block_proof_status": "passed",
+  "prescan_excerpt": [
+    "[prescan] loading AutoConfig for Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "[prescan] model_type='qwen3_moe'",
+    "[prescan] num_hidden_layers=48",
+    "[prescan] hidden_size=2048 num_experts=128",
+    "[prescan] num_experts_per_tok=8",
+    "[prescan] block_class=WrappedQwen3MoeBlock",
+    "[prescan] attn_class=Qwen3MoeAttention",
+    "[prescan] block_prefix=model.layers",
+    "[prescan] PASS"
+  ],
+  "prescan_status": "passed",
+  "proof_gate": "one_block_server",
+  "proof_status_update": {
+    "one_block_server": "passed",
+    "prescan": "passed"
+  },
+  "required_files": {
+    "config.json": {
+      "bytes": 963,
+      "present": true
+    },
+    "model-00001-of-00016.safetensors": {
+      "bytes": 3998893112,
+      "present": true
+    },
+    "model.safetensors.index.json": {
+      "bytes": 1699758,
+      "present": true
+    }
+  },
+  "seagate_volume": "/Volumes/Seagate Portable Drive",
+  "server_excerpt": [
+    "Jul 05 00:21:58.005 [INFO] Running a server on ['/ip4/10.37.129.2/tcp/31357/p2p/<redacted-peer>', '/ip4/127.0.0.1/tcp/31357/p2p/<redacted-peer>', '/ip6/::1/tcp/31357/p2p/<redacted-peer>']",
+    "Jul 05 00:21:58.040 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "Jul 05 00:21:59.210 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "Jul 05 00:22:24.768 [INFO] Reporting throughput: 626.1 tokens/sec for 1 blocks",
+    "Jul 05 00:22:24.788 [INFO] Announced that blocks range(0, 1) are joining",
+    "Jul 05 00:22:24.835 [INFO] Loading HF weights for model.layers.0. from Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "Jul 05 00:22:25.156 [INFO] Started",
+    "Jul 05 00:22:28.076 [INFO] rpc_forward(blocks=0:1, remote_peer=...qKjT4S)",
+    "Jul 05 00:22:28.182 [INFO] rpc_backward(blocks=0:1, remote_peer=...qKjT4S)"
+  ],
+  "snapshot_path": "/Volumes/Seagate Portable Drive/huggingface/hub/models--Qwen--Qwen3-30B-A3B-Instruct-2507/snapshots/0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "source_run_dir": "/Users/evinova-self/Projects/distributed-inference-mvp/.local/instruct2507-oneblock-after-download-20260704T220451Z",
+  "source_status_files": {
+    "download": "/Users/evinova-self/Projects/distributed-inference-mvp/.local/status/instruct2507-seagate-download-watchdog.status",
+    "proof": "/Users/evinova-self/Projects/distributed-inference-mvp/.local/status/instruct2507-oneblock-after-download.status"
+  }
+}

@@ -360,7 +360,8 @@ def test_qwen30b_priority_report_prefers_base_then_instruct_then_optional_thinki
     assert instruct["priority_role"] == "user_facing_followup"
     assert instruct["priority_rank"] == 2
     assert instruct["recommended_after_base_gates"] == ["full_generation", "cache_generation", "multi_request_load"]
-    assert instruct["next_gate"] == "prescan"
+    assert instruct["gates_already_passed"] == ["prescan", "one_block_server"]
+    assert instruct["next_gate"] == "multi_block"
     assert instruct["safe_demo_selectable"] is False
 
     thinking = by_model["Qwen/Qwen3-30B-A3B-Thinking-2507"]
@@ -389,6 +390,38 @@ def test_instruct2507_seagate_readonly_blocker_artifact_is_claim_bounded():
     assert "HF_HUB_DISABLE_XET=1" in payload["rerun_requirements"]
 
 
+def test_instruct2507_seagate_oneblock_proof_artifact_is_claim_bounded():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json"
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "verified_instruct2507_prescan_and_one_block_server_no_multiblock_or_generation_claim"
+    assert payload["model_id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert payload["download_status"] == "downloaded"
+    assert payload["hf_hub_cache"] == "/Volumes/Seagate Portable Drive/huggingface/hub"
+    assert payload["exchange_volume"] == "/Volumes/Exchange"
+    assert payload["cache_incomplete_files"] == []
+    assert payload["prescan_status"] == "passed"
+    assert payload["one_block_proof_status"] == "passed"
+    assert payload["proof_status_update"] == {"prescan": "passed", "one_block_server": "passed"}
+    assert payload["block_range"] == "0:1"
+    assert payload["client_result"]["ok"] is True
+    assert payload["client_result"]["model"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert payload["client_result"]["block_range"] == [0, 1]
+    assert payload["client_result"]["outputs_finite"] is True
+    assert payload["client_result"]["grad_finite"] is True
+    assert payload["failed_checks"] == []
+    assert payload["required_files"]["model-00001-of-00016.safetensors"]["present"] is True
+    assert payload["required_files"]["model-00001-of-00016.safetensors"]["bytes"] > 3_000_000_000
+    assert "multi_block" in payload["do_not_claim"]
+    assert "full_generation" in payload["do_not_claim"]
+    assert "cache_generation" in payload["do_not_claim"]
+    assert any("[prescan] PASS" in line for line in payload["prescan_excerpt"])
+    assert any("rpc_forward(blocks=0:1" in line for line in payload["server_excerpt"])
+    assert any("[direct] RESULT" in line for line in payload["client_excerpt"])
+    assert "12D3Koo" not in json.dumps(payload["server_excerpt"] + payload["client_excerpt"])
+
+
 
 def test_qwen30b_priority_cli_outputs_review_ready_json():
     proc = subprocess.run(
@@ -403,7 +436,8 @@ def test_qwen30b_priority_cli_outputs_review_ready_json():
     assert payload["claim_boundary"] == "post_mvp_qwen30b_prioritization_only_no_new_inference_proof"
     assert payload["priority_order"][0] == "Qwen/Qwen3-30B-A3B"
     assert payload["models"][0]["next_gate"] == "full_generation"
-    assert payload["models"][1]["next_gate"] == "prescan"
+    assert payload["models"][1]["next_gate"] == "multi_block"
+    assert payload["models"][1]["gates_already_passed"] == ["prescan", "one_block_server"]
     assert payload["models"][2]["optional"] is True
 
 
@@ -483,8 +517,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     post_mvp = {item["id"]: item for item in report["post_mvp_milestones"]}
     assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
-    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.35
+    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.45
     assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "instruct2507-seagate-oneblock-proof-20260704T222230Z.json" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "qwen30b_priority.py" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "Instruct-2507 follow-up" in post_mvp["qwen3_30b_proof_ladder"]["label"]
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
@@ -499,10 +534,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 9, "partial": 7, "pending": 0, "blocked": 1, "total": 17}
+    assert report["task_summary"] == {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
     assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert report["post_mvp_task_summary"] == {"complete": 0, "partial": 7, "pending": 0, "blocked": 1, "total": 8}
+    assert report["post_mvp_task_summary"] == {"complete": 1, "partial": 6, "pending": 0, "blocked": 1, "total": 8}
     assert report["core_tasks_complete"] is True
     assert {item["status"] for item in report["core_tasks"]} == {"complete"}
     assert {item["id"] for item in report["post_mvp_tasks"]} == {
@@ -554,14 +589,16 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "Thinking-2507 optional" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
     assert "instruct2507-seagate-readonly-blocker-20260704.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
-    assert "writable Seagate" in tasks["qwen3_30b_2507_shelf"]["next_step"]
-    assert "defer Thinking-2507" in tasks["qwen3_30b_2507_shelf"]["next_step"]
+    assert "instruct2507-seagate-oneblock-proof-20260704T222230Z.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "one-block live RPC proof passed" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert tasks["qwen3_30b_2507_shelf"]["status"] == "complete"
+    assert tasks["qwen3_30b_2507_shelf"]["next_step"] is None
     markdown = render_markdown(report)
     assert "## MVP-core tasks" in markdown
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
     assert "## Post-MVP backlog tasks" in markdown
-    assert "Post-MVP backlog task summary: 0 complete, 7 partial, 0 pending, 1 blocked" in markdown
-    assert "All-task summary: 9 complete, 7 partial, 0 pending, 1 blocked" in markdown
+    assert "Post-MVP backlog task summary: 1 complete, 6 partial, 0 pending, 1 blocked" in markdown
+    assert "All-task summary: 10 complete, 6 partial, 0 pending, 1 blocked" in markdown
 
 
 
@@ -690,8 +727,8 @@ def test_mvp_status_cli_outputs_json():
     assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 1
-    assert payload["task_summary"]["partial"] == 7
-    assert payload["task_summary"]["complete"] == 9
+    assert payload["task_summary"]["partial"] == 6
+    assert payload["task_summary"]["complete"] == 10
     assert any(task["id"] == "qwen35b_candidate" and task["status"] == "partial" for task in payload["planned_tasks"])
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 

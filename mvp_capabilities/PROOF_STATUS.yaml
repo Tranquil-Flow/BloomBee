@@ -42,8 +42,8 @@ models:
     multi_request_load: pending
 
   Qwen/Qwen3-30B-A3B-Instruct-2507:
-    prescan: pending
-    one_block_server: pending
+    prescan: passed
+    one_block_server: passed
     multi_block: pending
     full_generation: pending
     cache_generation: pending
