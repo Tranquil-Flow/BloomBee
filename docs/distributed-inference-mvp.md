@@ -87,7 +87,8 @@ Selected-model server launch from that fresh joined plan and the final
 `physical_showcase_proof.py` cross-artifact pass remain blocked because the
 Pixel Termux peer did not report usable Qwen3-8B layer capacity. Qwen3-30B and larger/model-optimisation work remains
 visible as post-MVP/stretch work and does not drag the 100% MVP denominator. The
-post-MVP task scope is tracked in `docs/post-mvp-scope.md`.
+MVP finish runbook is tracked in `docs/mvp-finish-plan.md`, and the post-MVP task
+scope is tracked in `docs/post-mvp-scope.md`.
 
 - Local M4 16GB can load and run TinyLlama-1.1B on MPS after the sitecustomize RLock fix.
 - Fresh repo-local live scan on 2026-07-03: local `evinova` /
