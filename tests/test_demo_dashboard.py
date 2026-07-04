@@ -469,6 +469,32 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
 
+def test_dashboard_request_telemetry_formats_zero_latency_as_unmeasured():
+    from mvp_capabilities.demo_dashboard import _request_telemetry_panel
+
+    html = _request_telemetry_panel(
+        {
+            "claim_boundary": "request_telemetry_observability_only_no_load_proof",
+            "request_counts": {"total": 1, "succeeded": 1, "failed": 0},
+            "latency_seconds": {
+                "forward": {"count": 0, "avg": None, "min": None, "max": None, "p95": None, "unmeasured_count": 1},
+                "backward": {"count": 0, "avg": None, "min": None, "max": None, "p95": None, "unmeasured_count": 1},
+            },
+            "models": {"Qwen/Qwen3-8B": 1},
+            "block_ranges": {"0:1": 1},
+            "load_proof_claimed": False,
+            "errors": [],
+            "next_step": "Zero latency means unmeasured, not a fast request.",
+        }
+    )
+
+    assert "forward avg unmeasured" in html
+    assert "backward avg unmeasured" in html
+    assert "Unmeasured latency" in html
+    assert "forward 1 / backward 1" in html
+    assert "0.00s" not in html
+
+
 def test_dashboard_cli_writes_html_artifact(tmp_path: Path):
     cap_dir = tmp_path / "caps"
     cap_dir.mkdir()

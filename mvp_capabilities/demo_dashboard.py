@@ -89,6 +89,16 @@ def _fmt_measured_rate(value: Any) -> str:
     return f"{rate:.2f}"
 
 
+def _fmt_latency_seconds(value: Any) -> str:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return "unmeasured"
+    if seconds <= 0.0:
+        return "unmeasured"
+    return f"{seconds:.2f}s"
+
+
 def _bool_badge(value: Any) -> str:
     if value is True:
         return '<span class="badge ok">yes</span>'
@@ -417,10 +427,11 @@ def _request_telemetry_panel(report: dict[str, Any]) -> str:
         <div class="grid two">
           <div><span class="label">Requests</span><strong>succeeded {_esc(counts.get('succeeded') or 0)} / failed {_esc(counts.get('failed') or 0)}</strong></div>
           <div><span class="label">Total observed</span><strong>{_esc(counts.get('total') or 0)}</strong></div>
-          <div><span class="label">Forward latency</span><strong>forward avg {_fmt_num(forward.get('avg'), 2)}s · p95 {_fmt_num(forward.get('p95'), 2)}s</strong></div>
-          <div><span class="label">Backward latency</span><strong>backward avg {_fmt_num(backward.get('avg'), 2)}s · p95 {_fmt_num(backward.get('p95'), 2)}s</strong></div>
+          <div><span class="label">Forward latency</span><strong>forward avg {_fmt_latency_seconds(forward.get('avg'))} · p95 {_fmt_latency_seconds(forward.get('p95'))}</strong></div>
+          <div><span class="label">Backward latency</span><strong>backward avg {_fmt_latency_seconds(backward.get('avg'))} · p95 {_fmt_latency_seconds(backward.get('p95'))}</strong></div>
           <div><span class="label">Models</span><strong>{_esc(models)}</strong></div>
           <div><span class="label">Block ranges</span><strong>{_esc(block_ranges)}</strong></div>
+          <div><span class="label">Unmeasured latency</span><strong>forward {_esc(forward.get('unmeasured_count') or 0)} / backward {_esc(backward.get('unmeasured_count') or 0)}</strong></div>
           <div><span class="label">Traffic claim</span><strong class="warn">{_esc(claim_copy)}</strong></div>
           <div><span class="label">Claim boundary</span><code>{_esc(report.get('claim_boundary'))}</code></div>
         </div>

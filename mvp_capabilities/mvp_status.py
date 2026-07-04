@@ -43,7 +43,7 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=10,
         completion=1.00,
         status="complete",
-        evidence="route_picker.py supports planning/showcase-attempt/safe-demo; Qwen3 2507 variants registered",
+        evidence="route_picker.py supports planning/showcase-attempt/safe-demo, infers registry HF model_type, and blocks unsupported wrappers from showcase/safe-demo; Qwen3 2507 variants registered",
     ),
     Milestone(
         id="dashboard_visibility",
@@ -108,9 +108,9 @@ MILESTONES: tuple[Milestone, ...] = (
         id="chain_scheduler",
         label="Multi-request chain scheduler, speculative decode scaffold, and load proof",
         weight=8,
-        completion=0.56,
+        completion=0.57,
         status="partial",
-        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; proof_orchestrator.py orders handoff launch/proof runbooks and blocks unresolved placeholders or legacy peer flags before operator execution; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards; multi_request_load_proof.py verifies repeated direct-client logs before proof promotion",
+        evidence="chain_scheduler.py turns joined layer plans into multi-request waves, per-peer load estimates, and no-live-traffic health reports; proof_orchestrator.py orders handoff launch/proof runbooks and blocks unresolved placeholders or legacy peer flags before operator execution; speculative_decode_plan.py defines verifier-authoritative draft-provider plans and phone-as-draft-only policy; request_telemetry.py summarizes direct-client success/failure and latency logs for dashboards, treating zero latency as unmeasured; multi_request_load_proof.py verifies repeated direct-client logs and now blocks unmeasured latency before proof promotion",
         next_step="send multi-request live traffic through started servers and pass multi_request_load_proof.py verify; measure draft-provider latency/match rate before enabling speculative decode",
     ),
     Milestone(

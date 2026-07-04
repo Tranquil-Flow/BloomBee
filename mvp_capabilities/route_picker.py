@@ -17,11 +17,11 @@ from typing import Any
 import yaml
 
 try:
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, SUPPORTED_FAMILIES, load_proof_status
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/route_picker.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, SUPPORTED_FAMILIES, load_proof_status
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 
 
@@ -36,12 +36,70 @@ def load_registry(path: str | Path = DEFAULT_REGISTRY) -> list[dict[str, Any]]:
     models = payload.get("models") or []
     enriched: list[dict[str, Any]] = []
     for rank, model in enumerate(models):
-        model = dict(model)
+        model = _annotate_architecture_support(dict(model))
         model.setdefault("quality_rank", _default_quality_rank(model, rank))
         model["mvp_target"] = model.get("model_id") == MVP_MODEL_ID or bool(model.get("mvp_target"))
         model["stretch_target"] = model.get("model_id") == STRETCH_MODEL_ID or bool(model.get("stretch_target"))
         enriched.append(model)
     return enriched
+
+
+def _infer_hf_model_type(model: dict[str, Any]) -> str | None:
+    explicit = model.get("hf_model_type") or model.get("model_type")
+    if explicit:
+        return str(explicit)
+
+    model_id = str(model.get("model_id") or "").lower()
+    if not model_id:
+        return None
+    if "qwen3" in model_id and ("a3b" in model_id or "a22b" in model_id):
+        return "qwen3_moe"
+    if "qwen3" in model_id:
+        return "qwen3"
+    if "qwen2" in model_id or "deepseek-r1-distill-qwen" in model_id:
+        return "qwen2"
+    if "mixtral" in model_id:
+        return "mixtral"
+    if "mistral" in model_id:
+        return "mistral"
+    if "tinyllama" in model_id or "llama" in model_id:
+        return "llama"
+    if "bloom" in model_id:
+        return "bloom"
+    if "falcon" in model_id:
+        return "falcon"
+    if "gemma-4" in model_id or "gemma4" in model_id:
+        return "gemma4"
+    if "gemma-2" in model_id or "gemma2" in model_id:
+        return "gemma2"
+    if "glm" in model_id:
+        return "glm5_moe"
+    return None
+
+
+def _annotate_architecture_support(model: dict[str, Any]) -> dict[str, Any]:
+    model = dict(model)
+    hf_model_type = _infer_hf_model_type(model)
+    if hf_model_type:
+        model.setdefault("hf_model_type", hf_model_type)
+
+    if model.get("architecture_supported") is None and hf_model_type:
+        model["architecture_supported"] = hf_model_type in SUPPORTED_FAMILIES
+    elif model.get("architecture_supported") is not None:
+        model["architecture_supported"] = bool(model.get("architecture_supported"))
+
+    if model.get("architecture_supported") and hf_model_type in SUPPORTED_FAMILIES:
+        model.setdefault("bloombee_family", SUPPORTED_FAMILIES[hf_model_type]["bloombee_family"])
+        model.setdefault("block_prefix", SUPPORTED_FAMILIES[hf_model_type]["block_prefix"])
+
+    blocked_reasons = list(model.get("blocked_reasons") or [])
+    if model.get("architecture_supported") is False:
+        reason = f"No BloomBee block wrapper registered for model_type={hf_model_type or 'unknown'}"
+        if reason not in blocked_reasons:
+            blocked_reasons.append(reason)
+    if blocked_reasons:
+        model["blocked_reasons"] = blocked_reasons
+    return model
 
 
 def _default_quality_rank(model: dict[str, Any], fallback_rank: int) -> float:
@@ -146,31 +204,40 @@ def evaluate_model(
     proof_status: dict[str, dict[str, str]] | None = None,
     selector_mode: str = "planning",
 ) -> dict[str, Any]:
+    model = _annotate_architecture_support(model)
     required_gb = _model_required_gb(model)
     free_by_peer = [(peer.get("hostname", "unknown"), _peer_free_gb(peer)) for peer in peers]
     solo_hosts = [host for host, free in free_by_peer if free >= required_gb]
     total_free = sum(free for _, free in free_by_peer)
-    supported = False
+    memory_fit = False
     placement = "unsupported"
 
     if solo_hosts:
-        supported = True
+        memory_fit = True
         placement = "solo" if len(solo_hosts) == 1 else "replicated"
         reason = f"{len(solo_hosts)} peer(s) have >= {required_gb:.1f}GB free"
     elif peers and total_free >= required_gb:
-        supported = True
+        memory_fit = True
         placement = "block_parallel_candidate"
         reason = f"aggregate swarm free memory {total_free:.1f}GB >= {required_gb:.1f}GB required"
     else:
         reason = f"requires {required_gb:.1f}GB free; swarm has {total_free:.1f}GB"
 
+    architecture_supported = model.get("architecture_supported") is not False
+    runtime_supported = memory_fit and architecture_supported
     model_proof_status = _proof_status_for(model, proof_status)
     claim_level = _claim_level_for(model, model_proof_status)
     selector_allowed, selector_blocked_reason = _selector_allowed(selector_mode, claim_level)
 
     return {
         "model_id": model.get("model_id"),
-        "supported": supported,
+        "supported": memory_fit,
+        "memory_fit": memory_fit,
+        "architecture_supported": architecture_supported,
+        "runtime_supported": runtime_supported,
+        "hf_model_type": model.get("hf_model_type"),
+        "bloombee_family": model.get("bloombee_family"),
+        "blocked_reasons": model.get("blocked_reasons") or [],
         "placement": placement,
         "reason": reason,
         "required_free_gb": required_gb,

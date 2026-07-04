@@ -106,6 +106,8 @@ A **Distributed Hash Table (DHT)** keeps track of which server hosts which layer
 
 Any HuggingFace model with a matching architecture can be served. Use `AutoDistributedModelForCausalLM` to load a model automatically.
 
+Runtime support is gated by the HF `config.json` `model_type`, not by name similarity alone. Current registered causal-LM wrappers are `bloom`, `falcon`, `gemma4`, `llama`, `mixtral`, `qwen3`, and `qwen3_moe`. Similar-looking families such as Qwen2/Qwen2.5 (`model_type=qwen2`), Mistral-7B (`mistral`), Gemma-2 (`gemma2`), and DeepSeek-R1-Distill-Qwen (`qwen2`) need new BloomBee wrappers before they are BloomBee-runnable.
+
 > **Note:** Qwen3 (152k vocab) and Gemma-4 (262k vocab) have large vocabularies, so the client-side LM head matmul dominates decode latency on CPU. Use a GPU client for these families (`model.to("cuda")`, or `--client_device cuda` in `benchmarks/benchmark_inference.py`).
 
 ---

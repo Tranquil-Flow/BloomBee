@@ -27,7 +27,7 @@ BloomBee's runtime already maintains.
 |------:|------|--------------|--------|
 | 1. Hardware | `peer_scan.py` | Probes the local node: hostname, Tailscale IP, CPU model & counts, RAM, MPS/CUDA VRAM, ping latency to peers, free disk on `~/.cache/huggingface`. | JSON to stdout AND `~/.bloombee/capabilities/<hostname>.json` |
 | 2. Catalog | `MODEL_REGISTRY.yaml` | Static footprint + arch metadata for ~20 candidate models (TinyLlama through Qwen3-235B-A22B, dense and MoE). | YAML, loaded by the scheduler |
-| 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. | JSON compatibility report |
+| 3. Compatibility | `model_compat_scan.py` + `PROOF_STATUS.yaml` | Reads `config.json`, maps HF `model_type` to BloomBee support, merges proof gates, and emits honest claim level. `route_picker.py` also infers registry model types so unsupported wrappers cannot be selected for showcase/safe-demo just because memory fits. | JSON compatibility report |
 | 4. Proof ladder | `proof_ladder.py` | Audits ordered proof gates for prepared models and shows the next gate before any promotion. This is audit state only, not inference proof. | JSON proof-ladder report |
 | 5. One-block proof harness | `one_block_proof.py` | Emits exact one-block server/client commands and verifies captured logs before a proof gate can be promoted. Planning mode is not proof. | JSON plan / verification report |
 | 6. Full-generation proof harness | `full_generation_proof.py` | Emits `text_generation_parity.py` runbooks and verifies exact distributed/reference generated IDs and text before allowing `full_generation` proof promotion. Planning mode is not proof. | JSON plan / verification report |
@@ -335,7 +335,7 @@ As of the current implementation slice:
 - Fresh repo-local live scan on 2026-07-03: local M4 has ~2.3GB free and
   m4pro has ~34.5GB free; combined live roster is 2 peers, 64GB total,
   ~36.8GB free.
-- Real two-device roster route currently picks `google/gemma-2-9b-it` as a solo M4 Pro route when M4 Pro has enough free memory.
+- Runtime selection now separates memory-fit planning from BloomBee wrapper support. `qwen2`/Qwen2.5 and `gemma2` benchmark entries are retained as local-transformers performance evidence, but route selection blocks them from showcase/safe-demo BloomBee runs until wrappers exist.
 - Synthetic 10-laptop MVP route picks `Qwen/Qwen3-30B-A3B` as the block-parallel candidate.
 - Prepared Qwen3-30B-A3B 2507 variants (`Instruct-2507`, `Thinking-2507`)
   are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will

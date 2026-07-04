@@ -475,6 +475,26 @@ def test_request_telemetry_parses_direct_client_results_and_errors(tmp_path: Pat
     assert report["errors"][0]["message"] == "RuntimeError: DHT bootstrap failed before RPC"
 
 
+def test_request_telemetry_treats_zero_latency_as_unmeasured(tmp_path: Path):
+    from mvp_capabilities.request_telemetry import build_request_telemetry
+
+    log = tmp_path / "direct-zero-latency.log"
+    log.write_text(
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0, "backward_seconds": 0, "outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+
+    report = build_request_telemetry([log])
+
+    assert report["request_counts"] == {"total": 1, "succeeded": 1, "failed": 0}
+    assert report["latency_seconds"]["forward"]["count"] == 0
+    assert report["latency_seconds"]["forward"]["avg"] is None
+    assert report["latency_seconds"]["forward"]["unmeasured_count"] == 1
+    assert report["latency_seconds"]["backward"]["count"] == 0
+    assert report["latency_seconds"]["backward"]["unmeasured_count"] == 1
+
+
 def test_request_telemetry_cli_outputs_json(tmp_path: Path):
     log = tmp_path / "direct.log"
     log.write_text(
@@ -578,6 +598,30 @@ def test_multi_request_load_proof_verifier_blocks_failed_or_missing_requests(tmp
     assert result["can_update_proof_status"] is False
     assert any("expected 3 successful requests, saw 1" in item for item in result["failed_checks"])
     assert any("request telemetry recorded 1 failed request" in item for item in result["failed_checks"])
+
+
+def test_multi_request_load_proof_verifier_blocks_unmeasured_zero_latency(tmp_path: Path):
+    from mvp_capabilities.multi_request_load_proof import verify_multi_request_load_evidence
+
+    log = tmp_path / "load-client-000.log"
+    log.write_text(
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0, "backward_seconds": 0, "outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+
+    result = verify_multi_request_load_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        request_logs=[log],
+        expected_request_count=1,
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert result["telemetry"]["latency_seconds"]["forward"]["unmeasured_count"] == 1
+    assert any("forward latency measured for 0/1 requests" in item for item in result["failed_checks"])
+    assert any("0 means unmeasured" in item for item in result["failed_checks"])
 
 
 def test_full_generation_proof_plan_emits_text_generation_parity_runbook():
@@ -1494,6 +1538,36 @@ def test_model_compat_scan_merges_proof_status_registry(tmp_path: Path):
     assert result["proof_status"]["one_block_server"] == "passed"
     assert result["proof_status"]["multi_block"] == "pending"
     assert result["claim_level"] == "experimental"
+
+
+def test_route_picker_blocks_registry_models_without_bloombee_wrapper():
+    from mvp_capabilities.route_picker import choose_best_route, load_registry
+
+    peers = [{"hostname": "m4pro", "memory": {"free_gb": 25}, "accelerator": {"device": "mps"}}]
+    registry = load_registry(REGISTRY_PATH)
+
+    qwen25 = choose_best_route(
+        peers,
+        registry,
+        requested_model="Qwen/Qwen2.5-7B-Instruct",
+        selector_mode="showcase-attempt",
+    )
+
+    assert qwen25["hf_model_type"] == "qwen2"
+    assert qwen25["architecture_supported"] is False
+    assert qwen25["memory_fit"] is True
+    assert qwen25["runtime_supported"] is False
+    assert qwen25["claim_level"] == "blocked"
+    assert qwen25["selector_allowed"] is False
+    assert "wrapper" in qwen25["selector_blocked_reason"].lower()
+
+    route = choose_best_route(peers, registry, selector_mode="showcase-attempt")
+
+    assert route["model_id"].startswith("Qwen/Qwen3-")
+    assert route["hf_model_type"] == "qwen3"
+    assert route["architecture_supported"] is True
+    assert route["runtime_supported"] is True
+    assert route["claim_level"] == "experimental"
 
 
 def test_join_offer_builds_shareable_link_with_expiry():

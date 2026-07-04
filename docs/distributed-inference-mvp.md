@@ -77,12 +77,10 @@ public-demo proof. Next gate: **Qwen3-8B multi-block or full-generation proof**.
   `Evis-MacBook-Pro` reports MPS, 16GB total, ~2.3GB free; `m4pro`
   reports MPS, 48GB total, ~34.5GB free. Combined live roster: 2 peers,
   64GB total, ~36.8GB free.
-- Current two-peer route with the measured M4 Pro matrix picks
-  `google/gemma-2-9b-it` as a solo `m4pro` route. This is a live roster
-  choice, not the final 10-laptop target.
+- Current route selection now separates memory-fit planning from BloomBee runtime wrapper support. `qwen2`/Qwen2.5 and `gemma2` benchmark entries are useful local-transformers speed evidence, but they are blocked from showcase/safe-demo BloomBee selection until wrappers exist. TinyLlama is the proven safe-demo fallback; Qwen3 candidates remain experimental until generation proof gates pass.
 - Measured local TinyLlama benchmark (cold cache): prefill ~610.7 tok/s, decode ~7.7 tok/s.
 - Measured local TinyLlama (warm cache, repeat run): prefill 1130.3 tok/s, decode 28.6 tok/s, peak 0.21 GB.
-- Measured M4 Pro bf16 sweep (5 models, 2026-07-02):
+- Measured M4 Pro bf16 local-transformers sweep (5 models, 2026-07-02; benchmark data only, not BloomBee wrapper proof):
   | Model | Prefill tok/s | Decode tok/s |
   |--:|--:|--:|
   | Qwen2.5-0.5B-Instruct | 587 | 11.4 |

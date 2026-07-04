@@ -142,6 +142,16 @@ def verify_multi_request_load_evidence(
     if failed_count:
         noun = "request" if failed_count == 1 else "requests"
         failed.append(f"request telemetry recorded {failed_count} failed {noun}")
+    latency = telemetry.get("latency_seconds") or {}
+    for direction in ("forward", "backward"):
+        summary = latency.get(direction) or {}
+        measured = int(summary.get("count") or 0)
+        unmeasured = int(summary.get("unmeasured_count") or 0)
+        if measured < expected_request_count:
+            failed.append(
+                f"{direction} latency measured for {measured}/{expected_request_count} requests; "
+                f"{unmeasured} unmeasured (0 means unmeasured, not zero)"
+            )
     if len(results) < expected_request_count:
         failed.append(f"expected {expected_request_count} direct result rows, saw {len(results)}")
 

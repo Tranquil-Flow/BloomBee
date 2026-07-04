@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -35,16 +36,29 @@ def _percentile(values: list[float], percentile: float) -> float | None:
     return round(ordered[lower] * (1 - weight) + ordered[upper] * weight, 6)
 
 
-def _latency_summary(values: list[float]) -> dict[str, Any]:
+def _latency_summary(values: list[float], *, unmeasured_count: int = 0) -> dict[str, Any]:
     if not values:
-        return {"count": 0, "avg": None, "min": None, "max": None, "p95": None}
+        return {"count": 0, "avg": None, "min": None, "max": None, "p95": None, "unmeasured_count": unmeasured_count}
     return {
         "count": len(values),
         "avg": round(sum(values) / len(values), 6),
         "min": round(min(values), 6),
         "max": round(max(values), 6),
         "p95": _percentile(values, 0.95),
+        "unmeasured_count": unmeasured_count,
     }
+
+
+def _append_positive_latency(value: Any, latencies: list[float]) -> bool:
+    """Append measured latency seconds; return False for missing/zero/unmeasured values."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(seconds) or seconds <= 0.0:
+        return False
+    latencies.append(seconds)
+    return True
 
 
 def _block_range_label(value: Any) -> str | None:
@@ -74,6 +88,7 @@ def build_request_telemetry(paths: Iterable[str | Path] | None = None) -> dict[s
     block_ranges: Counter[str] = Counter()
     forward_latencies: list[float] = []
     backward_latencies: list[float] = []
+    unmeasured_latencies = {"forward": 0, "backward": 0}
     errors: list[dict[str, str]] = []
     result_rows: list[dict[str, Any]] = []
     explicit_failure_logs: set[str] = set()
@@ -105,16 +120,10 @@ def build_request_telemetry(paths: Iterable[str | Path] | None = None) -> dict[s
                 block_label = _block_range_label(payload.get("block_range"))
                 if block_label:
                     block_ranges[block_label] += 1
-                if payload.get("forward_seconds") is not None:
-                    try:
-                        forward_latencies.append(float(payload["forward_seconds"]))
-                    except (TypeError, ValueError):
-                        pass
-                if payload.get("backward_seconds") is not None:
-                    try:
-                        backward_latencies.append(float(payload["backward_seconds"]))
-                    except (TypeError, ValueError):
-                        pass
+                if not _append_positive_latency(payload.get("forward_seconds"), forward_latencies):
+                    unmeasured_latencies["forward"] += 1
+                if not _append_positive_latency(payload.get("backward_seconds"), backward_latencies):
+                    unmeasured_latencies["backward"] += 1
                 if payload.get("ok") is not True:
                     explicit_failure_logs.add(log_path)
                     errors.append({"log": log_path, "message": f"result ok={payload.get('ok')}"})
@@ -136,8 +145,8 @@ def build_request_telemetry(paths: Iterable[str | Path] | None = None) -> dict[s
         "models": dict(sorted(models.items())),
         "block_ranges": dict(sorted(block_ranges.items())),
         "latency_seconds": {
-            "forward": _latency_summary(forward_latencies),
-            "backward": _latency_summary(backward_latencies),
+            "forward": _latency_summary(forward_latencies, unmeasured_count=unmeasured_latencies["forward"]),
+            "backward": _latency_summary(backward_latencies, unmeasured_count=unmeasured_latencies["backward"]),
         },
         "errors": errors[:12],
         "next_step": "Run a dedicated multi-request load proof before promoting multi_request_load.",
