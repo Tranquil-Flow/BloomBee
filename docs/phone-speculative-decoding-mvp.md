@@ -178,6 +178,17 @@ prompt `Once upon a time`, `n_predict=8`, generated text
 This advances the phone from standalone tiny-GGUF generation to a bridgeable
 draft-provider candidate, but verifier acceptance and speedup remain unproven.
 
+Verifier-comparison update: `mvp_capabilities/phone_draft_verifier_compare.py`
+compares the phone draft text as exact UTF-8 byte tokens against authoritative
+verifier text. Tracked positive-control evidence accepted 33/33 bytes:
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json`.
+Tracked live verifier evidence used m4pro `Qwen/Qwen2.5-0.5B-Instruct`, which
+generated `In the vast and mysterious universe of the` for the same prompt and
+accepted 0/33 phone-draft bytes:
+`mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json`.
+This proves comparison machinery and a real verifier mismatch; it still does not
+prove tokenizer-level speculative decoding or speedup.
+
 ### Slice 3: real phone smoke
 
 Run capability scan + draft throughput + verifier parity on one connected phone.

@@ -1,0 +1,12 @@
+{
+  "device": "mps",
+  "elapsed_s": 0.962631,
+  "generated_text": "In the vast and mysterious universe of the",
+  "generation_proven": true,
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prompt": "Once upon a time",
+  "python": "3.9.6",
+  "source": "m4pro-live-verifier-qwen05.py",
+  "torch": "2.8.0",
+  "verifier_kind": "live_model_generation"
+}

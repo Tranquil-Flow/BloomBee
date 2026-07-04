@@ -3527,6 +3527,89 @@ def test_termux_gguf_draft_bridge_tracked_phone_evidence_has_no_speedup_claim():
     assert payload["can_update_bloombee_block_worker_status"] is False
 
 
+def test_phone_draft_verifier_compare_counts_utf8_prefix_acceptance():
+    from mvp_capabilities.phone_draft_verifier_compare import compare_phone_draft_to_verifier
+
+    bridge = {
+        "evidence": {
+            "source": "termux_gguf_draft_bridge.sh",
+            "phone_runtime": {"runtime": "termux", "android_model": "Pixel 8 Pro"},
+            "model": {"id": "ggml-org/tiny-llamas/stories15M.gguf"},
+            "draft_request": {"prompt": "Once upon a time"},
+            "draft_response": {"generated_text": "One day", "elapsed_s": 0.1},
+            "generation_proven": True,
+        }
+    }
+
+    report = compare_phone_draft_to_verifier(
+        bridge,
+        verifier_text="One day, a little girl",
+        verifier_source="positive-control",
+        verifier_kind="positive_control_text",
+    )
+
+    assert report["claim_boundary"] == "phone_gguf_draft_verifier_text_prefix_comparison_no_tokenizer_no_speedup_claim"
+    assert report["verification_status"] == "passed"
+    assert report["verifier"]["authoritative"] is True
+    assert report["verdict"]["accepted_text"] == "One day"
+    assert report["dashboard_counters"] == {"proposed": 7, "accepted": 7, "rejected": 0, "acceptance_rate": 1.0}
+    assert report["verifier_acceptance_proven"] is True
+    assert report["full_draft_accepted"] is True
+    assert report["tokenizer_match_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["can_update_speculative_speedup_status"] is False
+
+
+def test_phone_draft_verifier_compare_rejects_mismatch_without_overclaim():
+    from mvp_capabilities.phone_draft_verifier_compare import compare_phone_draft_to_verifier
+
+    report = compare_phone_draft_to_verifier(
+        {"draft_response": {"generated_text": "One day"}, "draft_request": {"prompt": "x"}, "generation_proven": True},
+        verifier_text="Two nights",
+        verifier_source="live-host-verifier",
+        verifier_kind="live_model_generation",
+    )
+
+    assert report["verification_status"] == "passed"
+    assert report["verifier"]["live_model_generation_proven"] is True
+    assert report["dashboard_counters"]["accepted"] == 0
+    assert report["dashboard_counters"]["rejected"] == 7
+    assert report["verdict"]["verifier_fallback_token"] == ord("T")
+    assert report["verifier_acceptance_proven"] is False
+    assert report["full_draft_accepted"] is False
+    assert report["speedup_proven"] is False
+    assert report["bloombee_block_serving_proven"] is False
+
+
+def test_phone_draft_verifier_compare_tracked_evidence_keeps_speedup_false():
+    positive_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json"
+    live_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json"
+    verifier_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/qwen05-live-verifier-20260704T110000Z.json"
+    positive = json.loads(positive_path.read_text(encoding="utf-8"))
+    live = json.loads(live_path.read_text(encoding="utf-8"))
+    verifier = json.loads(verifier_path.read_text(encoding="utf-8"))
+
+    assert verifier["generation_proven"] is True
+    assert verifier["model_id"] == "Qwen/Qwen2.5-0.5B-Instruct"
+    assert verifier["generated_text"] == "In the vast and mysterious universe of the"
+    assert positive["verification_status"] == "passed"
+    assert positive["dashboard_counters"] == {"proposed": 33, "accepted": 33, "rejected": 0, "acceptance_rate": 1.0}
+    assert positive["verifier_acceptance_proven"] is True
+    assert positive["verifier"]["kind"] == "positive_control_text"
+    assert positive["speedup_proven"] is False
+    assert live["verification_status"] == "passed"
+    assert live["verifier"]["kind"] == "live_model_generation"
+    assert live["verifier"]["source"] == "m4pro:Qwen/Qwen2.5-0.5B-Instruct:greedy:8-new-tokens"
+    assert live["dashboard_counters"] == {"proposed": 33, "accepted": 0, "rejected": 33, "acceptance_rate": 0.0}
+    assert live["verifier_acceptance_proven"] is False
+    assert live["verdict"]["accepted_text"] == ""
+    assert live["verdict"]["rejected_text"] == "One day, a little girl named Lucy"
+    assert live["tokenizer_match_proven"] is False
+    assert live["speedup_proven"] is False
+    assert live["bloombee_block_serving_proven"] is False
+    assert live["can_update_speculative_speedup_status"] is False
+
+
 def test_speculative_decode_plan_keeps_verifier_authoritative_and_phones_draft_only():
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 

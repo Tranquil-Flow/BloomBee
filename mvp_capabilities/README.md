@@ -289,6 +289,8 @@ python mvp_capabilities/termux_gguf_runtime_plan.py \
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-plan-20260704T101232Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-runtime-generation-20260704T104506Z.json
 #     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-bridge-20260704T105400Z.json
+#     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-positive-control-20260704T110000Z.json
+#     mvp_capabilities/distributed_evidence/phone/termux-gguf-draft-verifier-qwen05-20260704T110000Z.json
 
 python mvp_capabilities/demo_dashboard.py \
   --cap-dir .local/capabilities \
@@ -371,11 +373,14 @@ As of the current implementation slice:
   no-install GGUF runtime plan; approved follow-up installed/used Termux
   `llama.cpp` CLI and ran `ggml-org/tiny-llamas/stories15M.gguf` generation on a
   Pixel 8 Pro; `termux_gguf_draft_bridge.py` wraps that as a draft-provider
-  candidate JSON bridge. Real Pixel 8 Pro Termux smoke+latency+probe+plan+generation+bridge
+  candidate JSON bridge; `phone_draft_verifier_compare.py` compares phone draft
+  bytes against verifier text. Real Pixel 8 Pro Termux smoke+latency+probe+plan+generation+bridge+comparison
   evidence is tracked under `distributed_evidence/phone/`, but it proves only
   static draft-contract execution/latency, environment feasibility/planning, and
   standalone tiny-GGUF draft-candidate generation — not verifier acceptance,
-  speculative speedup, or BloomBee block serving;
+  speculative speedup, or BloomBee block serving. Positive-control comparison
+  accepts 33/33 UTF-8 bytes; live Qwen/Qwen2.5-0.5B-Instruct comparison accepts
+  0/33 bytes, so no speculative proof is promoted;
   `multi_request_load_proof.py` verifies repeated direct-client logs before proof
   promotion, but actual multi-request load and speculative speed gates remain
   pending until real traffic/latency evidence passes.
