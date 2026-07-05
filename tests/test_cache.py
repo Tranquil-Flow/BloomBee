@@ -17,6 +17,7 @@ from bloombee.utils.hivemind_compat import TensorDescriptor
 
 from bloombee.server.memory_cache import AllocationFailed, MemoryCache
 from bloombee.server.memory_cache_manager import KVCacheManager
+from bloombee.server.cache_descriptors import LinearStateTensorDescriptor
 
 from bloombee.utils.misc import get_size_in_bytes
 
@@ -105,6 +106,74 @@ def test_gqa_batched_kv_write_preserves_batch_head_stride():
     assert torch.count_nonzero(v_cache_data[row, 2:4, :]) == 0
     assert torch.count_nonzero(k_cache_data[row, 6:8, :]) == 0
     assert torch.count_nonzero(v_cache_data[row, 6:8, :]) == 0
+
+
+def test_qwen35b_linear_state_descriptor_allocation_size_uses_batch_tokens():
+    conv = LinearStateTensorDescriptor(
+        kind="qwen3_5_linear_conv",
+        size=(3, 8192, 4),
+        dtype=torch.float16,
+        device=torch.device("cpu"),
+    )
+    recurrent = LinearStateTensorDescriptor(
+        kind="qwen3_5_linear_recurrent",
+        size=(3, 32, 128, 128),
+        dtype=torch.float16,
+        device=torch.device("cpu"),
+    )
+
+    assert conv.shape == (3, 8192, 4)
+    assert conv.cache_allocation_tokens == 3
+    assert recurrent.cache_allocation_tokens == 3
+    assert KVCacheManager.get_allocation_size_tokens(conv, recurrent) == 3
+
+
+def test_qwen35b_linear_state_cache_write_and_select_roundtrip():
+    manager = _make_kv_cache_manager(max_tokens=1024)
+    conv_cache_data = torch.zeros((2, 8192, 4), dtype=torch.float32)
+    recurrent_cache_data = torch.zeros((2, 32, 128, 128), dtype=torch.float32)
+    conv_cache = TorchTensor.create_from_torch(conv_cache_data, manager.attention_compute)
+    recurrent_cache = TorchTensor.create_from_torch(recurrent_cache_data, manager.attention_compute)
+
+    conv_state = torch.randn_like(conv_cache_data)
+    recurrent_state = torch.randn_like(recurrent_cache_data)
+
+    manager.update_linear_state_cache(
+        (conv_state, recurrent_state),
+        cache_tensors=(conv_cache, recurrent_cache),
+    )
+    selected = manager.select_linear_state_cache(cache_tensors=(conv_cache, recurrent_cache))
+
+    assert selected is not None
+    selected_conv, selected_recurrent = selected
+    torch.testing.assert_close(selected_conv, conv_state)
+    torch.testing.assert_close(selected_recurrent, recurrent_state)
+
+
+@pytest.mark.asyncio
+async def test_qwen35b_linear_state_descriptor_materializes_raw_tensors():
+    manager = _make_kv_cache_manager(max_tokens=1024)
+    conv = LinearStateTensorDescriptor(
+        kind="qwen3_5_linear_conv",
+        size=(2, 8, 4),
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+    )
+    recurrent = LinearStateTensorDescriptor(
+        kind="qwen3_5_linear_recurrent",
+        size=(2, 3, 4, 5),
+        dtype=torch.float32,
+        device=torch.device("cpu"),
+    )
+
+    handles = await manager.cache._schedule_alloc(2, conv, recurrent, timeout=0)
+    try:
+        with manager.cache.use_cache(*handles) as cache_tensors:
+            assert len(cache_tensors) == 2
+            assert cache_tensors[0].shape == conv.shape
+            assert cache_tensors[1].shape == recurrent.shape
+    finally:
+        manager.cache.force_free(*handles, alloc_tokens_num=2)
 
 
 @pytest.mark.asyncio

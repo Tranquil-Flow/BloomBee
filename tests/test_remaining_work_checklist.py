@@ -34,7 +34,7 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
         "kv_prefix_reuse",
     }
     assert by_id["qwen35b_candidate"]["status"] == "partial"
-    assert "backend linear-state cache" in by_id["qwen35b_candidate"]["next_step"]
+    assert "one-block server proof" in by_id["qwen35b_candidate"]["next_step"]
     assert by_id["minimax_m3_candidate"]["status"] == "blocked"
     assert by_id["minimax_m3_candidate"]["blocked"] is True
     assert all(item["done"] is False for item in payload["items"])
@@ -55,7 +55,7 @@ def test_remaining_work_checklist_markdown_lists_next_steps_without_overclaiming
     assert "# Remaining work checklist" in text
     assert "status_derived_remaining_work_no_new_proof" in text
     assert "- [ ] `qwen35b_candidate`" in text
-    assert "backend linear-state cache" in text
+    assert "one-block server proof" in text
     assert "- [ ] `minimax_m3_candidate`" in text
     assert "No new proof is created by this checklist" in text
     assert "speedup proven" not in text.lower()

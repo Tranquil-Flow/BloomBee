@@ -162,7 +162,7 @@ def _check_mvp_status(errors: list[str]) -> dict[str, Any]:
             errors.append(f"continuous_batching must remain partial, got {continuous.get('status')}")
         if "live-continuous-batching-loop-unit-20260705.json" not in evidence:
             errors.append("continuous_batching evidence missing live-loop unit artifact")
-        if "no concurrent live server parity proof" not in evidence:
+        if "no live server" not in evidence:
             errors.append("continuous_batching evidence missing no-live-server claim boundary")
 
     return {

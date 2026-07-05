@@ -533,17 +533,17 @@ def test_qwen_agentworld_text_wrapper_gate_evidence_is_conservative():
     evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json"
     payload = json.loads(evidence_path.read_text(encoding="utf-8"))
 
-    assert payload["claim_boundary"] == "post_mvp_qwen35b_text_wrapper_contract_only_no_serving_proof"
+    assert payload["claim_boundary"] == "post_mvp_qwen35b_text_wrapper_backend_state_contract_no_serving_proof"
     assert payload["model_id"] == "Qwen/Qwen-AgentWorld-35B-A3B"
     assert payload["wrapper_code_written"] is True
     assert payload["text_tower_model_type"] == "qwen3_5_moe_text"
     assert payload["full_attention_block_contract"] == "passed"
     assert payload["linear_attention_cache_contract"] == "local_state_roundtrip_passed"
-    assert payload["backend_linear_state_cache_contract"] == "blocked_fail_closed"
+    assert payload["backend_linear_state_cache_contract"] == "descriptor_select_update_materialization_passed"
     assert payload["runnable_backend_proven"] is False
     assert payload["can_update_mvp_status"] is True
     assert payload["can_update_proof_status"] is True
-    assert payload["proof_status_update"] == {"one_block_server": "blocked-by-backend-linear-state-cache"}
+    assert payload["proof_status_update"] == {"one_block_server": "pending"}
     assert "no demo promotion" in payload["do_not_claim"]
 
 
@@ -621,17 +621,21 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-live-adapter-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "live-continuous-batching-loop-unit-20260705.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-batching-same-arrival-client-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "no live server" in tasks["continuous_batching"]["evidence"]
     assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in tasks["continuous_batching"]["next_step"]
     assert tasks["kv_prefix_reuse"]["status"] == "partial"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "first rpc_inference metadata" in tasks["kv_prefix_reuse"]["evidence"]
     assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]
-    assert "wire prefix lookup into real prefill" in tasks["kv_prefix_reuse"]["next_step"]
+    assert "implement actual server KV tensor reuse" in tasks["kv_prefix_reuse"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "full_attention block contract" in tasks["qwen35b_candidate"]["evidence"]
     assert "linear_attention local state round-trip" in tasks["qwen35b_candidate"]["evidence"]
-    assert "backend linear-state cache" in tasks["qwen35b_candidate"]["next_step"]
+    assert "backend raw conv/recurrent descriptor" in tasks["qwen35b_candidate"]["evidence"]
+    assert "one-block server proof" in tasks["qwen35b_candidate"]["next_step"]
     assert tasks["fresh_laptop_join"]["status"] == "complete"
     assert tasks["physical_showcase"]["status"] == "complete"
     assert "Pixel 8 Pro camera/browser QR scan" in tasks["fresh_laptop_join"]["evidence"]
@@ -2178,8 +2182,8 @@ def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wr
     assert model["num_experts_per_tok"] == 8
     assert model["recommended_min_free_mem_gb"] == 80
     assert model["architecture_supported"] is False
-    assert any("backend linear_attention state cache" in reason for reason in model["blocked_reasons"])
-    assert any("full_attention text-tower block" in reason for reason in model["blocked_reasons"])
+    assert any("backend linear_attention conv/recurrent state cache" in reason for reason in model["blocked_reasons"])
+    assert any("no one-block server proof" in reason for reason in model["blocked_reasons"])
 
     peers = synthetic_m4_laptops(count=10, total_gb=24, free_gb=20)
     proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
@@ -2203,8 +2207,8 @@ def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wr
         selector_mode="showcase-attempt",
     )
     assert showcase["selector_allowed"] is False
-    assert "backend linear_attention state cache" in showcase["selector_blocked_reason"]
-    assert showcase["proof_status"]["one_block_server"] == "blocked-by-backend-linear-state-cache"
+    assert "no one-block server proof" in showcase["selector_blocked_reason"]
+    assert showcase["proof_status"]["one_block_server"] == "pending"
 
 
 def test_registry_tracks_minimax_m3_as_high_compute_blocked_candidate():

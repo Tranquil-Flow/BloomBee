@@ -8,6 +8,7 @@ server or demo promotion claim.
 
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -143,6 +144,77 @@ def test_qwen3_5_moe_text_linear_attention_cache_state_roundtrip():
     assert conv_state2.shape == conv_state.shape
     assert recurrent_state2.shape == recurrent_state.shape
     assert not torch.equal(conv_state2, conv_state)
+
+
+def test_qwen3_5_backend_linear_attention_descriptors_are_raw_state_tensors():
+    from bloombee.server.backend import TransformerBackend
+    from bloombee.server.cache_descriptors import LinearStateTensorDescriptor
+
+    cfg = _make_text_config()
+    backend = TransformerBackend.__new__(TransformerBackend)
+    backend.config = cfg
+    backend.block_index = 0
+    backend.dtype = torch.float16
+    backend.module = SimpleNamespace(devices=[torch.device("cpu")])
+    backend.shard_num_heads = [cfg.num_attention_heads]
+
+    descriptors = backend.get_inference_cache_descriptors(batch_size=2, max_length=16)
+
+    assert len(descriptors) == 2
+    conv, recurrent = descriptors
+    assert isinstance(conv, LinearStateTensorDescriptor)
+    assert isinstance(recurrent, LinearStateTensorDescriptor)
+    assert conv.kind == "qwen3_5_linear_conv"
+    assert recurrent.kind == "qwen3_5_linear_recurrent"
+    assert conv.shape == (
+        2,
+        cfg.linear_key_head_dim * cfg.linear_num_key_heads * 2
+        + cfg.linear_value_head_dim * cfg.linear_num_value_heads,
+        cfg.linear_conv_kernel_dim,
+    )
+    assert recurrent.shape == (
+        2,
+        cfg.linear_num_value_heads,
+        cfg.linear_key_head_dim,
+        cfg.linear_value_head_dim,
+    )
+    assert conv.cache_allocation_tokens == 2
+    assert recurrent.cache_allocation_tokens == 2
+
+
+def test_qwen3_5_backend_finalizes_linear_state_without_kv_slab_write():
+    from bloombee.server.backend import TransformerBackend
+
+    cfg = _make_text_config()
+    backend = TransformerBackend.__new__(TransformerBackend)
+    backend.config = cfg
+    backend.block_index = 0
+    backend._is_spec_decoding = False
+    calls = []
+
+    class CacheManager:
+        _verbose_kv_logs = False
+
+        def update_linear_state_cache(self, new_state, cache_tensors=None):
+            calls.append((new_state, cache_tensors))
+
+        def update_cache(self, *args, **kwargs):
+            raise AssertionError("linear attention must not use attention KV update_cache")
+
+    backend.cache_manager = CacheManager()
+    state = (torch.zeros(1, 8192, 4), torch.zeros(1, 32, 128, 128))
+    cache_tensors = (object(), object())
+    info = SimpleNamespace(batch_offset=0, full_batch_size=0, micro_batch_size=0, uid="u")
+
+    backend._finalize_cache_update(
+        state,
+        cache_len=0,
+        inference_info=info,
+        kv_cache_position_ids=None,
+        cache_tensors=cache_tensors,
+    )
+
+    assert calls == [(state, cache_tensors)]
 
 
 def test_qwen3_5_moe_text_rotary_buffers_remain_fp32_after_cast():

@@ -135,6 +135,30 @@ sys.modules["runtime_pb2"] = runtime_pb2
 
 
 CACHE_TOKENS_AVAILABLE = "cache_tokens_available"
+KV_PREFIX_REUSE_ENV_FLAG = "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
+KV_PREFIX_REUSE_CLAIM_BOUNDARY = "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+
+
+def _extract_kv_prefix_reuse_metadata(metadata: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Observe claim-bounded KV-prefix prefill metadata behind explicit opt-in.
+
+    This only records that the server received client/session metadata. It does
+    not prove server-side KV tensor reuse or speedup, so proof/demo flags stay
+    false even on accepted payloads.
+    """
+    if os.environ.get(KV_PREFIX_REUSE_ENV_FLAG, "0") != "1":
+        return None
+    payload = metadata.get("kv_prefix_reuse") if isinstance(metadata, dict) else None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("claim_boundary") != KV_PREFIX_REUSE_CLAIM_BOUNDARY:
+        return None
+    normalized = dict(payload)
+    normalized["server_observed_metadata"] = True
+    normalized["live_kv_cache_reuse_proven"] = False
+    normalized["speedup_proven"] = False
+    normalized["can_update_demo_status"] = False
+    return normalized
 
 
 class Event(Enum):
@@ -594,6 +618,9 @@ class TransformerConnectionHandler(ConnectionHandler):
                 start_time = perf_counter()
 
                 metadata = MSGPackSerializer.loads(request.metadata) if request.metadata else {}
+                observed_kv_prefix_reuse = _extract_kv_prefix_reuse_metadata(metadata)
+                if observed_kv_prefix_reuse is not None:
+                    metadata["kv_prefix_reuse_server_observed"] = observed_kv_prefix_reuse
                 end_msg_serial_time = perf_counter()
                 # print_time_now('')
                 

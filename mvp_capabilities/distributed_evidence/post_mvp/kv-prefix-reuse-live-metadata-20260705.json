@@ -1,0 +1,24 @@
+{
+  "claim_boundary": "kv_prefix_reuse_live_metadata_only_no_live_cache_reuse_or_speedup",
+  "generated_at_utc": "2026-07-05T23:25:00+00:00",
+  "source": "tests/test_kv_prefix_reuse_live_metadata.py",
+  "opt_in_flag": "BLOOMBEE_ENABLE_KV_PREFIX_REUSE",
+  "client_prefill_metadata_proven": true,
+  "first_rpc_metadata_proven": true,
+  "server_observed_metadata_proven": true,
+  "same_prefix_varied_suffix_metadata_proven": true,
+  "test_command": ".venv/bin/python -m pytest tests/test_kv_prefix_reuse.py tests/test_kv_prefix_reuse_proof.py tests/test_kv_prefix_reuse_live_metadata.py -q",
+  "test_result": "10+7+3 focused tests passed in affected runs",
+  "live_kv_cache_reuse_proven": false,
+  "server_kv_tensor_reuse_proven": false,
+  "runtime_output_parity_proven": false,
+  "speedup_proven": false,
+  "can_update_demo_status": false,
+  "do_not_claim": [
+    "no server-side KV tensor reuse proof",
+    "no output parity proof from reuse",
+    "no memory savings proof",
+    "no wall-clock speedup proof",
+    "no demo promotion"
+  ]
+}

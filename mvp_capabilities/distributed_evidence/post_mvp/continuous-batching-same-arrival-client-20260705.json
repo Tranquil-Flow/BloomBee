@@ -1,0 +1,22 @@
+{
+  "claim_boundary": "live_continuous_same_arrival_client_batch_no_late_arrival_server_parity_or_speedup",
+  "generated_at_utc": "2026-07-05T23:25:00+00:00",
+  "source": "tests/test_live_continuous_batching.py::test_remote_generation_base_live_impl_batches_same_arrival_rows",
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "same_arrival_client_batch_proven": true,
+  "request_count": 2,
+  "decode_ticks": 2,
+  "tick_rows_recorded": 4,
+  "test_command": ".venv/bin/python -m pytest tests/test_live_continuous_batching.py -q",
+  "test_result": "8 passed, 4 warnings",
+  "live_server_late_arrival_parity_proven": false,
+  "live_server_proven": false,
+  "speedup_proven": false,
+  "can_update_demo_status": false,
+  "do_not_claim": [
+    "no live server continuous batching proof",
+    "no late-arrival parity proof",
+    "no wall-clock throughput speedup",
+    "no demo promotion"
+  ]
+}

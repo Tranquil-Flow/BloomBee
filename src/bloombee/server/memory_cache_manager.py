@@ -15,6 +15,7 @@ from bloombee.flexgen_utils.pytorch_backend import DeviceType, TorchDisk, TorchM
 from hivemind.utils import TensorDescriptor, enter_asynchronously, get_logger
 
 from bloombee.data_structures import Handle
+from bloombee.server.cache_descriptors import is_linear_state_descriptor
 from bloombee.utils.asyncio import shield_and_wait
 from bloombee.utils.debug_config import get_env_bool_with_debug_fallback
 from bloombee.utils.misc import get_size_in_bytes
@@ -465,8 +466,37 @@ class KVCacheManager:
     def get_allocation_size_tokens(*descriptors: TensorDescriptor) -> int:
         allocation_tokens_num = 0
         for descr in descriptors:
-            allocation_tokens_num = max(descr.shape[-1], allocation_tokens_num) 
+            allocation_tokens_num = max(
+                getattr(descr, "cache_allocation_tokens", descr.shape[-1]),
+                allocation_tokens_num,
+            )
         return allocation_tokens_num
+
+    def _active_linear_state_tensors(self, cache_tensors=None):
+        if cache_tensors is None:
+            assert self._active_cache_tensors_stack, "linear state cache called outside of use_cache context"
+            cache_tensors = self._active_cache_tensors_stack[-1]
+        assert len(cache_tensors) == 2, f"linear state cache expects 2 tensors, got {len(cache_tensors)}"
+        conv_cache, recurrent_cache = cache_tensors
+        return conv_cache, recurrent_cache
+
+    @staticmethod
+    def _linear_state_as_torch(tensor):
+        return tensor.data if hasattr(tensor, "data") else tensor
+
+    def select_linear_state_cache(self, cache_tensors=None):
+        conv_cache, recurrent_cache = self._active_linear_state_tensors(cache_tensors)
+        conv = self._linear_state_as_torch(conv_cache)
+        recurrent = self._linear_state_as_torch(recurrent_cache)
+        return conv.to(self.attention_compute.dev), recurrent.to(self.attention_compute.dev)
+
+    def update_linear_state_cache(self, new_state, cache_tensors=None) -> None:
+        conv_cache, recurrent_cache = self._active_linear_state_tensors(cache_tensors)
+        conv_dst = self._linear_state_as_torch(conv_cache)
+        recurrent_dst = self._linear_state_as_torch(recurrent_cache)
+        conv_src, recurrent_src = new_state
+        conv_dst.copy_(conv_src.to(device=conv_dst.device, dtype=conv_dst.dtype))
+        recurrent_dst.copy_(recurrent_src.to(device=recurrent_dst.device, dtype=recurrent_dst.dtype))
         
     
     def add_cache(self, kvs: AdaptedKVCache, start_position: int):

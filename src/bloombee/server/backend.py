@@ -21,6 +21,7 @@ except ImportError:
 from transformers import PretrainedConfig
 
 from bloombee.data_structures import InferenceMetadata
+from bloombee.server.cache_descriptors import LinearStateTensorDescriptor
 from bloombee.server.memory_cache_manager import KVCacheManager
 from bloombee.server.task_pool import PrioritizedTaskPool
 from bloombee.utils.hivemind_compat import BatchTensorDescriptor, TensorDescriptor, nested_flatten
@@ -269,6 +270,32 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         its K/V update shapes. Downscaling to num_kv_heads would break
         that contract. Memory waste here is the GQA ratio (Qwen3: 5x).
         """
+        if self._is_linear_attention_block():
+            device = self.module.devices[0]
+            conv_dim = (
+                int(self.config.linear_key_head_dim) * int(self.config.linear_num_key_heads) * 2
+                + int(self.config.linear_value_head_dim) * int(self.config.linear_num_value_heads)
+            )
+            return [
+                LinearStateTensorDescriptor(
+                    kind="qwen3_5_linear_conv",
+                    size=(batch_size, conv_dim, int(self.config.linear_conv_kernel_dim)),
+                    dtype=self.dtype,
+                    device=device,
+                ),
+                LinearStateTensorDescriptor(
+                    kind="qwen3_5_linear_recurrent",
+                    size=(
+                        batch_size,
+                        int(self.config.linear_num_value_heads),
+                        int(self.config.linear_key_head_dim),
+                        int(self.config.linear_value_head_dim),
+                    ),
+                    dtype=self.dtype,
+                    device=device,
+                ),
+            ]
+
         head_dim = self._head_dim_for_this_block()
         cache_tensors = []
         for device, num_heads in zip(self.module.devices, self.shard_num_heads):
@@ -295,6 +322,14 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         if not (0 <= bi < len(lt)):
             return None
         return lt[bi]
+
+    def _is_linear_attention_block(self) -> bool:
+        """Return True for Qwen3.5-style linear-attention blocks.
+
+        These layers persist fixed-size convolution/recurrent state instead of
+        sequence-length attention K/V slabs.
+        """
+        return self._layer_type_for_this_block() == "linear_attention"
 
     def _head_dim_for_this_block(self) -> int:
         """Pick the right head_dim for this backend's layer.
@@ -365,6 +400,14 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         with paged-KV writes; Phase 3 adds per-page rollback on rejected
         speculative tokens without changing callers.
         """
+        if self._is_linear_attention_block():
+            if self._is_spec_decoding:
+                raise NotImplementedError(
+                    "linear-attention state cache does not yet support speculative rollback/reorder"
+                )
+            self.cache_manager.update_linear_state_cache(new_kvs, cache_tensors=cache_tensors)
+            return
+
         if self._is_spec_decoding:
             self.cache_manager.update_cache_and_async_reorder(
                 new_kvs,
@@ -551,7 +594,22 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
                     _prof_t0 = perf_counter()
-                if kv_cache_position_ids is not None and kv_cache_position_ids.numel() > 0:
+                k_pkv = None
+                v_pkv = None
+                layer_past = None
+                cache_len = 0
+                if self._is_linear_attention_block():
+                    if self._is_spec_decoding or (kv_cache_position_ids is not None and kv_cache_position_ids.numel() > 0):
+                        raise NotImplementedError(
+                            "linear-attention state cache does not yet support speculative/cache-position reorder"
+                        )
+                    layer_past = (
+                        self.cache_manager.select_linear_state_cache()
+                        if inference_info.prefix_length > 0
+                        else None
+                    )
+                    cache_len = int(inference_info.prefix_length)
+                elif kv_cache_position_ids is not None and kv_cache_position_ids.numel() > 0:
                     k_pkv, v_pkv, cache_len = self.cache_manager.select_cache_without_reorder(
                         kv_cache_position_ids,
                         batch_offset=inference_info.batch_offset,
@@ -578,7 +636,8 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                 # t2 = time.perf_counter()
                 # logger.info(f"inference_step: cache reorder (if needed) and selection took {t2 - t1:.4f} seconds")
 
-                layer_past = (k_pkv, v_pkv) if k_pkv is not None else None
+                if not self._is_linear_attention_block():
+                    layer_past = (k_pkv, v_pkv) if k_pkv is not None else None
                 if self._has_set_remote_cache_reuse:
                     # Compute-once hoist (②): _static_reuse_blocker folds in
                     # the 5 policy fields that are frozen at server init.

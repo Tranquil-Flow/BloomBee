@@ -225,6 +225,43 @@ def test_remote_generation_base_live_impl_records_inference_session_tick_rows(mo
     assert report["can_update_demo_status"] is False
 
 
+def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    model = _RemoteGenerationLiveImplStub()
+    model.lm_head = _GreedyNextTokenHead({101: 10, 201: 20, 10: 11, 20: 21})
+    inputs = torch.tensor([[101], [201]], dtype=torch.long)
+
+    result = model.generate(inputs, max_new_tokens=2)
+
+    assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
+    assert model.fallback_calls == []
+    assert [call.squeeze(-1).to(dtype=torch.long).tolist() for call in model.transformer.h.hidden_calls] == [
+        [[101], [201]],
+        [[10], [20]],
+    ]
+    report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    assert report["request_count"] == 2
+    assert report["total_decode_batches"] == 2
+    assert report["tick_batches"] == [
+        {
+            "tick": 0,
+            "request_ids": ["generate-0", "generate-1"],
+            "positions": [0, 0],
+            "input_token_ids": [101, 201],
+            "output_token_ids": [10, 20],
+        },
+        {
+            "tick": 1,
+            "request_ids": ["generate-0", "generate-1"],
+            "positions": [1, 1],
+            "input_token_ids": [10, 20],
+            "output_token_ids": [11, 21],
+        },
+    ]
+    assert report["live_server_proven"] is False
+    assert report["speedup_proven"] is False
+
+
 def test_inference_session_live_tick_rows_fail_closed_without_opt_in(monkeypatch):
     from bloombee.client.inference_session import InferenceSession
     from bloombee.client.live_continuous_batching import LiveDecodeRow

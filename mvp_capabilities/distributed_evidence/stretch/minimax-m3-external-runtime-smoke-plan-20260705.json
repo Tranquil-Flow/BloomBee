@@ -1,0 +1,48 @@
+{
+  "can_update_demo_status": false,
+  "can_update_route_status": false,
+  "claim_boundary": "frontier_external_runtime_smoke_plan_only_no_bloombee_route_claim",
+  "external_runtime_smoke_proven": false,
+  "missing_preferred_targets": [],
+  "mvp_core_status_unchanged": true,
+  "native_bloombee_support_proven": false,
+  "operator_next_steps": [
+    "run the smoke commands only on an approved NVIDIA GPU host with a runtime that supports the target quantization/attention contract",
+    "save request/response/log evidence as a separate external_runtime_smoke artifact",
+    "design a LayerExecutor adapter boundary only after external runtime smoke passes",
+    "do not mark native BloomBee support, route eligibility, or demo safety from this plan alone"
+  ],
+  "preferred_targets": [
+    "MiniMaxAI/MiniMax-M3"
+  ],
+  "required_hardware": [
+    "nvidia_gpu_required",
+    "external_runtime_required",
+    "operator_supplied_credentials_if_model_is_gated"
+  ],
+  "route_picker_eligible": false,
+  "selected_target": {
+    "blocked_reasons": [
+      "No BloomBee block wrapper registered for model_type=minimax_m3_vl",
+      "Research sources describe MiniMax Sparse Attention and multimodal VLM inputs; current BloomBee wrappers do not expose MSA/multimodal text-tower serving contracts."
+    ],
+    "claim_level": "blocked",
+    "experts_per_token": 4,
+    "hf_model_type": "minimax_m3_vl",
+    "hf_text_model_type": "minimax_m3_vl_text",
+    "hidden_size": 6144,
+    "minimal_proof": "Config-only prescan plus text-tower wrapper scout. Do not attempt native BloomBee serving until minimax_m3_vl/minimax_m3_vl_text attention and multimodal wrapper assumptions are mapped. External-runtime smoke should be separate from BloomBee block-serving proof.",
+    "model_id": "MiniMaxAI/MiniMax-M3",
+    "num_experts": 128,
+    "num_layers": 60,
+    "quantization_method": null
+  },
+  "smoke_commands": [
+    "# Run only on a suitable NVIDIA GPU host with explicit operator approval; this is not a macOS/MPS proof.",
+    "vllm serve MiniMaxAI/MiniMax-M3 --trust-remote-code --max-model-len 4096 --port 8000",
+    "curl -s http://127.0.0.1:8000/v1/models | python -m json.tool",
+    "curl -s http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"MiniMaxAI/MiniMax-M3\",\"messages\":[{\"role\":\"user\",\"content\":\"Say one moonlit sentence.\"}],\"max_tokens\":16}' | python -m json.tool"
+  ],
+  "source": "frontier_backend_smoke_plan.py",
+  "status": "external_runtime_smoke_planned_native_bloombee_blocked"
+}

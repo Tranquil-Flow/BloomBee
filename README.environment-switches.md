@@ -54,6 +54,7 @@ BloomBee has a lot of runtime switches behind `BLOOMBEE_*` environment variables
 | `BLOOMBEE_ENABLE_KV_WAIT_TIMING` | `1` | Enables KV wait timing counters and logs. |
 | `BLOOMBEE_VERBOSE_KV_LOGS` | `0` | Restores verbose KV allocation / offload / prefetch logs. Also turns on automatically if the KV debug group is enabled. |
 | `BLOOMBEE_PAGED_KV` | `0` | Opt-in Phase 2 paged-KV shim. Aliases per-handle PagedKVTable onto the same slab as the regular cache; only takes effect when set to `1`. |
+| `BLOOMBEE_ENABLE_KV_PREFIX_REUSE` | `0` | Enables claim-bounded prefill/session metadata recording for same-prefix/varied-suffix requests. This records reusable-prefix structure only; it does not prove server-side KV tensor reuse or speedup by itself. |
 
 KV prefix reuse proof artifacts are verified by `mvp_capabilities/kv_prefix_reuse_proof.py`. Evidence must include telemetry tags `kv_prefix_reuse`, `no_reuse_baseline`, and `same_prefix_varied_suffix`, plus same-prefix/varied-suffix token parity, logit fingerprints, and timing deltas before any `kv_prefix_reuse` proof row can be promoted. This verifier does not itself enable runtime cache reuse.
 

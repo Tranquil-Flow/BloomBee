@@ -257,8 +257,17 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             return False
         if inputs is None or not isinstance(inputs, torch.Tensor) or inputs.ndim != 2:
             return False
-        if inputs.shape[0] != 1:
+        if inputs.shape[0] < 1:
             return False
+        if inputs.shape[0] > 1 and type(self)._live_continuous_generate_impl is not RemoteGenerationMixin._live_continuous_generate_impl:
+            return False
+        max_batch_raw = os.environ.get("BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE")
+        if max_batch_raw:
+            try:
+                if inputs.shape[0] > int(max_batch_raw):
+                    return False
+            except ValueError:
+                return False
         if args:
             return False
         if session is not None or self.active_session is not None:
@@ -307,15 +316,16 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         This wires ``LiveDecodeRow`` telemetry into the active
         ``InferenceSession`` while using the same client request path as the
         fast greedy loop (embedding -> RemoteSequential/session.step -> ln_f ->
-        lm_head). It is intentionally single-request only until concurrent
-        arrival parity is proven, and the session report remains claim-bounded.
+        lm_head). It supports same-arrival greedy batches behind the opt-in flag;
+        late-arrival queueing still lives in the separate proof harness, and the
+        session report remains claim-bounded.
         """
         if args:
             raise RuntimeError("live continuous batching does not accept positional generation args")
         if session is not None or self.active_session is not None:
             raise RuntimeError("live continuous batching requires a fresh inference session")
-        if input_ids.ndim != 2 or input_ids.shape[0] != 1:
-            raise RuntimeError("live continuous batching is currently fail-closed to batch_size=1")
+        if input_ids.ndim != 2 or input_ids.shape[0] < 1:
+            raise RuntimeError("live continuous batching expects rank-2 input_ids with at least one row")
 
         from bloombee.client.live_continuous_batching import LiveDecodeRow
 
@@ -354,7 +364,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 raise RuntimeError("InferenceSession cannot record live continuous batching rows")
 
             for tick in range(max_new_tokens):
-                row_input_id = int(step_ids[0, -1].detach().cpu().item())
+                row_input_ids = [int(token.detach().cpu().item()) for token in step_ids[:, -1]]
                 hidden = embed(step_ids)
                 hidden = layers(hidden)
                 hidden = ln_f(hidden)
@@ -368,13 +378,14 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 recorder(
                     [
                         LiveDecodeRow(
-                            request_id="generate-0",
+                            request_id=f"generate-{batch_idx}",
                             tick=tick,
                             position=tick,
                             input_token_id=row_input_id,
                         )
+                        for batch_idx, row_input_id in enumerate(row_input_ids)
                     ],
-                    output_token_ids=[int(next_id[0, 0].detach().cpu().item())],
+                    output_token_ids=[int(token.detach().cpu().item()) for token in next_id[:, 0]],
                 )
 
                 output = torch.cat([output, next_id], dim=1)

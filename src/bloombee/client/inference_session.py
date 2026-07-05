@@ -622,6 +622,7 @@ class InferenceSession:
         self.prefill_length = 0
         self._step_count = 0  # Track step count for logging
         self._live_continuous_tick_batches = []
+        self._kv_prefix_reuse_events = []
         
         # [MBPIPE] Log micro-batch pipeline configuration at client session creation
         mbpipe_log_config(logger, context="InferenceSession.__init__")
@@ -714,6 +715,50 @@ class InferenceSession:
             "can_update_demo_status": False,
         }
 
+    def record_kv_prefix_reuse_prefill(self, input_ids, *, request_ids=None) -> dict:
+        """Record same-prefix/varied-suffix prefill metadata behind opt-in flag.
+
+        This is metadata only: it proves the session can identify reusable
+        prefix structure, not that server-side KV slabs were reused.
+        """
+        from bloombee.client.kv_prefix_reuse import (
+            ENV_ENABLE_KV_PREFIX_REUSE,
+            build_prefill_metadata_event,
+            is_kv_prefix_reuse_enabled,
+        )
+
+        if not is_kv_prefix_reuse_enabled():
+            raise RuntimeError(
+                f"{ENV_ENABLE_KV_PREFIX_REUSE}=1 is required to record KV prefix reuse metadata"
+            )
+        event = build_prefill_metadata_event(input_ids, request_ids=request_ids)
+        event["opt_in_enabled"] = True
+        self._kv_prefix_reuse_events.append(event)
+        metadata = getattr(self, "session_metadata", None)
+        if isinstance(metadata, dict):
+            metadata["kv_prefix_reuse"] = self.kv_prefix_reuse_report()
+        return event
+
+    def kv_prefix_reuse_report(self) -> dict:
+        from bloombee.client.kv_prefix_reuse import (
+            CLAIM_BOUNDARY,
+            ENV_ENABLE_KV_PREFIX_REUSE,
+            is_kv_prefix_reuse_enabled,
+        )
+
+        return {
+            "source": "bloombee.client.inference_session",
+            "claim_boundary": CLAIM_BOUNDARY,
+            "opt_in_flag": ENV_ENABLE_KV_PREFIX_REUSE,
+            "opt_in_enabled": is_kv_prefix_reuse_enabled(),
+            "event_count": len(self._kv_prefix_reuse_events),
+            "events": [dict(event) for event in self._kv_prefix_reuse_events],
+            "runtime_prefill_metadata_proven": bool(self._kv_prefix_reuse_events),
+            "live_kv_cache_reuse_proven": False,
+            "speedup_proven": False,
+            "can_update_demo_status": False,
+        }
+
     @position.setter
     def position(self, start_from_position: int) -> None:
         # Set the position and keep all related session objects in sync.
@@ -729,7 +774,13 @@ class InferenceSession:
                 span_uids = CHAIN_DELIMITER.join(self._sequence_manager.block_uids[span.start : span.end])
                 metadata = self._sequence_manager.get_request_metadata(
                     "rpc_inference", span_uids, peer_id=span.peer_id
-                )
+                ) or {}
+                kv_prefix_report = self.kv_prefix_reuse_report()
+                if (
+                    kv_prefix_report.get("opt_in_enabled")
+                    and kv_prefix_report.get("runtime_prefill_metadata_proven")
+                ):
+                    metadata["kv_prefix_reuse"] = kv_prefix_report
                 session = RemoteExpertWorker.run_coroutine(
                     _ServerInferenceSession.create(
                         self._sequence_manager.config,

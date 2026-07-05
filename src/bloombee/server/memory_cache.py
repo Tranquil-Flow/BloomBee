@@ -32,6 +32,7 @@ if hasattr(mp, 'set_sharing_strategy'):
 
 
 from bloombee.data_structures import Handle
+from bloombee.server.cache_descriptors import is_linear_state_descriptor
 from transformers import PretrainedConfig
 
 from bloombee.utils.asyncio import shield_and_wait
@@ -376,6 +377,10 @@ class MemoryCache:
             if recv_data is not None:  # create new tensors
                 assert len(recv_handles) == len(recv_data)
                 for handle, descr in zip(recv_handles, recv_data):
+                    if is_linear_state_descriptor(descr):
+                        allocated_cache = self.device.allocate(descr.shape, descr.dtype, pin_memory=False)
+                        self._allocated_tensors[handle] = allocated_cache
+                        continue
                     seq_len = descr.shape[-1] if descr.shape else 0
                     # [MBPIPE] Extract batch_size from descriptor (first dim)
                     # descriptor shape: (batch_size, num_heads, head_dim, max_length)

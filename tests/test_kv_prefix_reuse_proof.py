@@ -4,9 +4,49 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_kv_prefix_reuse_session_metadata_fails_closed_without_opt_in(monkeypatch):
+    from bloombee.client.inference_session import InferenceSession
+
+    monkeypatch.delenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", raising=False)
+    session = InferenceSession(SimpleNamespace(), max_length=8)
+    input_ids = [[101, 102, 201], [101, 102, 202]]
+
+    with pytest.raises(RuntimeError, match="BLOOMBEE_ENABLE_KV_PREFIX_REUSE"):
+        session.record_kv_prefix_reuse_prefill(input_ids, request_ids=["suffix-a", "suffix-b"])
+
+
+def test_kv_prefix_reuse_session_metadata_records_same_prefix_varied_suffix(monkeypatch):
+    from bloombee.client.inference_session import InferenceSession
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    session = InferenceSession(SimpleNamespace(), max_length=8)
+    input_ids = [[101, 102, 201], [101, 102, 202, 203]]
+
+    event = session.record_kv_prefix_reuse_prefill(input_ids, request_ids=["suffix-a", "suffix-b"])
+    report = session.kv_prefix_reuse_report()
+
+    assert event["claim_boundary"] == "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+    assert event["common_prefix_token_ids"] == [101, 102]
+    assert event["request_count"] == 2
+    assert event["same_prefix_varied_suffix_proven"] is True
+    assert event["live_kv_cache_reuse_proven"] is False
+    assert event["speedup_proven"] is False
+    assert [row["suffix_token_ids"] for row in event["requests"]] == [[201], [202, 203]]
+
+    assert report["claim_boundary"] == "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+    assert report["opt_in_enabled"] is True
+    assert report["event_count"] == 1
+    assert report["events"] == [event]
+    assert report["live_kv_cache_reuse_proven"] is False
+    assert report["can_update_demo_status"] is False
 
 
 def _valid_kv_prefix_reuse_evidence() -> dict[str, object]:
