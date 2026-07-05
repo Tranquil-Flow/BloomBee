@@ -54,7 +54,7 @@ _PRIORITY_META: dict[str, dict[str, Any]] = {
         "defer_unless": None,
         "why": (
             "Instruct-2507 is the likely product-facing stronger demo target. Its exact-model "
-            "prescan and one-block proof have passed; multi-block/full-generation gates remain."
+            "prescan, one-block, and multi-block proofs have passed; full-generation/cache/load gates remain."
         ),
     },
     THINKING_2507_MODEL_ID: {

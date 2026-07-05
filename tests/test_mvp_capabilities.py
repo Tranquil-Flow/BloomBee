@@ -360,8 +360,8 @@ def test_qwen30b_priority_report_prefers_base_then_instruct_then_optional_thinki
     assert instruct["priority_role"] == "user_facing_followup"
     assert instruct["priority_rank"] == 2
     assert instruct["recommended_after_base_gates"] == ["full_generation", "cache_generation", "multi_request_load"]
-    assert instruct["gates_already_passed"] == ["prescan", "one_block_server"]
-    assert instruct["next_gate"] == "multi_block"
+    assert instruct["gates_already_passed"] == ["prescan", "one_block_server", "multi_block"]
+    assert instruct["next_gate"] == "full_generation"
     assert instruct["safe_demo_selectable"] is False
 
     thinking = by_model["Qwen/Qwen3-30B-A3B-Thinking-2507"]
@@ -422,6 +422,44 @@ def test_instruct2507_seagate_oneblock_proof_artifact_is_claim_bounded():
     assert "12D3Koo" not in json.dumps(payload["server_excerpt"] + payload["client_excerpt"])
 
 
+def test_instruct2507_seagate_multiblock_proof_artifact_is_claim_bounded():
+    evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json"
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert payload["claim_boundary"] == "verified_instruct2507_multiblock_0_2_direct_rpc_no_full_generation_or_cache_claim"
+    assert payload["model_id"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert payload["proof_gate"] == "multi_block"
+    assert payload["hf_hub_cache"] == "/Volumes/Seagate Portable Drive/huggingface/hub"
+    assert payload["exchange_volume"] == "/Volumes/Exchange"
+    assert payload["cache_incomplete_files"] == []
+    assert payload["prescan_status"] == "passed"
+    assert payload["verify_status"] == "passed"
+    assert payload["proof_status_update"] == {"multi_block": "passed"}
+    assert payload["block_ranges"] == ["0:1", "1:2"]
+    assert payload["combined_block_range"] == "0:2"
+    assert payload["client_result"]["ok"] is True
+    assert payload["client_result"]["model"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert payload["client_result"]["block_range"] == [0, 2]
+    assert payload["client_result"]["outputs_finite"] is True
+    assert payload["client_result"]["grad_finite"] is True
+    assert payload["failed_checks"] == []
+    assert payload["required_files"]["model-00001-of-00016.safetensors"]["present"] is True
+    assert payload["required_files"]["model-00001-of-00016.safetensors"]["bytes"] > 3_000_000_000
+    assert payload["server_maddrs_redacted"]["seed"].endswith("/p2p/<redacted-peer>")
+    assert payload["server_maddrs_redacted"]["follower"].endswith("/p2p/<redacted-peer>")
+    assert "full_generation" in payload["do_not_claim"]
+    assert "cache_generation" in payload["do_not_claim"]
+    assert "safe_demo_selectable" in payload["do_not_claim"]
+    assert payload["next_gate"] == "full_generation"
+    assert any("[prescan] PASS" in line for line in payload["prescan_excerpt"])
+    assert any("rpc_forward(blocks=0:1" in line for line in payload["server_excerpt"]["0:1"])
+    assert any("rpc_forward(blocks=1:2" in line for line in payload["server_excerpt"]["1:2"])
+    assert any("[direct] RESULT" in line for line in payload["client_excerpt"])
+    serialized = json.dumps(payload["server_excerpt"]) + json.dumps(payload["client_excerpt"]) + json.dumps(payload["server_maddrs_redacted"])
+    assert "12D3Koo" not in serialized
+
+
 
 def test_qwen30b_priority_cli_outputs_review_ready_json():
     proc = subprocess.run(
@@ -436,8 +474,8 @@ def test_qwen30b_priority_cli_outputs_review_ready_json():
     assert payload["claim_boundary"] == "post_mvp_qwen30b_prioritization_only_no_new_inference_proof"
     assert payload["priority_order"][0] == "Qwen/Qwen3-30B-A3B"
     assert payload["models"][0]["next_gate"] == "full_generation"
-    assert payload["models"][1]["next_gate"] == "multi_block"
-    assert payload["models"][1]["gates_already_passed"] == ["prescan", "one_block_server"]
+    assert payload["models"][1]["next_gate"] == "full_generation"
+    assert payload["models"][1]["gates_already_passed"] == ["prescan", "one_block_server", "multi_block"]
     assert payload["models"][2]["optional"] is True
 
 
@@ -517,9 +555,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     post_mvp = {item["id"]: item for item in report["post_mvp_milestones"]}
     assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
-    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.45
+    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.55
     assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "instruct2507-seagate-oneblock-proof-20260704T222230Z.json" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "instruct2507-seagate-multiblock-proof-20260705T064511Z.json" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "qwen30b_priority.py" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "Instruct-2507 follow-up" in post_mvp["qwen3_30b_proof_ladder"]["label"]
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
@@ -590,7 +629,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
     assert "instruct2507-seagate-readonly-blocker-20260704.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
     assert "instruct2507-seagate-oneblock-proof-20260704T222230Z.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
-    assert "one-block live RPC proof passed" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "instruct2507-seagate-multiblock-proof-20260705T064511Z.json" in tasks["qwen3_30b_2507_shelf"]["evidence"]
+    assert "two-server multi-block 0:2 direct RPC proof passed" in tasks["qwen3_30b_2507_shelf"]["evidence"]
     assert tasks["qwen3_30b_2507_shelf"]["status"] == "complete"
     assert tasks["qwen3_30b_2507_shelf"]["next_step"] is None
     markdown = render_markdown(report)
