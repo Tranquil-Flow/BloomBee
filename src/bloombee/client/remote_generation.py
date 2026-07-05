@@ -145,6 +145,12 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         if inputs is None:
             inputs = kwargs.pop("input_ids", None)
 
+        # Live-continuous batching seam: deliberately opt-in and dependency-
+        # injected. Until a real live scheduler is wired, production behavior
+        # falls through unchanged even when the env flag is set.
+        if self._live_continuous_generate_eligible(inputs, args, kwargs, session):
+            return self._live_continuous_generate_impl(inputs, *args, session=session, **kwargs)
+
         # Fast-path: bypass HF GenerationMixin for plain greedy decoding.
         # Saves ~8-19 ms per decode step at B=32 on transformers 5.x by
         # skipping DynamicCache.update, prepare_inputs_for_generation,
@@ -223,6 +229,63 @@ class RemoteGenerationMixin(_SkipTokensMixin):
     # of this file. The "what" is: an equivalent greedy decode that calls
     # the same client modules (word_embeddings, layers=RemoteSequential,
     # ln_f, lm_head) but skips transformers' generate machinery.
+
+    _LIVE_CONTINUOUS_KNOWN_KWARGS = frozenset(
+        {
+            "max_length", "max_new_tokens", "do_sample", "pad_token_id",
+            "eos_token_id", "bos_token_id", "use_cache", "num_beams",
+            "num_return_sequences", "return_dict_in_generate", "attention_mask",
+            "logits_processor", "stopping_criteria", "generation_config",
+        }
+    )
+
+    def _live_continuous_generate_eligible(
+        self,
+        inputs: Optional[torch.Tensor],
+        args: tuple,
+        kwargs: dict,
+        session: Optional[InferenceSession],
+    ) -> bool:
+        try:
+            from bloombee.client.live_continuous_batching import is_live_continuous_batching_enabled
+        except Exception:
+            return False
+        if not is_live_continuous_batching_enabled():
+            return False
+        if not callable(getattr(self, "_live_continuous_generate_impl", None)):
+            return False
+        if inputs is None or not isinstance(inputs, torch.Tensor) or inputs.ndim != 2:
+            return False
+        if inputs.shape[0] != 1:
+            return False
+        if args:
+            return False
+        if session is not None or self.active_session is not None:
+            return False
+        if kwargs.get("do_sample", False):
+            return False
+        if kwargs.get("num_beams", 1) != 1:
+            return False
+        if kwargs.get("num_return_sequences", 1) != 1:
+            return False
+        if kwargs.get("attention_mask") is not None:
+            return False
+        if "logits_processor" in kwargs and kwargs["logits_processor"]:
+            return False
+        if "stopping_criteria" in kwargs and kwargs["stopping_criteria"]:
+            return False
+        if kwargs.get("return_dict_in_generate"):
+            return False
+        if kwargs.get("generation_config") is not None:
+            return False
+        unknown = set(kwargs) - self._LIVE_CONTINUOUS_KNOWN_KWARGS
+        if unknown:
+            return False
+        if kwargs.get("max_new_tokens") is None and kwargs.get("max_length") is None:
+            return False
+        if getattr(self.transformer.config, "tuning_mode", None):
+            return False
+        return True
 
     # Kwargs that the fast path consumes or can safely ignore. Anything
     # else (e.g. attention_mask, logits_processor, stopping_criteria,

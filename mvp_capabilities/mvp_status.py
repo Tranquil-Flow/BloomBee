@@ -279,8 +279,8 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="continuous_batching",
         label="True continuous batching",
         status="partial",
-        evidence="continuous_batching.py adds a pure round-robin decode scheduler simulation with late-arrival admission, padded batch inputs, per-request deinterleaving, plus an opt-in live-loop adapter plan that emits replayable tick_batches for future inference_session wiring; claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json and mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json; no live server integration, parity proof, wall-clock speedup, or demo promotion yet",
-        next_step="wire tick_batches into src/bloombee/client/inference_session.py behind BLOOMBEE_ENABLE_CONTINUOUS_BATCHING, prove parity with concurrent arrivals, then measure wall-clock throughput before any demo or speedup promotion",
+        evidence="continuous_batching.py adds a pure round-robin decode scheduler simulation with late-arrival admission, padded batch inputs, per-request deinterleaving; live_continuous_batching.py adds an opt-in injected-step live-loop unit plus remote_generation.py exposes a dependency-injected opt-in seam; claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json, mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json, and mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json; no live server integration, parity proof, wall-clock speedup, or demo promotion yet",
+        next_step="wire LiveContinuousDecodeLoop tick rows into src/bloombee/client/inference_session.py behind BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING, prove parity with concurrent arrivals, then measure wall-clock throughput before any demo or speedup promotion",
     ),
     PlanTask(
         id="kv_prefix_reuse",

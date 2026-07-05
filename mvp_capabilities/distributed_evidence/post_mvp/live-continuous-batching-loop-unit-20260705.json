@@ -1,0 +1,107 @@
+{
+  "can_update_demo_status": false,
+  "claim_boundary": "live_continuous_decode_loop_unit_no_server_no_speedup",
+  "completed_request_ids": [
+    "req-a",
+    "req-b"
+  ],
+  "do_not_claim": [
+    "live_server_integration",
+    "wall_clock_speedup",
+    "demo_safe_promotion"
+  ],
+  "expected_by_request": {
+    "req-a": [
+      10,
+      11,
+      12
+    ],
+    "req-b": [
+      20,
+      21
+    ]
+  },
+  "live_loop_unit_proven": true,
+  "live_server_proven": false,
+  "max_batch_size": 2,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "outputs_by_request": {
+    "req-a": [
+      10,
+      11,
+      12
+    ],
+    "req-b": [
+      20,
+      21
+    ]
+  },
+  "proof_gate": "live_continuous_batching_loop_unit",
+  "remote_generation_seam": "dependency_injected_opt_in_only",
+  "request_count": 2,
+  "run_utc": "2026-07-05",
+  "source": "bloombee.client.live_continuous_batching",
+  "speedup_proven": false,
+  "timeline": [
+    {
+      "finished_request_ids": [],
+      "input_token_ids": [
+        101
+      ],
+      "output_token_ids": [
+        10
+      ],
+      "positions": [
+        0
+      ],
+      "request_ids": [
+        "req-a"
+      ],
+      "tick": 0
+    },
+    {
+      "finished_request_ids": [],
+      "input_token_ids": [
+        10,
+        202
+      ],
+      "output_token_ids": [
+        11,
+        20
+      ],
+      "positions": [
+        1,
+        0
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 1
+    },
+    {
+      "finished_request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "input_token_ids": [
+        11,
+        20
+      ],
+      "output_token_ids": [
+        12,
+        21
+      ],
+      "positions": [
+        2,
+        1
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 2
+    }
+  ],
+  "verification_status": "passed"
+}

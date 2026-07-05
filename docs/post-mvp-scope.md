@@ -126,24 +126,29 @@ Do not make both base 30B and Instruct-2507 required for the same post-MVP miles
 
 ### Task 4: Continuous batching proof harness
 
-**Objective:** Build a controlled benchmark that proves throughput gains from concurrent request scheduling without hiding correctness failures.
+**Objective:** Move from deterministic scheduler proof to live request-loop integration without hiding correctness failures. The scheduler simulation, replayable adapter plan, and injected live-loop unit seam are now committed; remaining work is real `inference_session.py` wiring, parity, and throughput.
 
 **Files:**
-- Create: `mvp_capabilities/continuous_batching_proof.py`
-- Modify: `mvp_capabilities/request_telemetry.py`
-- Test: `tests/test_mvp_capabilities.py`
+- Existing: `mvp_capabilities/continuous_batching.py`
+- Existing: `src/bloombee/client/live_continuous_batching.py`
+- Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json`
+- Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json`
+- Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json`
+- Future modify: `src/bloombee/client/inference_session.py`
+- Test: `tests/test_live_continuous_batching.py`
 
 **Steps:**
-1. Write RED tests for a synthetic request-log bundle with overlapping request windows.
-2. Parse per-request latency, overlap window, success/failure counts, and tokens/sec.
-3. Add a verifier that fails if any request has non-finite output/grad or missing timing.
-4. Run on TinyLlama or Qwen3-8B first; only then scale to Qwen3-30B.
-5. Store proof artifacts under `mvp_capabilities/distributed_evidence/load/`.
+1. Treat the pure scheduler, adapter-plan, and injected-step live-loop unit as passed; do not call them live-server proof.
+2. Wire `LiveContinuousDecodeLoop` tick rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`.
+3. Prove same-prompt parity with concurrent arrivals before measuring throughput.
+4. Add request telemetry for per-request latency, overlap window, success/failure counts, and tokens/sec.
+5. Run on TinyLlama or Qwen3-8B first; only then scale to Qwen3-30B.
+6. Store future live proof artifacts under `mvp_capabilities/distributed_evidence/load/`.
 
 **Verification command:**
 
 ```bash
-.venv/bin/python -m pytest tests/test_mvp_capabilities.py::test_continuous_batching_proof_* -q
+.venv/bin/python -m pytest tests/test_live_continuous_batching.py tests/test_continuous_batching.py -q
 ```
 
 ---
