@@ -1,0 +1,26 @@
+{
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_full_generation_evidence",
+  "evidence_path": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-streamed-int8-3e816dc/.local/run/qwen30b-int8-streamed-parity-20260705T150417Z/evidence/full-generation-parity.json",
+  "evidence_summary": {
+    "distributed_seconds": 7.33945107460022,
+    "generated_ids_match": true,
+    "generated_text_match": true,
+    "max_new_tokens": 1,
+    "mode": "forward-loop",
+    "model": "Qwen/Qwen3-30B-A3B@int8",
+    "next_token_match": true,
+    "ok": true,
+    "prompt": "The capital of France is",
+    "reference_seconds": 653.0787920951843,
+    "server_count": 1,
+    "server_placement_count": 1
+  },
+  "failed_checks": [],
+  "model_id": "Qwen/Qwen3-30B-A3B@int8",
+  "proof_gate": "full_generation",
+  "proof_status_update": {
+    "full_generation": "passed"
+  },
+  "status": "passed"
+}

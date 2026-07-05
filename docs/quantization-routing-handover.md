@@ -262,18 +262,28 @@ proof tree `3d915db` for exact Instruct-2507:
   server loaded all 48 blocks and passed `multi_request_load_proof.py verify`
   for 3 seeded/scaled direct-client requests. Forward latencies: avg 2.645s;
   backward avg 4.566s; 0 failures.
+- `qwen30b-int8-full-generation-streamed-reference-20260705T150417Z.json`
+  plus `.verify.json` — base `Qwen/Qwen3-30B-A3B@int8` full `0:48` INT8
+  server compared against streamed fp16 base-checkpoint reference. Exact greedy
+  IDs/text matched for the default forward-loop prompt (`The capital of France
+  is` → token 20763 / `disaster`); verifier status `passed`,
+  `proof_status_update: {full_generation: passed}`. Reference took 653.08s;
+  distributed forward/decode took 7.34s. This does not prove cache generation or
+  demo-safe token parity for the full prompt set.
 - `instruct2507-int8-full-load-0-48-20260705T133853Z.json` — exact
   `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` full `0:48` INT8 server loaded all
   48 blocks from the complete Seagate cache and passed the same 3-request load
   verifier. Forward latencies: avg 2.467s; backward avg 4.544s; 0 failures.
 
 Proof row updates are quantized-row-only:
-`Qwen/Qwen3-30B-A3B@int8` and
-`Qwen/Qwen3-30B-A3B-Instruct-2507@int8` have `prescan`,
-`one_block_server`, `multi_block`, and `multi_request_load` marked `passed`.
-`full_generation` and `cache_generation` stay `pending`, and
-`token_parity: not_evaluated_reference_fp16_exceeds_m4pro_memory` keeps both
-rows below demo_safe.
+`Qwen/Qwen3-30B-A3B@int8` has `prescan`, `one_block_server`,
+`multi_block`, `multi_request_load`, and now `full_generation` marked `passed`
+from the streamed-reference live run. Its `cache_generation` remains pending and
+`token_parity: exact_forward_loop_default_prompt_cache_pending` is deliberately
+not the demo-safe `exact` value. `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` still
+has only `prescan`, `one_block_server`, `multi_block`, and
+`multi_request_load` marked `passed`; its `full_generation`,
+`cache_generation`, and exact `token_parity` remain pending/fail-closed.
 
 Remaining Task 5 work: exact full/cache generation parity. The current
 `text_generation_parity.py` verifier loads a full local fp16 HF reference
@@ -283,11 +293,12 @@ remained fail-closed until a credible reference path existed. The repo now has a
 test-backed streamed-block reference harness (`scripts/streamed_reference_generation.py`
 plus `scripts/text_generation_parity.py --reference-mode streamed-blocks`) that
 loads the outer weights plus one fp16 BloomBee block at a time and can compare a
-quantized route id (`model@int8`) against a base checkpoint id. This is still
-only a harness until a live distributed int8 server trace passes exact token-ID
-comparison; do not write `token_parity: exact` or mark `full_generation` /
-`cache_generation` passed from load-only artifacts or from a reference trace
-without distributed comparison.
+quantized route id (`model@int8`) against a base checkpoint id. The base
+`Qwen/Qwen3-30B-A3B@int8` live server has now passed this forward-loop
+full-generation gate with exact streamed fp16 IDs/text. Do not mark
+`cache_generation` passed, do not mark `token_parity: exact`, and do not mark
+safe-demo from this alone; remaining proof is cached/generate-api parity and the
+full quantized prompt-set parity policy.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15

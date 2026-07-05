@@ -3308,7 +3308,9 @@ models:
     assert route["requested_evaluation"]["supported"] is True
     assert route["requested_evaluation"]["selector_allowed"] is False
     assert route["requested_evaluation"]["proof_status"]["multi_request_load"] == "passed"
-    assert route["requested_evaluation"]["proof_status"]["full_generation"] == "pending"
+    assert route["requested_evaluation"]["proof_status"]["full_generation"] == "passed"
+    assert route["requested_evaluation"]["proof_status"]["cache_generation"] == "pending"
+    assert route["requested_evaluation"]["proof_status"]["token_parity"] == "exact_forward_loop_default_prompt_cache_pending"
     assert route["override_refused"] is True
     assert route["override_active"] is False
     assert route["serving"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"

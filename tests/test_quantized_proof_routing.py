@@ -196,20 +196,28 @@ def test_committed_proof_status_has_failclosed_partial_int8_rows():
     from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, load_proof_status
 
     proof = load_proof_status(DEFAULT_PROOF_STATUS)
-    for route_id in (
-        "Qwen/Qwen3-30B-A3B@int8",
-        "Qwen/Qwen3-30B-A3B-Instruct-2507@int8",
-    ):
-        row = proof.get(route_id)
-        assert row is not None, "quantized proof row must exist explicitly (fail-closed, not implied)"
-        assert row["prescan"] == "passed"
-        assert row["one_block_server"] == "passed"
-        assert row["multi_block"] == "passed"
-        assert row["multi_request_load"] == "passed"
-        assert row["full_generation"] == "pending"
-        assert row["cache_generation"] == "pending"
-        assert row["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"
-        assert is_demo_safe(row, quant_type="int8") is False
+
+    base = proof.get("Qwen/Qwen3-30B-A3B@int8")
+    assert base is not None, "quantized proof row must exist explicitly (fail-closed, not implied)"
+    assert base["prescan"] == "passed"
+    assert base["one_block_server"] == "passed"
+    assert base["multi_block"] == "passed"
+    assert base["multi_request_load"] == "passed"
+    assert base["full_generation"] == "passed"
+    assert base["cache_generation"] == "pending"
+    assert base["token_parity"] == "exact_forward_loop_default_prompt_cache_pending"
+    assert is_demo_safe(base, quant_type="int8") is False
+
+    instruct = proof.get("Qwen/Qwen3-30B-A3B-Instruct-2507@int8")
+    assert instruct is not None, "quantized proof row must exist explicitly (fail-closed, not implied)"
+    assert instruct["prescan"] == "passed"
+    assert instruct["one_block_server"] == "passed"
+    assert instruct["multi_block"] == "passed"
+    assert instruct["multi_request_load"] == "passed"
+    assert instruct["full_generation"] == "pending"
+    assert instruct["cache_generation"] == "pending"
+    assert instruct["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"
+    assert is_demo_safe(instruct, quant_type="int8") is False
 
 
 def test_committed_int8_evidence_artifacts_back_partial_proof_row():
@@ -245,6 +253,30 @@ def test_committed_int8_evidence_artifacts_back_partial_proof_row():
         assert payload["claim_boundary"] == expected["claim_boundary"]
         assert payload["safe_demo_selectable"] is False
         assert payload["can_update_demo_status"] is False
+
+    full_generation = json.loads(
+        (root / "qwen30b-int8-full-generation-streamed-reference-20260705T150417Z.json").read_text()
+    )
+    full_generation_verify = json.loads(
+        (root / "qwen30b-int8-full-generation-streamed-reference-20260705T150417Z.verify.json").read_text()
+    )
+    assert full_generation["model"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert full_generation["checkpoint_model"] == "Qwen/Qwen3-30B-A3B"
+    assert full_generation["reference_mode"] == "streamed-blocks"
+    assert full_generation["ok"] is True
+    assert full_generation["generated_ids_match"] is True
+    assert full_generation["generated_text_match"] is True
+    assert full_generation["next_token_match"] is True
+    assert full_generation["server_placements"] == [
+        {
+            "host": "m4pro-full",
+            "layers": [0, 48],
+            "server_maddr": full_generation["server_maddrs"][0],
+        }
+    ]
+    assert full_generation_verify["status"] == "passed"
+    assert full_generation_verify["can_update_proof_status"] is True
+    assert full_generation_verify["proof_status_update"] == {"full_generation": "passed"}
 
     base_load = json.loads((root / "qwen30b-int8-full-load-0-48-20260705T131803Z.json").read_text())
     instruct_load = json.loads((root / "instruct2507-int8-full-load-0-48-20260705T133853Z.json").read_text())

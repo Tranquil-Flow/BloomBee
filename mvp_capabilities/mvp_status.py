@@ -154,8 +154,8 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         weight=5,
         completion=0.75,
         status="int8_load_proven_route_dashboard_wired",
-        evidence="Quantized routing is now proof-keyed and coordinator/dashboard-visible: Qwen3-30B-A3B@int8 and Qwen3-30B-A3B-Instruct-2507@int8 have claim-bounded m4pro full 0:48 multi-request load evidence, route_picker/proof_ladder enforce quantized token-parity gating, join_http_server accepts requested_model/model quantized pins and surfaces override/refusal metadata through /route and /handoff, layer_planner emits base HF launch commands with --quant_type INT8 for quantized route IDs, and demo_dashboard renders serving model plus quantization. Still post-MVP: full_generation/cache_generation/token_parity remain fail-closed.",
-        next_step="solve credible fp16 reference parity path for 30B int8 full/cache generation; only mark demo_safe after exact token parity passes",
+        evidence="Quantized routing is proof-keyed and coordinator/dashboard-visible: Qwen3-30B-A3B@int8 has claim-bounded m4pro full 0:48 multi-request load evidence plus streamed-fp16 forward-loop full-generation parity; Qwen3-30B-A3B-Instruct-2507@int8 has full 0:48 multi-request load evidence. route_picker/proof_ladder enforce quantized token-parity gating, join_http_server accepts requested_model/model quantized pins and surfaces override/refusal metadata through /route and /handoff, layer_planner emits base HF launch commands with --quant_type INT8 for quantized route IDs, and demo_dashboard renders serving model plus quantization. Still post-MVP: cache_generation and final token_parity remain fail-closed for base 30B@int8; full_generation/cache_generation/token_parity remain fail-closed for Instruct-2507@int8.",
+        next_step="run streamed-reference cache/generate-api parity for base 30B@int8; only mark demo_safe after cache generation passes and final token_parity is exact",
     ),
 )
 

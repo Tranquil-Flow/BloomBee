@@ -29,23 +29,23 @@
   "live_server_proven": false,
   "memory_reduction_source": "quantized_block_spike_random_weight_qwen3_moe_layer",
   "model_id": "Qwen/Qwen3-30B-A3B",
-  "next_gate": "full_generation",
+  "next_gate": "cache_generation",
   "operator_next_steps": [
-    "do not promote Qwen/Qwen3-30B-A3B@int8 from load proof alone",
-    "establish a credible fp16 reference path for exact token parity",
-    "run quantized full_generation/cache_generation gates and write token_parity exact/diverged before demo-safe promotion"
+    "do not promote Qwen/Qwen3-30B-A3B@int8 until cache_generation passes and token_parity is exact",
+    "use the streamed fp16 reference harness for remaining cache-generation parity attempts",
+    "write token_parity exact/diverged only when the full quantized demo prompt set is covered"
   ],
   "quant_scheme": "moe_int8_experts+qint8_attn",
   "quant_type": "int8",
   "quantized_proof_key": "Qwen/Qwen3-30B-A3B@int8",
   "quantized_proof_status": {
     "cache_generation": "pending",
-    "full_generation": "pending",
+    "full_generation": "passed",
     "multi_block": "passed",
     "multi_request_load": "passed",
     "one_block_server": "passed",
     "prescan": "passed",
-    "token_parity": "not_evaluated_reference_fp16_exceeds_m4pro_memory"
+    "token_parity": "exact_forward_loop_default_prompt_cache_pending"
   },
   "quantized_route": {
     "memory_fit": true,

@@ -81,7 +81,7 @@ STALE_HANDOFF_PHRASES = (
 
 HIGH_VALUE_FABLE_QUESTIONS = (
     "Is the live continuous-batching opt-in seam conservative enough before wiring into inference_session.py?",
-    "Should the next expensive full-generation proof target base Qwen3-30B first, Instruct-2507 first, or both?",
+    "Should the next expensive parity proof target base Qwen3-30B@int8 cache/generate-api first, exact Instruct-2507@int8 full-generation first, or both?",
     "Are deterministic scaled hidden-state load probes acceptable, or should the next gate use token-derived hidden states?",
     "Can route/demo selectors accidentally promote Qwen3-30B/2507 without full_generation/cache/load proofs?",
     "Which stable skipped tests deserve CI jobs or smaller deterministic replacements?",
