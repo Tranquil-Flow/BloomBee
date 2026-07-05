@@ -374,6 +374,9 @@ def evaluate_model(
         "runtime_supported": runtime_supported,
         "hf_model_type": model.get("hf_model_type"),
         "bloombee_family": model.get("bloombee_family"),
+        "quantization_method": model.get("quantization_method"),
+        "quantization_supported": model.get("quantization_supported"),
+        "requires_trust_remote_code": bool(model.get("requires_trust_remote_code")),
         "blocked_reasons": model.get("blocked_reasons") or [],
         "placement": placement,
         "reason": reason,
@@ -499,6 +502,43 @@ def choose_best_route(
 
 
 ROUTE_REPORT_CLAIM_BOUNDARY = "route_report_planning_only_no_serving_proof"
+BLOCKED_FRONTIER_CLAIM_BOUNDARY = "blocked_frontier_candidates_no_serving_proof"
+
+
+def _blocked_frontier_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compact unsupported-frontier summary for route-report consumers.
+
+    This is visibility only. A row appearing here is explicitly not serving proof
+    and must not update proof/status gates.
+    """
+    summary: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if candidate.get("claim_level") != "blocked":
+            continue
+        if candidate.get("architecture_supported") is not False:
+            continue
+        if candidate.get("supports_moe") is not True:
+            continue
+        summary.append(
+            {
+                "model_id": candidate.get("model_id"),
+                "hf_model_type": candidate.get("hf_model_type"),
+                "claim_level": candidate.get("claim_level"),
+                "selector_allowed": candidate.get("selector_allowed"),
+                "selector_blocked_reason": candidate.get("selector_blocked_reason"),
+                "architecture_supported": candidate.get("architecture_supported"),
+                "runtime_supported": candidate.get("runtime_supported"),
+                "memory_fit": candidate.get("memory_fit"),
+                "required_free_gb": candidate.get("required_free_gb"),
+                "quantization_method": candidate.get("quantization_method"),
+                "quantization_supported": candidate.get("quantization_supported"),
+                "requires_trust_remote_code": candidate.get("requires_trust_remote_code"),
+                "blocked_reasons": candidate.get("blocked_reasons") or [],
+                "can_update_proof_status": False,
+                "inference_proven": False,
+            }
+        )
+    return summary
 
 
 def explain_route(
@@ -655,9 +695,12 @@ def route_report(
                 override_reason = str(requested_evaluation.get("selector_blocked_reason") or "requested model is disallowed by selector mode")
 
     report = dict(auto)
+    blocked_frontier = _blocked_frontier_candidates(list(auto.get("candidates") or []))
     report.update(
         {
             "claim_boundary": ROUTE_REPORT_CLAIM_BOUNDARY,
+            "blocked_frontier_claim_boundary": BLOCKED_FRONTIER_CLAIM_BOUNDARY,
+            "blocked_frontier_candidates": blocked_frontier,
             "picked": serving,
             "serving": serving,
             "best_available": best_available,

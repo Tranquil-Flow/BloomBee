@@ -2811,6 +2811,37 @@ def test_route_report_marks_allowed_pin_as_active_override():
     assert report["override_reason"] == "serving requested model; auto-pick would be Qwen/Qwen3-30B-A3B"
 
 
+def test_route_report_summarizes_blocked_frontier_candidates_without_selection():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.route_picker import load_registry, route_report, synthetic_m4_laptops
+
+    report = route_report(
+        synthetic_m4_laptops(count=20, total_gb=128, free_gb=100, prefix="frontier"),
+        load_registry(REGISTRY_PATH),
+        proof_status=load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml"),
+        selector_mode="showcase-attempt",
+    )
+
+    assert report["blocked_frontier_claim_boundary"] == "blocked_frontier_candidates_no_serving_proof"
+    by_id = {item["model_id"]: item for item in report["blocked_frontier_candidates"]}
+    expected = {
+        "MiniMaxAI/MiniMax-M3",
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4-Flash",
+        "moonshotai/Kimi-K2-Instruct",
+    }
+    assert expected <= set(by_id)
+    assert report["serving"]["model_id"] not in expected
+    assert report["inference_proven"] is False
+    for model_id in expected:
+        assert by_id[model_id]["claim_level"] == "blocked"
+        assert by_id[model_id]["selector_allowed"] is False
+        assert by_id[model_id]["architecture_supported"] is False
+        assert by_id[model_id]["can_update_proof_status"] is False
+    assert by_id["deepseek-ai/DeepSeek-V4-Flash"]["quantization_method"] == "fp8"
+    assert by_id["moonshotai/Kimi-K2-Instruct"]["requires_trust_remote_code"] is True
+
+
 def test_showcase_attempt_allows_experimental_but_blocks_wrapper_blocked():
     from mvp_capabilities.route_picker import explain_route
 
