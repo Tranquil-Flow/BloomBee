@@ -237,8 +237,8 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="qwen35b_candidate",
         label="Qwen35B candidate branch",
         status="partial",
-        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning. Text-tower qwen3_5_moe_text wrapper/package now has import/config and full_attention block contract tests green at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json; linear_attention cache remains blocked fail-closed, so there is still no one-block server proof and no demo/route promotion.",
-        next_step="implement/test Qwen3.5 linear-attention cache mapping before one-block server proof; keep showcase/safe-demo blocked until linear-attention, one-block, full/cache/load gates pass",
+        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning. Text-tower qwen3_5_moe_text wrapper/package now has import/config, full_attention block contract, and linear_attention local state round-trip tests green at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json; backend linear-state cache descriptors/read/write remain blocked, so there is still no one-block server proof and no demo/route promotion.",
+        next_step="implement/test BloomBee backend linear-state cache descriptors/read/write before one-block server proof; keep showcase/safe-demo blocked until backend linear-state cache, one-block, full/cache/load gates pass",
     ),
     PlanTask(
         id="minimax_m3_candidate",

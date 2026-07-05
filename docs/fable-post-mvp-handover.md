@@ -129,7 +129,7 @@ Claim boundary:
 post_mvp_wrapper_scout_no_runtime_proof_no_demo_promotion
 ```
 
-Next step if Fable wants this lane: write RED import/config-dispatch tests for `qwen3_5_moe` and `qwen3_5_moe_text` first. Do not run one-block proof or mark `architecture_supported=true` until that wrapper layer is green.
+Next step if Fable wants this lane: write RED backend descriptor/read/write tests for Qwen3.5 linear-attention conv/recurrent state cache. Do not run one-block proof or mark `architecture_supported=true` until backend linear-state cache handling is green.
 
 ### `docs/layerexecutor-quantized-backend-spike.md` and stretch evidence
 
@@ -301,7 +301,7 @@ Post-MVP workstreams to review and possibly reorder:
 | KV prefix reuse | partial | cache reuse can silently change outputs | `kv_prefix_reuse_proof.py` verifies same-prefix/varied-suffix evidence with exact token/logit parity and timing delta fail-closed. Next wire runtime prefill/session cache metadata and capture real TinyLlama/Qwen3-8B evidence. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
-| qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper still blocked | text tower uses alternating linear_attention/full_attention plus mRoPE/linear-attention fields, so qwen3_moe wrapper copy is unsafe | Write RED import/config-dispatch tests for qwen3_5_moe/qwen3_5_moe_text before wrapper code or live proof. |
+| qwen3_5_moe / AgentWorld-35B | text-tower wrapper contract partial | import/config dispatch, full_attention KV tuple contract, and local linear_attention conv/recurrent state round-trip are green; backend server cache manager still assumes attention KV tensors | Add RED backend descriptor/read/write tests for linear-state cache before one-block server proof or route/demo promotion. |
 | MiniMax/GLM/DeepSeek/Kimi LayerExecutor | research spike complete | no runnable backend proof; all scanned targets blocked by missing wrappers and/or quantized/sparse-attention runtime needs | Keep as separate backend lane; do not touch route/demo status. If continued, pick one target and start with external-runtime smoke, not native BloomBee claims. |
 
 ---

@@ -269,7 +269,7 @@ models:
     moe_intermediate_size: 512
     architecture_supported: false
     blocked_reasons:
-      - BloomBee qwen3_5_moe_text full_attention text-tower block contract is green, but linear_attention cache mapping is not implemented
+      - BloomBee qwen3_5_moe_text full_attention text-tower block contract and local linear_attention conv/recurrent state round-trip are green, but backend linear_attention state cache descriptors/read/write are not implemented
       - No one-block server proof yet for alternating Qwen3.5 linear_attention/full_attention layers
     hf_config_url: https://huggingface.co/Qwen/Qwen-AgentWorld-35B-A3B/blob/main/config.json
 

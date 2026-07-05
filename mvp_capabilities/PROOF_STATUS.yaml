@@ -92,11 +92,11 @@ models:
 
   Qwen/Qwen-AgentWorld-35B-A3B:
     prescan: passed
-    one_block_server: blocked-by-linear-attention-cache
-    multi_block: blocked-by-linear-attention-cache
-    full_generation: blocked-by-linear-attention-cache
-    cache_generation: blocked-by-linear-attention-cache
-    multi_request_load: blocked-by-linear-attention-cache
+    one_block_server: blocked-by-backend-linear-state-cache
+    multi_block: blocked-by-backend-linear-state-cache
+    full_generation: blocked-by-backend-linear-state-cache
+    cache_generation: blocked-by-backend-linear-state-cache
+    multi_request_load: blocked-by-backend-linear-state-cache
 
   Qwen/Qwen3-235B-A22B-Instruct-2507:
     prescan: pending

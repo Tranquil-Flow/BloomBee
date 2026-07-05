@@ -106,15 +106,43 @@ def test_qwen3_5_moe_text_full_attention_block_decode_advances_one_token():
     assert pv2.shape[-2] == 1
 
 
-def test_qwen3_5_moe_text_linear_attention_cache_fails_closed():
+def test_qwen3_5_moe_text_linear_attention_no_cache_forward_is_supported():
     from bloombee.models.qwen3_5_moe.block import WrappedQwen3_5MoeTextBlock
 
+    torch.manual_seed(2)
     cfg = _make_text_config()
     block = WrappedQwen3_5MoeTextBlock(cfg, layer_idx=0).eval()
     h = torch.randn(1, 2, cfg.hidden_size)
 
-    with pytest.raises(NotImplementedError, match="linear_attention cache"):
-        block(h, attention_mask=None, use_cache=True)
+    out, kv = block(h, attention_mask=None, use_cache=False)
+
+    assert out.shape == h.shape
+    assert kv is None
+
+
+def test_qwen3_5_moe_text_linear_attention_cache_state_roundtrip():
+    from bloombee.models.qwen3_5_moe.block import WrappedQwen3_5MoeTextBlock
+
+    torch.manual_seed(3)
+    cfg = _make_text_config()
+    block = WrappedQwen3_5MoeTextBlock(cfg, layer_idx=0).eval()
+    h = torch.randn(1, 2, cfg.hidden_size)
+
+    out, state = block(h, attention_mask=None, use_cache=True)
+
+    assert out.shape == h.shape
+    conv_state, recurrent_state = state
+    assert conv_state.shape == (1, 8192, cfg.linear_conv_kernel_dim)
+    assert recurrent_state.shape == (1, 32, 128, 128)
+
+    h_next = torch.randn(1, 1, cfg.hidden_size)
+    out2, state2 = block(h_next, layer_past=state, attention_mask=None, use_cache=True)
+
+    assert out2.shape == h_next.shape
+    conv_state2, recurrent_state2 = state2
+    assert conv_state2.shape == conv_state.shape
+    assert recurrent_state2.shape == recurrent_state.shape
+    assert not torch.equal(conv_state2, conv_state)
 
 
 def test_qwen3_5_moe_text_rotary_buffers_remain_fp32_after_cast():

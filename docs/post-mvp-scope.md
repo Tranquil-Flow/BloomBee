@@ -229,7 +229,7 @@ Base 30B@int8 and Instruct-2507@int8 are demo-safe under the current full/cache/
 
 ### Task 8: qwen3_5_moe wrapper feasibility for AgentWorld-35B-A3B
 
-**Status:** Config-only wrapper scout complete. Wrapper remains blocked; no runtime proof or demo promotion.
+**Status:** Text-tower wrapper contract partial. Import/config dispatch, full-attention KV tuple contract, and local linear-attention conv/recurrent state round-trip are test-green. Backend/server linear-state cache descriptors and read/write path remain blocked; no runtime proof or demo promotion.
 
 **Objective:** Decide whether `Qwen/Qwen-AgentWorld-35B-A3B` can become a native BloomBee stretch target.
 
@@ -239,7 +239,7 @@ Base 30B@int8 and Instruct-2507@int8 are demo-safe under the current full/cache/
 
 **Claim boundary:** `post_mvp_wrapper_scout_no_runtime_proof_no_demo_promotion`
 
-**Decision:** Do not copy the existing `qwen3_moe` wrapper. AgentWorld config uses `qwen3_5_moe` / `qwen3_5_moe_text`, alternating `linear_attention` and `full_attention` layers, mRoPE parameters, and linear-attention head fields; import/config-dispatch TDD must come before any wrapper code or one-block proof.
+**Decision:** Do not copy the existing `qwen3_moe` wrapper. AgentWorld config uses `qwen3_5_moe` / `qwen3_5_moe_text`, alternating `linear_attention` and `full_attention` layers, mRoPE parameters, and linear-attention head fields. The local text-tower wrapper now handles full-attention KV tuples and linear-attention conv/recurrent state round-trip, but BloomBee's server cache manager still assumes attention KV tensors, so one-block proof remains blocked until backend linear-state cache support is added.
 
 **Files:**
 - Create or modify: `src/bloombee/models/qwen3_5_moe/`
@@ -250,7 +250,7 @@ Base 30B@int8 and Instruct-2507@int8 are demo-safe under the current full/cache/
 **Steps:**
 1. Inspect HF config and module names for the qwen3_5_moe text tower.
 2. Compare against existing `src/bloombee/models/qwen3_moe/` wrapper assumptions.
-3. Write a compatibility scout artifact before coding a wrapper.
+3. Add backend/server cache descriptors plus read/write handling for linear-attention conv/recurrent state before one-block proof.
 4. If feasible, TDD wrapper import/config dispatch first.
 5. Run one-block proof only after wrapper tests pass.
 

@@ -119,7 +119,7 @@ Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 | KV prefix reuse | partial | exact-token/logit parity plus timing delta against no-reuse baseline. |
 | Phone draft-provider wall-clock | partial | live phone token transport into verifier plus faster-than-baseline wall-clock gate. |
 | Android/Termux capability fidelity | partial | richer peer scan memory/storage reporting without block-serving overclaim. |
-| qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper blocked | `qwen-agentworld-35b-wrapper-scout-20260704.json` proves the text tower alternates `linear_attention`/`full_attention`; write RED import/config-dispatch tests before wrapper code. |
+| qwen3_5_moe / AgentWorld-35B | text-tower wrapper contract partial | `qwen-agentworld-35b-text-wrapper-gate-20260704.json` now covers import/config dispatch, full_attention KV tuples, and local linear_attention conv/recurrent state round-trip; backend linear-state cache descriptors/read/write remain before one-block proof. |
 | LayerExecutor / quantized frontier backends | bounded feasibility spike complete | `layerexecutor-feasibility-20260704.json`; all scanned targets remain blocked for native route/demo until wrapper/backend proof exists. |
 | Dashboard/status separation | post-MVP panel shipped | status JSON and dashboard show post-MVP/stretch milestones without moving MVP-core percent. |
 

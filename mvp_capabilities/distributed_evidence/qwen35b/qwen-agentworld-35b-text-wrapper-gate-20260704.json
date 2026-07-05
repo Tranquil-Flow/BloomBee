@@ -2,26 +2,28 @@
   "claim_boundary": "post_mvp_qwen35b_text_wrapper_contract_only_no_serving_proof",
   "model_id": "Qwen/Qwen-AgentWorld-35B-A3B",
   "generated_at_utc": "2026-07-04T22:25:00+00:00",
+  "updated_at_utc": "2026-07-05T22:32:00+00:00",
   "wrapper_code_written": true,
   "text_tower_model_type": "qwen3_5_moe_text",
   "outer_model_type": "qwen3_5_moe",
   "tested_package": "bloombee.models.qwen3_5_moe",
   "test_file": "tests/test_qwen3_5_moe_block_contract.py",
   "test_command": ".venv/bin/python -m pytest tests/test_qwen3_5_moe_block_contract.py -q",
-  "test_result": "5 passed, 2 warnings",
+  "test_result": "6 passed, 2 warnings",
   "full_attention_block_contract": "passed",
-  "linear_attention_cache_contract": "blocked_fail_closed",
+  "linear_attention_cache_contract": "local_state_roundtrip_passed",
+  "backend_linear_state_cache_contract": "blocked_fail_closed",
   "runnable_backend_proven": false,
   "serving_proof_proven": false,
   "generation_proof_proven": false,
   "can_update_mvp_status": true,
   "can_update_proof_status": true,
   "proof_status_update": {
-    "one_block_server": "blocked-by-linear-attention-cache"
+    "one_block_server": "blocked-by-backend-linear-state-cache"
   },
   "blocked_reasons": [
-    "Qwen3.5-MoE text tower alternates linear_attention and full_attention layers; only full_attention block cache/KV contract is green.",
-    "BloomBee KV tuple contract does not yet encode Qwen3.5 linear_attention convolution/state cache, so linear_attention cached serving fails closed.",
+    "Qwen3.5-MoE text tower alternates linear_attention and full_attention layers; local wrapper tests now cover both full_attention KV tuples and linear_attention conv/recurrent state round-trip.",
+    "BloomBee server KVCacheManager/inference descriptor path still assumes attention KV tensors and does not yet allocate or persist Qwen3.5 linear_attention conv/recurrent state cache, so one-block server proof remains blocked.",
     "Outer qwen3_5_moe multimodal/conditional-generation config remains unserved; this slice registers text_tower model_type=qwen3_5_moe_text only."
   ],
   "do_not_claim": [
@@ -31,5 +33,5 @@
     "no cache-generation proof",
     "no multi-request load proof"
   ],
-  "next_step": "Implement/test Qwen3.5 linear-attention cache mapping before any one-block server proof or route promotion."
+  "next_step": "Implement/test BloomBee backend linear-state cache descriptors and update/read/write path before any one-block server proof or route promotion."
 }
