@@ -72,6 +72,8 @@ def plan_layer_placement(peers: list[dict[str, Any]], model: dict[str, Any]) -> 
     if num_layers <= 0 or required_free_gb <= 0:
         return {
             "model_id": model.get("model_id"),
+            "base_model_id": model.get("base_model_id"),
+            "quant_type": model.get("quant_type"),
             "supported": False,
             "reason": "model is missing num_layers or memory requirement",
             "num_layers": num_layers,
@@ -121,6 +123,8 @@ def plan_layer_placement(peers: list[dict[str, Any]], model: dict[str, Any]) -> 
 
     return {
         "model_id": model.get("model_id"),
+        "base_model_id": model.get("base_model_id"),
+        "quant_type": model.get("quant_type"),
         "supported": supported,
         "reason": reason,
         "num_layers": num_layers,
@@ -143,6 +147,7 @@ def _server_command(
     dtype: str,
     dht_prefix: str | None,
     initial_peer_placeholder: str | None,
+    quant_type: str | None = None,
 ) -> str:
     parts = ["PYTHONPATH=.:src"]
     parts.extend(
@@ -155,6 +160,8 @@ def _server_command(
             f"--port {port}",
         ]
     )
+    if quant_type:
+        parts.append(f"--quant_type {str(quant_type).upper()}")
     if dht_prefix:
         parts.append(f"--dht_prefix {dht_prefix}")
     if initial_peer_placeholder:
@@ -180,6 +187,8 @@ def attach_launch_commands(
     updated = dict(plan)
     assignments: list[dict[str, Any]] = []
     seed_hostname: str | None = None
+    launch_model_id = str(plan.get("base_model_id") or plan.get("model_id"))
+    quant_type = plan.get("quant_type")
     for index, assignment in enumerate(plan.get("assignments") or []):
         item = dict(assignment)
         hostname = str(item.get("hostname") or f"peer-{index + 1}")
@@ -193,13 +202,14 @@ def attach_launch_commands(
                 "port": port,
                 "block_range": block_range,
                 "launch_command": _server_command(
-                    model_id=str(plan.get("model_id")),
+                    model_id=launch_model_id,
                     block_range=block_range,
                     port=port,
                     device=device,
                     dtype=dtype,
                     dht_prefix=dht_prefix,
                     initial_peer_placeholder=initial_peer,
+                    quant_type=str(quant_type) if quant_type else None,
                 ),
             }
         )
@@ -211,6 +221,9 @@ def attach_launch_commands(
         "dtype": dtype,
         "base_port": base_port,
         "dht_prefix": dht_prefix,
+        "launch_model_id": launch_model_id,
+        "route_model_id": plan.get("model_id"),
+        "quant_type": quant_type,
     }
     updated["launch_command_notes"] = [
         "Commands are a runbook only; no server was started by the planner.",

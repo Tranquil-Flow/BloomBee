@@ -30,7 +30,7 @@ try:
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
-    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, load_proof_status, load_registry, route_report
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, expand_quantized_variants, load_proof_status, load_registry, route_report
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -46,7 +46,7 @@ except ModuleNotFoundError:  # direct script execution
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
-    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, load_proof_status, load_registry, route_report
+    from mvp_capabilities.route_picker import DEFAULT_PROOF_STATUS, DEFAULT_REGISTRY, expand_quantized_variants, load_proof_status, load_registry, route_report
     from mvp_capabilities.speculative_decode_plan import build_speculative_decode_plan
 
 HEALTH_CLAIM_BOUNDARY = "coordinator_health_only_no_inference_proof"
@@ -68,6 +68,11 @@ def _first(query: dict[str, list[str]], key: str, default: str | None = None) ->
     if not values:
         return default
     return values[0]
+
+
+def _requested_model_from_query(query: dict[str, list[str]]) -> str | None:
+    """Backward-compatible requested-model alias for route/handoff endpoints."""
+    return _first(query, "requested_model") or _first(query, "model")
 
 
 def _as_int(value: str | None, default: int) -> int:
@@ -99,6 +104,11 @@ def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]
         if model.get("model_id") == model_id:
             return model
     return None
+
+
+def _registry_with_quantized_variants(registry: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return base registry plus derived quantized route candidates for planning."""
+    return list(registry) + expand_quantized_variants(registry)
 
 
 def _parse_block_range_value(block_range: str) -> tuple[int, int]:
@@ -357,7 +367,7 @@ def _route_from_query(
             peers,
             load_registry(registry),
             scenario=_first(query, "scenario"),
-            requested_model=_first(query, "model"),
+            requested_model=_requested_model_from_query(query),
             proof_status=load_proof_status(_first(query, "proof_status", str(DEFAULT_PROOF_STATUS)) or DEFAULT_PROOF_STATUS),
             selector_mode=_first(query, "selector_mode", "planning") or "planning",
         )
@@ -425,6 +435,7 @@ def _handle_plan(
 
     route_decision: dict[str, Any] | None = None
     registry_models = load_registry(registry)
+    planning_registry = _registry_with_quantized_variants(registry_models)
     if model_id == "auto":
         route_query = {key: list(value) for key, value in query.items() if key != "model"}
         route_status, route_payload = _route_from_query(route_query, state_dir=state_dir, registry=registry)
@@ -436,7 +447,7 @@ def _handle_plan(
             return 409, {"error": "no selectable model for current joined roster", "claim_boundary": ERROR_CLAIM_BOUNDARY}
         model_id = str(picked_model_id)
 
-    model = _find_model(registry_models, model_id)
+    model = _find_model(planning_registry, model_id)
     if model is None:
         return 404, {"error": f"model not found: {model_id}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
@@ -480,6 +491,7 @@ def _handle_handoff(
         return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
     registry_models = load_registry(registry)
+    planning_registry = _registry_with_quantized_variants(registry_models)
     offer = create_join_offer(
         coordinator=_first(query, "coordinator", coordinator) or coordinator,
         token=token,
@@ -501,14 +513,14 @@ def _handle_handoff(
         return plan_status, plan
 
     model_id = str(plan.get("model_id") or "")
-    model = _find_model(registry_models, model_id)
+    model = _find_model(planning_registry, model_id)
     if model is None:
         return 404, {"error": f"model not found: {model_id}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
     proof_runbooks = _build_handoff_proof_runbooks(
         plan=plan,
         model=model,
-        registry_models=registry_models,
+        registry_models=planning_registry,
         request_count=_as_int(_first(query, "request_count"), 3),
         prompt=_first(query, "prompt", "The moon is") or "The moon is",
         max_new_tokens=_as_int(_first(query, "max_new_tokens"), 4),

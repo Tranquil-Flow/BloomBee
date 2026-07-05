@@ -152,10 +152,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="quantization_routing_handoff",
         label="Quantization + route override handoff",
         weight=5,
-        completion=0.45,
-        status="route_lane_committed",
-        evidence="Fable's quantization/routing foundation is committed and now has a claim-bounded Qwen3-30B-A3B@int8 route lane artifact: docs/quantization-routing-handover.md, mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json, mvp_capabilities/distributed_evidence/post_mvp/quantized-qwen30b-route-lane-20260704.json, src/bloombee/utils/moe_expert_quant.py, route_picker/proof_ladder demo_safe-gate alignment, route_report CLI behavior, and default-suite quantization tests. This is still post-MVP only: no quantized serving proof, no fp16 proof-row promotion, no route/demo promotion, and no MVP-core denominator change.",
-        next_step="wire server-side INT8 quantized loading behind the existing quant_type flag, run Qwen3-30B-A3B@int8 one-block proof, then full/cache/load gates before any demo-safe promotion",
+        completion=0.75,
+        status="int8_load_proven_route_dashboard_wired",
+        evidence="Quantized routing is now proof-keyed and coordinator/dashboard-visible: Qwen3-30B-A3B@int8 and Qwen3-30B-A3B-Instruct-2507@int8 have claim-bounded m4pro full 0:48 multi-request load evidence, route_picker/proof_ladder enforce quantized token-parity gating, join_http_server accepts requested_model/model quantized pins and surfaces override/refusal metadata through /route and /handoff, layer_planner emits base HF launch commands with --quant_type INT8 for quantized route IDs, and demo_dashboard renders serving model plus quantization. Still post-MVP: full_generation/cache_generation/token_parity remain fail-closed.",
+        next_step="solve credible fp16 reference parity path for 30B int8 full/cache generation; only mark demo_safe after exact token parity passes",
     ),
 )
 

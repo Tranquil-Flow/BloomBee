@@ -293,9 +293,10 @@ def _esc(value: Any) -> str:
 
 
 def _route_card(title: str, route: dict[str, Any]) -> str:
-    picked = route.get("picked") or {}
+    picked = route.get("serving") or route.get("picked") or {}
     best_available = route.get("best_available") or picked
     requested = route.get("requested_model") or "auto / none"
+    quant_type = picked.get("quant_type") or "fp16 / none"
     if route.get("override_refused"):
         override = f"refused: {route.get('override_reason') or 'requested model refused'}"
     elif route.get("override_active"):
@@ -307,6 +308,8 @@ def _route_card(title: str, route: dict[str, Any]) -> str:
         <h2>{_esc(title)}</h2>
         <div class="hero-model">{_esc(picked.get('model_id') or 'No model selected')}</div>
         <div class="grid two">
+          <div><span class="label">Serving</span><strong>{_esc(picked.get('model_id') or '—')}</strong></div>
+          <div><span class="label">Quantization</span><strong>{_esc(quant_type)}</strong></div>
           <div><span class="label">Placement</span><strong>{_esc(picked.get('placement'))}</strong></div>
           <div><span class="label">Supported</span><strong>{_bool_badge(picked.get('supported'))}</strong></div>
           <div><span class="label">Swarm free GB</span><strong>{_fmt_num(picked.get('swarm_free_gb'), 1)}</strong></div>

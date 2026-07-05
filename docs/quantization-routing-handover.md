@@ -9,15 +9,17 @@
 > one-block, 0:2 multi-block, and full 0:48 multi-request load passed; exact
 > Instruct-2507@int8 also has a full 0:48 multi-request load proof. Full/cache
 > generation and token parity remain fail-closed pending for both quantized
-> rows. What remains is the parity/reference problem plus coordinator/dashboard
-> wiring + docs (Tasks 7–8).
+> rows. Task 7 coordinator/dashboard wiring is done: `/route` and `/handoff`
+> accept quantized `requested_model` pins, preserve override/refusal metadata,
+> and dashboard route cards show serving model + quantization. What remains is
+> the parity/reference problem plus docs/status coherence (Task 8).
 > Work task-by-task, RED tests first where specified, commit after each task. Do
 > not move the MVP-core denominator; everything here is post-MVP.
 
 **Branch state:** committed on `main` through
-`7830e76 fix(quant): freeze hf params after quanto swaps`; current working
-slice adds m4pro int8 proof evidence and status/docs updates. Baseline suite
-before this slice: `481 passed, 23 skipped, 4 warnings`.
+`ab7f5d1 docs(quant): record instruct2507 int8 load proof`; current working
+slice wires Task 7 coordinator/dashboard quantized route handling. Baseline
+suite before this slice: `482 passed, 23 skipped, 4 warnings`.
 
 **Related lane built by Moonsong meanwhile:**
 `mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
@@ -292,19 +294,26 @@ level (~0.985 is inherent rounding noise); the enforced properties are the
 elementwise round-trip bound and bit-exact packed-forward-vs-dequantized-
 weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
 
-### Task 7: wire route_report into coordinator + dashboard
-- `join_http_server` `/route` (and `/handoff`'s embedded route decision):
-  accept `requested_model` + `selector_mode`, return `route_report` payload
-  (pins may be quantized route ids like `Qwen/Qwen3-30B-A3B@int8` — the
-  report already evaluates them)
-- `demo_dashboard.py`: render "Serving: X (operator override — auto-pick: Y)"
-  when `override_active`, and the refusal reason when `override_refused`;
-  show `quant_type` on the serving row when set (never render a quantized
-  route without its quant marker)
-- keep the existing `/route` response shape backward compatible (add fields,
-  don't rename)
-RED tests: HTTP handler returns `best_available` + `picked`; refused pin
-never appears as `picked`.
+### Task 7: wire route_report into coordinator + dashboard — **DONE (Moonsong, 2026-07-05)**
+- `join_http_server` `/route` (and `/handoff`'s embedded route decision) now
+  accept both `requested_model` and legacy `model` pins plus `selector_mode`,
+  and return the backward-compatible `route_report` payload with
+  `best_available`, `serving`/`picked`, `requested_evaluation`,
+  `override_active`, `override_refused`, and refusal reason.
+- Quantized route ids like `Qwen/Qwen3-30B-A3B@int8` are first-class pins. In
+  `safe-demo`, partially proven int8 rows are evaluated and refused with their
+  quantized proof status visible; the served fallback remains demo-safe. In
+  planning mode, `/handoff` can plan the quantized route id while launch
+  commands use the base HF model id plus `--quant_type INT8`.
+- `demo_dashboard.py` route cards render the actual serving model and
+  `quant_type`/`fp16 / none`, preserving override/refusal visibility so a
+  quantized route is never shown without its quant marker.
+- Regression coverage: `test_layer_planner_quantized_route_uses_base_model_and_quant_flag`,
+  `test_join_http_server_route_requested_model_alias_handles_quantized_safe_demo_pin`,
+  `test_join_http_server_handoff_surfaces_quantized_requested_model_refusal`,
+  `test_join_http_server_handoff_planning_quantized_pin_emits_quantized_launch_command`,
+  and `test_dashboard_route_card_surfaces_serving_quantization_and_refused_pin`.
+
 
 ### Task 8: docs + status coherence
 - `docs/distributed-inference-mvp.md:107` still calls TinyLlama "the proven

@@ -452,8 +452,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["mvp_status"]["core_tasks_complete"] is True
     post_mvp = {item["id"]: item for item in doc["mvp_status"]["post_mvp_milestones"]}
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
-    assert post_mvp["quantization_routing_handoff"]["status"] == "route_lane_committed"
-    assert "moe_expert_quant.py" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert post_mvp["quantization_routing_handoff"]["status"] == "int8_load_proven_route_dashboard_wired"
+    assert "join_http_server accepts requested_model/model quantized pins" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert any(task["id"] == "physical_showcase" and task["done"] is True for task in doc["mvp_status"]["planned_tasks"])
     assert doc["proof_state"]["download_status"] == "complete"
@@ -496,7 +496,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "Post-MVP / stretch milestones" in html
     assert "LayerExecutor / quantized-backend feasibility spike" in html
     assert "Quantization + route override handoff" in html
-    assert "route_lane_committed" in html
+    assert "int8_load_proven_route_dashboard_wired" in html
     assert "not part of MVP-core 100%" in html
     assert "All-task summary: 10 complete, 6 partial, 0 pending, 1 blocked" in html
     assert "TinyLlama distributed fallback generation proof" in html
@@ -567,6 +567,32 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
+
+
+def test_dashboard_route_card_surfaces_serving_quantization_and_refused_pin():
+    from mvp_capabilities.demo_dashboard import _route_card
+
+    html = _route_card(
+        "Quantized route",
+        {
+            "serving": {"model_id": "Qwen/Qwen3-8B", "quant_type": None, "placement": "solo", "supported": True},
+            "picked": {"model_id": "Qwen/Qwen3-8B"},
+            "best_available": {"model_id": "Qwen/Qwen3-8B"},
+            "requested_model": "Qwen/Qwen3-30B-A3B@int8",
+            "requested_evaluation": {"model_id": "Qwen/Qwen3-30B-A3B@int8", "quant_type": "int8"},
+            "selector_mode": "safe-demo",
+            "override_refused": True,
+            "override_reason": "requested model is disallowed by selector mode: token_parity missing",
+        },
+    )
+
+    assert "Serving" in html
+    assert "Qwen/Qwen3-8B" in html
+    assert "Quantization" in html
+    assert "fp16 / none" in html
+    assert "Qwen/Qwen3-30B-A3B@int8" in html
+    assert "refused: requested model is disallowed" in html
+    assert "safe-demo" in html
 
 
 def test_dashboard_surfaces_physical_showcase_report_without_overclaiming(tmp_path: Path):

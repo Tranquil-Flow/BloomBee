@@ -565,12 +565,13 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
-    assert post_mvp["quantization_routing_handoff"]["status"] == "route_lane_committed"
-    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.45
-    assert "moe_expert_quant.py" in post_mvp["quantization_routing_handoff"]["evidence"]
-    assert "quantized-block-spike-20260704T203500Z.json" in post_mvp["quantization_routing_handoff"]["evidence"]
-    assert "quantized-qwen30b-route-lane-20260704.json" in post_mvp["quantization_routing_handoff"]["evidence"]
-    assert "no quantized serving proof" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert post_mvp["quantization_routing_handoff"]["status"] == "int8_load_proven_route_dashboard_wired"
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.75
+    assert "Qwen3-30B-A3B@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "Qwen3-30B-A3B-Instruct-2507@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "join_http_server accepts requested_model/model quantized pins" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "--quant_type INT8" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "full_generation/cache_generation/token_parity remain fail-closed" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}
@@ -2231,6 +2232,31 @@ def test_layer_planner_can_attach_exact_bloombee_server_commands():
     assert "BLOOMBEE_INITIAL_PEERS" not in plan["assignments"][1]["launch_command"]
 
 
+def test_layer_planner_quantized_route_uses_base_model_and_quant_flag():
+    from mvp_capabilities.layer_planner import attach_launch_commands, plan_layer_placement
+
+    model = {
+        "model_id": "test/TwelveLayer@int8",
+        "base_model_id": "test/TwelveLayer",
+        "quant_type": "int8",
+        "num_layers": 12,
+        "recommended_min_free_mem_gb": 12,
+    }
+    peers = [{"hostname": "alpha", "memory": {"free_gb": 12}, "accelerator": {"device": "mps"}}]
+    plan = attach_launch_commands(plan_layer_placement(peers, model), device="mps", dtype="float16", base_port=31337)
+
+    command = plan["assignments"][0]["launch_command"]
+    assert plan["model_id"] == "test/TwelveLayer@int8"
+    assert plan["base_model_id"] == "test/TwelveLayer"
+    assert plan["quant_type"] == "int8"
+    assert plan["launch_command_defaults"]["route_model_id"] == "test/TwelveLayer@int8"
+    assert plan["launch_command_defaults"]["launch_model_id"] == "test/TwelveLayer"
+    assert "python -m bloombee.cli.run_server test/TwelveLayer " in command
+    assert "test/TwelveLayer@int8" not in command
+    assert "--quant_type INT8" in command
+    assert "--new_swarm" in command
+
+
 def test_layer_planner_cli_can_include_launch_commands():
     import subprocess
     import sys
@@ -3230,6 +3256,66 @@ models:
     assert route["inference_proven"] is False
 
 
+def test_join_http_server_route_requested_model_alias_handles_quantized_safe_demo_pin(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    params_b: 1.1
+    num_layers: 22
+    hidden_size: 2048
+    recommended_min_free_mem_gb: 4
+  - model_id: Qwen/Qwen3-30B-A3B
+    params_b: 30.5
+    active_params_b: 3.3
+    supports_moe: true
+    hf_model_type: qwen3_moe
+    architecture_supported: true
+    num_layers: 48
+    hidden_size: 2048
+    recommended_min_free_mem_gb: 70
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    status, _ = handle_post(
+        "/heartbeat",
+        body=json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": "m4pro",
+                "capabilities": {"hostname": "m4pro", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8"),
+        state_dir=state_dir,
+    )
+    assert status == 200
+
+    status, route = handle_get(
+        "/route?token=moon-token&requested_model=Qwen/Qwen3-30B-A3B@int8&now=110&max_age_seconds=60&selector_mode=safe-demo",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert route["requested_model"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert route["requested_evaluation"]["quant_type"] == "int8"
+    assert route["requested_evaluation"]["supported"] is True
+    assert route["requested_evaluation"]["selector_allowed"] is False
+    assert route["requested_evaluation"]["proof_status"]["multi_request_load"] == "passed"
+    assert route["requested_evaluation"]["proof_status"]["full_generation"] == "pending"
+    assert route["override_refused"] is True
+    assert route["override_active"] is False
+    assert route["serving"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["source"] == "coordinator_http_route_endpoint"
+    assert route["claim_boundary"] == "coordinator_route_only_no_inference_proof"
+
+
 def test_join_http_server_plan_endpoint_can_auto_select_model(tmp_path: Path):
     from mvp_capabilities.join_http_server import handle_get, handle_post
 
@@ -3274,6 +3360,120 @@ models:
     assert plan["placement"]["supported"] is True
     assert plan["placement"]["assignments"][0]["block_range"] == "0:6"
     assert plan["inference_proven"] is False
+
+
+def test_join_http_server_handoff_surfaces_quantized_requested_model_refusal(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    params_b: 1.1
+    num_layers: 22
+    hidden_size: 2048
+    recommended_min_free_mem_gb: 4
+  - model_id: Qwen/Qwen3-30B-A3B
+    params_b: 30.5
+    active_params_b: 3.3
+    supports_moe: true
+    hf_model_type: qwen3_moe
+    architecture_supported: true
+    num_layers: 48
+    hidden_size: 2048
+    recommended_min_free_mem_gb: 70
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    status, _ = handle_post(
+        "/heartbeat",
+        body=json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": "m4pro",
+                "capabilities": {"hostname": "m4pro", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8"),
+        state_dir=state_dir,
+    )
+    assert status == 200
+
+    status, handoff = handle_get(
+        "/handoff?token=moon-token&requested_model=Qwen/Qwen3-30B-A3B@int8&now=110&max_age_seconds=60&selector_mode=safe-demo&request_count=2",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    route = handoff["route_decision"]
+    assert handoff["plan"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["requested_model"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert route["requested_evaluation"]["quant_type"] == "int8"
+    assert route["requested_evaluation"]["selector_allowed"] is False
+    assert route["override_refused"] is True
+    assert route["serving"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert handoff["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
+    assert handoff["inference_proven"] is False
+    assert handoff["can_update_proof_status"] is False
+
+
+def test_join_http_server_handoff_planning_quantized_pin_emits_quantized_launch_command(tmp_path: Path):
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        """
+models:
+  - model_id: Qwen/Qwen3-30B-A3B
+    params_b: 30.5
+    active_params_b: 3.3
+    supports_moe: true
+    hf_model_type: qwen3_moe
+    architecture_supported: true
+    num_layers: 48
+    hidden_size: 2048
+    recommended_min_free_mem_gb: 70
+""".strip(),
+        encoding="utf-8",
+    )
+    state_dir = tmp_path / "join-http-state"
+    status, _ = handle_post(
+        "/heartbeat",
+        body=json.dumps(
+            {
+                "token": "moon-token",
+                "peer_id": "m4pro",
+                "capabilities": {"hostname": "m4pro", "memory": {"free_gb": 48}, "accelerator": {"device": "mps"}},
+                "now": 100,
+            }
+        ).encode("utf-8"),
+        state_dir=state_dir,
+    )
+    assert status == 200
+
+    status, handoff = handle_get(
+        "/handoff?token=moon-token&requested_model=Qwen/Qwen3-30B-A3B@int8&now=110&max_age_seconds=60&selector_mode=planning&include_launch_commands=1&base_port=41000",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+        registry=registry,
+    )
+
+    assert status == 200
+    assert handoff["plan"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert handoff["route_decision"]["serving"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert handoff["route_decision"]["serving"]["quant_type"] == "int8"
+    assignment = handoff["plan"]["placement"]["assignments"][0]
+    assert assignment["block_range"] == "0:48"
+    assert "python -m bloombee.cli.run_server Qwen/Qwen3-30B-A3B " in assignment["launch_command"]
+    assert "Qwen/Qwen3-30B-A3B@int8" not in assignment["launch_command"]
+    assert "--quant_type INT8" in assignment["launch_command"]
+    assert handoff["plan"]["placement"]["launch_command_defaults"]["route_model_id"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert handoff["plan"]["placement"]["launch_command_defaults"]["launch_model_id"] == "Qwen/Qwen3-30B-A3B"
+    assert handoff["inference_proven"] is False
 
 
 def test_join_http_server_handoff_endpoint_bundles_operator_runbook(tmp_path: Path):
