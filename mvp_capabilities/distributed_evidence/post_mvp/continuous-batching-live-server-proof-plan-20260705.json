@@ -1,0 +1,21 @@
+{
+  "block_range": "0:1",
+  "can_update_demo_status": false,
+  "claim_boundary": "live_continuous_batching_server_proof_harness_only_no_live_traffic",
+  "evidence_path": ".local/live-continuous-batching-evidence.json",
+  "live_server_late_arrival_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": [
+    "Planning output is not proof.",
+    "The evidence must come from a live server with the opt-in flag enabled.",
+    "Speedup requires a later wall-clock throughput artifact after parity passes."
+  ],
+  "operator_commands": [
+    "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1 PYTHONPATH=.:src python -m bloombee.cli.run_server TinyLlama/TinyLlama-1.1B-Chat-v1.0 --new_swarm --block_indices 0:1 2>&1 | tee .local/live-continuous-batching-server.log",
+    "capture two or more live client requests with staggered arrival ticks into the evidence JSON; do not edit generated token IDs by hand",
+    "python mvp_capabilities/continuous_batching_live_server_proof.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/live-continuous-batching-evidence.json"
+  ],
+  "proof_gate": "continuous_batching",
+  "speedup_proven": false,
+  "verify_command": "python mvp_capabilities/continuous_batching_live_server_proof.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/live-continuous-batching-evidence.json"
+}

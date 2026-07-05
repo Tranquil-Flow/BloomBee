@@ -626,8 +626,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous-batching-live-adapter-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "live-continuous-batching-loop-unit-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-same-arrival-client-20260705.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-batching-live-server-proof-plan-20260705.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["evidence"]
     assert "no live server" in tasks["continuous_batching"]["evidence"]
     assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in tasks["continuous_batching"]["next_step"]
+    assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["next_step"]
     assert tasks["kv_prefix_reuse"]["status"] == "partial"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
