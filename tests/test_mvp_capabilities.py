@@ -605,8 +605,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "integrated non-sequential verifier path" in tasks["speculative_decode"]["next_step"]
     assert tasks["continuous_batching"]["status"] == "partial"
     assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-batching-live-adapter-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "no live server" in tasks["continuous_batching"]["evidence"]
-    assert "wire the scheduler into the live decode request loop" in tasks["continuous_batching"]["next_step"]
+    assert "wire tick_batches into src/bloombee/client/inference_session.py" in tasks["continuous_batching"]["next_step"]
     assert tasks["kv_prefix_reuse"]["status"] == "partial"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]

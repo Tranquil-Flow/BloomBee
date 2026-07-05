@@ -223,6 +223,64 @@ def simulate_continuous_decode(
     }
 
 
+LIVE_LOOP_ADAPTER_CLAIM_BOUNDARY = "continuous_batching_live_loop_adapter_no_server_or_speedup_proof"
+LIVE_LOOP_ADAPTER_NEXT_STEPS = [
+    "wire tick_batches into src/bloombee/client/inference_session.py behind opt-in flag",
+    "run same-prompt parity against verifier-only decode with concurrent arrivals",
+    "measure wall-clock throughput before any demo or speedup promotion",
+]
+
+
+def build_live_loop_adapter_plan(
+    *,
+    requests: Sequence[DecodeRequest],
+    max_batch_size: int,
+    opt_in_enabled: bool,
+    pad_token_id: int = 0,
+    opt_in_flag: str = "BLOOMBEE_ENABLE_CONTINUOUS_BATCHING",
+) -> dict[str, object]:
+    """Build an opt-in adapter plan for wiring scheduler ticks into a live loop.
+
+    This is still a pure report: it converts scheduler timeline rows into padded
+    per-tick batch payloads that the BloomBee client decode loop can consume in a
+    later integration slice. It deliberately does not call the live server path.
+    """
+    scheduler = simulate_continuous_decode(requests=requests, max_batch_size=max_batch_size)
+    tick_batches: list[dict[str, object]] = []
+    if opt_in_enabled:
+        for step in scheduler["timeline"]:
+            input_sequences = [[token] for token in step["input_token_ids"]]
+            tick_batches.append(
+                {
+                    "tick": step["tick"],
+                    "request_ids": step["request_ids"],
+                    "positions": step["positions"],
+                    "input_batch": build_padded_batch(input_sequences, pad_token_id=pad_token_id),
+                    "expected_output_token_ids": step["output_token_ids"],
+                    "finished_request_ids": step["finished_request_ids"],
+                }
+            )
+
+    return {
+        "source": SOURCE,
+        "claim_boundary": LIVE_LOOP_ADAPTER_CLAIM_BOUNDARY,
+        "scheduler_claim_boundary": scheduler["claim_boundary"],
+        "scheduler_verification_status": scheduler["verification_status"],
+        "opt_in_flag": opt_in_flag,
+        "opt_in_enabled": bool(opt_in_enabled),
+        "adapter_status": "ready_for_live_loop_wiring" if opt_in_enabled else "disabled",
+        "request_count": scheduler["request_count"],
+        "max_batch_size": scheduler["max_batch_size"],
+        "tick_batches": tick_batches,
+        "outputs_by_request": scheduler["outputs_by_request"],
+        "live_server_proven": False,
+        "speedup_proven": False,
+        "can_update_demo_status": False,
+        "operator_next_steps": list(LIVE_LOOP_ADAPTER_NEXT_STEPS),
+    }
+
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--example", choices=["staggered"], default="staggered")

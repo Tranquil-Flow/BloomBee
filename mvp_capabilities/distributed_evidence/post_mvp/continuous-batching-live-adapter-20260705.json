@@ -1,0 +1,146 @@
+{
+  "adapter_status": "ready_for_live_loop_wiring",
+  "can_update_demo_status": false,
+  "claim_boundary": "continuous_batching_live_loop_adapter_no_server_or_speedup_proof",
+  "do_not_claim": [
+    "live_server_integration",
+    "wall_clock_speedup",
+    "demo_safe_promotion"
+  ],
+  "live_server_proven": false,
+  "max_batch_size": 2,
+  "operator_next_steps": [
+    "wire tick_batches into src/bloombee/client/inference_session.py behind opt-in flag",
+    "run same-prompt parity against verifier-only decode with concurrent arrivals",
+    "measure wall-clock throughput before any demo or speedup promotion"
+  ],
+  "opt_in_enabled": true,
+  "opt_in_flag": "BLOOMBEE_ENABLE_CONTINUOUS_BATCHING",
+  "outputs_by_request": {
+    "req-a": [
+      10,
+      11,
+      12
+    ],
+    "req-b": [
+      20,
+      21
+    ]
+  },
+  "proof_gate": "continuous_batching_live_loop_adapter",
+  "request_count": 2,
+  "run_utc": "2026-07-05",
+  "scheduler_claim_boundary": "continuous_batching_scheduler_simulation_no_live_server_proof",
+  "scheduler_verification_status": "passed",
+  "source": "continuous_batching.py",
+  "speedup_proven": false,
+  "tick_batches": [
+    {
+      "expected_output_token_ids": [
+        10
+      ],
+      "finished_request_ids": [],
+      "input_batch": {
+        "attention_mask": [
+          [
+            1
+          ]
+        ],
+        "input_ids": [
+          [
+            101
+          ]
+        ],
+        "sequence_lengths": [
+          1
+        ]
+      },
+      "positions": [
+        0
+      ],
+      "request_ids": [
+        "req-a"
+      ],
+      "tick": 0
+    },
+    {
+      "expected_output_token_ids": [
+        11,
+        20
+      ],
+      "finished_request_ids": [],
+      "input_batch": {
+        "attention_mask": [
+          [
+            1
+          ],
+          [
+            1
+          ]
+        ],
+        "input_ids": [
+          [
+            10
+          ],
+          [
+            202
+          ]
+        ],
+        "sequence_lengths": [
+          1,
+          1
+        ]
+      },
+      "positions": [
+        1,
+        0
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 1
+    },
+    {
+      "expected_output_token_ids": [
+        12,
+        21
+      ],
+      "finished_request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "input_batch": {
+        "attention_mask": [
+          [
+            1
+          ],
+          [
+            1
+          ]
+        ],
+        "input_ids": [
+          [
+            11
+          ],
+          [
+            20
+          ]
+        ],
+        "sequence_lengths": [
+          1,
+          1
+        ]
+      },
+      "positions": [
+        2,
+        1
+      ],
+      "request_ids": [
+        "req-a",
+        "req-b"
+      ],
+      "tick": 2
+    }
+  ]
+}
