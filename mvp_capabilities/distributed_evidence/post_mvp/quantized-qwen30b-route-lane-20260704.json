@@ -24,16 +24,16 @@
   "guardrails": [
     "do not update Qwen/Qwen3-30B-A3B fp16 proof row",
     "do not inherit fp16 proof gates into Qwen/Qwen3-30B-A3B@int8",
-    "do not mark demo_safe until exact quantized full_generation/cache_generation/multi_request_load gates pass"
+    "do not mark demo_safe until quantized full_generation/cache_generation gates pass and token_parity is exact"
   ],
   "live_server_proven": false,
   "memory_reduction_source": "quantized_block_spike_random_weight_qwen3_moe_layer",
   "model_id": "Qwen/Qwen3-30B-A3B",
-  "next_gate": "prescan",
+  "next_gate": "full_generation",
   "operator_next_steps": [
-    "wire server-side INT8 quantized loading for qwen3_moe blocks behind the existing quant_type flag",
-    "run a quantized one-block server proof and write it under the Qwen/Qwen3-30B-A3B@int8 proof row",
-    "run quantized full_generation/cache_generation/multi_request_load gates before any safe-demo promotion"
+    "do not promote Qwen/Qwen3-30B-A3B@int8 from load proof alone",
+    "establish a credible fp16 reference path for exact token parity",
+    "run quantized full_generation/cache_generation gates and write token_parity exact/diverged before demo-safe promotion"
   ],
   "quant_scheme": "moe_int8_experts+qint8_attn",
   "quant_type": "int8",
@@ -41,10 +41,11 @@
   "quantized_proof_status": {
     "cache_generation": "pending",
     "full_generation": "pending",
-    "multi_block": "pending",
-    "multi_request_load": "pending",
-    "one_block_server": "pending",
-    "prescan": "pending"
+    "multi_block": "passed",
+    "multi_request_load": "passed",
+    "one_block_server": "passed",
+    "prescan": "passed",
+    "token_parity": "not_evaluated_reference_fp16_exceeds_m4pro_memory"
   },
   "quantized_route": {
     "memory_fit": true,
@@ -58,7 +59,7 @@
     "swarm_free_gb": 37.0
   },
   "route_id": "Qwen/Qwen3-30B-A3B@int8",
-  "server_proof_status": "not_run",
+  "server_proof_status": "passed",
   "source": "quantized_route_lane.py",
   "source_spike_artifact": "mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json",
   "speedup_proven": false,

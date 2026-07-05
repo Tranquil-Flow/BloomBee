@@ -111,13 +111,22 @@ def test_quantized_qwen30b_lane_cli_and_tracked_evidence_are_claim_bounded():
     assert tracked["claim_boundary"] == "quantized_route_lane_planning_only_no_serving_proof"
     assert tracked["quantized_route"]["memory_fit"] is True
     assert tracked["fp16_route"]["memory_fit"] is False
-    assert tracked["quantized_proof_status"]["one_block_server"] == "pending"
+    assert tracked["quantized_proof_status"]["prescan"] == "passed"
+    assert tracked["quantized_proof_status"]["one_block_server"] == "passed"
+    assert tracked["quantized_proof_status"]["multi_block"] == "passed"
+    assert tracked["quantized_proof_status"]["multi_request_load"] == "passed"
+    assert tracked["quantized_proof_status"]["full_generation"] == "pending"
+    assert tracked["quantized_proof_status"]["cache_generation"] == "pending"
+    assert tracked["quantized_proof_status"]["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"
+    assert tracked["next_gate"] == "full_generation"
+    assert tracked["server_proof_status"] == "passed"
     assert tracked["can_inherit_fp16_proof"] is False
     assert tracked["can_update_fp16_proof_row"] is False
+    # This artifact remains planning-only; live server/load proof lives in the qwen30b-int8-* artifacts.
     assert tracked["live_server_proven"] is False
     assert tracked["demo_safe_allowed"] is False
     assert tracked["operator_next_steps"] == [
-        "wire server-side INT8 quantized loading for qwen3_moe blocks behind the existing quant_type flag",
-        "run a quantized one-block server proof and write it under the Qwen/Qwen3-30B-A3B@int8 proof row",
-        "run quantized full_generation/cache_generation/multi_request_load gates before any safe-demo promotion",
+        "do not promote Qwen/Qwen3-30B-A3B@int8 from load proof alone",
+        "establish a credible fp16 reference path for exact token parity",
+        "run quantized full_generation/cache_generation gates and write token_parity exact/diverged before demo-safe promotion",
     ]

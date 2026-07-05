@@ -5,21 +5,23 @@
 > Tasks 2, 3, 4 and 6 are DONE and committed with tests (server-side
 > quantized loading, quant-aware route memory math, quantized proof rows +
 > token-parity policy, packed int4 experts); Task 1 (TinyLlama load gate) was
-> closed by Moonsong. What remains is proof-ladder execution (Task 5 — the
-> payoff) and coordinator/dashboard wiring + docs (Tasks 7–8). Work
-> task-by-task, RED tests first where specified, commit after each task. Do
+> closed by Moonsong. Task 5 is partially executed on m4pro: int8 one-block,
+> 0:2 multi-block, and full 0:48 multi-request load passed, but full/cache
+> generation and token parity remain fail-closed pending. What remains is the
+> parity/reference problem plus coordinator/dashboard wiring + docs (Tasks 7–8).
+> Work task-by-task, RED tests first where specified, commit after each task. Do
 > not move the MVP-core denominator; everything here is post-MVP.
 
 **Branch state:** committed on `main` through
-`beaf477 feat(route): quantized proof rows and quant-aware route candidates`.
-Baseline suite: `476 passed, 23 skipped`.
+`7830e76 fix(quant): freeze hf params after quanto swaps`; current working
+slice adds m4pro int8 proof evidence and status/docs updates. Baseline suite
+before this slice: `481 passed, 23 skipped, 4 warnings`.
 
 **Related lane built by Moonsong meanwhile:**
 `mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
 tests) — a claim-bounded planning report for `Qwen/Qwen3-30B-A3B@int8` that
-already encodes the `model_id@int8` proof-row keying and int8 memory math.
-Task 3 below should generalize that lane into `route_picker` rather than
-duplicating it.
+encoded the `model_id@int8` proof-row keying and int8 memory math before Fable
+generalized it into `route_picker`.
 
 ---
 
@@ -167,10 +169,10 @@ where exact greedy token-ID parity remains the demo_safe bar.
 
 ### 1.8 Environment facts you will need
 
-- `optimum-quanto` is now declared as the `quant` extra in `setup.cfg`
-  (`pip install -e .[quant]`); the serving path fails closed with a clear
-  error if quantization is requested without it. `torchao==0.17.0` and
-  `ninja` are still only in `.venv`: torchao is unused (drop it unless picked
+- `optimum-quanto` is now declared as the `quant` extra in both `setup.cfg`
+  and `setup.py` (`pip install -e .[quant]` / `uv pip install -e .[quant]`);
+  the serving path fails closed with a clear error if quantization is requested
+  without it. `torchao==0.17.0` and `ninja` are still only in `.venv`: torchao is unused (drop it unless picked
   up deliberately) and ninja is only needed to rebuild the quanto qint4
   extension for spikes — the serving path deliberately never uses qint4.
 - quanto qint4 lazily builds C++/MPS extensions via torch cpp_extension and
@@ -226,8 +228,10 @@ full_generation-only gate is also fixed — and `quantized_route_lane`):
 - unknown `@suffix` is not a quant marker — a typo becomes an unknown
   (all-pending) row, never an alias of the fp16 row
 - `PROOF_STATUS.yaml` documents the policy and carries the explicit
-  all-pending `Qwen/Qwen3-30B-A3B@int8` row (a default-suite test enforces it
-  stays all-pending until the ladder actually runs)
+  `Qwen/Qwen3-30B-A3B@int8` row. After the m4pro Task 5 partial run, that row
+  has only the proven int8 gates marked passed (`prescan`, `one_block_server`,
+  `multi_block`, `multi_request_load`); `full_generation`, `cache_generation`,
+  and exact `token_parity` remain pending/fail-closed.
 - `proof_ladder` reports `quant_type`/`token_parity` and names
   `token_parity` as the next gate when only parity is missing;
   `Qwen/Qwen3-30B-A3B@int8` is in the fallback ladder
@@ -237,23 +241,38 @@ write `token_parity: exact` or `token_parity: diverged` into the `@int8` row
 alongside the gate results, and record first-divergence position + text
 sample in the evidence artifact on divergence.
 
-### Task 5: Qwen3-30B-A3B int8 ladder on m4pro (the payoff — now fully unblocked)
+### Task 5: Qwen3-30B-A3B int8 ladder on m4pro — **PARTIAL (Moonsong, 2026-07-05)**
 The serving path is real now: `--quant_type INT8` on a qwen3_moe server
 actually quantizes blocks at load (§1.6). Base 30B weights are cached on the
-m4pro Seagate snapshot (see `scripts/instruct2507_cache_readiness.py` lane
-for the cache layout conventions).
+m4pro Seagate snapshot.
 
-Order: quantize-at-load smoke (one block, measure RSS; compare against
-`get_block_size(..., quant_type=INT8)` estimate) → one_block_server →
-multi_block 0:2 → full_generation (greedy parity vs fp16 single-host
-reference where feasible; if fp16 reference cannot run on the fleet, record
-that the reference is the HF CPU implementation on m4pro with short prompts)
-→ cache_generation → multi_request_load (seeded, scale-bounded — and record
-seed/input_scale per request; the physical-showcase verifier currently
-ignores this metadata, which is a known gap).
-Every artifact records: quant scheme (`int8_symmetric_per_out_channel` +
-`quanto qint8 attn`), source commit, block range, device. Use
-`ssh m4pro` directly; MacBook will OOM.
+Verified on m4pro from clean proof tree `7830e76`:
+
+- `qwen30b-int8-oneblock-20260705T131443Z.json` — one-block INT8 server +
+  direct RPC forward/backward passed; block compressed 1246.2 MB → 624.3 MB
+  (1.996×); claim boundary `qwen30b_int8_one_block_server_direct_rpc_only`.
+- `qwen30b-int8-multiblock-0-2-20260705T131529Z.json` — `0:2` INT8
+  multi-block direct RPC forward/backward passed; two blocks quantized.
+- `qwen30b-int8-full-load-0-48-20260705T131803Z.json` — full `0:48` INT8
+  server loaded all 48 blocks and passed `multi_request_load_proof.py verify`
+  for 3 seeded/scaled direct-client requests. Forward latencies: avg 2.645s;
+  backward avg 4.566s; 0 failures.
+
+Proof row update applied only to `Qwen/Qwen3-30B-A3B@int8`:
+`prescan`, `one_block_server`, `multi_block`, and `multi_request_load` are
+`passed`. `full_generation` and `cache_generation` stay `pending`, and
+`token_parity: not_evaluated_reference_fp16_exceeds_m4pro_memory` keeps the
+row below demo_safe.
+
+Remaining Task 5 work: exact full/cache generation parity. The current
+`text_generation_parity.py` verifier loads a full local fp16 HF reference
+while the distributed server is live. The fp16 30B requirement (route planner:
+70 GB class) exceeds m4pro's ~48 GB unified memory / ~37 GB free, so this
+must remain fail-closed until there is a credible reference path (for example a
+larger host, a separately recorded fp16 reference trace, or a test-backed
+streaming/offloaded reference mode that still represents the fp16 baseline). Do
+not write `token_parity: exact` or mark `full_generation`/`cache_generation`
+passed from the load-only artifacts above.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15
@@ -319,12 +338,12 @@ never appears as `picked`.
 
 ```bash
 source .venv/bin/activate
-# current baseline (all green at handoff)
-.venv/bin/python -m pytest -q                                        # 476 passed, 23 skipped
+# current baseline before the m4pro int8 evidence/status slice
+.venv/bin/python -m pytest -q                                        # 481 passed, 23 skipped, 4 warnings
 .venv/bin/python -m pytest tests/test_moe_expert_quant.py -q         # 15 passed (int8 + int4)
-.venv/bin/python -m pytest tests/test_quantized_block_loading.py -q  # 9 passed (convert_block/get_block_size)
-.venv/bin/python -m pytest tests/test_quantized_proof_routing.py -q  # 10 passed (proof rows + quant routing)
-# quantized pin end-to-end (planning serves it; safe-demo refuses until the @int8 row passes)
+.venv/bin/python -m pytest tests/test_quantized_block_loading.py -q  # 10 passed (convert_block/get_block_size/freeze)
+.venv/bin/python -m pytest tests/test_quantized_proof_routing.py -q  # 11 passed (proof rows + quant routing + int8 artifacts)
+# quantized pin end-to-end (planning serves it; safe-demo still refuses until full/cache + exact token parity)
 .venv/bin/python -m mvp_capabilities.route_picker --report --selector-mode planning \
   --model Qwen/Qwen3-30B-A3B@int8 --synthetic-m4-laptops 2 \
   --synthetic-total-gb 48 --synthetic-free-gb 37

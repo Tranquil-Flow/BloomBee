@@ -1,0 +1,72 @@
+{
+  "base_model_id": "Qwen/Qwen3-30B-A3B",
+  "block_range": [
+    0,
+    2
+  ],
+  "cache": {
+    "bytes": 61066575648,
+    "exists": true,
+    "incomplete_count": 0,
+    "index_count": 1,
+    "root": "/Volumes/Seagate Portable Drive/huggingface/hub/models--Qwen--Qwen3-30B-A3B",
+    "shard_count": 16
+  },
+  "cache_generation_proven": false,
+  "can_update_demo_status": false,
+  "claim_boundary": "qwen30b_int8_multiblock_0_2_server_direct_rpc_only",
+  "client_log": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-multiblock-0-2-20260705T131529Z/logs/client.log",
+  "direct_result": {
+    "backward_seconds": 0.26773619651794434,
+    "block_range": [
+      0,
+      2
+    ],
+    "forward_seconds": 0.29897403717041016,
+    "grad_finite": true,
+    "grad_norm": 3.9473915100097656,
+    "input_scale": 0.02,
+    "input_shape": [
+      1,
+      5,
+      2048
+    ],
+    "model": "Qwen/Qwen3-30B-A3B",
+    "ok": true,
+    "output_shape": [
+      1,
+      5,
+      2048
+    ],
+    "outputs_finite": true,
+    "outputs_unique": 5978.0,
+    "seed": 3001
+  },
+  "generation_proven": false,
+  "host": "m4pro",
+  "mem_bytes": 51539607552,
+  "model_id": "Qwen/Qwen3-30B-A3B",
+  "multi_block_proven": true,
+  "multi_request_load_proven": false,
+  "proof_status_update": {
+    "multi_block": "passed",
+    "one_block_server": "passed",
+    "prescan": "passed"
+  },
+  "quant_scheme": "moe_int8_experts+qint8_attn",
+  "quant_type": "int8",
+  "quantization_log_excerpt": [
+    "Jul 05 15:15:31.697 [INFO] Model weights are loaded in float16, quantized to int8 format",
+    "Jul 05 15:15:31.947 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:15:39.209 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)"
+  ],
+  "route_id": "Qwen/Qwen3-30B-A3B@int8",
+  "safe_demo_selectable": false,
+  "schema_version": 1,
+  "server_log": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-multiblock-0-2-20260705T131529Z/logs/server.log",
+  "server_maddr": "/ip4/192.168.178.37/tcp/31472/p2p/12D3KooWQRrSWYRC86SWwd2AtcrmUQDdy5uy2idRZJnaHXoXDZKm",
+  "source_commit": "7830e76a20980339743f2ab95f6d8d485e338aeb",
+  "status": "passed",
+  "status_file": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-multiblock-0-2-20260705T131529Z/status/status.env",
+  "user": "evinova-self"
+}

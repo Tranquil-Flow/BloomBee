@@ -49,14 +49,18 @@ models:
     multi_request_load: pending
 
   # int8 serving lane (moe_int8_experts + qint8 attn via --quant_type INT8).
-  # Deliberately all-pending: the fp16 lower gates above do not transfer.
+  # Quantized proof rows never inherit fp16 evidence; every passed gate here is
+  # backed by qwen30b-int8-* artifacts under distributed_evidence/post_mvp.
+  # Safe-demo remains refused until full/cache generation pass and token_parity
+  # becomes exact against an fp16 reference.
   Qwen/Qwen3-30B-A3B@int8:
-    prescan: pending
-    one_block_server: pending
-    multi_block: pending
+    prescan: passed
+    one_block_server: passed
+    multi_block: passed
     full_generation: pending
     cache_generation: pending
-    multi_request_load: pending
+    multi_request_load: passed
+    token_parity: not_evaluated_reference_fp16_exceeds_m4pro_memory
 
   Qwen/Qwen3-30B-A3B-Instruct-2507:
     prescan: passed

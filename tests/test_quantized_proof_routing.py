@@ -14,6 +14,9 @@ Contract under test:
   fail-closed loading path.
 - fp16 rows are unaffected by the token_parity key.
 """
+import json
+from pathlib import Path
+
 import pytest
 
 from mvp_capabilities.model_compat_scan import is_demo_safe, split_route_id
@@ -189,12 +192,43 @@ def test_proof_ladder_quantized_row_reports_parity_gate():
     assert ladder["token_parity"] == "exact"
 
 
-def test_committed_proof_status_has_failclosed_int8_row():
+def test_committed_proof_status_has_failclosed_partial_int8_row():
     from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, load_proof_status
 
     proof = load_proof_status(DEFAULT_PROOF_STATUS)
     row = proof.get("Qwen/Qwen3-30B-A3B@int8")
     assert row is not None, "quantized proof row must exist explicitly (fail-closed, not implied)"
-    assert all(value == "pending" for value in row.values()), (
-        "no quantized gate may be marked passed before the m4pro int8 ladder runs"
-    )
+    assert row["prescan"] == "passed"
+    assert row["one_block_server"] == "passed"
+    assert row["multi_block"] == "passed"
+    assert row["multi_request_load"] == "passed"
+    assert row["full_generation"] == "pending"
+    assert row["cache_generation"] == "pending"
+    assert row["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"
+    assert is_demo_safe(row, quant_type="int8") is False
+
+
+def test_committed_int8_evidence_artifacts_back_partial_proof_row():
+    root = Path(__file__).resolve().parents[1] / "mvp_capabilities/distributed_evidence/post_mvp"
+    artifacts = {
+        "qwen30b-int8-oneblock-20260705T131443Z.json": "qwen30b_int8_one_block_server_direct_rpc_only",
+        "qwen30b-int8-multiblock-0-2-20260705T131529Z.json": "qwen30b_int8_multiblock_0_2_server_direct_rpc_only",
+        "qwen30b-int8-full-load-0-48-20260705T131803Z.json": "qwen30b_int8_full_48_block_multi_request_load_only_no_token_parity",
+    }
+    for filename, claim_boundary in artifacts.items():
+        payload = json.loads((root / filename).read_text(encoding="utf-8"))
+        assert payload["model_id"] == "Qwen/Qwen3-30B-A3B"
+        assert payload["route_id"] == "Qwen/Qwen3-30B-A3B@int8"
+        assert payload["quant_type"] == "int8"
+        assert payload["status"] == "passed"
+        assert payload["claim_boundary"] == claim_boundary
+        assert payload["safe_demo_selectable"] is False
+        assert payload["can_update_demo_status"] is False
+
+    load = json.loads((root / "qwen30b-int8-full-load-0-48-20260705T131803Z.json").read_text())
+    assert load["quantized_block_count"] == 48
+    assert load["verifier"]["status"] == "passed"
+    assert load["multi_request_load_proven"] is True
+    assert load["full_generation_proven"] is False
+    assert load["cache_generation_proven"] is False
+    assert load["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"

@@ -1,0 +1,193 @@
+{
+  "base_model_id": "Qwen/Qwen3-30B-A3B",
+  "block_range": [
+    0,
+    48
+  ],
+  "cache": {
+    "bytes": 61066575648,
+    "exists": true,
+    "incomplete_count": 0,
+    "index_count": 1,
+    "root": "/Volumes/Seagate Portable Drive/huggingface/hub/models--Qwen--Qwen3-30B-A3B",
+    "shard_count": 16
+  },
+  "cache_generation_proven": false,
+  "can_update_demo_status": false,
+  "claim_boundary": "qwen30b_int8_full_48_block_multi_request_load_only_no_token_parity",
+  "full_generation_proven": false,
+  "generation_proven": false,
+  "host": "m4pro",
+  "mem_bytes": 51539607552,
+  "model_id": "Qwen/Qwen3-30B-A3B",
+  "multi_request_load_proven": true,
+  "proof_status_update": {
+    "multi_request_load": "passed"
+  },
+  "quant_scheme": "moe_int8_experts+qint8_attn",
+  "quant_type": "int8",
+  "quantization_log_excerpt": [
+    "Jul 05 15:18:05.688 [INFO] Model weights are loaded in float16, quantized to int8 format",
+    "Jul 05 15:18:05.938 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:18:06.104 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "...",
+    "Jul 05 15:22:29.569 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:22:36.044 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:22:42.302 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:22:48.579 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:22:55.264 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)",
+    "Jul 05 15:23:01.598 [INFO] Quantized HF block (qwen3_moe, INT8): 1246.2MB -> 624.3MB (1.996x)"
+  ],
+  "quantized_block_count": 48,
+  "request_count": 3,
+  "request_logs": [
+    "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-000.log",
+    "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-001.log",
+    "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-002.log"
+  ],
+  "route_id": "Qwen/Qwen3-30B-A3B@int8",
+  "safe_demo_selectable": false,
+  "schema_version": 1,
+  "server_log": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/server.log",
+  "server_maddr": "/ip4/192.168.178.37/tcp/31473/p2p/12D3KooWBAWRYJjjQ6HomxbETNahjy5hrvmKNxDqcwLeinrHFx16",
+  "source_commit": "7830e76a20980339743f2ab95f6d8d485e338aeb",
+  "status": "passed",
+  "status_file": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/status/status.env",
+  "token_parity": "not_evaluated_reference_fp16_exceeds_m4pro_memory",
+  "user": "evinova-self",
+  "verifier": {
+    "block_range": "0:48",
+    "can_update_proof_status": true,
+    "claim_boundary": "verified_multi_request_load_evidence",
+    "expected_request_count": 3,
+    "failed_checks": [],
+    "model_id": "Qwen/Qwen3-30B-A3B",
+    "proof_gate": "multi_request_load",
+    "proof_status_update": {
+      "multi_request_load": "passed"
+    },
+    "request_results": [
+      {
+        "backward_seconds": 6.0371997356414795,
+        "block_range": [
+          0,
+          48
+        ],
+        "forward_seconds": 3.7937281131744385,
+        "grad_finite": true,
+        "grad_norm": 349.05194091796875,
+        "input_scale": 0.02,
+        "input_shape": [
+          1,
+          5,
+          2048
+        ],
+        "model": "Qwen/Qwen3-30B-A3B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          2048
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 6196.0,
+        "seed": 4100
+      },
+      {
+        "backward_seconds": 4.104576826095581,
+        "block_range": [
+          0,
+          48
+        ],
+        "forward_seconds": 2.3539299964904785,
+        "grad_finite": true,
+        "grad_norm": 263.5153503417969,
+        "input_scale": 0.02,
+        "input_shape": [
+          1,
+          5,
+          2048
+        ],
+        "model": "Qwen/Qwen3-30B-A3B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          2048
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 6211.0,
+        "seed": 4101
+      },
+      {
+        "backward_seconds": 3.5563137531280518,
+        "block_range": [
+          0,
+          48
+        ],
+        "forward_seconds": 1.7872281074523926,
+        "grad_finite": true,
+        "grad_norm": 163.6792755126953,
+        "input_scale": 0.02,
+        "input_shape": [
+          1,
+          5,
+          2048
+        ],
+        "model": "Qwen/Qwen3-30B-A3B",
+        "ok": true,
+        "output_shape": [
+          1,
+          5,
+          2048
+        ],
+        "outputs_finite": true,
+        "outputs_unique": 6222.0,
+        "seed": 4102
+      }
+    ],
+    "status": "passed",
+    "telemetry": {
+      "block_ranges": {
+        "0:48": 3
+      },
+      "claim_boundary": "request_telemetry_observability_only_no_load_proof",
+      "errors": [],
+      "latency_seconds": {
+        "backward": {
+          "avg": 4.56603,
+          "count": 3,
+          "max": 6.0372,
+          "min": 3.556314,
+          "p95": 5.843937,
+          "unmeasured_count": 0
+        },
+        "forward": {
+          "avg": 2.644962,
+          "count": 3,
+          "max": 3.793728,
+          "min": 1.787228,
+          "p95": 3.649748,
+          "unmeasured_count": 0
+        }
+      },
+      "live_requests_seen": true,
+      "load_proof_claimed": false,
+      "models": {
+        "Qwen/Qwen3-30B-A3B": 3
+      },
+      "next_step": "Run a dedicated multi-request load proof before promoting multi_request_load.",
+      "request_counts": {
+        "failed": 0,
+        "succeeded": 3,
+        "total": 3
+      },
+      "scanned_logs": [
+        "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-000.log",
+        "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-001.log",
+        "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/logs/load-client-002.log"
+      ]
+    }
+  },
+  "verifier_json": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-int8-7830e76/.local/run/qwen30b-int8-full-load-0-48-20260705T131803Z/evidence/multi-request-load-verify.json"
+}
