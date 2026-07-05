@@ -148,11 +148,22 @@ def convert_block(
     # Skip tensor parallelism for FlexGen blocks - they manage their own weights and devices
     log_prefix = f"[convert_block:{block_index}]"
     # log_mem(f"{log_prefix} skipping tensor parallelism - FlexGen manages weights directly")
-    
-    # Quantization is handled by FlexGen's compression system during weight loading
-    # No bitsandbytes quantization is applied here
-    # log_mem(f"{log_prefix} quantization handled by FlexGen compression system")
-    
+
+    # FlexGen-native blocks (meta params) compress during their own weight
+    # loading; HF blocks get weight-only quantization here or nowhere.
+    first_param = next(iter(block.parameters()), None)
+    is_hf_block_with_weights = first_param is not None and first_param.device.type != "meta"
+    if quant_type != QuantType.NONE and is_hf_block_with_weights:
+        effective_cpu = getattr(policy, "w_cpu_percent", 0) + getattr(policy, "w_disk_percent", 0)
+        if policy is not None and effective_cpu > 0:
+            raise ValueError(
+                "quantized HF blocks do not support per-parameter CPU offload "
+                f"(w_cpu+w_disk={effective_cpu}%): the offload path moves param.data and "
+                "would corrupt packed quantized tensors. Quantization shrinks the block "
+                "instead; use w_gpu_percent=100 or quant_type=none."
+            )
+        quantize_hf_block(block, quant_type=quant_type, model_type=config.model_type)
+
     # Create a simple wrapper that provides TensorParallel interface for pipeline parallelism
     # but uses FlexGen's forward method directly
     class PipelineParallelWrapper:
@@ -301,17 +312,85 @@ def convert_block(
     return tp_block
 
 
-# NOTE: bitsandbytes quantization has been removed.
-# Quantization is now handled entirely by FlexGen's compression system during weight loading.
-# This function is kept for backward compatibility but does nothing.
-def quantize_module(model: nn.Module, *, quant_type: QuantType) -> nn.Module:
+def quantize_hf_block(block: nn.Module, *, quant_type: QuantType, model_type: str) -> dict:
+    """Weight-only quantization for standard HF blocks (qwen3, qwen3_moe, ...).
+
+    FlexGen-native blocks keep their own group-wise compression; this path is
+    for the HF-module families that previously had no quantization at all.
+
+    Mapping (fail-closed, never silently falls back to fp16):
+      - INT8 + dense block:     optimum-quanto qint8 on all Linears
+      - INT8 + qwen3_moe block: custom int8 fused-expert swap, then quanto
+                                qint8 on the remaining Linears
+      - NF4  + qwen3_moe block: packed int4 fused-expert swap, then quanto
+                                qint8 on the remaining Linears (experts are
+                                ~97% of block bytes; attention stays int8 so
+                                serving never depends on quanto's JIT-built
+                                qint4 C++/MPS extension)
+      - NF4  + dense block:     blocked until a deterministic dense int4
+                                path exists
+
+    The router Linear (``*gate``) is excluded from quanto on MoE blocks:
+    routing is an argmax over its logits, and keeping it fp16 keeps expert
+    selection bit-identical to the fp16 reference.
     """
-    Deprecated: Quantization is now handled by FlexGen's compression system.
-    This function is a no-op and kept for backward compatibility.
-    """
-    if quant_type != QuantType.NONE:
-        logger.debug(f"Quantization type {quant_type} specified, but quantization is handled by FlexGen compression system")
-    return model
+    stats = {
+        "quant_type": quant_type.name.lower(),
+        "model_type": model_type,
+        "applied": False,
+        "moe_expert_swap": None,
+    }
+    if quant_type == QuantType.NONE:
+        return stats
+
+    is_moe = model_type == "qwen3_moe"
+    if quant_type == QuantType.NF4 and not is_moe:
+        raise NotImplementedError(
+            f"NF4 for dense HF blocks (model_type={model_type!r}) is blocked: quanto qint4 "
+            "needs a JIT-built C++/MPS extension we refuse to depend on in the serving path. "
+            "Use INT8, or extend the packed-int4 path beyond fused MoE experts."
+        )
+
+    try:
+        from optimum.quanto import freeze, qint8, quantize
+    except ImportError as exc:  # fail closed: operator asked for quantization
+        raise RuntimeError(
+            f"quant_type={quant_type.name} requires optimum-quanto for HF blocks; "
+            "install it or use --quant_type none"
+        ) from exc
+
+    def _bytes(module: nn.Module) -> int:
+        return sum(
+            v.numel() * v.element_size() for v in module.state_dict().values() if isinstance(v, torch.Tensor)
+        )
+
+    before_bytes = _bytes(block)
+    exclude = []
+    if is_moe:
+        from bloombee.utils.moe_expert_quant import quantize_qwen3_moe_block_experts
+
+        expert_scheme = "int4" if quant_type == QuantType.NF4 else "int8"
+        stats["moe_expert_swap"] = quantize_qwen3_moe_block_experts(block, scheme=expert_scheme)
+        exclude = ["*gate"]  # router logits must stay fp16-exact
+
+    quantize(block, weights=qint8, exclude=exclude)
+    freeze(block)
+    after_bytes = _bytes(block)
+
+    stats.update(
+        applied=True,
+        linear_weights="quanto qint8",
+        router_excluded=is_moe,
+        weight_bytes_before=before_bytes,
+        weight_bytes_after=after_bytes,
+        compression_ratio=round(before_bytes / after_bytes, 3) if after_bytes else None,
+    )
+    logger.info(
+        f"Quantized HF block ({model_type}, {quant_type.name}): "
+        f"{before_bytes / 1e6:.1f}MB -> {after_bytes / 1e6:.1f}MB "
+        f"({stats['compression_ratio']}x)"
+    )
+    return stats
 
 
 def make_tensor_parallel(

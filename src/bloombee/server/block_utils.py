@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 import torch
 from accelerate import init_empty_weights
+from torch import nn
 from transformers import PretrainedConfig, PreTrainedModel
 
 from bloombee.models.bloom.block import WrappedBloomBlock
@@ -55,16 +56,76 @@ def get_block_size(
         n_params = sum(param.numel() for param in block.parameters())
 
     if location == "memory":
-        # Note: quant_type is always NONE (quantization CLI removed)
-        if quant_type != QuantType.NONE:
-            raise ValueError(f"Quantization is not supported. quant_type must be NONE, got {quant_type}")
         dtype = resolve_block_dtype(config, dtype)
         bytes_per_value = get_size_in_bytes(dtype)
+        if quant_type != QuantType.NONE:
+            # HF-block weight-only quantization (convert_block.quantize_hf_block)
+            return round(_quantized_block_bytes(block, bytes_per_value, quant_type) * (1 + eps))
     elif location == "disk":
         dtype = resolve_block_dtype(config, "auto")
         bytes_per_value = get_size_in_bytes(dtype)
 
     return round(n_params * bytes_per_value * (1 + eps))
+
+
+def _quantized_block_bytes(block, fp_bytes_per_value: float, quant_type: QuantType) -> float:
+    """Estimate the in-memory weight bytes of an HF block after
+    ``convert_block.quantize_hf_block``, by walking the (meta) module tree.
+
+    Mirrors the load-time mapping: fused 3D MoE expert tensors get the custom
+    int8/int4 scheme, other Linear weights get quanto qint8, the MoE router
+    (``*.gate``) plus norms/biases stay at the fp dtype. NF4 without fused
+    experts is blocked, exactly like the load path.
+    """
+    from bloombee.utils.moe_expert_quant import INT4_GROUP_SIZE
+
+    expert_param_names = set()
+    has_fused_experts = False
+    total = 0.0
+
+    for module_name, module in block.named_modules():
+        if not module_name.endswith("experts"):
+            continue
+        gate_up = getattr(module, "gate_up_proj", None)
+        down = getattr(module, "down_proj", None)
+        if not (isinstance(gate_up, torch.Tensor) and gate_up.dim() == 3):
+            continue
+        if not (isinstance(down, torch.Tensor) and down.dim() == 3):
+            continue
+        has_fused_experts = True
+        for suffix, tensor in (("gate_up_proj", gate_up), ("down_proj", down)):
+            expert_param_names.add(f"{module_name}.{suffix}")
+            in_dim = tensor.shape[-1]
+            rows = tensor.numel() / in_dim
+            if quant_type == QuantType.NF4:
+                packed = rows * ((in_dim + 1) // 2)
+                scales = rows * (-(-in_dim // INT4_GROUP_SIZE)) * 2  # fp16 group scales
+            else:
+                packed = tensor.numel()  # int8: one byte per value
+                scales = rows * 2  # fp16 per-output-channel scales
+            total += packed + scales
+
+    if quant_type == QuantType.NF4 and not has_fused_experts:
+        raise NotImplementedError(
+            "NF4 block-size estimate for dense HF blocks is blocked, matching "
+            "convert_block.quantize_hf_block; use INT8 or QuantType.NONE"
+        )
+
+    linear_weight_names = {
+        f"{name}.weight" if name else "weight"
+        for name, module in block.named_modules()
+        if isinstance(module, nn.Linear) and not (has_fused_experts and name.endswith("gate"))
+    }
+
+    for param_name, param in block.named_parameters():
+        if param_name in expert_param_names:
+            continue  # already counted above
+        if param_name in linear_weight_names:
+            # quanto qint8: one byte per value plus per-output-channel scales
+            total += param.numel() + param.shape[0] * fp_bytes_per_value
+        else:
+            total += param.numel() * fp_bytes_per_value
+    return total
 
 
 def _autoset_attn_impl(config):

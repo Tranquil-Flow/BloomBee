@@ -366,10 +366,11 @@ def get_device_name(device: torch.device) -> str:
 
 def get_dtype_name(dtype: torch.dtype, quant_type: QuantType) -> str:
     """
-    Get a human-readable dtype name, including FlexGen compression info if applicable.
-    Note: quant_type refers to FlexGen's group-wise quantization, not bitsandbytes.
+    Get a human-readable dtype name, including weight quantization if applicable
+    (FlexGen group-wise compression for the native LLaMA path, weight-only
+    quantization via convert_block.quantize_hf_block for HF blocks).
     """
     name = str(dtype).replace("torch.", "")
     if quant_type != QuantType.NONE:
-        name += f", compressed with FlexGen {quant_type.name.lower()} group quantization"
+        name += f", quantized to {quant_type.name.lower()}"
     return name
