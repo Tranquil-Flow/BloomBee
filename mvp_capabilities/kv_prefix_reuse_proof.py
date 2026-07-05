@@ -471,6 +471,7 @@ def main(argv: list[str] | None = None) -> int:
             min_requests=args.min_requests,
             allow_no_speedup=args.allow_no_speedup,
         )
+        exit_code = 0
     else:
         payload = verify_kv_prefix_reuse_evidence(
             evidence_path=args.evidence,
@@ -478,12 +479,13 @@ def main(argv: list[str] | None = None) -> int:
             min_requests=args.min_requests,
             require_speedup=not args.allow_no_speedup,
         )
+        exit_code = 0 if payload.get("status") == "passed" else 1
     text = json.dumps(payload, indent=2, sort_keys=True)
     if getattr(args, "out", None):
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(text + "\n", encoding="utf-8")
     print(text)
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":  # pragma: no cover

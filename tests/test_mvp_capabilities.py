@@ -635,6 +635,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-capture-plan-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv-prefix-reuse-cli-fail-closed-20260705T225105Z.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "CLI exits non-zero on invalid evidence" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["evidence"]
     assert "first rpc_inference metadata" in tasks["kv_prefix_reuse"]["evidence"]
     assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]

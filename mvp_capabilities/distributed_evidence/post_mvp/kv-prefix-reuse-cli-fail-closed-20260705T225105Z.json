@@ -1,0 +1,49 @@
+{
+  "artifact_id": "kv-prefix-reuse-cli-fail-closed-20260705T225105Z",
+  "claim_boundary": "kv_prefix_reuse_cli_fail_closed_regression_no_live_cache_reuse_proof",
+  "generated_at_utc": "2026-07-05T22:51:05Z",
+  "proof_gate": "kv_prefix_reuse",
+  "changed_behavior": "mvp_capabilities.kv_prefix_reuse_proof verify exits non-zero when the verifier report status is failed",
+  "red_test": {
+    "command": ".venv/bin/python -m pytest tests/test_kv_prefix_reuse_proof.py::test_kv_prefix_reuse_proof_cli_fails_closed_for_invalid_evidence -q",
+    "observed_status": "failed_before_implementation",
+    "failure_excerpt": "assert proc.returncode == 1; E assert 0 == 1"
+  },
+  "green_tests": [
+    {
+      "command": ".venv/bin/python -m pytest tests/test_kv_prefix_reuse_proof.py::test_kv_prefix_reuse_proof_cli_fails_closed_for_invalid_evidence -q",
+      "observed_status": "passed",
+      "summary": "1 passed, 1 warning in 0.10s"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_kv_prefix_reuse_proof.py -q",
+      "observed_status": "passed",
+      "summary": "9 passed, 4 warnings in 1.17s"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/test_mvp_capabilities.py::test_mvp_status_report_has_weighted_progress_bar -q",
+      "observed_status": "passed",
+      "summary": "1 passed, 1 warning in 0.05s"
+    },
+    {
+      "command": ".venv/bin/python -m pytest -q",
+      "observed_status": "passed",
+      "summary": "546 passed, 23 skipped, 4 warnings in 8.88s"
+    }
+  ],
+  "hygiene_checks": [
+    {
+      "command": "git diff --check",
+      "observed_status": "passed"
+    },
+    {
+      "command": ".venv/bin/python mvp_capabilities/evidence_redaction.py mvp_capabilities/distributed_evidence",
+      "observed_status": "passed"
+    }
+  ],
+  "live_kv_cache_reuse_proven": false,
+  "speedup_proven": false,
+  "can_update_demo_status": false,
+  "can_update_mvp_status": false,
+  "remaining_blocker": "Actual server-side KV tensor reuse plus live token/logit parity, memory impact, and wall-clock evidence remain unproven."
+}

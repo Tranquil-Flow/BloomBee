@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -210,6 +211,36 @@ def test_kv_prefix_reuse_proof_cli_verifies_evidence_file(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["status"] == "passed"
     assert payload["claim_boundary"] == "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing"
+
+
+def test_kv_prefix_reuse_proof_cli_fails_closed_for_invalid_evidence(tmp_path: Path):
+    payload = cast(dict[str, Any], _valid_kv_prefix_reuse_evidence())
+    payload["requests"][0]["reuse"]["generated_token_ids"] = [9999]
+    evidence_path = tmp_path / "kv-prefix-reuse-invalid-cli.json"
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp_capabilities.kv_prefix_reuse_proof",
+            "verify",
+            "--model",
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            "--evidence",
+            str(evidence_path),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 1
+    payload = json.loads(proc.stdout)
+    assert payload["status"] == "failed"
+    assert payload["can_update_proof_status"] is False
+    assert "request 0 generated token IDs differ from no-reuse baseline" in payload["failed_checks"]
 
 
 def test_kv_prefix_reuse_live_capture_plan_is_claim_bounded(tmp_path: Path):
