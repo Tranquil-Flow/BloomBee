@@ -606,6 +606,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "phone-context-token-id-verifier-20260704T121646Z.json" in tasks["phone_worker"]["evidence"]
     assert "termux-same-gguf-wallclock-gate-20260704T112500Z.json" in tasks["phone_worker"]["evidence"]
     assert "multi_phone_speculative_readiness.py" in tasks["phone_worker"]["evidence"]
+    assert "phone_speculative_trial_plan.py" in tasks["phone_worker"]["evidence"]
     assert "bridge live token transport" not in tasks["phone_worker"]["next_step"]
     assert "3-4 phone" in tasks["phone_worker"]["next_step"]
     assert "integrated non-sequential verifier path" in tasks["phone_worker"]["next_step"]
@@ -2462,7 +2463,9 @@ def test_docs_post_mvp_status_rows_match_completed_scouts():
     assert "Instruct-2507 download and both INT8 streamed-reference parity gates are complete" in fable_handoff
     assert "instruct2507-full-download" not in fable_handoff
     assert "multi_phone_speculative_readiness.py" in phone_readiness
+    assert "phone_speculative_trial_plan.py" in phone_readiness
     assert "--phone-artifact" in phone_readiness
+    assert "--readiness-manifest" in phone_readiness
     assert "3-4 phones" in phone_readiness
     assert "speedup_proven=false" in phone_readiness
     assert "phone_speculative_wallclock_gate.py" in phone_readiness

@@ -81,7 +81,16 @@ The command exits `0` only when:
 4. Run `phone_speculative_wallclock_gate.py` for each phone.
 5. Wrap those two reports into one per-phone artifact.
 6. Run `multi_phone_speculative_readiness.py --phone-artifact ...` for all devices.
-7. Only after the manifest passes, run the integrated non-sequential verifier path and compare verifier-only vs phone-draft-plus-verifier wall clock.
+7. Generate the operator command plan:
+
+```bash
+python mvp_capabilities/phone_speculative_trial_plan.py \
+  --readiness-manifest .local/phone/multi-phone-speculative-readiness.json \
+  --output-dir .local/phone/trial-20260706 \
+  --out .local/phone/phone-speculative-trial-plan.json
+```
+
+8. Only after the manifest passes, run the integrated non-sequential verifier path and compare verifier-only vs phone-draft-plus-verifier wall clock.
 
 ## Failure interpretation
 
