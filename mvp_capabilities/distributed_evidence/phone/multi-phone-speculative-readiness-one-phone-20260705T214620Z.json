@@ -1,0 +1,61 @@
+{
+  "all_context_token_ingestion_proven": true,
+  "all_wallclock_correctness_proven": true,
+  "all_wallclock_gates_present": true,
+  "blocked_reasons": [
+    "phone_count_below_min:1<3"
+  ],
+  "bloombee_block_serving_proven": false,
+  "can_update_phone_worker_status": false,
+  "can_update_speculative_speedup_status": false,
+  "claim_boundary": "multi_phone_speculative_readiness_manifest_no_speedup_claim",
+  "max_phone_count": 4,
+  "min_phone_count": 3,
+  "model_sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+  "model_sha256_values": [
+    "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+  ],
+  "no_input_speedup_claims": true,
+  "operator_next_steps": [
+    "run this manifest after each physical phone produces context-token and wall-clock gate artifacts",
+    "build the integrated non-sequential verifier path that consumes phone token IDs without rerunning verifier-only decode",
+    "measure verifier-only and phone-draft-plus-verifier wall clock in the same harness before speedup claims",
+    "keep phone BloomBee block-worker status false until separate block-serving evidence passes"
+  ],
+  "phone_count": 1,
+  "phones": [
+    {
+      "accepted_external_token_count": 8,
+      "blocked_reasons": [],
+      "context_token_ingestion_proven": true,
+      "model_sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+      "phone_id": "pixel8pro-live-adb",
+      "phone_model": "Pixel 8 Pro",
+      "proposed_external_token_count": 8,
+      "ready_for_trial": true,
+      "runtime": "Termux llama.cpp",
+      "speedup_claimed_by_artifact": false,
+      "termux_context_token_artifact": "mvp_capabilities/distributed_evidence/phone/termux-context-token-ids-live-adb-20260704T210323Z.json",
+      "transport_path": "m4pro_usb_adb_pull_termux_json_then_local_forced_batch_verifier",
+      "wallclock_correctness_proven": true,
+      "wallclock_gate_present": true
+    }
+  ],
+  "ready_phone_count": 1,
+  "source": "multi_phone_speculative_readiness.py",
+  "speedup_proven": false,
+  "tomorrow_runbook": [
+    "collect 3-4 distinct physical phones with Termux + llama.cpp available",
+    "run Termux context-token emission on each phone: tokenize rendered_prompt and rendered_prompt+draft, then slice prompt tokens off the full token list",
+    "pull or copy each phone's termux-context-token JSON and run phone_llama_cpp_binding_verifier.py against the exact same GGUF hash",
+    "run phone_speculative_wallclock_gate.py for each phone; speedup_proven must remain false unless an integrated draft-plus-verifier path is actually faster",
+    "wrap each phone's context verifier + wallclock gate into one per-phone artifact and run multi_phone_speculative_readiness.py with --phone-artifact for every device",
+    "only after this manifest passes, run the integrated non-sequential verifier experiment and compare verifier-only vs phone-draft-plus-verifier wall clock"
+  ],
+  "trial_ready": false,
+  "unique_phone_ids": [
+    "pixel8pro-live-adb"
+  ],
+  "verification_status": "failed",
+  "wallclock_speedup_proven": false
+}
