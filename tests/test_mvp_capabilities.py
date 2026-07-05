@@ -632,6 +632,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "implement actual server KV tensor reuse" in tasks["kv_prefix_reuse"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "qwen35b-oneblock-host-preflight-20260705T214226Z.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "blocked-by-host-memory" in tasks["qwen35b_candidate"]["evidence"]
     assert "full_attention block contract" in tasks["qwen35b_candidate"]["evidence"]
     assert "linear_attention local state round-trip" in tasks["qwen35b_candidate"]["evidence"]
     assert "backend raw conv/recurrent descriptor" in tasks["qwen35b_candidate"]["evidence"]

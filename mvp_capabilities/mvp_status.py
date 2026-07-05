@@ -237,7 +237,7 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="qwen35b_candidate",
         label="Qwen35B candidate branch",
         status="partial",
-        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning. Text-tower qwen3_5_moe_text wrapper/package now has import/config, full_attention block contract, linear_attention local state round-trip, and backend raw conv/recurrent descriptor/materialization/select/update tests green at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json; there is still no one-block server proof and no demo/route promotion.",
+        evidence="Qwen/Qwen-AgentWorld-35B-A3B is memory-fit for synthetic 10-laptop planning. Text-tower qwen3_5_moe_text wrapper/package now has import/config, full_attention block contract, linear_attention local state round-trip, and backend raw conv/recurrent descriptor/materialization/select/update tests green at mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-text-wrapper-gate-20260704.json; local one-block host preflight evidence at mvp_capabilities/distributed_evidence/qwen35b/qwen35b-oneblock-host-preflight-20260705T214226Z.json records this 16GB M4 host as blocked-by-host-memory against the 80GB requirement; there is still no one-block server proof and no demo/route promotion.",
         next_step="run a Qwen3.5 one-block server proof on suitable memory; keep showcase/safe-demo blocked until one-block, multi-block, full/cache generation, and load gates pass for the exact model row",
     ),
     PlanTask(
