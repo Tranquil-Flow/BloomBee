@@ -60,10 +60,31 @@ def _make_config(num_kv_heads=2, head_dim=16):
     return cfg
 
 
+def _make_stable_block(cfg: DistributedQwen3MoeConfig, *, layer_idx: int = 0) -> WrappedQwen3MoeBlock:
+    """Return a finite deterministic MoE block for wrapper-contract tests.
+
+    The tests below prove BloomBee's cache/mask/wrapper contract, not the
+    numerical quality of randomly initialized synthetic MoE routers. Full-suite
+    order can otherwise leave fused expert tensors with unstable random values
+    that occasionally produce NaNs in fp32. Keep norm scales at 1 and zero the
+    remaining floating weights so these tests fail only on wrapper regressions.
+    """
+
+    block = WrappedQwen3MoeBlock(cfg, layer_idx=layer_idx).eval()
+    with torch.no_grad():
+        for name, param in block.named_parameters():
+            if not param.dtype.is_floating_point:
+                continue
+            param.zero_()
+            if name.endswith("norm.weight"):
+                param.fill_(1.0)
+    return block
+
+
 def test_prefill_shape_and_kv_contract():
     torch.manual_seed(0)
     cfg = _make_config()
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
 
     seq_len = 4
     h = torch.randn(1, seq_len, cfg.hidden_size)
@@ -78,7 +99,7 @@ def test_prefill_shape_and_kv_contract():
 def test_decode_step_advances_kv_length():
     torch.manual_seed(0)
     cfg = _make_config()
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
 
     prefill_len = 5
     h = torch.randn(1, prefill_len, cfg.hidden_size)
@@ -93,7 +114,7 @@ def test_decode_step_advances_kv_length():
 
 def test_unspecified_mask_is_handled():
     cfg = _make_config()
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
     h = torch.randn(1, 4, cfg.hidden_size)
     out, _ = block(h, attention_mask=None, use_cache=True)
     assert out.shape == h.shape
@@ -101,7 +122,7 @@ def test_unspecified_mask_is_handled():
 
 def test_rotary_inv_freq_stays_fp32_under_fp16_cast():
     cfg = _make_config()
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
     block.to(torch.float16)
     assert block._rotary_emb.inv_freq.dtype == torch.float32
     assert block._rotary_emb.original_inv_freq.dtype == torch.float32
@@ -113,7 +134,7 @@ def test_gqa_head_contract():
     assert cfg.num_attention_heads == 16
     assert cfg.num_key_value_heads == 4
 
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
     h = torch.randn(1, 3, cfg.hidden_size)
     _, (pk, pv) = block(h, use_cache=True)
     assert pk.shape[0] == cfg.num_key_value_heads
@@ -123,7 +144,7 @@ def test_gqa_head_contract():
 def test_forward_is_deterministic_without_use_cache():
     torch.manual_seed(0)
     cfg = _make_config()
-    block = WrappedQwen3MoeBlock(cfg, layer_idx=0).eval()
+    block = _make_stable_block(cfg, layer_idx=0)
     h = torch.randn(1, 6, cfg.hidden_size)
     out_a, _ = block(h, use_cache=False)
     out_b, _ = block(h, use_cache=False)

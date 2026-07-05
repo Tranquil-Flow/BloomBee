@@ -151,6 +151,33 @@ def test_streamed_qwen3_dense_reference_matches_full_model_greedy_ids(tmp_path: 
     assert [step["next_token_id"] for step in steps] == [int(expected[0, input_ids.shape[1]])]
 
 
+def test_streamed_qwen3_moe_local_loader_packs_split_expert_weights(tmp_path: Path):
+    streamed = _load_streamed_reference_module()
+    model = _make_stable_tiny_qwen3_moe_model()
+    with torch.no_grad():
+        source_experts = model.model.layers[0].mlp.experts
+        for expert_idx in range(source_experts.num_experts):
+            source_experts.gate_up_proj[expert_idx].fill_(0.125 * (expert_idx + 1))
+            source_experts.down_proj[expert_idx].fill_(0.25 * (expert_idx + 1))
+        expected_gate_up = source_experts.gate_up_proj.detach().clone()
+        expected_down = source_experts.down_proj.detach().clone()
+    model.save_pretrained(tmp_path, safe_serialization=True)
+    config = streamed.AutoDistributedConfig.from_pretrained(str(tmp_path), local_files_only=True)
+
+    block = streamed._load_streamed_block(
+        str(tmp_path),
+        0,
+        config=config,
+        dtype=torch.float32,
+        cache_dir=None,
+        local_files_only=True,
+    )
+
+    experts = block.mlp.experts
+    torch.testing.assert_close(experts.gate_up_proj, expected_gate_up)
+    torch.testing.assert_close(experts.down_proj, expected_down)
+
+
 def test_streamed_qwen3_moe_reference_emits_finite_bloombee_block_trace(tmp_path: Path):
     streamed = _load_streamed_reference_module()
     model = _make_stable_tiny_qwen3_moe_model()

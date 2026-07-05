@@ -170,11 +170,72 @@ def _load_hf_block_weights(
         max_disk_space=max_disk_space,
     )
     # state_dict keys already have block_prefix stripped, e.g. "self_attention.query_key_value.weight"
+    state_dict = pack_split_qwen3_moe_expert_state_dict(state_dict)
     block.load_state_dict(state_dict, strict=False)
     return block.to(dtype=torch_dtype)
 
 
 StateDict = Dict[str, torch.Tensor]
+
+
+def pack_split_qwen3_moe_expert_state_dict(state_dict: StateDict) -> StateDict:
+    """Pack split HF Qwen3-MoE expert weights into fused 3D expert tensors.
+
+    Recent transformers Qwen3-MoE modules store experts as fused parameters
+    named ``mlp.experts.gate_up_proj`` and ``mlp.experts.down_proj``. Some
+    saved checkpoints expose equivalent per-expert keys instead:
+    ``mlp.experts.{i}.gate_proj.weight``, ``up_proj.weight``, and
+    ``down_proj.weight``. Loading those split keys with ``strict=False`` leaves
+    the fused tensors randomly initialized, which can surface as NaN block
+    outputs. Convert the split layout before loading so every expert tensor is
+    deterministic and checkpoint-backed.
+    """
+
+    if "mlp.experts.gate_up_proj" in state_dict and "mlp.experts.down_proj" in state_dict:
+        return state_dict
+
+    expert_indices: set[int] = set()
+    prefix = "mlp.experts."
+    suffixes = (".gate_proj.weight", ".up_proj.weight", ".down_proj.weight")
+    for key in state_dict:
+        if not key.startswith(prefix):
+            continue
+        rest = key[len(prefix) :]
+        index_text, sep, _tail = rest.partition(".")
+        if not sep or not index_text.isdigit():
+            continue
+        if any(rest.endswith(suffix) for suffix in suffixes):
+            expert_indices.add(int(index_text))
+
+    if not expert_indices:
+        return state_dict
+
+    converted = dict(state_dict)
+    gate_up_chunks: list[torch.Tensor] = []
+    down_chunks: list[torch.Tensor] = []
+    missing: list[str] = []
+    split_keys: list[str] = []
+    for expert_idx in sorted(expert_indices):
+        gate_key = f"mlp.experts.{expert_idx}.gate_proj.weight"
+        up_key = f"mlp.experts.{expert_idx}.up_proj.weight"
+        down_key = f"mlp.experts.{expert_idx}.down_proj.weight"
+        for key in (gate_key, up_key, down_key):
+            if key not in state_dict:
+                missing.append(key)
+        if missing:
+            continue
+        gate_up_chunks.append(torch.cat([state_dict[gate_key], state_dict[up_key]], dim=0))
+        down_chunks.append(state_dict[down_key])
+        split_keys.extend([gate_key, up_key, down_key])
+
+    if missing:
+        raise RuntimeError("incomplete split Qwen3-MoE expert state dict: " + ", ".join(missing))
+
+    converted["mlp.experts.gate_up_proj"] = torch.stack(gate_up_chunks, dim=0)
+    converted["mlp.experts.down_proj"] = torch.stack(down_chunks, dim=0)
+    for key in split_keys:
+        converted.pop(key, None)
+    return converted
 
 
 def _load_state_dict_from_repo(

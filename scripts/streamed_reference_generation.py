@@ -39,6 +39,7 @@ from bloombee.server.from_pretrained import (  # noqa: E402
     _load_state_dict_from_local_file,
     _load_state_dict_from_repo,
     load_pretrained_block,
+    pack_split_qwen3_moe_expert_state_dict,
 )
 from bloombee.utils.auto_config import AutoDistributedConfig  # noqa: E402
 from bloombee.utils.disk_cache import DEFAULT_CACHE_DIR  # noqa: E402
@@ -233,6 +234,7 @@ def _load_streamed_block(
             cache_dir=cache_dir,
             local_files_only=True,
         )
+        state = pack_split_qwen3_moe_expert_state_dict(state)
         block.load_state_dict(state, strict=False)
         return block.to(dtype=dtype)
     return load_pretrained_block(
