@@ -482,6 +482,7 @@ def test_qwen30b_priority_cli_outputs_review_ready_json():
 def test_layerexecutor_quantized_backend_spike_artifact_is_conservative():
     evidence_path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json"
     payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    doc = (PROJECT_ROOT / "docs/layerexecutor-quantized-backend-spike.md").read_text(encoding="utf-8")
 
     assert payload["claim_boundary"] == "post_mvp_research_spike_no_runnable_backend_proof"
     assert payload["runnable_backend_proven"] is False
@@ -499,6 +500,9 @@ def test_layerexecutor_quantized_backend_spike_artifact_is_conservative():
     assert targets["moonshotai/Kimi-K2-Instruct"]["config_facts"]["quantization_method"] == "fp8"
     assert targets["zai-org/GLM-5.2"]["hf_model_type"] == "glm_moe_dsa"
     assert "minimax_m3_vl" in targets["MiniMaxAI/MiniMax-M3"]["blocked_reasons"][0]
+    assert "frontier_backend_smoke_plan.py" in doc
+    assert "frontier_external_runtime_smoke_plan_only_no_bloombee_route_claim" in doc
+    assert "deepseek-ai/DeepSeek-V4-Flash" in doc
 
 
 
@@ -564,6 +568,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
+    assert "frontier_backend_smoke_plan.py" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert post_mvp["quantization_routing_handoff"]["status"] == "base_and_instruct2507_int8_demo_safe"
     assert post_mvp["quantization_routing_handoff"]["completion"] == 1.00
@@ -600,9 +605,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "draft-provider-candidate JSON bridge" in tasks["phone_worker"]["evidence"]
     assert "phone-context-token-id-verifier-20260704T121646Z.json" in tasks["phone_worker"]["evidence"]
     assert "termux-same-gguf-wallclock-gate-20260704T112500Z.json" in tasks["phone_worker"]["evidence"]
+    assert "multi_phone_speculative_readiness.py" in tasks["phone_worker"]["evidence"]
     assert "bridge live token transport" not in tasks["phone_worker"]["next_step"]
+    assert "3-4 phone" in tasks["phone_worker"]["next_step"]
     assert "integrated non-sequential verifier path" in tasks["phone_worker"]["next_step"]
     assert "bridge live token transport" not in tasks["speculative_decode"]["next_step"]
+    assert "3-4 phone" in tasks["speculative_decode"]["next_step"]
     assert "integrated non-sequential verifier path" in tasks["speculative_decode"]["next_step"]
     assert tasks["continuous_batching"]["status"] == "partial"
     assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
@@ -2419,6 +2427,7 @@ def test_docs_post_mvp_status_rows_match_completed_scouts():
     main_doc = (PROJECT_ROOT / "docs" / "distributed-inference-mvp.md").read_text(encoding="utf-8")
     post_scope = (PROJECT_ROOT / "docs" / "post-mvp-scope.md").read_text(encoding="utf-8")
     fable_handoff = (PROJECT_ROOT / "docs" / "fable-post-mvp-handover.md").read_text(encoding="utf-8")
+    phone_readiness = (PROJECT_ROOT / "docs" / "phone-speculative-multiphone-readiness.md").read_text(encoding="utf-8")
 
     assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in finish_plan
     assert "config-only scout complete; wrapper blocked" in finish_plan
@@ -2452,6 +2461,11 @@ def test_docs_post_mvp_status_rows_match_completed_scouts():
     assert "**Active background operation:** none known" in fable_handoff
     assert "Instruct-2507 download and both INT8 streamed-reference parity gates are complete" in fable_handoff
     assert "instruct2507-full-download" not in fable_handoff
+    assert "multi_phone_speculative_readiness.py" in phone_readiness
+    assert "--phone-artifact" in phone_readiness
+    assert "3-4 phones" in phone_readiness
+    assert "speedup_proven=false" in phone_readiness
+    assert "phone_speculative_wallclock_gate.py" in phone_readiness
 
 
 

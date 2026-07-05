@@ -51,6 +51,27 @@ If a research lane continues anyway, keep it narrow:
 4. Keep the evidence claim as `external_runtime_smoke_only` until a BloomBee block-level call path exists.
 5. Never promote route selection from this spike alone.
 
+## External-runtime smoke planner
+
+`mvp_capabilities/frontier_backend_smoke_plan.py` turns the research spike into
+a concrete, fail-closed operator plan. It emits claim boundary
+`frontier_external_runtime_smoke_plan_only_no_bloombee_route_claim`, keeps native
+BloomBee support false, and keeps route/demo promotion false.
+
+Example first target for quantized form:
+
+```bash
+python mvp_capabilities/frontier_backend_smoke_plan.py \
+  --spike-artifact mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json \
+  --target deepseek-ai/DeepSeek-V4-Flash \
+  --out .local/frontier/deepseek-v4-flash-smoke-plan.json
+```
+
+The generated plan prefers `deepseek-ai/DeepSeek-V4-Flash` when requested because
+its config advertises `fp8`, but this still requires suitable NVIDIA GPU runtime
+support such as vLLM/SGLang/TensorRT-LLM. It is not a macOS/MPS proof and not a
+native BloomBee route.
+
 ## Sources
 
 - MiniMax M3 official blog: <https://www.minimax.io/blog/minimax-m3>
@@ -66,4 +87,5 @@ If a research lane continues anyway, keep it narrow:
 ```bash
 .venv/bin/python -m json.tool mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json >/dev/null
 .venv/bin/python -m pytest tests/test_mvp_capabilities.py::test_layerexecutor_quantized_backend_spike_artifact_is_conservative -q
+.venv/bin/python -m pytest tests/test_frontier_backend_smoke_plan.py -q
 ```
