@@ -97,7 +97,14 @@ def _read_json(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def build_from_artifacts(*, phone_bridge: dict[str, Any], same_gguf_verifier: dict[str, Any], tokenizer_compare: dict[str, Any], source_artifacts: Iterable[str]) -> dict[str, Any]:
+def build_from_artifacts(
+    *,
+    phone_bridge: dict[str, Any],
+    same_gguf_verifier: dict[str, Any],
+    tokenizer_compare: dict[str, Any],
+    source_artifacts: Iterable[str],
+    measured_draft_plus_verifier_elapsed_s: float | None = None,
+) -> dict[str, Any]:
     evidence = phone_bridge.get("evidence") if "evidence" in phone_bridge else phone_bridge
     phone_elapsed = float((evidence.get("draft_response") or {}).get("elapsed_s"))
     verifier_elapsed = float(same_gguf_verifier.get("elapsed_s"))
@@ -108,7 +115,7 @@ def build_from_artifacts(*, phone_bridge: dict[str, Any], same_gguf_verifier: di
         verifier_only_elapsed_s=verifier_elapsed,
         verifier_acceptance_proven=verifier_acceptance,
         tokenizer_id_match_proven=tokenizer_match,
-        measured_draft_plus_verifier_elapsed_s=None,
+        measured_draft_plus_verifier_elapsed_s=measured_draft_plus_verifier_elapsed_s,
         source_artifacts=source_artifacts,
     )
 
@@ -118,6 +125,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--phone-bridge", required=True)
     parser.add_argument("--same-gguf-verifier", required=True)
     parser.add_argument("--tokenizer-compare", required=True)
+    parser.add_argument(
+        "--measured-draft-plus-verifier-elapsed-s",
+        type=float,
+        default=None,
+        help="Measured integrated draft-plus-verifier wall-clock elapsed seconds. Omit to keep the fail-closed sequential timing path.",
+    )
     parser.add_argument("--out", default=None)
     args = parser.parse_args(argv)
     paths = [args.phone_bridge, args.same_gguf_verifier, args.tokenizer_compare]
@@ -126,6 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         same_gguf_verifier=_read_json(args.same_gguf_verifier),
         tokenizer_compare=_read_json(args.tokenizer_compare),
         source_artifacts=paths,
+        measured_draft_plus_verifier_elapsed_s=args.measured_draft_plus_verifier_elapsed_s,
     )
     text = json.dumps(payload, indent=2, sort_keys=True)
     if args.out:

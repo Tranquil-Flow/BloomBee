@@ -65,6 +65,7 @@ def test_phone_speculative_trial_plan_turns_readiness_manifest_into_operator_com
     assert "phone_llama_cpp_binding_verifier.py" in first_commands
     assert "--phone-context-token-ids" in first_commands
     assert "phone_speculative_wallclock_gate.py" in first_commands
+    assert "--measured-draft-plus-verifier-elapsed-s $INTEGRATED_DRAFT_PLUS_VERIFIER_ELAPSED_S" in first_commands
     assert any("compare verifier-only vs integrated draft-plus-verifier" in step for step in plan["operator_sequence"])
 
 

@@ -92,6 +92,9 @@ python mvp_capabilities/phone_speculative_trial_plan.py \
 
 8. Only after the manifest passes, run the integrated non-sequential verifier path and compare verifier-only vs phone-draft-plus-verifier wall clock.
 
+When that integrated elapsed time is measured, feed it directly into the gate via
+`phone_speculative_wallclock_gate.py --measured-draft-plus-verifier-elapsed-s $INTEGRATED_DRAFT_PLUS_VERIFIER_ELAPSED_S`.
+
 ## Failure interpretation
 
 - `duplicate_phone_id:*` — two artifacts describe the same phone; fix labels before testing.

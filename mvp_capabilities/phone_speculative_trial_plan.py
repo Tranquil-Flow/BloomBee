@@ -56,6 +56,7 @@ def _per_phone_commands(phone: dict[str, Any], output_dir: str) -> dict[str, Any
             f"--phone-bridge {base}-draft-bridge.json "
             f"--same-gguf-verifier {base}-context-token-verifier.json "
             f"--tokenizer-compare {base}-tokenizer-compare.json "
+            "--measured-draft-plus-verifier-elapsed-s $INTEGRATED_DRAFT_PLUS_VERIFIER_ELAPSED_S "
             f"--out {base}-wallclock-gate.json",
         ],
     }
