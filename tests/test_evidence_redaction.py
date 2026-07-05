@@ -17,6 +17,11 @@ def test_evidence_secret_scanner_flags_raw_join_material(tmp_path: Path):
                 "token": "moon-token",
                 "join_url": "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token",
                 "raw_join_url": "bloombee://join?token=moon-token",
+                "authorization": "Bearer moon-token",
+                "HF_TOKEN": "hf_123456789012345678901234567890",
+                "access_token": "moon-access",
+                "api_key": "moon-api-key",
+                "password": "moon-password",
             },
             indent=2,
         ),
@@ -29,6 +34,8 @@ def test_evidence_secret_scanner_flags_raw_join_material(tmp_path: Path):
                 "token_sha256": "a" * 64,
                 "join_url_sha256": "b" * 64,
                 "raw_join_url_recorded_in_scratch_only": True,
+                "non_secret_notes": ["Raw token stayed in scratch only; no credential value recorded."],
+                "missing_modules": ["tokenizers_missing_for_hf_tokenization"],
             },
             indent=2,
         ),
@@ -42,6 +49,12 @@ def test_evidence_secret_scanner_flags_raw_join_material(tmp_path: Path):
     assert "raw_join_url_key" in pattern_ids
     assert "raw_join_url_value" in pattern_ids
     assert "raw_token_query" in pattern_ids
+    assert "raw_authorization_key" in pattern_ids
+    assert "raw_hf_token_key" in pattern_ids
+    assert "raw_hf_token_value" in pattern_ids
+    assert "raw_access_token_key" in pattern_ids
+    assert "raw_api_key" in pattern_ids
+    assert "raw_password_key" in pattern_ids
     assert all(item["path"].endswith("bad.json") for item in findings)
 
 

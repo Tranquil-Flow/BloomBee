@@ -12,6 +12,12 @@ FORBIDDEN_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("raw_token_query", re.compile(r"[?&]token=", re.IGNORECASE)),
     ("raw_token_key", re.compile(r'"token"\s*:', re.IGNORECASE)),
     ("raw_join_url_key", re.compile(r'"(?:raw_)?join_url"\s*:', re.IGNORECASE)),
+    ("raw_authorization_key", re.compile(r'"authorization"\s*:', re.IGNORECASE)),
+    ("raw_hf_token_key", re.compile(r'"(?:hf_token|HF_TOKEN)"\s*:', re.IGNORECASE)),
+    ("raw_access_token_key", re.compile(r'"access_token"\s*:', re.IGNORECASE)),
+    ("raw_api_key", re.compile(r'"api_key"\s*:', re.IGNORECASE)),
+    ("raw_password_key", re.compile(r'"password"\s*:', re.IGNORECASE)),
+    ("raw_hf_token_value", re.compile(r"\bhf_[A-Za-z0-9]{20,}\b")),
 )
 
 
