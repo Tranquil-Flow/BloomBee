@@ -12,14 +12,14 @@
 > rows. Task 7 coordinator/dashboard wiring is done: `/route` and `/handoff`
 > accept quantized `requested_model` pins, preserve override/refusal metadata,
 > and dashboard route cards show serving model + quantization. What remains is
-> the parity/reference problem plus docs/status coherence (Task 8).
+> the parity/reference problem for quantized 30B demo-safe promotion.
 > Work task-by-task, RED tests first where specified, commit after each task. Do
 > not move the MVP-core denominator; everything here is post-MVP.
 
 **Branch state:** committed on `main` through
-`ab7f5d1 docs(quant): record instruct2507 int8 load proof`; current working
-slice wires Task 7 coordinator/dashboard quantized route handling. Baseline
-suite before this slice: `482 passed, 23 skipped, 4 warnings`.
+`808b21f feat(quant): surface quantized route pins in coordinator dashboard`;
+current working slice closes Task 8 docs/status coherence. Baseline suite before
+this slice: `487 passed, 23 skipped, 4 warnings`.
 
 **Related lane built by Moonsong meanwhile:**
 `mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
@@ -315,15 +315,21 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
   and `test_dashboard_route_card_surfaces_serving_quantization_and_refused_pin`.
 
 
-### Task 8: docs + status coherence
-- `docs/distributed-inference-mvp.md:107` still calls TinyLlama "the proven
-  safe-demo fallback" and Qwen3 "experimental" — stale on both ends now.
-- Add a post-MVP milestone entry for the quantization lane in
-  `mvp_status.py` `POST_MVP_MILESTONES` (status `in_progress`, spike
-  evidence path above). Do NOT touch `MILESTONES` or weights.
-- `docs/mvp-finish-plan.md` has a docs-coherence regression test
-  (`test_docs_post_mvp_status_rows_match_completed_scouts`) — run it after
-  editing.
+### Task 8: docs + status coherence — **DONE (Moonsong, 2026-07-05)**
+- `docs/distributed-inference-mvp.md` now states the current safe-demo ladder
+  precisely: TinyLlama and Qwen3-8B are proven fallbacks, while Qwen3-30B-A3B,
+  Instruct-2507, and their int8 route IDs remain post-MVP/experimental until
+  full-generation, cache-generation, and exact token-parity gates pass for the
+  exact route row.
+- `mvp_status.py` has the post-MVP quantization milestone updated to
+  `int8_load_proven_route_dashboard_wired` with evidence for base +
+  Instruct-2507 int8 load proofs, coordinator/dashboard route-pin handling,
+  quantized launch commands, and fail-closed full/cache/token-parity blockers.
+- Docs coherence is guarded by
+  `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts`
+  plus the status/dashboard assertions that now reject the stale
+  `route_lane_committed` state.
+
 
 ---
 

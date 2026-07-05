@@ -104,7 +104,7 @@ tracked in `docs/mvp-finish-plan.md`, and the post-MVP task scope is tracked in
   `Evis-MacBook-Pro` reports MPS, 16GB total, ~2.3GB free; `m4pro`
   reports MPS, 48GB total, ~34.5GB free. Combined live roster: 2 peers,
   64GB total, ~36.8GB free.
-- Current route selection now separates memory-fit planning from BloomBee runtime wrapper support. `qwen2`/Qwen2.5 and `gemma2` benchmark entries are useful local-transformers speed evidence, but they are blocked from showcase/safe-demo BloomBee selection until wrappers exist. TinyLlama is the proven safe-demo fallback; Qwen3 candidates remain experimental until generation proof gates pass.
+- Current route selection now separates memory-fit planning from BloomBee runtime wrapper support. `qwen2`/Qwen2.5 and `gemma2` benchmark entries are useful local-transformers speed evidence, but they are blocked from showcase/safe-demo BloomBee selection until wrappers exist. TinyLlama and Qwen3-8B are the proven demo-safe fallbacks; Qwen3-30B-A3B, Instruct-2507, and their int8 route IDs remain post-MVP/experimental until full-generation, cache-generation, and exact token-parity gates pass for the exact route row.
 - Measured local TinyLlama benchmark (cold cache): prefill ~610.7 tok/s, decode ~7.7 tok/s.
 - Measured local TinyLlama (warm cache, repeat run): prefill 1130.3 tok/s, decode 28.6 tok/s, peak 0.21 GB.
 - Measured M4 Pro bf16 local-transformers sweep (5 models, 2026-07-02; benchmark data only, not BloomBee wrapper proof):
