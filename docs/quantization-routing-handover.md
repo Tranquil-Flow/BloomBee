@@ -294,8 +294,9 @@ the outer weights plus one fp16 BloomBee block at a time and can compare a
 quantized route id (`model@int8`) against a base checkpoint id. The base
 `Qwen/Qwen3-30B-A3B@int8` live server has now passed both forward-loop
 full-generation and cached/generate-api parity with exact streamed fp16 IDs/text.
-Do not transfer those proofs to `Qwen/Qwen3-30B-A3B-Instruct-2507@int8`; it still
-needs its own full/cache generation parity before demo-safe promotion.
+Do not transfer those proofs to `Qwen/Qwen3-30B-A3B-Instruct-2507@int8`; that
+exact row now has its own streamed-reference full-generation parity, but still
+needs cache-generation parity before demo-safe promotion.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15

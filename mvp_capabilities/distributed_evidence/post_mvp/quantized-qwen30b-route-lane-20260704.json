@@ -33,7 +33,7 @@
   "operator_next_steps": [
     "base Qwen/Qwen3-30B-A3B@int8 is demo-safe under the current full/cache/load/token-parity gates",
     "keep Qwen/Qwen3-30B-A3B fp16 and @int8 proof rows separate; do not inherit gates across rows",
-    "next expensive parity target is Qwen/Qwen3-30B-A3B-Instruct-2507@int8 full_generation then cache_generation"
+    "next expensive parity target is Qwen/Qwen3-30B-A3B-Instruct-2507@int8 cache_generation"
   ],
   "quant_scheme": "moe_int8_experts+qint8_attn",
   "quant_type": "int8",

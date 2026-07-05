@@ -566,12 +566,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert post_mvp["quantization_routing_handoff"]["status"] == "base_int8_demo_safe_instruct2507_pending"
-    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.90
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.95
     assert "Qwen3-30B-A3B@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "Qwen3-30B-A3B-Instruct-2507@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "join_http_server accepts requested_model/model quantized pins" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "--quant_type INT8" in post_mvp["quantization_routing_handoff"]["evidence"]
-    assert "lacks full/cache generation parity" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "lacks cache_generation parity" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}

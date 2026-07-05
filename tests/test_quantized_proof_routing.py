@@ -214,9 +214,9 @@ def test_committed_proof_status_has_base_demo_safe_and_instruct_failclosed_int8_
     assert instruct["one_block_server"] == "passed"
     assert instruct["multi_block"] == "passed"
     assert instruct["multi_request_load"] == "passed"
-    assert instruct["full_generation"] == "pending"
+    assert instruct["full_generation"] == "passed"
     assert instruct["cache_generation"] == "pending"
-    assert instruct["token_parity"] == "not_evaluated_reference_fp16_exceeds_m4pro_memory"
+    assert instruct["token_parity"] == "exact_forward_loop_single_prompt_cache_pending"
     assert is_demo_safe(instruct, quant_type="int8") is False
 
 
@@ -277,6 +277,23 @@ def test_committed_int8_evidence_artifacts_back_partial_proof_row():
     assert full_generation_verify["status"] == "passed"
     assert full_generation_verify["can_update_proof_status"] is True
     assert full_generation_verify["proof_status_update"] == {"full_generation": "passed"}
+
+    instruct_full_generation = json.loads(
+        (root / "instruct2507-int8-full-generation-streamed-reference-20260705T165018Z.json").read_text()
+    )
+    instruct_full_generation_verify = json.loads(
+        (root / "instruct2507-int8-full-generation-streamed-reference-20260705T165018Z.verify.json").read_text()
+    )
+    assert instruct_full_generation["model"] == "Qwen/Qwen3-30B-A3B-Instruct-2507@int8"
+    assert instruct_full_generation["checkpoint_model"] == "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    assert instruct_full_generation["reference_mode"] == "streamed-blocks"
+    assert instruct_full_generation["ok"] is True
+    assert instruct_full_generation["generated_ids_match"] is True
+    assert instruct_full_generation["generated_text_match"] is True
+    assert instruct_full_generation["next_token_match"] is True
+    assert instruct_full_generation_verify["status"] == "passed"
+    assert instruct_full_generation_verify["can_update_proof_status"] is True
+    assert instruct_full_generation_verify["proof_status_update"] == {"full_generation": "passed"}
 
     base_load = json.loads((root / "qwen30b-int8-full-load-0-48-20260705T131803Z.json").read_text())
     instruct_load = json.loads((root / "instruct2507-int8-full-load-0-48-20260705T133853Z.json").read_text())
