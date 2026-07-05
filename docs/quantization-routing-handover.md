@@ -5,21 +5,23 @@
 > Tasks 2, 3, 4 and 6 are DONE and committed with tests (server-side
 > quantized loading, quant-aware route memory math, quantized proof rows +
 > token-parity policy, packed int4 experts); Task 1 (TinyLlama load gate) was
-> closed by Moonsong. Task 5 is partially executed on m4pro: base 30B@int8
-> one-block, 0:2 multi-block, and full 0:48 multi-request load passed; exact
-> Instruct-2507@int8 also has a full 0:48 multi-request load proof. Full/cache
-> generation and token parity remain fail-closed pending for both quantized
-> rows. Task 7 coordinator/dashboard wiring is done: `/route` and `/handoff`
-> accept quantized `requested_model` pins, preserve override/refusal metadata,
-> and dashboard route cards show serving model + quantization. What remains is
-> the parity/reference problem for quantized 30B demo-safe promotion.
+> closed by Moonsong. Task 5 is DONE for the base and Instruct-2507 INT8 rows:
+> both `Qwen/Qwen3-30B-A3B@int8` and
+> `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` have prescan, one-block,
+> multi-block, full 0:48 multi-request load, streamed-reference
+> full-generation parity, streamed-reference cache/generate-api parity, and
+> `token_parity: exact` proof rows. Task 7 coordinator/dashboard wiring is
+> done: `/route` and `/handoff` accept quantized `requested_model` pins,
+> preserve override/refusal metadata, and dashboard route cards show serving
+> model + quantization. Remaining quant work is optional prompt broadening,
+> Thinking-2507 if needed, and NF4 proofing; not the base/Instruct INT8 gate.
 > Work task-by-task, RED tests first where specified, commit after each task. Do
 > not move the MVP-core denominator; everything here is post-MVP.
 
-**Branch state:** committed on `main` through
-`808b21f feat(quant): surface quantized route pins in coordinator dashboard`;
-current working slice closes Task 8 docs/status coherence. Baseline suite before
-this slice: `487 passed, 23 skipped, 4 warnings`.
+**Branch state:** committed on `main` / `tranquil-flow` through
+`fdedf2f evidence(qwen30b): promote instruct int8 cache parity` before the
+current hardening slice. Baseline suite before this slice:
+`496 passed, 23 skipped, 4 warnings`.
 
 **Related lane built by Moonsong meanwhile:**
 `mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
@@ -231,11 +233,11 @@ full_generation-only gate is also fixed — and `quantized_route_lane`):
   in the row; `diverged`/absent parity caps below demo_safe, no exceptions
 - unknown `@suffix` is not a quant marker — a typo becomes an unknown
   (all-pending) row, never an alias of the fp16 row
-- `PROOF_STATUS.yaml` documents the policy and carries the explicit
-  `Qwen/Qwen3-30B-A3B@int8` row. After the m4pro Task 5 partial run, that row
-  has only the proven int8 gates marked passed (`prescan`, `one_block_server`,
-  `multi_block`, `multi_request_load`); `full_generation`, `cache_generation`,
-  and exact `token_parity` remain pending/fail-closed.
+- `PROOF_STATUS.yaml` documents the policy and carries explicit exact-route
+  rows. `Qwen/Qwen3-30B-A3B@int8` and
+  `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` now have all required gates marked
+  `passed` plus `token_parity: exact`; absent or partial quantized rows still
+  remain fail-closed.
 - `proof_ladder` reports `quant_type`/`token_parity` and names
   `token_parity` as the next gate when only parity is missing;
   `Qwen/Qwen3-30B-A3B@int8` is in the fallback ladder
@@ -245,7 +247,7 @@ write `token_parity: exact` or `token_parity: diverged` into the `@int8` row
 alongside the gate results, and record first-divergence position + text
 sample in the evidence artifact on divergence.
 
-### Task 5: Qwen3-30B-A3B int8 ladder on m4pro — **PARTIAL (Moonsong, 2026-07-05)**
+### Task 5: Qwen3-30B-A3B int8 ladder on m4pro — **DONE for base + Instruct INT8 (Moonsong, 2026-07-05)**
 The serving path is real now: `--quant_type INT8` on a qwen3_moe server
 actually quantizes blocks at load (§1.6). Base 30B weights are cached on the
 m4pro Seagate snapshot.
@@ -265,38 +267,34 @@ proof tree `3d915db` for exact Instruct-2507:
 - `qwen30b-int8-full-generation-streamed-reference-20260705T150417Z.json`
   plus `.verify.json` — base `Qwen/Qwen3-30B-A3B@int8` full `0:48` INT8
   server compared against streamed fp16 base-checkpoint reference. Exact greedy
-  IDs/text matched for the default forward-loop prompt (`The capital of France
-  is` → token 20763 / `disaster`); verifier status `passed`,
-  `proof_status_update: {full_generation: passed}`. Reference took 653.08s;
-  distributed forward/decode took 7.34s. This does not prove cache generation or
-  demo-safe token parity for the full prompt set.
+  IDs/text matched for the default forward-loop prompt; verifier status
+  `passed`, `proof_status_update: {full_generation: passed}`. Reference took
+  653.08s; distributed forward/decode took 7.34s.
+- `qwen30b-int8-cache-generation-streamed-reference-20260705T160507Z.json`
+  plus `.verify.json` — base `Qwen/Qwen3-30B-A3B@int8` cached/generate-api
+  parity matched the streamed fp16 reference exactly. Reference took 660.64s;
+  distributed generation took 6.10s.
 - `instruct2507-int8-full-load-0-48-20260705T133853Z.json` — exact
   `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` full `0:48` INT8 server loaded all
   48 blocks from the complete Seagate cache and passed the same 3-request load
   verifier. Forward latencies: avg 2.467s; backward avg 4.544s; 0 failures.
+- `instruct2507-int8-full-generation-streamed-reference-20260705T165018Z.json`
+  plus `.verify.json` — exact Instruct-2507 INT8 forward-loop generation
+  parity matched the streamed fp16 reference exactly. Reference took 528.05s;
+  distributed forward/decode took 6.27s.
+- `instruct2507-int8-cache-generation-streamed-reference-20260705T171138Z.json`
+  plus `.verify.json` — exact Instruct-2507 INT8 cached/generate-api parity
+  matched the streamed fp16 reference exactly. Reference took 683.32s;
+  distributed generation took 6.45s.
 
-Proof row updates are quantized-row-only:
-`Qwen/Qwen3-30B-A3B@int8` has `prescan`, `one_block_server`,
-`multi_block`, `multi_request_load`, `full_generation`, and
-`cache_generation` marked `passed`, with `token_parity: exact`, from the
-streamed-reference live runs. Under the current proof-gate policy that makes the
-base @int8 row demo-safe. `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` still has only
-`prescan`, `one_block_server`, `multi_block`, and `multi_request_load` marked
-`passed`; its `full_generation`, `cache_generation`, and exact `token_parity`
-remain pending/fail-closed.
-
-Remaining Task 5 work: exact-model follow-up for Instruct-2507. The fp16 30B
-requirement (route planner: 70 GB class) exceeds m4pro's ~48 GB unified memory /
-~37 GB free, but the repo now has a test-backed streamed-block reference harness
-(`scripts/streamed_reference_generation.py` plus
-`scripts/text_generation_parity.py --reference-mode streamed-blocks`) that loads
-the outer weights plus one fp16 BloomBee block at a time and can compare a
-quantized route id (`model@int8`) against a base checkpoint id. The base
-`Qwen/Qwen3-30B-A3B@int8` live server has now passed both forward-loop
-full-generation and cached/generate-api parity with exact streamed fp16 IDs/text.
-Do not transfer those proofs to `Qwen/Qwen3-30B-A3B-Instruct-2507@int8`; that
-exact row now has its own streamed-reference full-generation parity, but still
-needs cache-generation parity before demo-safe promotion.
+Proof row updates are quantized-row-only: both
+`Qwen/Qwen3-30B-A3B@int8` and
+`Qwen/Qwen3-30B-A3B-Instruct-2507@int8` have `prescan`,
+`one_block_server`, `multi_block`, `multi_request_load`, `full_generation`, and
+`cache_generation` marked `passed`, with `token_parity: exact`, from their own
+exact-route streamed-reference live runs. Under the current proof-gate policy,
+both rows are demo-safe. Do not transfer those proofs to the plain fp16 rows,
+NF4 rows, Thinking-2507, or broader prompt sets without exact-row evidence.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15
@@ -314,10 +312,10 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
   `best_available`, `serving`/`picked`, `requested_evaluation`,
   `override_active`, `override_refused`, and refusal reason.
 - Quantized route ids like `Qwen/Qwen3-30B-A3B@int8` are first-class pins. In
-  `safe-demo`, partially proven int8 rows are evaluated and refused with their
-  quantized proof status visible; the served fallback remains demo-safe. In
-  planning mode, `/handoff` can plan the quantized route id while launch
-  commands use the base HF model id plus `--quant_type INT8`.
+  `safe-demo`, fully proven INT8 rows can be served directly; partial/unknown
+  quantized rows are still evaluated and refused with their quantized proof
+  status visible. In planning mode, `/handoff` can plan the quantized route id
+  while launch commands use the base HF model id plus `--quant_type INT8`.
 - `demo_dashboard.py` route cards render the actual serving model and
   `quant_type`/`fp16 / none`, preserving override/refusal visibility so a
   quantized route is never shown without its quant marker.
@@ -330,10 +328,9 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
 
 ### Task 8: docs + status coherence — **DONE (Moonsong, 2026-07-05)**
 - `docs/distributed-inference-mvp.md` now states the current safe-demo ladder
-  precisely: TinyLlama and Qwen3-8B are proven fallbacks, while Qwen3-30B-A3B,
-  Instruct-2507, and their int8 route IDs remain post-MVP/experimental until
-  full-generation, cache-generation, and exact token-parity gates pass for the
-  exact route row.
+  precisely: TinyLlama and Qwen3-8B remain MVP-core fallbacks, while the base
+  and Instruct-2507 INT8 30B rows are post-MVP demo-safe under the current
+  full/cache/load/token-parity gates.
 - `mvp_status.py` has the post-MVP quantization milestone updated to
   `base_and_instruct2507_int8_demo_safe` with evidence for base @int8 and
   Instruct-2507 @int8 full/cache/load/token-parity proof,

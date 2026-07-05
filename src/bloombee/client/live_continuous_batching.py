@@ -15,6 +15,9 @@ from typing import Callable, Mapping, Sequence
 ENV_ENABLE_LIVE_CONTINUOUS_BATCHING = "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
 ENV_LIVE_CONTINUOUS_MAX_BATCH_SIZE = "BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE"
 CLAIM_BOUNDARY = "live_continuous_decode_loop_unit_no_server_no_speedup"
+INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY = (
+    "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
+)
 
 
 def is_live_continuous_batching_enabled() -> bool:

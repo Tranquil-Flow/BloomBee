@@ -145,9 +145,10 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         if inputs is None:
             inputs = kwargs.pop("input_ids", None)
 
-        # Live-continuous batching seam: deliberately opt-in and dependency-
-        # injected. Until a real live scheduler is wired, production behavior
-        # falls through unchanged even when the env flag is set.
+        # Live-continuous batching seam: deliberately opt-in and conservative.
+        # The first production wiring records LiveDecodeRow ticks on the
+        # InferenceSession for plain greedy single-request decode; unsupported
+        # modes fall through unchanged.
         if self._live_continuous_generate_eligible(inputs, args, kwargs, session):
             return self._live_continuous_generate_impl(inputs, *args, session=session, **kwargs)
 
@@ -286,6 +287,105 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         if getattr(self.transformer.config, "tuning_mode", None):
             return False
         return True
+
+    @torch.inference_mode()
+    def _live_continuous_generate_impl(
+        self,
+        input_ids: torch.Tensor,
+        *args,
+        session: Optional[InferenceSession] = None,
+        max_new_tokens: Optional[int] = None,
+        max_length: Optional[int] = None,
+        pad_token_id: Optional[int] = None,
+        eos_token_id: Optional[Union[int, List[int]]] = None,
+        bos_token_id: Optional[int] = None,
+        use_cache: Optional[bool] = None,
+        **_ignored,
+    ) -> torch.Tensor:
+        """Minimal opt-in live-continuous request loop for conservative greedy decode.
+
+        This wires ``LiveDecodeRow`` telemetry into the active
+        ``InferenceSession`` while using the same client request path as the
+        fast greedy loop (embedding -> RemoteSequential/session.step -> ln_f ->
+        lm_head). It is intentionally single-request only until concurrent
+        arrival parity is proven, and the session report remains claim-bounded.
+        """
+        if args:
+            raise RuntimeError("live continuous batching does not accept positional generation args")
+        if session is not None or self.active_session is not None:
+            raise RuntimeError("live continuous batching requires a fresh inference session")
+        if input_ids.ndim != 2 or input_ids.shape[0] != 1:
+            raise RuntimeError("live continuous batching is currently fail-closed to batch_size=1")
+
+        from bloombee.client.live_continuous_batching import LiveDecodeRow
+
+        batch_size, prompt_len = input_ids.shape
+        if max_new_tokens is None:
+            assert max_length is not None
+            max_new_tokens = max(0, int(max_length) - prompt_len)
+        else:
+            max_new_tokens = int(max_new_tokens)
+        if max_new_tokens < 0:
+            raise ValueError("max_new_tokens must be non-negative")
+
+        eos_set: Tuple[int, ...]
+        if isinstance(eos_token_id, int):
+            eos_set = (eos_token_id,)
+        elif isinstance(eos_token_id, (list, tuple)):
+            eos_set = tuple(int(x) for x in eos_token_id)
+        else:
+            eos_set = ()
+
+        pre_seq_len = getattr(self.transformer.config, "pre_seq_len", 0) or 0
+        context_manager = self.inference_session(max_length=pre_seq_len + prompt_len + max_new_tokens)
+
+        embed = self.transformer.word_embeddings
+        layers = self.transformer.h
+        ln_f = self.transformer.ln_f
+        lm_head = self.lm_head
+
+        output = input_ids
+        step_ids = input_ids
+        done = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
+
+        with context_manager as live_session:
+            recorder = getattr(live_session, "record_live_continuous_tick_rows", None)
+            if not callable(recorder):
+                raise RuntimeError("InferenceSession cannot record live continuous batching rows")
+
+            for tick in range(max_new_tokens):
+                row_input_id = int(step_ids[0, -1].detach().cpu().item())
+                hidden = embed(step_ids)
+                hidden = layers(hidden)
+                hidden = ln_f(hidden)
+                logits = lm_head(hidden[:, -1:, :])
+                next_id = logits.argmax(dim=-1)
+
+                if eos_set:
+                    for eos_id in eos_set:
+                        done = done | next_id.squeeze(-1).eq(eos_id)
+
+                recorder(
+                    [
+                        LiveDecodeRow(
+                            request_id="generate-0",
+                            tick=tick,
+                            position=tick,
+                            input_token_id=row_input_id,
+                        )
+                    ],
+                    output_token_ids=[int(next_id[0, 0].detach().cpu().item())],
+                )
+
+                output = torch.cat([output, next_id], dim=1)
+                step_ids = next_id
+
+                if eos_set and bool(done.all().item()):
+                    break
+
+            live_session.output_ids = output
+
+        return output
 
     # Kwargs that the fast path consumes or can safely ignore. Anything
     # else (e.g. attention_mask, logits_processor, stopping_criteria,

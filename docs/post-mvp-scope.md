@@ -39,11 +39,11 @@ The Qwen3-30B-family ordering is now encoded in a test-backed audit helper:
 
 Use this order unless Fable finds a concrete reason to change it:
 
-1. `Qwen/Qwen3-30B-A3B` — substrate/risk reducer; already has prescan + one-block + multi-block proof, next gate `full_generation`.
-2. `Qwen/Qwen3-30B-A3B-Instruct-2507` — user-facing follow-up with exact-model prescan + one-block + multi-block now passed; next gate `full_generation`.
-3. `Qwen/Qwen3-30B-A3B-Thinking-2507` — optional reasoning variant; do not spend proof budget unless the demo specifically needs thinking/reasoning behavior.
+1. `Qwen/Qwen3-30B-A3B@int8` — substrate/risk reducer; full-generation, cache/generate-api parity, multi-request load, and exact token parity are passed under the current proof policy.
+2. `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` — user-facing stronger demo target; exact-model prescan, one-block, multi-block, full 0:48 load, streamed-reference full-generation parity, streamed-reference cache/generate-api parity, and exact token parity are passed.
+3. `Qwen/Qwen3-30B-A3B-Thinking-2507` / `@int8` — optional reasoning variant; do not spend proof budget unless the demo specifically needs thinking/reasoning behavior.
 
-Do not make both base 30B and Instruct-2507 required for the same post-MVP milestone. Exact 2507 lower gates are now proven for Instruct only; full-generation/cache/load remain required before route/demo promotion.
+Base 30B@int8 and Instruct-2507@int8 are demo-safe under the current full/cache/load/token-parity gates. Do not transfer those proofs to fp16 rows, NF4 rows, Thinking-2507, or broader prompt sets without exact-row evidence.
 
 ---
 
@@ -126,7 +126,7 @@ Do not make both base 30B and Instruct-2507 required for the same post-MVP miles
 
 ### Task 4: Continuous batching proof harness
 
-**Objective:** Move from deterministic scheduler proof to live request-loop integration without hiding correctness failures. The scheduler simulation, replayable adapter plan, and injected live-loop unit seam are now committed; remaining work is real `inference_session.py` wiring, parity, and throughput.
+**Objective:** Move from deterministic scheduler proof to live request-loop integration without hiding correctness failures. The scheduler simulation, replayable adapter plan, injected live-loop unit seam, and `InferenceSession` tick-row recording behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING` are now committed; remaining work is real concurrent live-server parity and throughput proof.
 
 **Files:**
 - Existing: `mvp_capabilities/continuous_batching.py`
@@ -134,13 +134,13 @@ Do not make both base 30B and Instruct-2507 required for the same post-MVP miles
 - Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json`
 - Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json`
 - Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json`
-- Future modify: `src/bloombee/client/inference_session.py`
+- Existing: `src/bloombee/client/inference_session.py` tick-row telemetry seam
 - Test: `tests/test_live_continuous_batching.py`
 
 **Steps:**
-1. Treat the pure scheduler, adapter-plan, and injected-step live-loop unit as passed; do not call them live-server proof.
-2. Wire `LiveContinuousDecodeLoop` tick rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`.
-3. Prove same-prompt parity with concurrent arrivals before measuring throughput.
+1. Treat the pure scheduler, adapter-plan, injected-step live-loop unit, and `InferenceSession` tick-row telemetry as passed; do not call them live-server proof.
+2. Prove same-prompt parity with concurrent arrivals before measuring throughput.
+3. Wire multi-request live scheduling through real server traffic after parity is green.
 4. Add request telemetry for per-request latency, overlap window, success/failure counts, and tokens/sec.
 5. Run on TinyLlama or Qwen3-8B first; only then scale to Qwen3-30B.
 6. Store future live proof artifacts under `mvp_capabilities/distributed_evidence/load/`.
@@ -158,21 +158,22 @@ Do not make both base 30B and Instruct-2507 required for the same post-MVP miles
 **Objective:** Prove repeated prompts can reuse prefix KV/cache safely and measurably.
 
 **Files:**
-- Create: `mvp_capabilities/kv_prefix_reuse_proof.py`
-- Modify: `README.environment-switches.md`
-- Test: `tests/test_mvp_capabilities.py`
+- Existing: `mvp_capabilities/kv_prefix_reuse_proof.py`
+- Existing: `README.environment-switches.md`
+- Test: `tests/test_kv_prefix_reuse_proof.py`
 
 **Steps:**
-1. Define the proof contract: same prefix, varied suffixes, equal logits/tokens against no-reuse baseline.
-2. Add RED tests for accepted and rejected cache-reuse evidence.
-3. Capture timing deltas and correctness hashes.
-4. Fail closed if any token/logit mismatch appears.
-5. Document required environment flags and telemetry tags.
+1. Define the proof contract: same prefix, varied suffixes, equal logits/tokens against no-reuse baseline. **Done for verifier artifacts.**
+2. Add RED tests for accepted and rejected cache-reuse evidence. **Done.**
+3. Capture timing deltas and correctness hashes in future live artifacts.
+4. Fail closed if any token/logit mismatch appears. **Done in verifier.**
+5. Document required telemetry tags. **Done in `README.environment-switches.md`.**
+6. Remaining live work: wire runtime prefill/session cache metadata and produce real TinyLlama/Qwen3-8B evidence before scaling.
 
 **Verification command:**
 
 ```bash
-.venv/bin/python -m pytest tests/test_mvp_capabilities.py::test_kv_prefix_reuse_proof_* -q
+.venv/bin/python -m pytest tests/test_kv_prefix_reuse_proof.py -q
 ```
 
 ---

@@ -30,6 +30,11 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
 
 PLAN_CLAIM_BOUNDARY = "multi_request_load_harness_only_no_live_traffic"
 VERIFY_CLAIM_BOUNDARY = "verified_multi_request_load_evidence"
+DEFAULT_SEED_BASE = 7000
+DEFAULT_INPUT_SCALE = 0.1
+MAX_SEED = (2**32) - 1
+MIN_INPUT_SCALE = 0.0
+MAX_INPUT_SCALE = 1.0
 
 
 def _server_maddr_flags(server_maddrs: Iterable[str]) -> list[str]:
@@ -38,6 +43,56 @@ def _server_maddr_flags(server_maddrs: Iterable[str]) -> list[str]:
 
 def _request_log_path(prefix: str, index: int) -> str:
     return f"{prefix}-{index:03d}.log"
+
+
+def _is_qwen_class_model(model_id: str | None) -> bool:
+    return "qwen" in str(model_id or "").lower()
+
+
+def _bounded_seed(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= MAX_SEED else None
+
+
+def _bounded_input_scale(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    scale = float(value)
+    return scale if MIN_INPUT_SCALE < scale <= MAX_INPUT_SCALE else None
+
+
+def qwen_load_metadata_report(model_id: str | None, request_results: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
+    """Return deterministic-load metadata report and fail-closed checks.
+
+    Qwen-class load artifacts must record bounded seeds and input scales so a
+    passed proof can be reproduced and so unbounded synthetic hidden states do
+    not quietly become a production claim.
+    """
+    requires_metadata = _is_qwen_class_model(model_id)
+    failed: list[str] = []
+    seeds: list[int] = []
+    input_scales: list[float] = []
+    for index, result in enumerate(request_results):
+        seed = _bounded_seed(result.get("seed"))
+        input_scale = _bounded_input_scale(result.get("input_scale"))
+        if seed is None:
+            if requires_metadata:
+                failed.append(f"request {index} missing bounded integer seed (0..{MAX_SEED})")
+        else:
+            seeds.append(seed)
+        if input_scale is None:
+            if requires_metadata:
+                failed.append(f"request {index} missing bounded input_scale ({MIN_INPUT_SCALE}, {MAX_INPUT_SCALE}]")
+        else:
+            input_scales.append(input_scale)
+    return {
+        "qwen_class_metadata_required": requires_metadata,
+        "seed_bounds": [0, MAX_SEED],
+        "input_scale_bounds": [MIN_INPUT_SCALE, MAX_INPUT_SCALE],
+        "seed_values": seeds,
+        "input_scale_values": sorted(set(input_scales)),
+    }, failed
 
 
 def _read_log(path: str | Path) -> str:
@@ -57,6 +112,8 @@ def build_multi_request_load_plan(
     request_count: int,
     hidden_dim: int,
     client_log_prefix: str = ".local/load-client",
+    seed_base: int = DEFAULT_SEED_BASE,
+    input_scale: float = DEFAULT_INPUT_SCALE,
 ) -> dict[str, Any]:
     """Emit a no-execution runbook for a repeated direct-client load proof."""
     if request_count <= 0:
@@ -65,6 +122,10 @@ def build_multi_request_load_plan(
         raise ValueError("hidden_dim must be positive")
     if not server_maddrs:
         raise ValueError("at least one server multiaddr is required")
+    if _bounded_seed(seed_base) is None:
+        raise ValueError(f"seed_base must be an integer in [0, {MAX_SEED}]")
+    if _bounded_input_scale(input_scale) is None:
+        raise ValueError(f"input_scale must be in ({MIN_INPUT_SCALE}, {MAX_INPUT_SCALE}]")
     _parse_block_range(block_range)
 
     client_logs = [_request_log_path(client_log_prefix, index) for index in range(request_count)]
@@ -77,10 +138,12 @@ def build_multi_request_load_plan(
                 f"--model {model_id}",
                 f"--hidden-dim {hidden_dim}",
                 f"--block-range {block_range}",
+                f"--seed {seed_base + index}",
+                f"--input-scale {input_scale}",
                 f"2>&1 | tee {log_path}",
             ]
         )
-        for log_path in client_logs
+        for index, log_path in enumerate(client_logs)
     ]
     verify_command = _shell_join(
         [
@@ -99,6 +162,8 @@ def build_multi_request_load_plan(
         "server_maddrs": server_maddrs,
         "request_count": request_count,
         "hidden_dim": hidden_dim,
+        "seed_base": seed_base,
+        "input_scale": input_scale,
         "client_logs": client_logs,
         "client_commands": client_commands,
         "verify_command": verify_command,
@@ -134,6 +199,7 @@ def verify_multi_request_load_evidence(
     telemetry = build_request_telemetry(request_logs)
     results = _extract_results(request_logs)
     failed: list[str] = []
+    metadata_policy, metadata_failures = qwen_load_metadata_report(model_id, results)
 
     succeeded = int((telemetry.get("request_counts") or {}).get("succeeded") or 0)
     failed_count = int((telemetry.get("request_counts") or {}).get("failed") or 0)
@@ -166,6 +232,7 @@ def verify_multi_request_load_evidence(
             failed.append(f"request {index} outputs were not finite")
         if result.get("grad_finite") is not True:
             failed.append(f"request {index} gradients were not finite")
+    failed.extend(metadata_failures)
 
     status = "passed" if not failed else "failed"
     return {
@@ -178,6 +245,7 @@ def verify_multi_request_load_evidence(
         "can_update_proof_status": status == "passed",
         "proof_status_update": {"multi_request_load": "passed"} if status == "passed" else {},
         "failed_checks": failed,
+        "metadata_policy": metadata_policy,
         "telemetry": telemetry,
         "request_results": results[:expected_request_count],
     }
@@ -194,6 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--request-count", type=int, default=3)
     plan.add_argument("--hidden-dim", type=int, required=True)
     plan.add_argument("--client-log-prefix", default=".local/load-client")
+    plan.add_argument("--seed-base", type=int, default=DEFAULT_SEED_BASE)
+    plan.add_argument("--input-scale", type=float, default=DEFAULT_INPUT_SCALE)
 
     verify = sub.add_parser("verify", help="Verify captured multi-request load proof logs")
     verify.add_argument("--model", required=True)
@@ -210,6 +280,8 @@ def main(argv: list[str] | None = None) -> int:
             request_count=args.request_count,
             hidden_dim=args.hidden_dim,
             client_log_prefix=args.client_log_prefix,
+            seed_base=args.seed_base,
+            input_scale=args.input_scale,
         )
     else:
         payload = verify_multi_request_load_evidence(

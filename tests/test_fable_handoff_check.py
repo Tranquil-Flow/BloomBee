@@ -32,15 +32,15 @@ def test_fable_handoff_check_json_is_grunt_free_and_claim_bounded():
     assert payload["ok"] is True
     assert payload["project"] == "distributed-inference-mvp"
     assert payload["mvp_status"]["task_summary"] == {
-        "complete": 10,
-        "partial": 6,
+        "complete": 11,
+        "partial": 5,
         "pending": 0,
         "blocked": 1,
         "total": 17,
     }
     assert payload["mvp_status"]["post_mvp_task_summary"] == {
-        "complete": 1,
-        "partial": 6,
+        "complete": 2,
+        "partial": 5,
         "pending": 0,
         "blocked": 1,
         "total": 8,
@@ -66,8 +66,8 @@ def test_fable_handoff_check_markdown_names_fable_focus_not_grunt():
     assert "## Fable should focus on" in proc.stdout
     assert "## Fable should not burn tokens on" in proc.stdout
     assert "MVP status" in proc.stdout
-    assert "live continuous-batching opt-in seam" in proc.stdout
-    assert "Rediscovering the Instruct-2507 download failure mode" in proc.stdout
+    assert "live continuous-batching opt-in tick-row seam" in proc.stdout
+    assert "Checking whether Instruct-2507 is still downloading" in proc.stdout
 
 
 def test_fable_handoff_doc_points_to_checker_commands():

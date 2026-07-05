@@ -621,6 +621,7 @@ class InferenceSession:
         self.keep_indices = None
         self.prefill_length = 0
         self._step_count = 0  # Track step count for logging
+        self._live_continuous_tick_batches = []
         
         # [MBPIPE] Log micro-batch pipeline configuration at client session creation
         mbpipe_log_config(logger, context="InferenceSession.__init__")
@@ -633,6 +634,85 @@ class InferenceSession:
     @property
     def position(self) -> int:
         return self._position
+
+    def record_live_continuous_tick_rows(
+        self,
+        rows,
+        *,
+        output_token_ids=None,
+    ) -> None:
+        """Record opt-in live-continuous decode rows for this session.
+
+        This is deliberately telemetry/control-plane only: recording rows does
+        not prove server-side continuous batching, parity, or speedup. It is
+        also fail-closed; callers must be behind
+        ``BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1`` rather than silently
+        accumulating rows when the experimental path is disabled.
+        """
+        from bloombee.client.live_continuous_batching import (
+            ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            is_live_continuous_batching_enabled,
+        )
+
+        if not is_live_continuous_batching_enabled():
+            raise RuntimeError(
+                f"{ENV_ENABLE_LIVE_CONTINUOUS_BATCHING}=1 is required to record live continuous batching rows"
+            )
+
+        normalized_rows = list(rows)
+        if not normalized_rows:
+            raise ValueError("live continuous batching tick rows must be non-empty")
+
+        tick = int(normalized_rows[0].tick)
+        if any(int(row.tick) != tick for row in normalized_rows):
+            raise ValueError("all live continuous batching rows in one batch must share a tick")
+        if self._live_continuous_tick_batches and tick < int(self._live_continuous_tick_batches[-1]["tick"]):
+            raise ValueError("live continuous batching ticks must be monotonic")
+
+        request_ids = [str(row.request_id) for row in normalized_rows]
+        if len(set(request_ids)) != len(request_ids):
+            raise ValueError("duplicate request_id in live continuous batching tick")
+
+        batch = {
+            "tick": tick,
+            "request_ids": request_ids,
+            "positions": [int(row.position) for row in normalized_rows],
+            "input_token_ids": [int(row.input_token_id) for row in normalized_rows],
+        }
+        if output_token_ids is not None:
+            normalized_outputs = [int(token) for token in output_token_ids]
+            if len(normalized_outputs) != len(normalized_rows):
+                raise ValueError("output_token_ids length must match live continuous batching rows")
+            batch["output_token_ids"] = normalized_outputs
+        self._live_continuous_tick_batches.append(batch)
+
+    def live_continuous_batching_report(self) -> dict:
+        from bloombee.client.live_continuous_batching import (
+            ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
+            is_live_continuous_batching_enabled,
+        )
+
+        request_ids = []
+        seen = set()
+        for batch in self._live_continuous_tick_batches:
+            for request_id in batch["request_ids"]:
+                if request_id not in seen:
+                    request_ids.append(request_id)
+                    seen.add(request_id)
+
+        return {
+            "source": "bloombee.client.inference_session",
+            "claim_boundary": INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
+            "opt_in_flag": ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            "opt_in_enabled": is_live_continuous_batching_enabled(),
+            "request_count": len(request_ids),
+            "total_decode_batches": len(self._live_continuous_tick_batches),
+            "tick_batches": [dict(batch) for batch in self._live_continuous_tick_batches],
+            "live_server_proven": False,
+            "speedup_proven": False,
+            "can_update_demo_status": False,
+        }
 
     @position.setter
     def position(self, start_from_position: int) -> None:

@@ -46,6 +46,71 @@ class _RemoteGenerationStub(RemoteGenerationMixin, _FallbackGenerate):
         return torch.tensor([[101, 10]], dtype=torch.long)
 
 
+class _ScalarTokenEmbedding(torch.nn.Module):
+    def forward(self, input_ids):
+        return input_ids.to(dtype=torch.float32).unsqueeze(-1)
+
+
+class _GreedyNextTokenHead(torch.nn.Module):
+    def __init__(self, mapping):
+        super().__init__()
+        self.mapping = dict(mapping)
+
+    def forward(self, hidden_states):
+        logits = torch.full((*hidden_states.shape[:2], 256), -1000.0, dtype=torch.float32)
+        for batch_idx in range(hidden_states.shape[0]):
+            token_id = int(hidden_states[batch_idx, -1, 0].item())
+            logits[batch_idx, -1, self.mapping[token_id]] = 1000.0
+        return logits
+
+
+class _FakeLiveRemoteLayers:
+    def __init__(self):
+        self._active_session = None
+        self.hidden_calls = []
+        self.sessions = []
+
+    @property
+    def active_session(self):
+        return self._active_session
+
+    @contextlib.contextmanager
+    def use_session(self, session):
+        previous = self._active_session
+        self._active_session = session
+        try:
+            yield session
+        finally:
+            self._active_session = previous
+
+    @contextlib.contextmanager
+    def inference_session(self, **kwargs):
+        from bloombee.client.inference_session import InferenceSession
+
+        session = InferenceSession(SimpleNamespace(), **kwargs)
+        self.sessions.append(session)
+        with session, self.use_session(session):
+            yield session
+
+    def __call__(self, hidden_states):
+        assert self._active_session is not None
+        self.hidden_calls.append(hidden_states.detach().clone())
+        return hidden_states
+
+
+class _RemoteGenerationLiveImplStub(RemoteGenerationMixin, _FallbackGenerate):
+    def __init__(self):
+        self.fallback_calls = []
+        self._supports_cache_class = False
+        self.transformer = SimpleNamespace(
+            config=SimpleNamespace(pre_seq_len=0, tuning_mode=None),
+            word_embeddings=_ScalarTokenEmbedding(),
+            h=_FakeLiveRemoteLayers(),
+            ln_f=torch.nn.Identity(),
+        )
+        self.lm_head = _GreedyNextTokenHead({101: 10, 10: 11})
+
+
 def test_live_continuous_decode_loop_batches_late_arrivals_and_deinterleaves_outputs():
     from bloombee.client.live_continuous_batching import LiveContinuousDecodeLoop, LiveDecodeRequest
 
@@ -119,6 +184,59 @@ def test_remote_generation_delegates_to_live_continuous_scheduler_only_when_opte
     assert live.tolist() == [[101, 10]]
     assert len(model.live_calls) == 1
     assert len(model.fallback_calls) == 1
+
+
+def test_remote_generation_base_live_impl_records_inference_session_tick_rows(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    model = _RemoteGenerationLiveImplStub()
+    inputs = torch.tensor([[101]], dtype=torch.long)
+
+    result = model.generate(inputs, max_new_tokens=2)
+
+    assert result.tolist() == [[101, 10, 11]]
+    assert model.fallback_calls == []
+    assert [call.squeeze(-1).to(dtype=torch.long).tolist() for call in model.transformer.h.hidden_calls] == [
+        [[101]],
+        [[10]],
+    ]
+    assert len(model.transformer.h.sessions) == 1
+    report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    assert report["claim_boundary"] == "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
+    assert report["opt_in_flag"] == "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
+    assert report["request_count"] == 1
+    assert report["tick_batches"] == [
+        {
+            "tick": 0,
+            "request_ids": ["generate-0"],
+            "positions": [0],
+            "input_token_ids": [101],
+            "output_token_ids": [10],
+        },
+        {
+            "tick": 1,
+            "request_ids": ["generate-0"],
+            "positions": [1],
+            "input_token_ids": [10],
+            "output_token_ids": [11],
+        },
+    ]
+    assert report["live_server_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["can_update_demo_status"] is False
+
+
+def test_inference_session_live_tick_rows_fail_closed_without_opt_in(monkeypatch):
+    from bloombee.client.inference_session import InferenceSession
+    from bloombee.client.live_continuous_batching import LiveDecodeRow
+
+    monkeypatch.delenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", raising=False)
+    session = InferenceSession(SimpleNamespace(), max_length=4)
+
+    with pytest.raises(RuntimeError, match="BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"):
+        session.record_live_continuous_tick_rows(
+            [LiveDecodeRow(request_id="generate-0", tick=0, position=0, input_token_id=101)],
+            output_token_ids=[10],
+        )
 
 
 def test_live_continuous_batching_loop_report_does_not_promote_demo_status():

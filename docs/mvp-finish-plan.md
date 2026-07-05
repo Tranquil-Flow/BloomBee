@@ -42,7 +42,7 @@ Verifier outcome:
 }
 ```
 
-The final proof uses Qwen/Qwen3-8B as the strongest proven live/demo-safe model for MVP-core. Qwen3-30B and larger/model-optimisation work remain post-MVP/stretch.
+The final proof uses Qwen/Qwen3-8B as the strongest proven live/demo-safe model for MVP-core. Qwen3-30B and larger/model-optimisation work remain post-MVP/stretch; in that post-MVP lane, the base and Instruct-2507 INT8 30B rows are now demo-safe under the current proof gates.
 
 ---
 

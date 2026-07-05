@@ -59,7 +59,7 @@ MILESTONES: tuple[Milestone, ...] = (
         weight=8,
         completion=1.00,
         status="complete",
-        evidence="route_picker.py supports planning/showcase-attempt/safe-demo, infers registry HF model_type, blocks unsupported wrappers from showcase/safe-demo, and promotes Qwen3-8B only after proof gates pass; Qwen3 2507 variants remain stretch candidates",
+        evidence="route_picker.py supports planning/showcase-attempt/safe-demo, infers registry HF model_type, blocks unsupported wrappers from showcase/safe-demo, and promotes models only after exact proof gates pass; Qwen3-8B is MVP-core demo-safe, and exact base/Instruct 30B INT8 rows are post-MVP demo-safe without promoting fp16, NF4, or Thinking rows",
     ),
     Milestone(
         id="dashboard_visibility",
@@ -134,10 +134,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="qwen3_30b_proof_ladder",
         label="Qwen3-30B-A3B base-first proof ladder with Instruct-2507 follow-up",
         weight=15,
-        completion=0.55,
-        status="stretch",
-        evidence="Qwen3-MoE wrapper exists; one live M4 Pro block shard proof passed for Qwen3-30B-A3B, and a clean-archive two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/qwen30b/qwen3-30b-a3b-multiblock-20260704T144934Z.json (finite forward/backward, failed_checks=[]). Instruct-2507 now has Seagate-backed prescan, one-block live RPC, and two-server multi-block 0:2 direct RPC proofs at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json and mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json. qwen30b_priority.py codifies the post-MVP order: base Qwen3-30B-A3B first, Instruct-2507 follow-up, Thinking-2507 optional. This remains post-MVP/stretch and does not move the MVP-core 100% denominator after Qwen3-8B became demo-safe.",
-        next_step="full-generation parity for base Qwen3-30B-A3B, then cache-generation and multi-request load; for Instruct-2507, full-generation/cache/load gates remain before any route/demo promotion",
+        completion=1.00,
+        status="int8_demo_safe_complete",
+        evidence="Qwen3-MoE wrapper exists; exact INT8 rows for Qwen/Qwen3-30B-A3B@int8 and Qwen/Qwen3-30B-A3B-Instruct-2507@int8 both passed prescan, one-block, multi-block, full 0:48 multi-request load, streamed-fp16 forward-loop full-generation parity, streamed-reference cache/generate-api parity, and token_parity exact. Evidence includes base qwen30b-int8 full/cache streamed-reference artifacts plus Instruct-2507 evidence at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-int8-full-generation-streamed-reference-20260705T165018Z.json and mvp_capabilities/distributed_evidence/post_mvp/instruct2507-int8-cache-generation-streamed-reference-20260705T171138Z.json. Plain fp16, NF4, Thinking-2507, and broader prompt sets remain separate proof rows/gates.",
+        next_step="optional: broaden prompt-set parity, run Thinking-2507 only if reasoning behavior is needed, or start NF4 after preserving exact-row fail-closed proof separation",
     ),
     Milestone(
         id="layerexecutor_quantized_backend_spike",
@@ -222,15 +222,15 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
     PlanTask(
         id="qwen3_30b_core_proof",
         label="Qwen3-30B-A3B core laptop-swarm proof ladder",
-        status="partial",
-        evidence="qwen3_moe wrapper exists; one live M4 Pro Qwen3-30B-A3B block shard passed; clean-archive two-server multi-block 0:2 direct RPC proof passed with finite forward/backward; full distributed generation remains pending",
-        next_step="run full-generation parity for Qwen3-30B-A3B, then cache-generation and multi-request load when enough clean memory/devices are available",
+        status="complete",
+        evidence="qwen3_moe wrapper exists; exact base Qwen/Qwen3-30B-A3B@int8 row passed one-block, two-server multi-block 0:2, full 0:48 multi-request load, streamed-fp16 full-generation parity, streamed-reference cache/generate-api parity, and token_parity exact, making the INT8 route demo-safe under current gates. Plain fp16 and NF4 rows remain separate and do not inherit this proof.",
+        next_step=None,
     ),
     PlanTask(
         id="qwen3_30b_2507_shelf",
         label="Prepared Qwen3-30B-A3B Instruct-2507 shelf; Thinking-2507 optional",
         status="complete",
-        evidence="2507 variants are registered with config metadata; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior. The earlier Seagate NTFS blocker is tracked at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json; after APFS+exFAT setup, the Seagate-backed Instruct-2507 download, prescan, one-block live RPC proof, and two-server multi-block 0:2 direct RPC proof passed at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json and mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json. Full-generation/cache/load remain separate promotion gates.",
+        evidence="2507 variants are registered with config metadata; qwen30b_priority.py codifies Instruct-2507 as the user-facing follow-up after base 30B gates, with Thinking-2507 deferred unless the demo needs reasoning behavior. The earlier Seagate NTFS blocker is tracked at mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-readonly-blocker-20260704.json; after APFS+exFAT setup, mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json and mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json passed; two-server multi-block 0:2 direct RPC proof passed. The exact Qwen/Qwen3-30B-A3B-Instruct-2507@int8 row then passed full 0:48 multi-request load, streamed-reference full-generation parity, streamed-reference cache/generate-api parity, and token_parity exact. Thinking-2507 remains optional and separate.",
         next_step=None,
     ),
     PlanTask(
@@ -279,15 +279,15 @@ PLANNED_TASKS: tuple[PlanTask, ...] = (
         id="continuous_batching",
         label="True continuous batching",
         status="partial",
-        evidence="continuous_batching.py adds a pure round-robin decode scheduler simulation with late-arrival admission, padded batch inputs, per-request deinterleaving; live_continuous_batching.py adds an opt-in injected-step live-loop unit plus remote_generation.py exposes a dependency-injected opt-in seam; claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json, mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json, and mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json; no live server integration, parity proof, wall-clock speedup, or demo promotion yet",
-        next_step="wire LiveContinuousDecodeLoop tick rows into src/bloombee/client/inference_session.py behind BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING, prove parity with concurrent arrivals, then measure wall-clock throughput before any demo or speedup promotion",
+        evidence="continuous_batching.py adds a pure round-robin decode scheduler simulation with late-arrival admission, padded batch inputs, per-request deinterleaving; live_continuous_batching.py adds an opt-in injected-step live-loop unit; remote_generation.py and inference_session.py now expose an opt-in BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING tick-row telemetry seam. Claim-bounded evidence remains at mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-scheduler-20260704.json, mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json, and mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json; no live server integration, no concurrent live server parity proof, wall-clock speedup, or demo promotion yet",
+        next_step="use BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING while proving parity with concurrent arrivals through real server traffic, then measure wall-clock throughput before any demo or speedup promotion",
     ),
     PlanTask(
         id="kv_prefix_reuse",
         label="Real prefill KV prefix reuse",
         status="partial",
-        evidence="kv_prefix_reuse.py adds a pure prefix-only reuse planner that proves reused prefix + planned suffix reconstructs every request, rejects non-prefix overlap, and tracks claim-bounded evidence at mvp_capabilities/distributed_evidence/post_mvp/kv-prefix-reuse-planner-20260704.json; no live KV cache tensor reuse, server integration, parity proof, or speedup claim yet",
-        next_step="wire prefix lookup into real prefill/session cache metadata behind an opt-in flag, prove hidden-state/token parity, then measure memory and wall-clock impact before any demo promotion",
+        evidence="kv_prefix_reuse.py adds a pure prefix-only reuse planner; kv_prefix_reuse_proof.py now verifies same-prefix/varied-suffix artifacts with exact token parity, logit fingerprint parity, timing deltas, and fail-closed rejection on mismatches. Planner evidence remains at mvp_capabilities/distributed_evidence/post_mvp/kv-prefix-reuse-planner-20260704.json; no live KV cache tensor reuse, server integration, runtime parity proof, or speedup claim yet",
+        next_step="wire prefix lookup into real prefill/session cache metadata behind an opt-in flag, capture live TinyLlama/Qwen3-8B evidence, then measure memory and wall-clock impact before any demo promotion",
     ),
 )
 

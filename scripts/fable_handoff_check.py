@@ -57,7 +57,8 @@ REQUIRED_HANDOFF_PHRASES = (
     "live_continuous_decode_loop_unit_no_server_no_speedup",
     "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
     "staged-root `curl | dd`",
-    "instruct2507-full-download",
+    "**Active background operation:** none known",
+    "Instruct-2507 download and both INT8 streamed-reference parity gates are complete",
     "scripts/instruct2507_cache_readiness.py --remote",
     "scripts/instruct2507_full_generation_gate.py --remote-readiness",
     "scripts/extract_bloombee_multiaddr.py",
@@ -80,20 +81,20 @@ STALE_HANDOFF_PHRASES = (
 )
 
 HIGH_VALUE_FABLE_QUESTIONS = (
-    "Is the live continuous-batching opt-in seam conservative enough before wiring into inference_session.py?",
-    "Should the next expensive parity proof target base Qwen3-30B@int8 cache/generate-api first, exact Instruct-2507@int8 full-generation first, or both?",
+    "Is the live continuous-batching opt-in tick-row seam conservative enough before concurrent live-server parity work?",
+    "Should the next expensive model proof target broader 30B INT8 prompt-set parity, Thinking-2507, NF4, or the x10-m4pro 235B route?",
     "Are deterministic scaled hidden-state load probes acceptable, or should the next gate use token-derived hidden states?",
-    "Can route/demo selectors accidentally promote Qwen3-30B/2507 without full_generation/cache/load proofs?",
+    "Can route/demo selectors accidentally inherit proof between fp16, INT8, NF4, base, Instruct, and Thinking exact rows?",
     "Which stable skipped tests deserve CI jobs or smaller deterministic replacements?",
 )
 
 DO_NOT_SPEND_FABLE_TOKENS_ON = (
     "Reconstructing MVP-core status; mvp_status.py reports 100% and this checker validates the summary.",
-    "Rediscovering the Instruct-2507 download failure mode; staged-root curl|dd details are in the handoff.",
+    "Checking whether Instruct-2507 is still downloading; the handoff states no active background operation and completed INT8 parity gates.",
     "Checking whether the live batching unit artifact claims speedup; this checker enforces negative flags.",
     "Manually hunting for the key evidence paths; this checker verifies them directly.",
-    "Counting Instruct-2507 shards by hand; scripts/instruct2507_cache_readiness.py reports readiness and proof flags.",
-    "Assembling the Instruct-2507 full/cache/load demo-safe ladder runbook from scratch; scripts/instruct2507_full_generation_gate.py emits the guarded commands.",
+    "Counting Instruct-2507 shards by hand; completed evidence and cache-readiness helpers already encode this.",
+    "Rebuilding the already-passed base/Instruct INT8 full/cache/load/token-parity ladder from scratch.",
 )
 
 
@@ -147,10 +148,10 @@ def _check_mvp_status(errors: list[str]) -> dict[str, Any]:
 
     if report.get("overall_percent") != 100:
         errors.append(f"unexpected MVP percent: {report.get('overall_percent')}")
-    expected_task_summary = {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}
+    expected_task_summary = {"complete": 11, "partial": 5, "pending": 0, "blocked": 1, "total": 17}
     if report.get("task_summary") != expected_task_summary:
         errors.append(f"unexpected task_summary: {report.get('task_summary')}")
-    expected_post_summary = {"complete": 1, "partial": 6, "pending": 0, "blocked": 1, "total": 8}
+    expected_post_summary = {"complete": 2, "partial": 5, "pending": 0, "blocked": 1, "total": 8}
     if report.get("post_mvp_task_summary") != expected_post_summary:
         errors.append(f"unexpected post_mvp_task_summary: {report.get('post_mvp_task_summary')}")
     if not continuous:
@@ -161,7 +162,7 @@ def _check_mvp_status(errors: list[str]) -> dict[str, Any]:
             errors.append(f"continuous_batching must remain partial, got {continuous.get('status')}")
         if "live-continuous-batching-loop-unit-20260705.json" not in evidence:
             errors.append("continuous_batching evidence missing live-loop unit artifact")
-        if "no live server integration" not in evidence:
+        if "no concurrent live server parity proof" not in evidence:
             errors.append("continuous_batching evidence missing no-live-server claim boundary")
 
     return {

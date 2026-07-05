@@ -554,12 +554,12 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "MVP reaches 100%" in report["mvp_completion_definition"]
     assert not any(item["id"] == "qwen3_30b_proof_ladder" for item in report["milestones"])
     post_mvp = {item["id"]: item for item in report["post_mvp_milestones"]}
-    assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "stretch"
-    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 0.55
-    assert "multi-block 0:2" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
-    assert "instruct2507-seagate-oneblock-proof-20260704T222230Z.json" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
-    assert "instruct2507-seagate-multiblock-proof-20260705T064511Z.json" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
-    assert "qwen30b_priority.py" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert post_mvp["qwen3_30b_proof_ladder"]["status"] == "int8_demo_safe_complete"
+    assert post_mvp["qwen3_30b_proof_ladder"]["completion"] == 1.0
+    assert "Qwen/Qwen3-30B-A3B@int8" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "Qwen/Qwen3-30B-A3B-Instruct-2507@int8" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "token_parity exact" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
+    assert "Plain fp16, NF4, Thinking-2507" in post_mvp["qwen3_30b_proof_ladder"]["evidence"]
     assert "Instruct-2507 follow-up" in post_mvp["qwen3_30b_proof_ladder"]["label"]
     assert post_mvp["layerexecutor_quantized_backend_spike"]["status"] == "research_complete"
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
@@ -574,10 +574,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "both have claim-bounded m4pro full 0:48" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}
+    assert report["task_summary"] == {"complete": 11, "partial": 5, "pending": 0, "blocked": 1, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
     assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert report["post_mvp_task_summary"] == {"complete": 1, "partial": 6, "pending": 0, "blocked": 1, "total": 8}
+    assert report["post_mvp_task_summary"] == {"complete": 2, "partial": 5, "pending": 0, "blocked": 1, "total": 8}
     assert report["core_tasks_complete"] is True
     assert {item["status"] for item in report["core_tasks"]} == {"complete"}
     assert {item["id"] for item in report["post_mvp_tasks"]} == {
@@ -626,7 +626,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "Strict physical_showcase_proof.py verifier passed" in tasks["physical_showcase"]["evidence"]
     assert "m4pro-full capacity heartbeat" in tasks["physical_showcase"]["evidence"]
     assert "multi-block 0:2" in tasks["qwen3_30b_core_proof"]["evidence"]
-    assert "full-generation parity" in tasks["qwen3_30b_core_proof"]["next_step"]
+    assert tasks["qwen3_30b_core_proof"]["status"] == "complete"
+    assert tasks["qwen3_30b_core_proof"]["next_step"] is None
     assert "Instruct-2507" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "Thinking-2507 optional" in tasks["qwen3_30b_2507_shelf"]["label"]
     assert "qwen30b_priority.py" in tasks["qwen3_30b_2507_shelf"]["evidence"]
@@ -640,8 +641,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "## MVP-core tasks" in markdown
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
     assert "## Post-MVP backlog tasks" in markdown
-    assert "Post-MVP backlog task summary: 1 complete, 6 partial, 0 pending, 1 blocked" in markdown
-    assert "All-task summary: 10 complete, 6 partial, 0 pending, 1 blocked" in markdown
+    assert "Post-MVP backlog task summary: 2 complete, 5 partial, 0 pending, 1 blocked" in markdown
+    assert "All-task summary: 11 complete, 5 partial, 0 pending, 1 blocked" in markdown
 
 
 
@@ -770,8 +771,8 @@ def test_mvp_status_cli_outputs_json():
     assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 1
-    assert payload["task_summary"]["partial"] == 6
-    assert payload["task_summary"]["complete"] == 10
+    assert payload["task_summary"]["partial"] == 5
+    assert payload["task_summary"]["complete"] == 11
     assert any(task["id"] == "qwen35b_candidate" and task["status"] == "partial" for task in payload["planned_tasks"])
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
@@ -1331,6 +1332,32 @@ def test_physical_showcase_cross_artifact_verifier_passes_when_joined_plan_gener
     assert report["can_update_proof_status"] is False
 
 
+def test_physical_showcase_load_report_rejects_qwen_load_without_seed_metadata():
+    from mvp_capabilities.physical_showcase_proof import _load_report
+
+    report = _load_report(
+        {
+            "claim_boundary": "verified_multi_request_load_evidence",
+            "proof_gate": "multi_request_load",
+            "model_id": "Qwen/Qwen3-8B",
+            "status": "passed",
+            "block_range": "0:36",
+            "request_results": [
+                {"ok": True, "outputs_finite": True, "grad_finite": True},
+                {"ok": True, "outputs_finite": True, "grad_finite": True, "seed": -1, "input_scale": 2.0},
+            ],
+        },
+        model_id="Qwen/Qwen3-8B",
+        num_layers=36,
+        require_load=True,
+    )
+
+    assert report["status"] == "failed"
+    assert report["metadata_policy"]["qwen_class_metadata_required"] is True
+    assert any("request 0 missing bounded integer seed" in item for item in report["failed_checks"])
+    assert any("request 1 missing bounded input_scale" in item for item in report["failed_checks"])
+
+
 
 def test_physical_showcase_cross_artifact_verifier_rejects_generation_not_tied_to_joined_devices(tmp_path: Path):
     from mvp_capabilities.physical_showcase_proof import verify_physical_showcase_evidence
@@ -1579,8 +1606,13 @@ def test_multi_request_load_proof_plan_generates_repeated_client_runbook():
     assert plan["claim_boundary"] == "multi_request_load_harness_only_no_live_traffic"
     assert plan["proof_gate"] == "multi_request_load"
     assert plan["request_count"] == 3
+    assert plan["seed_base"] == 7000
+    assert plan["input_scale"] == 0.1
     assert len(plan["client_commands"]) == 3
     assert "--server-maddr '/ip4/100.64.0.20/tcp/31337/p2p/seed'" in plan["client_commands"][0]
+    assert "--seed 7000" in plan["client_commands"][0]
+    assert "--seed 7001" in plan["client_commands"][1]
+    assert "--input-scale 0.1" in plan["client_commands"][0]
     assert "tee .local/load-client-000.log" in plan["client_commands"][0]
     assert "multi_request_load_proof.py verify" in plan["verify_command"]
     assert plan["proof_status_on_success"] == "multi_request_load: passed"
@@ -1595,6 +1627,7 @@ def test_multi_request_load_proof_verifier_accepts_successful_live_request_logs(
         log.write_text(
             '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
             f'"forward_seconds": {0.1 + index / 100:.2f}, "backward_seconds": 0.2, '
+            f'"seed": {7000 + index}, "input_scale": 0.1, '
             '"outputs_finite": true, "grad_finite": true}\n',
             encoding="utf-8",
         )
@@ -1612,8 +1645,44 @@ def test_multi_request_load_proof_verifier_accepts_successful_live_request_logs(
     assert result["proof_gate"] == "multi_request_load"
     assert result["can_update_proof_status"] is True
     assert result["proof_status_update"] == {"multi_request_load": "passed"}
+    assert result["metadata_policy"]["qwen_class_metadata_required"] is True
+    assert result["metadata_policy"]["seed_values"] == [7000, 7001, 7002]
+    assert result["metadata_policy"]["input_scale_values"] == [0.1]
     assert result["telemetry"]["request_counts"] == {"total": 3, "succeeded": 3, "failed": 0}
     assert result["telemetry"]["latency_seconds"]["forward"]["max"] == 0.12
+
+
+def test_multi_request_load_proof_verifier_requires_bounded_qwen_seed_metadata(tmp_path: Path):
+    from mvp_capabilities.multi_request_load_proof import verify_multi_request_load_evidence
+
+    missing = tmp_path / "load-client-000.log"
+    missing.write_text(
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0.1, "backward_seconds": 0.2, "outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+    unbounded = tmp_path / "load-client-001.log"
+    unbounded.write_text(
+        '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
+        '"forward_seconds": 0.11, "backward_seconds": 0.2, "seed": -1, "input_scale": 2.0, '
+        '"outputs_finite": true, "grad_finite": true}\n',
+        encoding="utf-8",
+    )
+
+    result = verify_multi_request_load_evidence(
+        model_id="Qwen/Qwen3-8B",
+        block_range="0:1",
+        request_logs=[missing, unbounded],
+        expected_request_count=2,
+    )
+
+    assert result["status"] == "failed"
+    assert result["can_update_proof_status"] is False
+    assert result["metadata_policy"]["qwen_class_metadata_required"] is True
+    assert any("request 0 missing bounded integer seed" in item for item in result["failed_checks"])
+    assert any("request 0 missing bounded input_scale" in item for item in result["failed_checks"])
+    assert any("request 1 missing bounded integer seed" in item for item in result["failed_checks"])
+    assert any("request 1 missing bounded input_scale" in item for item in result["failed_checks"])
 
 
 def test_multi_request_load_proof_verifier_blocks_failed_or_missing_requests(tmp_path: Path):
@@ -1622,7 +1691,8 @@ def test_multi_request_load_proof_verifier_blocks_failed_or_missing_requests(tmp
     ok_log = tmp_path / "load-client-000.log"
     ok_log.write_text(
         '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
-        '"forward_seconds": 0.1, "backward_seconds": 0.2, "outputs_finite": true, "grad_finite": true}\n',
+        '"forward_seconds": 0.1, "backward_seconds": 0.2, "seed": 7000, "input_scale": 0.1, '
+        '"outputs_finite": true, "grad_finite": true}\n',
         encoding="utf-8",
     )
     failed_log = tmp_path / "load-client-001.log"
@@ -1647,7 +1717,8 @@ def test_multi_request_load_proof_verifier_blocks_unmeasured_zero_latency(tmp_pa
     log = tmp_path / "load-client-000.log"
     log.write_text(
         '[direct] RESULT: {"ok": true, "model": "Qwen/Qwen3-8B", "block_range": [0, 1], '
-        '"forward_seconds": 0, "backward_seconds": 0, "outputs_finite": true, "grad_finite": true}\n',
+        '"forward_seconds": 0, "backward_seconds": 0, "seed": 7000, "input_scale": 0.1, '
+        '"outputs_finite": true, "grad_finite": true}\n',
         encoding="utf-8",
     )
 
@@ -2378,7 +2449,9 @@ def test_docs_post_mvp_status_rows_match_completed_scouts():
     assert "live_continuous_decode_loop_unit_no_server_no_speedup" in fable_handoff
     assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in fable_handoff
     assert "staged-root `curl | dd`" in fable_handoff
-    assert "instruct2507-full-download" in fable_handoff
+    assert "**Active background operation:** none known" in fable_handoff
+    assert "Instruct-2507 download and both INT8 streamed-reference parity gates are complete" in fable_handoff
+    assert "instruct2507-full-download" not in fable_handoff
 
 
 
@@ -3088,6 +3161,35 @@ def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
     assert [peer["peer_id"] for peer in active["active_peers"]] == ["fresh-peer"]
 
 
+def test_join_http_server_bounds_offer_ttl_and_ignores_heartbeat_client_now(tmp_path: Path, monkeypatch):
+    import mvp_capabilities.join_coordinator as join_coordinator
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    monkeypatch.setattr(join_coordinator, "_now_seconds", lambda: 2_000)
+    state_dir = tmp_path / "join-http-state"
+
+    status, offer = handle_get(
+        "/offer?token=moon-token&ttl_seconds=999999",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    assert offer["ttl_seconds"] == 3600
+    assert offer["expires_at"] == 5_600
+
+    heartbeat_body = json.dumps(
+        {
+            "token": "moon-token",
+            "peer_id": "fresh-peer",
+            "capabilities": {"hostname": "fresh-peer", "memory": {"free_gb": 20}},
+            "now": 123,
+        }
+    ).encode("utf-8")
+    status, heartbeat = handle_post("/heartbeat", body=heartbeat_body, state_dir=state_dir)
+    assert status == 200
+    assert heartbeat["timestamp"] == 2_000
+
+
 def test_join_http_server_plan_endpoint_builds_launch_ready_plan(tmp_path: Path):
     from urllib.parse import quote
 
@@ -3103,7 +3205,7 @@ def test_join_http_server_plan_endpoint_builds_launch_ready_plan(tmp_path: Path)
                 "now": 100,
             }
         ).encode("utf-8")
-        status, heartbeat = handle_post("/heartbeat", body=body, state_dir=state_dir)
+        status, heartbeat = handle_post("/heartbeat?allow_client_now_for_tests=1", body=body, state_dir=state_dir)
         assert status == 200
         assert heartbeat["claim_boundary"] == "heartbeat_only_no_inference_proof"
 
@@ -3180,7 +3282,7 @@ models:
             "now": 100,
         }
     ).encode("utf-8")
-    status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+    status, _ = handle_post("/heartbeat?allow_client_now_for_tests=1", body=body, state_dir=state_dir)
     assert status == 200
 
     status, route = handle_get(
@@ -3225,7 +3327,7 @@ models:
     )
     state_dir = tmp_path / "join-http-state"
     status, _ = handle_post(
-        "/heartbeat",
+        "/heartbeat?allow_client_now_for_tests=1",
         body=json.dumps(
             {
                 "token": "moon-token",
@@ -3283,7 +3385,7 @@ models:
     )
     state_dir = tmp_path / "join-http-state"
     status, _ = handle_post(
-        "/heartbeat",
+        "/heartbeat?allow_client_now_for_tests=1",
         body=json.dumps(
             {
                 "token": "moon-token",
@@ -3346,7 +3448,7 @@ models:
             "now": 100,
         }
     ).encode("utf-8")
-    status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+    status, _ = handle_post("/heartbeat?allow_client_now_for_tests=1", body=body, state_dir=state_dir)
     assert status == 200
 
     status, plan = handle_get(
@@ -3391,7 +3493,7 @@ models:
     )
     state_dir = tmp_path / "join-http-state"
     status, _ = handle_post(
-        "/heartbeat",
+        "/heartbeat?allow_client_now_for_tests=1",
         body=json.dumps(
             {
                 "token": "moon-token",
@@ -3445,7 +3547,7 @@ models:
     )
     state_dir = tmp_path / "join-http-state"
     status, _ = handle_post(
-        "/heartbeat",
+        "/heartbeat?allow_client_now_for_tests=1",
         body=json.dumps(
             {
                 "token": "moon-token",
@@ -3509,7 +3611,7 @@ models:
                 "now": 100,
             }
         ).encode("utf-8")
-        status, _ = handle_post("/heartbeat", body=body, state_dir=state_dir)
+        status, _ = handle_post("/heartbeat?allow_client_now_for_tests=1", body=body, state_dir=state_dir)
         assert status == 200
 
     status, handoff = handle_get(
@@ -3583,7 +3685,7 @@ models:
     state_dir = tmp_path / "join-http-state"
     for peer in ("peer-a", "peer-b"):
         status, _ = handle_post(
-            "/heartbeat",
+            "/heartbeat?allow_client_now_for_tests=1",
             body=json.dumps(
                 {
                     "token": "moon-token",

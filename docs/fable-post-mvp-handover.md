@@ -4,11 +4,11 @@
 
 **Project:** `distributed-inference-mvp`
 
-**Last refreshed:** `2026-07-05T07:53:53Z`
+**Last refreshed:** `2026-07-05 post-INT8-promotion hardening slice`
 
-**Last major implementation checkpoint:** `e003f74 feat(mvp): add live continuous batching seam`
+**Last major implementation checkpoint:** `fdedf2f evidence(qwen30b): promote instruct int8 cache parity`
 
-**Active background operation:** Instruct-2507 full-model download is running on m4pro in tmux `instruct2507-full-download`; use `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for live state. This is download/cache preparation only, not a full-generation/cache/load proof.
+**Active background operation:** none known. Instruct-2507 download and both INT8 streamed-reference parity gates are complete; verify live host state before launching any new m4pro proof.
 
 **Current MVP-core status:** `████████████████████ 100%`
 
@@ -297,8 +297,8 @@ Post-MVP workstreams to review and possibly reorder:
 |---|---:|---|---|
 | Qwen3-30B-A3B@int8 / Instruct-2507@int8 full/cache/load | both exact @int8 rows demo-safe | proof rows can be accidentally inherited across exact model IDs | Base 30B int8 and Instruct-2507 int8 both have full/cache/load/token-parity gates passed. Keep fp16, @int8, base, Instruct, and Thinking rows separate; optional next work is broader prompt-set parity or Thinking-2507 only if needed. |
 | Qwen3-30B-A3B Instruct-2507 | int8 load + full/cache parity passed | overclaiming these @int8 proofs as fp16 or Thinking evidence | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full 16-shard cache is downloaded; `Instruct-2507@int8` full `0:48` multi-request load, streamed-reference full-generation, and streamed-reference cache/generate-api evidence are committed. |
-| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, and injected live-loop unit seam exist; next wire `LiveContinuousDecodeLoop` rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`, prove parity, then measure wall-clock throughput. |
-| KV prefix reuse | partial | cache reuse can silently change outputs | Deterministic prefix planner proof exists; next wire into real prefill/session cache metadata and require exact-token/logit parity plus timing delta. |
+| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, injected live-loop unit seam, and `InferenceSession` tick-row recording behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING` exist. Next prove concurrent-arrival parity through real server traffic, then measure wall-clock throughput. |
+| KV prefix reuse | partial | cache reuse can silently change outputs | `kv_prefix_reuse_proof.py` verifies same-prefix/varied-suffix evidence with exact token/logit parity and timing delta fail-closed. Next wire runtime prefill/session cache metadata and capture real TinyLlama/Qwen3-8B evidence. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
 | qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper still blocked | text tower uses alternating linear_attention/full_attention plus mRoPE/linear-attention fields, so qwen3_moe wrapper copy is unsafe | Write RED import/config-dispatch tests for qwen3_5_moe/qwen3_5_moe_text before wrapper code or live proof. |
@@ -392,7 +392,7 @@ Please review with claws out:
 2. **Proof integrity:** check whether final physical showcase evidence can be trusted from committed artifacts alone.
 3. **Load proof semantics:** decide whether deterministic scaled synthetic tensors should be the accepted load gate, or whether the next post-MVP task should move to token-derived hidden states.
 4. **Status model:** verify `mvp_status.py` cannot accidentally count post-MVP work toward MVP-core.
-5. **Route selection:** ensure `safe-demo` cannot select Qwen3-30B or 2507 variants until full/cache/load gates pass.
+5. **Route selection:** ensure `safe-demo` only selects exact quantized 30B rows whose full/cache/load/token-parity gates pass; fp16, NF4, Thinking, and unknown rows must remain separate/fail-closed.
 6. **Docs coherence:** make sure `docs/distributed-inference-mvp.md`, `docs/distributed-inference-mvp-final-plan.md`, `docs/mvp-finish-plan.md`, and `docs/post-mvp-scope.md` agree.
 7. **Task order:** propose whether post-MVP should prioritize stronger model proof, continuous batching, KV reuse, or phone draft work.
 8. **Code quality:** inspect `join_coordinator.py`, `direct_remote_call.py`, physical-showcase tests, and dashboard/status tests for brittle assumptions.

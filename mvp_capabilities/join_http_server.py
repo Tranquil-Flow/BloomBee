@@ -61,6 +61,8 @@ BOOTSTRAP_CLAIM_BOUNDARY = "coordinator_bootstrap_runbook_only_no_server_started
 SPECULATIVE_SOURCE = "coordinator_http_speculative_endpoint"
 SPECULATIVE_CLAIM_BOUNDARY = "coordinator_speculative_plan_only_no_generation_proof"
 PROOF_ORCHESTRATION_SOURCE = "coordinator_http_proof_orchestration_endpoint"
+MIN_OFFER_TTL_SECONDS = 1
+MAX_OFFER_TTL_SECONDS = 3600
 
 
 def _first(query: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -97,6 +99,11 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bounded_offer_ttl_seconds(value: str | int | None, default: int = 600) -> int:
+    ttl = _as_int(str(value) if value is not None else None, default)
+    return max(MIN_OFFER_TTL_SECONDS, min(MAX_OFFER_TTL_SECONDS, ttl))
 
 
 def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any] | None:
@@ -201,7 +208,7 @@ def build_bootstrap_runbook(
     """Build a fresh-device join script without starting servers or inference."""
     bounded_count = max(1, int(count))
     bounded_interval = max(0.0, float(interval_seconds))
-    offer = create_join_offer(coordinator=coordinator, token=token, ttl_seconds=ttl_seconds, now=now)
+    offer = create_join_offer(coordinator=coordinator, token=token, ttl_seconds=_bounded_offer_ttl_seconds(ttl_seconds), now=now)
     join_url = str(offer["join_url"])
     interval_text = _shell_number(bounded_interval)
     shell_script = "\n".join(
@@ -495,7 +502,7 @@ def _handle_handoff(
     offer = create_join_offer(
         coordinator=_first(query, "coordinator", coordinator) or coordinator,
         token=token,
-        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        ttl_seconds=_bounded_offer_ttl_seconds(_first(query, "ttl_seconds")),
         now=_as_int(_first(query, "now"), 0) or None,
     )
     active = {
@@ -528,7 +535,7 @@ def _handle_handoff(
     bootstrap_runbook = build_bootstrap_runbook(
         coordinator=_first(query, "coordinator", coordinator) or coordinator,
         token=token,
-        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        ttl_seconds=_bounded_offer_ttl_seconds(_first(query, "ttl_seconds")),
         now=_as_int(_first(query, "now"), 0) or None,
         count=_as_int(_first(query, "count"), 180),
         interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
@@ -597,7 +604,7 @@ def _bootstrap_from_query(query: dict[str, list[str]], *, coordinator: str) -> t
     return 200, build_bootstrap_runbook(
         coordinator=_first(query, "coordinator", coordinator) or coordinator,
         token=token,
-        ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+        ttl_seconds=_bounded_offer_ttl_seconds(_first(query, "ttl_seconds")),
         now=_as_int(_first(query, "now"), 0) or None,
         count=_as_int(_first(query, "count"), 180),
         interval_seconds=_as_float(_first(query, "interval_seconds"), 10.0),
@@ -639,7 +646,7 @@ def handle_get(
         return 200, create_join_offer(
             coordinator=_first(query, "coordinator", coordinator) or coordinator,
             token=_first(query, "token"),
-            ttl_seconds=_as_int(_first(query, "ttl_seconds"), 600),
+            ttl_seconds=_bounded_offer_ttl_seconds(_first(query, "ttl_seconds")),
             now=_as_int(_first(query, "now"), 0) or None,
         )
     if parsed.path == "/bootstrap":
@@ -668,6 +675,7 @@ def handle_get(
 
 def handle_post(path: str, *, body: bytes, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
     parsed = urlparse(path)
+    query = parse_qs(parsed.query)
     if parsed.path != "/heartbeat":
         return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
     try:
@@ -679,12 +687,13 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path) -> tuple[int, 
     capabilities = payload.get("capabilities")
     if not token or not peer_id or not isinstance(capabilities, dict):
         return 400, {"error": "missing required heartbeat fields", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    heartbeat_now = payload.get("now") if _as_bool(_first(query, "allow_client_now_for_tests")) else None
     return 200, record_heartbeat(
         state_dir,
         token=str(token),
         peer_id=str(peer_id),
         capabilities=capabilities,
-        now=payload.get("now"),
+        now=heartbeat_now,
     )
 
 

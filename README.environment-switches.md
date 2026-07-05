@@ -35,6 +35,8 @@ BloomBee has a lot of runtime switches behind `BLOOMBEE_*` environment variables
 | `BLOOMBEE_S2S_STATS_WINDOW` | `32` | Rolling window size for server-to-server telemetry. |
 | `BLOOMBEE_S2S_STATS_LOG_EVERY` | `8` | How often S2S telemetry summaries are logged. |
 | `BLOOMBEE_PUSH_ONLY_DOWNSTREAM_DECODE` | `1` | When set, the client only opens push-only sessions to the downstream worker during decode (default behavior). Set to `0` / `false` / `no` / `off` to disable. |
+| `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING` | `0` | Enables the experimental, claim-bounded live-continuous generation seam. Current implementation is conservative/single-request telemetry and tick-row recording only; do not claim live server batching, parity, or speedup without a separate proof artifact. |
+| `BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE` | unset | Reserved by the live continuous decode loop for bounded batch sizing in proof harnesses. |
 
 ## Speculative Decoding
 
@@ -52,6 +54,8 @@ BloomBee has a lot of runtime switches behind `BLOOMBEE_*` environment variables
 | `BLOOMBEE_ENABLE_KV_WAIT_TIMING` | `1` | Enables KV wait timing counters and logs. |
 | `BLOOMBEE_VERBOSE_KV_LOGS` | `0` | Restores verbose KV allocation / offload / prefetch logs. Also turns on automatically if the KV debug group is enabled. |
 | `BLOOMBEE_PAGED_KV` | `0` | Opt-in Phase 2 paged-KV shim. Aliases per-handle PagedKVTable onto the same slab as the regular cache; only takes effect when set to `1`. |
+
+KV prefix reuse proof artifacts are verified by `mvp_capabilities/kv_prefix_reuse_proof.py`. Evidence must include telemetry tags `kv_prefix_reuse`, `no_reuse_baseline`, and `same_prefix_varied_suffix`, plus same-prefix/varied-suffix token parity, logit fingerprints, and timing deltas before any `kv_prefix_reuse` proof row can be promoted. This verifier does not itself enable runtime cache reuse.
 
 ## Lossless Transport and Compression Profiling
 

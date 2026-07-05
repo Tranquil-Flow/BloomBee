@@ -17,9 +17,11 @@ from typing import Any, Mapping
 
 try:
     from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, load_proof_status
+    from mvp_capabilities.multi_request_load_proof import qwen_load_metadata_report
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, load_proof_status
+    from mvp_capabilities.multi_request_load_proof import qwen_load_metadata_report
 
 INPUT_CLAIM_BOUNDARY = "physical_showcase_operator_evidence"
 PASSED_CLAIM_BOUNDARY = "verified_physical_showcase_evidence"
@@ -288,12 +290,15 @@ def _load_report(load_evidence: Mapping[str, Any] | None, *, model_id: str | Non
     model_matches = True
     if model_id and load_evidence.get("model_id"):
         model_matches = load_evidence.get("model_id") == model_id
+    load_model_id = str(load_evidence.get("model_id") or model_id or "")
+    metadata_policy, metadata_failures = qwen_load_metadata_report(load_model_id, request_results)
     status = "passed" if (
         load_evidence.get("status") == "passed"
         and successful
         and len(successful) == len(request_results)
         and covers_model
         and model_matches
+        and not metadata_failures
     ) else "failed"
     return {
         "proof_gate": load_evidence.get("proof_gate") or "multi_request_load",
@@ -304,6 +309,8 @@ def _load_report(load_evidence: Mapping[str, Any] | None, *, model_id: str | Non
         "successful_request_count": len(successful),
         "covers_model": covers_model,
         "model_matches": model_matches,
+        "metadata_policy": metadata_policy,
+        "failed_checks": metadata_failures,
         "required": require_load,
     }
 
