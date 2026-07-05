@@ -58,6 +58,28 @@ def _tiny_qwen3_moe_config():
     )
 
 
+def _make_stable_tiny_qwen3_moe_model():
+    """Create a tiny Qwen3-MoE fixture with bounded deterministic weights.
+
+    This test covers streamed BloomBee block loading/execution, not HF random
+    tiny-MoE initialization. Full-suite order exposed occasional all-NaN logits
+    from the raw random fixture, so keep this model deterministic and finite.
+    """
+    from transformers.models.qwen3_moe import Qwen3MoeForCausalLM
+
+    model = Qwen3MoeForCausalLM(_tiny_qwen3_moe_config()).eval()
+    generator = torch.Generator(device="cpu").manual_seed(1234)
+    with torch.no_grad():
+        for name, param in model.named_parameters():
+            if not param.dtype.is_floating_point:
+                continue
+            if name.endswith("norm.weight"):
+                param.fill_(1.0)
+            else:
+                param.uniform_(-0.01, 0.01, generator=generator)
+    return model
+
+
 @torch.inference_mode()
 def _full_model_greedy_ids(model, input_ids: torch.Tensor, max_new_tokens: int) -> torch.Tensor:
     output = input_ids.detach().cpu().clone().to(torch.long)
@@ -131,11 +153,8 @@ def test_streamed_qwen3_dense_reference_matches_full_model_greedy_ids(tmp_path: 
 
 
 def test_streamed_qwen3_moe_reference_emits_finite_bloombee_block_trace(tmp_path: Path):
-    from transformers.models.qwen3_moe import Qwen3MoeForCausalLM
-
     streamed = _load_streamed_reference_module()
-    torch.manual_seed(0)
-    model = Qwen3MoeForCausalLM(_tiny_qwen3_moe_config()).eval()
+    model = _make_stable_tiny_qwen3_moe_model()
     model.save_pretrained(tmp_path, safe_serialization=True)
 
     input_ids = torch.tensor([[1, 2, 3, 4]], dtype=torch.long)
