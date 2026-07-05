@@ -6,9 +6,9 @@
 
 **Last refreshed:** `2026-07-05T07:53:53Z`
 
-**Current code checkpoint before this handover refresh:** `e003f74 feat(mvp): add live continuous batching seam`
+**Last major implementation checkpoint:** `e003f74 feat(mvp): add live continuous batching seam`
 
-**Active background operation:** Instruct-2507 full-model download is running on m4pro in tmux `instruct2507-full-download`; shard 2 is actively streaming via `/Volumes/Exchange` staging into the Seagate APFS HuggingFace snapshot. This is download/cache preparation only, not a full-generation/cache/load proof.
+**Active background operation:** Instruct-2507 full-model download is running on m4pro in tmux `instruct2507-full-download`; use `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for live state. This is download/cache preparation only, not a full-generation/cache/load proof.
 
 **Current MVP-core status:** `████████████████████ 100%`
 
@@ -213,7 +213,15 @@ Review questions:
 
 ## 3. Verification commands Fable should run
 
-Use the project venv.
+Use the project venv. Start with the grunt filter; it validates the handover doc, MVP status summary, key evidence artifacts, and the live continuous-batching negative claim flags without requiring a live swarm.
+
+```bash
+source .venv/bin/activate
+.venv/bin/python scripts/fable_handoff_check.py
+.venv/bin/python scripts/fable_handoff_check.py --remote-download
+```
+
+Then run the deeper checks if reviewing source/test integrity:
 
 ```bash
 source .venv/bin/activate
@@ -228,8 +236,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused live-continuous/continuous/fast-generate/docs-coherence regression suite after the live-loop seam: `28 passed, 4 warnings`.
-- Unfiltered default suite after the live-loop seam: `428 passed, 23 skipped, 4 warnings`.
+- Grunt-filter/checker/docs-coherence focused suite: `5 passed, 1 warning`.
+- Unfiltered default suite after the Fable checker: `432 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
@@ -339,7 +347,7 @@ Additional low-grunt remote readiness check before Fable unlock:
 m4pro identity: user=evinova-self, host=m4pro, project_exists=true
 Seagate APFS cache: /Volumes/Seagate Portable Drive/huggingface/hub writable
 Qwen/Qwen3-30B-A3B cache: migrated to Seagate, 16 safetensors, 0 incomplete, internal duplicate removed
-Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`; at 2026-07-05T07:53Z shard 2 was actively streaming with `/Volumes/Exchange/instruct2507-stage-model-00002-of-00016.safetensors.part` at 2,491,416,576 bytes
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`. Use `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for current shard/byte state before starting any expensive proof gate.
 Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 
