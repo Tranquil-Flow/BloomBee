@@ -2347,6 +2347,12 @@ def test_docs_post_mvp_status_rows_match_completed_scouts():
         assert phrase not in finish_plan
         assert phrase not in post_scope
         assert phrase not in fable_handoff
+    assert "continuous-batching-live-adapter-20260705.json" in fable_handoff
+    assert "live-continuous-batching-loop-unit-20260705.json" in fable_handoff
+    assert "live_continuous_decode_loop_unit_no_server_no_speedup" in fable_handoff
+    assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in fable_handoff
+    assert "staged-root `curl | dd`" in fable_handoff
+    assert "instruct2507-full-download" in fable_handoff
 
 
 

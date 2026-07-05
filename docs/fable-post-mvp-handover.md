@@ -4,6 +4,12 @@
 
 **Project:** `distributed-inference-mvp`
 
+**Last refreshed:** `2026-07-05T07:53:53Z`
+
+**Current code checkpoint before this handover refresh:** `e003f74 feat(mvp): add live continuous batching seam`
+
+**Active background operation:** Instruct-2507 full-model download is running on m4pro in tmux `instruct2507-full-download`; shard 2 is actively streaming via `/Volumes/Exchange` staging into the Seagate APFS HuggingFace snapshot. This is download/cache preparation only, not a full-generation/cache/load proof.
+
 **Current MVP-core status:** `████████████████████ 100%`
 
 **MVP-core claim boundary:** Qwen3-8B physical/self-serve showcase is proven. Post-MVP work is not complete and must not move the MVP-core denominator.
@@ -142,6 +148,43 @@ Review questions:
 - If a frontier backend lane starts, should it choose GLM-5.2 (`glm_moe_dsa`) or DeepSeek-V4-Flash (`deepseek_v4` fp8) as the first external-runtime smoke?
 - Is `LayerExecutor` the right adapter boundary, or should this stay outside BloomBee until an external runtime exposes layer-state APIs?
 
+### `src/bloombee/client/live_continuous_batching.py` and `src/bloombee/client/remote_generation.py`
+
+Added the first claim-bounded live continuous batching seam after the read-only scout:
+
+```text
+src/bloombee/client/live_continuous_batching.py
+tests/test_live_continuous_batching.py
+mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-live-adapter-20260705.json
+mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json
+```
+
+What this proves:
+
+- an opt-in `LiveContinuousDecodeLoop` can batch active decode rows across late-arriving requests;
+- outputs deinterleave back to request IDs;
+- `RemoteGenerationMixin.generate(...)` has a dependency-injected seam that delegates only when `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1`, request shape is conservative/greedy, and an injected implementation exists;
+- fallback behavior remains unchanged when the flag is absent or risky generation kwargs are present.
+
+Claim boundary:
+
+```text
+live_continuous_decode_loop_unit_no_server_no_speedup
+```
+
+Do **not** claim from this artifact:
+
+- live server continuous batching;
+- wall-clock speedup;
+- parity through real BloomBee servers;
+- safe-demo promotion.
+
+Review questions:
+
+- Is the eligibility gate in `remote_generation.py` conservative enough?
+- Should the next slice wire `LiveContinuousDecodeLoop` into `src/bloombee/client/inference_session.py`, or should it first add a more realistic fake session/cache interface?
+- Are the negative flags (`live_server_proven=false`, `speedup_proven=false`, `can_update_demo_status=false`) strong enough to prevent dashboard/status overclaiming?
+
 ### Status/docs/tests
 
 Updated MVP status from the previous blocker state to the final artifact-backed 100% state in:
@@ -185,8 +228,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused docs/continuous-batching/status guard suite: `8 passed, 1 warning`.
-- Unfiltered default suite after handoff cleanup and continuous adapter: `423 passed, 23 skipped, 4 warnings`.
+- Focused live-continuous/continuous/fast-generate/docs-coherence regression suite after the live-loop seam: `28 passed, 4 warnings`.
+- Unfiltered default suite after the live-loop seam: `428 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
@@ -236,8 +279,8 @@ Post-MVP workstreams to review and possibly reorder:
 | Workstream | Current state | Main risk | Suggested next action |
 |---|---:|---|---|
 | Qwen3-30B-A3B full/cache/load | partial/proven lower gates | expensive proof ladder may distract from usability | Base 30B has prescan/one-block/multi-block; finish full-generation first only if enough compute/time, then cache/load. |
-| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running on Seagate for the future full-generation gate. |
-| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof and injected live-loop unit seam exist; next wire `LiveContinuousDecodeLoop` rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`, prove parity, then measure wall-clock throughput. |
+| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running in tmux `instruct2507-full-download` using a staged-root `curl | dd` pipeline through `/Volumes/Exchange` into the Seagate APFS snapshot for the future full-generation gate. |
+| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, and injected live-loop unit seam exist; next wire `LiveContinuousDecodeLoop` rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`, prove parity, then measure wall-clock throughput. |
 | KV prefix reuse | partial | cache reuse can silently change outputs | Deterministic prefix planner proof exists; next wire into real prefill/session cache metadata and require exact-token/logit parity plus timing delta. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
@@ -296,7 +339,7 @@ Additional low-grunt remote readiness check before Fable unlock:
 m4pro identity: user=evinova-self, host=m4pro, project_exists=true
 Seagate APFS cache: /Volumes/Seagate Portable Drive/huggingface/hub writable
 Qwen/Qwen3-30B-A3B cache: migrated to Seagate, 16 safetensors, 0 incomplete, internal duplicate removed
-Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present, 1/16 shard committed for lower gates; full download now running in tmux `instruct2507-full-download`
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`; at 2026-07-05T07:53Z shard 2 was actively streaming with `/Volumes/Exchange/instruct2507-stage-model-00002-of-00016.safetensors.part` at 2,491,416,576 bytes
 Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 
