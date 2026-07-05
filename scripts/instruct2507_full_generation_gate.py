@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Claim-bounded Instruct-2507 full-generation gate planner.
+"""Claim-bounded Instruct-2507 demo-safe proof-ladder planner.
 
-This script removes post-download grunt work without running the expensive gate.
+This script removes post-download grunt work without running expensive gates.
 It combines cache-readiness output with exact-model defaults, real BloomBee
-server CLI syntax, and the existing ``mvp_capabilities.full_generation_proof``
-plan/verify harness.
+server CLI syntax, and the existing full_generation/cache_generation/load proof
+harnesses.
 
-It never starts a server, never runs generation, and never updates
-PROOF_STATUS.yaml. It only says whether the expensive full-generation gate is
-*ready to attempt* and emits the commands needed once a server multiaddr exists.
+It never starts a server, never runs generation, never sends load traffic, and
+never updates PROOF_STATUS.yaml. It only says whether the expensive demo-safe
+proof ladder is *ready to attempt* and emits the commands needed once a server
+multiaddr exists.
 """
 
 from __future__ import annotations
@@ -25,7 +26,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from mvp_capabilities.cache_generation_proof import build_cache_generation_plan
 from mvp_capabilities.full_generation_proof import build_full_generation_plan
+from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
 from scripts.instruct2507_cache_readiness import MODEL_ID, validate_cache
 
 CLAIM_BOUNDARY = "instruct2507_full_generation_gate_plan_only_no_live_generation"
@@ -34,12 +37,19 @@ DEFAULT_EVIDENCE = (
     "mvp_capabilities/distributed_evidence/post_mvp/"
     "instruct2507-full-generation-forward-loop.json"
 )
+DEFAULT_CACHE_EVIDENCE = (
+    "mvp_capabilities/distributed_evidence/post_mvp/"
+    "instruct2507-cache-generation-generate-api.json"
+)
+DEFAULT_LOAD_LOG_PREFIX = "mvp_capabilities/distributed_evidence/post_mvp/instruct2507-load-client"
 DEFAULT_PROMPT = "The moon is"
 DEFAULT_SERVER_PLACEMENT = "m4pro-full=0:48"
 DEFAULT_BLOCK_INDICES = "0:48"
 DEFAULT_PORT = 31347
 DEFAULT_MODE = "forward-loop"
 DEFAULT_MAX_NEW_TOKENS = 1
+DEFAULT_REQUEST_COUNT = 3
+DEFAULT_HIDDEN_DIM = 2048
 PLACEHOLDER_MADDR = "<PASTE_M4PRO_FULL_SERVER_MULTIADDR>"
 
 
@@ -139,8 +149,12 @@ def build_gate_plan(
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     mode: str = DEFAULT_MODE,
     evidence_path: str = DEFAULT_EVIDENCE,
+    cache_evidence_path: str = DEFAULT_CACHE_EVIDENCE,
     server_placement: str = DEFAULT_SERVER_PLACEMENT,
     cache_dir: str = DEFAULT_CACHE_DIR,
+    request_count: int = DEFAULT_REQUEST_COUNT,
+    hidden_dim: int = DEFAULT_HIDDEN_DIM,
+    client_log_prefix: str = DEFAULT_LOAD_LOG_PREFIX,
 ) -> dict[str, Any]:
     server_maddrs = server_maddrs or []
     cache_ready = readiness.get("ready") is True
@@ -165,11 +179,32 @@ def build_gate_plan(
         reference_dtype="float16",
         distributed_dtype="float16",
     )
+    cache_generation_plan = build_cache_generation_plan(
+        model_id=model_id,
+        server_maddrs=placeholder_maddrs,
+        server_placements=[server_placement],
+        prompt=prompt,
+        max_new_tokens=max_new_tokens,
+        evidence_path=cache_evidence_path,
+        reference_device="mps",
+        reference_dtype="float16",
+        distributed_dtype="float16",
+    )
+    multi_request_load_plan = build_multi_request_load_plan(
+        model_id=model_id,
+        block_range=DEFAULT_BLOCK_INDICES,
+        server_maddrs=placeholder_maddrs,
+        request_count=request_count,
+        hidden_dim=hidden_dim,
+        client_log_prefix=client_log_prefix,
+    )
     server_launch_command = build_server_launch_command(model_id=model_id, cache_dir=cache_dir)
 
     return {
         "ok": True,
         "ready_to_attempt_full_generation": not blocked_reasons,
+        "ready_to_attempt_demo_safe_ladder": not blocked_reasons,
+        "demo_safe_ladder_gates": ["full_generation", "cache_generation", "multi_request_load"],
         "claim_boundary": CLAIM_BOUNDARY,
         "model_id": model_id,
         "proof_gate": "full_generation",
@@ -189,10 +224,13 @@ def build_gate_plan(
             "--server-maddr '<that-multiaddr>' to remove the placeholder."
         ),
         "full_generation_plan": proof_plan,
+        "cache_generation_plan": cache_generation_plan,
+        "multi_request_load_plan": multi_request_load_plan,
         "post_success_instructions": [
-            "Run the emitted parity_command only after cache readiness is READY and the server multiaddr is real.",
-            "Run the emitted verify_command against the captured evidence JSON.",
-            "Only update PROOF_STATUS.yaml full_generation after verify returns status=passed.",
+            "Run the emitted full_generation parity_command only after cache readiness is READY and the server multiaddr is real.",
+            "Run the emitted cache_generation parity_command only after full_generation verify returns status=passed.",
+            "Run the emitted multi_request_load client_commands only after cache_generation verify returns status=passed.",
+            "Run each emitted verify_command against captured evidence/logs before touching PROOF_STATUS.yaml.",
             "This planner is not generation proof and does not prove cache_generation or multi_request_load.",
         ],
         "generation_proven": False,
@@ -206,6 +244,8 @@ def render_markdown(plan: dict[str, Any]) -> str:
     verdict = "READY TO ATTEMPT" if plan["ready_to_attempt_full_generation"] else "BLOCKED"
     readiness = plan["cache_readiness"]
     proof = plan["full_generation_plan"]
+    cache_proof = plan["cache_generation_plan"]
+    load_proof = plan["multi_request_load_plan"]
     lines = [
         f"# Instruct-2507 full-generation gate plan — {verdict}",
         "",
@@ -236,7 +276,33 @@ def render_markdown(plan: dict[str, Any]) -> str:
         "```bash",
         proof["verify_command"],
         "```",
+        "",
+        "## Cache-generation parity command",
+        "",
+        "```bash",
+        cache_proof["parity_command"],
+        "```",
+        "",
+        "## Cache-generation verify command",
+        "",
+        "```bash",
+        cache_proof["verify_command"],
+        "```",
+        "",
+        "## Multi-request load client commands",
+        "",
     ]
+    for command in load_proof["client_commands"]:
+        lines.extend(["```bash", command, "```", ""])
+    lines.extend(
+        [
+            "## Multi-request load verify command",
+            "",
+            "```bash",
+            load_proof["verify_command"],
+            "```",
+        ]
+    )
     if plan["blocked_reasons"]:
         lines.extend(["", "## Blocked reasons", ""])
         lines.extend(f"- {reason}" for reason in plan["blocked_reasons"])
@@ -256,6 +322,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
     parser.add_argument("--mode", choices=("forward-loop", "generate-api"), default=DEFAULT_MODE)
     parser.add_argument("--evidence", default=DEFAULT_EVIDENCE)
+    parser.add_argument("--cache-evidence", default=DEFAULT_CACHE_EVIDENCE)
+    parser.add_argument("--request-count", type=int, default=DEFAULT_REQUEST_COUNT)
+    parser.add_argument("--hidden-dim", type=int, default=DEFAULT_HIDDEN_DIM)
+    parser.add_argument("--client-log-prefix", default=DEFAULT_LOAD_LOG_PREFIX)
     args = parser.parse_args(argv)
 
     if args.remote_readiness:
@@ -269,6 +339,10 @@ def main(argv: list[str] | None = None) -> int:
         max_new_tokens=args.max_new_tokens,
         mode=args.mode,
         evidence_path=args.evidence,
+        cache_evidence_path=args.cache_evidence,
+        request_count=args.request_count,
+        hidden_dim=args.hidden_dim,
+        client_log_prefix=args.client_log_prefix,
     )
     if args.json:
         print(json.dumps(plan, indent=2, sort_keys=True))

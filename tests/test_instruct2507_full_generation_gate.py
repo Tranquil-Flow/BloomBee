@@ -66,6 +66,42 @@ def test_gate_plan_ready_with_server_maddr_emits_full_generation_commands():
     assert "--require-server-placements" in proof["verify_command"]
 
 
+def test_gate_plan_ready_with_server_maddr_emits_demo_safe_ladder_commands():
+    maddr = "/ip4/192.168.178.37/tcp/31347/p2p/12D3KooWMoon"
+    plan = build_gate_plan(readiness=_readiness(ready=True), server_maddrs=[maddr])
+
+    assert plan["ready_to_attempt_demo_safe_ladder"] is True
+    assert plan["demo_safe_ladder_gates"] == ["full_generation", "cache_generation", "multi_request_load"]
+
+    cache_plan = plan["cache_generation_plan"]
+    assert cache_plan["proof_gate"] == "cache_generation"
+    assert cache_plan["claim_boundary"] == "cache_generation_proof_harness_only_no_live_generation"
+    assert "--mode generate-api" in cache_plan["parity_command"]
+    assert "cache_generation_proof.py verify" in cache_plan["verify_command"]
+    assert "instruct2507-cache-generation-generate-api.json" in cache_plan["evidence_path"]
+    assert maddr in cache_plan["parity_command"]
+
+    load_plan = plan["multi_request_load_plan"]
+    assert load_plan["proof_gate"] == "multi_request_load"
+    assert load_plan["claim_boundary"] == "multi_request_load_harness_only_no_live_traffic"
+    assert load_plan["block_range"] == "0:48"
+    assert load_plan["request_count"] == 3
+    assert load_plan["hidden_dim"] == 2048
+    assert len(load_plan["client_commands"]) == 3
+    assert all("scripts/direct_remote_call.py" in command for command in load_plan["client_commands"])
+    assert all(maddr in command for command in load_plan["client_commands"])
+    assert "multi_request_load_proof.py verify" in load_plan["verify_command"]
+
+
+def test_gate_plan_blocks_demo_safe_ladder_without_real_server_maddr():
+    plan = build_gate_plan(readiness=_readiness(ready=True))
+
+    assert plan["ready_to_attempt_full_generation"] is False
+    assert plan["ready_to_attempt_demo_safe_ladder"] is False
+    assert PLACEHOLDER_MADDR in plan["cache_generation_plan"]["parity_command"]
+    assert PLACEHOLDER_MADDR in "\n".join(plan["multi_request_load_plan"]["client_commands"])
+
+
 def test_server_launch_command_uses_real_run_server_flags_and_external_cache():
     command = build_server_launch_command()
 

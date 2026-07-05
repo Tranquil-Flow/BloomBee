@@ -77,6 +77,9 @@ def test_fable_handoff_doc_points_to_checker_commands():
     assert ".venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness" in text
     assert "cache_download_readiness_only_no_generation_or_load_proof" in text
     assert "instruct2507_full_generation_gate_plan_only_no_live_generation" in text
+    assert "ready_to_attempt_demo_safe_ladder" in text
+    assert "cache_generation_proof_harness_only_no_live_generation" in text
+    assert "multi_request_load_harness_only_no_live_traffic" in text
     assert "Start with the grunt filter" in text
 
 

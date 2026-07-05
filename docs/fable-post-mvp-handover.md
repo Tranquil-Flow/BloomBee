@@ -225,7 +225,7 @@ source .venv/bin/activate
 
 `instruct2507_cache_readiness.py` returns `READY` only when required sidecars plus all expected shards are present in the Seagate snapshot. Its claim boundary is `cache_download_readiness_only_no_generation_or_load_proof`, so it does not prove full generation, cache generation, or load.
 
-`instruct2507_full_generation_gate.py` is the next broom pass after readiness: it emits the real `run_server`, `text_generation_parity.py`, and `full_generation_proof.py verify` commands for Instruct-2507, but its claim boundary is `instruct2507_full_generation_gate_plan_only_no_live_generation`; it refuses `ready_to_attempt_full_generation=true` until cache readiness is green and a real server multiaddr is provided.
+`instruct2507_full_generation_gate.py` is the next broom pass after readiness: it emits the real `run_server`, full-generation `text_generation_parity.py`, cache-generation `text_generation_parity.py --mode generate-api`, and `multi_request_load_proof.py` direct-client commands for Instruct-2507, but its claim boundary is `instruct2507_full_generation_gate_plan_only_no_live_generation`; it refuses `ready_to_attempt_demo_safe_ladder=true` until cache readiness is green and a real server multiaddr is provided. The emitted sub-runbooks keep their own claim boundaries visible: `full_generation_proof_harness_only_no_live_generation`, `cache_generation_proof_harness_only_no_live_generation`, and `multi_request_load_harness_only_no_live_traffic`.
 
 Then run the deeper checks if reviewing source/test integrity:
 
@@ -242,8 +242,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Grunt-filter/checker/cache-readiness/full-generation-gate/docs-coherence focused suite: `15 passed, 1 warning`.
-- Unfiltered default suite after the Instruct-2507 gate planner: `442 passed, 23 skipped, 4 warnings`.
+- Grunt-filter/checker/cache-readiness/demo-safe-ladder/docs-coherence focused suite: `16 passed, 1 warning`.
+- Unfiltered default suite after the Instruct-2507 demo-safe ladder planner: `444 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
@@ -293,7 +293,7 @@ Post-MVP workstreams to review and possibly reorder:
 | Workstream | Current state | Main risk | Suggested next action |
 |---|---:|---|---|
 | Qwen3-30B-A3B full/cache/load | partial/proven lower gates | expensive proof ladder may distract from usability | Base 30B has prescan/one-block/multi-block; finish full-generation first only if enough compute/time, then cache/load. |
-| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running in tmux `instruct2507-full-download` using a staged-root `curl | dd` pipeline through `/Volumes/Exchange` into the Seagate APFS snapshot. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` before any expensive full-generation/cache/load gate. |
+| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running in tmux `instruct2507-full-download` using a staged-root `curl | dd` pipeline through `/Volumes/Exchange` into the Seagate APFS snapshot. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` before any expensive gate, then `.venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness --server-maddr '<captured>'` to emit the full/cache/load demo-safe ladder commands. |
 | Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, and injected live-loop unit seam exist; next wire `LiveContinuousDecodeLoop` rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`, prove parity, then measure wall-clock throughput. |
 | KV prefix reuse | partial | cache reuse can silently change outputs | Deterministic prefix planner proof exists; next wire into real prefill/session cache metadata and require exact-token/logit parity plus timing delta. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
