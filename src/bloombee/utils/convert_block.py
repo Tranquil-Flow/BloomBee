@@ -163,6 +163,11 @@ def convert_block(
                 "instead; use w_gpu_percent=100 or quant_type=none."
             )
         quantize_hf_block(block, quant_type=quant_type, model_type=config.model_type)
+        if freeze:
+            # quanto swaps nn.Linear modules after the initial freeze above;
+            # those fresh QLinear parameters default to requires_grad=True.
+            # Serving backends require all parameters frozen.
+            block.requires_grad_(False)
 
     # Create a simple wrapper that provides TensorParallel interface for pipeline parallelism
     # but uses FlexGen's forward method directly

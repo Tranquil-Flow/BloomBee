@@ -194,6 +194,22 @@ def test_convert_block_applies_int8_to_hf_moe_block():
     assert isinstance(inner.mlp.experts, QuantizedQwen3MoeExperts)
 
 
+def test_convert_block_freezes_post_quantization_hf_parameters_for_serving():
+    device = torch.device("cpu")
+    wrapped = convert_block(
+        _moe_layer(seed=101),
+        0,
+        _moe_config(),
+        [device],
+        device,
+        QuantType.INT8,
+        freeze=True,
+    )
+
+    trainable = [name for name, param in wrapped.named_parameters() if param.requires_grad]
+    assert trainable == []
+
+
 def test_convert_block_quant_plus_cpu_offload_fails_closed():
     class _Policy:
         w_gpu_percent = 50
