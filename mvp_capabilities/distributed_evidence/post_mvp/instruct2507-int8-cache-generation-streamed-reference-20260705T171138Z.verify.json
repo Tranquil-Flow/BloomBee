@@ -1,0 +1,26 @@
+{
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_cache_generation_evidence",
+  "evidence_path": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-instruct2507-cache-int8-6ac7ae7/.local/run/instruct2507-int8-cache-generation-parity-20260705T171138Z/evidence/instruct2507-int8-cache-generation-streamed-reference-20260705T171138Z.json",
+  "evidence_summary": {
+    "distributed_seconds": 6.445458889007568,
+    "generated_ids_match": true,
+    "generated_text_match": true,
+    "max_new_tokens": 1,
+    "mode": "generate-api",
+    "model": "Qwen/Qwen3-30B-A3B-Instruct-2507@int8",
+    "next_token_match": true,
+    "ok": true,
+    "prompt": "The moon is",
+    "reference_seconds": 683.324976682663,
+    "server_count": 1,
+    "server_placement_count": 1
+  },
+  "failed_checks": [],
+  "model_id": "Qwen/Qwen3-30B-A3B-Instruct-2507@int8",
+  "proof_gate": "cache_generation",
+  "proof_status_update": {
+    "cache_generation": "passed"
+  },
+  "status": "passed"
+}

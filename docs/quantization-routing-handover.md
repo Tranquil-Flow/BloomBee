@@ -335,8 +335,8 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
   full-generation, cache-generation, and exact token-parity gates pass for the
   exact route row.
 - `mvp_status.py` has the post-MVP quantization milestone updated to
-  `base_int8_demo_safe_instruct2507_pending` with evidence for base @int8
-  full/cache/load/token-parity proof, Instruct-2507 int8 load proof,
+  `base_and_instruct2507_int8_demo_safe` with evidence for base @int8 and
+  Instruct-2507 @int8 full/cache/load/token-parity proof,
   coordinator/dashboard route-pin handling, and quantized launch commands.
 - Docs coherence is guarded by
   `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts`

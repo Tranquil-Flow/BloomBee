@@ -152,10 +152,10 @@ POST_MVP_MILESTONES: tuple[Milestone, ...] = (
         id="quantization_routing_handoff",
         label="Quantization + route override handoff",
         weight=5,
-        completion=0.95,
-        status="base_int8_demo_safe_instruct2507_pending",
-        evidence="Quantized routing is proof-keyed and coordinator/dashboard-visible: Qwen3-30B-A3B@int8 has claim-bounded m4pro full 0:48 multi-request load evidence, streamed-fp16 forward-loop full-generation parity, streamed-reference cache/generate-api parity, and token_parity exact under the current proof gate policy; Qwen3-30B-A3B-Instruct-2507@int8 has full 0:48 multi-request load evidence plus streamed-fp16 forward-loop full-generation parity but still lacks cache_generation parity and final exact token parity. route_picker/proof_ladder enforce quantized token-parity gating, join_http_server accepts requested_model/model quantized pins and surfaces override/refusal metadata through /route and /handoff, layer_planner emits base HF launch commands with --quant_type INT8 for quantized route IDs, and demo_dashboard renders serving model plus quantization.",
-        next_step="run streamed-reference cache_generation parity for Qwen3-30B-A3B-Instruct-2507@int8 before considering that exact user-facing row demo-safe",
+        completion=1.00,
+        status="base_and_instruct2507_int8_demo_safe",
+        evidence="Quantized routing is proof-keyed and coordinator/dashboard-visible: Qwen3-30B-A3B@int8 and Qwen3-30B-A3B-Instruct-2507@int8 both have claim-bounded m4pro full 0:48 multi-request load evidence, streamed-fp16 forward-loop full-generation parity, streamed-reference cache/generate-api parity, and token_parity exact under the current proof gate policy. route_picker/proof_ladder enforce quantized token-parity gating, join_http_server accepts requested_model/model quantized pins and surfaces override/refusal metadata through /route and /handoff, layer_planner emits base HF launch commands with --quant_type INT8 for quantized route IDs, and demo_dashboard renders serving model plus quantization.",
+        next_step="optional: broaden prompt-set parity or start Thinking-2507 only if the demo needs reasoning-style behavior; do not inherit these @int8 proofs across exact model rows",
     ),
 )
 

@@ -1,0 +1,133 @@
+{
+  "checkpoint_model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "distributed_dtype": "torch.float16",
+  "distributed_ids": [
+    785,
+    17788,
+    374,
+    29304
+  ],
+  "distributed_next_token_id": 29304,
+  "distributed_seconds": 6.445458889007568,
+  "distributed_steps": [],
+  "distributed_text": "The moon is.showMessage",
+  "distributed_top5": [
+    {
+      "logit": 18.974456787109375,
+      "token_id": 29304
+    },
+    {
+      "logit": 17.641014099121094,
+      "token_id": 50963
+    },
+    {
+      "logit": 16.041736602783203,
+      "token_id": 81649
+    },
+    {
+      "logit": 16.020240783691406,
+      "token_id": 116761
+    },
+    {
+      "logit": 15.939035415649414,
+      "token_id": 44533
+    }
+  ],
+  "generated_ids_match": true,
+  "generated_text_match": true,
+  "input_ids": [
+    785,
+    17788,
+    374
+  ],
+  "logits_max_abs_diff": 1.202129602432251,
+  "logits_mean_abs_diff": 0.18780910968780518,
+  "max_new_tokens": 1,
+  "mode": "generate-api",
+  "model": "Qwen/Qwen3-30B-A3B-Instruct-2507@int8",
+  "next_token_match": true,
+  "ok": true,
+  "prompt": "The moon is",
+  "reference_cache_dir": "/Volumes/Seagate Portable Drive/huggingface/hub",
+  "reference_device": "mps",
+  "reference_dtype": "torch.float16",
+  "reference_generation_path": "streamed-forward-loop-correctness-fallback",
+  "reference_ids": [
+    785,
+    17788,
+    374,
+    29304
+  ],
+  "reference_local_files_only": true,
+  "reference_mode": "streamed-blocks",
+  "reference_next_token_id": 29304,
+  "reference_seconds": 683.324976682663,
+  "reference_steps": [
+    {
+      "block_count": 48,
+      "block_timings": [],
+      "next_token_id": 29304,
+      "seconds": 322.6912500858307,
+      "step": 0,
+      "top5": [
+        {
+          "logit": 19.078125,
+          "token_id": 29304
+        },
+        {
+          "logit": 17.546875,
+          "token_id": 50963
+        },
+        {
+          "logit": 16.375,
+          "token_id": 81649
+        },
+        {
+          "logit": 15.9296875,
+          "token_id": 116761
+        },
+        {
+          "logit": 15.9140625,
+          "token_id": 25762
+        }
+      ]
+    }
+  ],
+  "reference_text": "The moon is.showMessage",
+  "reference_top5": [
+    {
+      "logit": 19.078125,
+      "token_id": 29304
+    },
+    {
+      "logit": 17.546875,
+      "token_id": 50963
+    },
+    {
+      "logit": 16.375,
+      "token_id": 81649
+    },
+    {
+      "logit": 15.9296875,
+      "token_id": 116761
+    },
+    {
+      "logit": 15.9140625,
+      "token_id": 25762
+    }
+  ],
+  "server_maddrs": [
+    "/ip4/100.84.252.4/tcp/31489/p2p/12D3KooWLJNphtVF1b8VQbjAu5g55KCLmGDCGJDGLwAcsDn8FYPS"
+  ],
+  "server_placements": [
+    {
+      "host": "m4pro-full",
+      "layers": [
+        0,
+        48
+      ],
+      "server_maddr": "/ip4/100.84.252.4/tcp/31489/p2p/12D3KooWLJNphtVF1b8VQbjAu5g55KCLmGDCGJDGLwAcsDn8FYPS"
+    }
+  ],
+  "server_to_server": true
+}

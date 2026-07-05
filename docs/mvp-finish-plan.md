@@ -112,8 +112,8 @@ Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 
 | Workstream | Current progress | Next proof |
 |---|---:|---|
-| Qwen3-30B-A3B proof ladder | 80% | base @int8 is demo-safe under current gates; Instruct-2507@int8 has full-0:48 load plus streamed-reference full-generation parity; next cache-generation parity. |
-| Qwen3-30B-A3B Instruct-2507 | int8 load + full-generation parity passed, cache parity pending | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); `Instruct-2507@int8` full 0:48 multi-request load and streamed-reference full-generation parity passed, but cache parity remains pending. |
+| Qwen3-30B-A3B proof ladder | 100% for base + Instruct int8 gates | base @int8 and Instruct-2507@int8 are demo-safe under current full/cache/load/token-parity gates; optional next work is broader prompt-set parity or Thinking-2507 only if needed. |
+| Qwen3-30B-A3B Instruct-2507 | int8 load + full/cache parity passed | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); `Instruct-2507@int8` full 0:48 multi-request load, streamed-reference full-generation parity, and streamed-reference cache/generate-api parity passed. |
 | Live chain scheduler | scoped / pending | live request artifact with `verified_chain_scheduler_live_request_evidence`. |
 | Continuous batching | partial | live-loop unit seam artifact exists; next real live request artifact with correctness + throughput telemetry behind opt-in integration. |
 | KV prefix reuse | partial | exact-token/logit parity plus timing delta against no-reuse baseline. |
