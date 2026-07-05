@@ -220,8 +220,9 @@ def build_gate_plan(
         "blocked_reasons": blocked_reasons,
         "server_launch_command": server_launch_command,
         "capture_multiaddr_instruction": (
-            "After the server advertises its /ip4/.../tcp/.../p2p/... multiaddr, rerun this planner with "
-            "--server-maddr '<that-multiaddr>' to remove the placeholder."
+            "After the server advertises its /ip4/.../tcp/.../p2p/... multiaddr, run "
+            "scripts/extract_bloombee_multiaddr.py <server-log> to pick the preferred non-loopback address, "
+            "then rerun this planner with --server-maddr '<that-multiaddr>' to remove the placeholder."
         ),
         "full_generation_plan": proof_plan,
         "cache_generation_plan": cache_generation_plan,

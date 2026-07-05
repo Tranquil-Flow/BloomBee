@@ -60,12 +60,14 @@ REQUIRED_HANDOFF_PHRASES = (
     "instruct2507-full-download",
     "scripts/instruct2507_cache_readiness.py --remote",
     "scripts/instruct2507_full_generation_gate.py --remote-readiness",
+    "scripts/extract_bloombee_multiaddr.py",
+    "server_log_multiaddr_extraction_only_no_connectivity_proof",
     "ready_to_attempt_demo_safe_ladder",
     "cache_generation_proof_harness_only_no_live_generation",
     "multi_request_load_harness_only_no_live_traffic",
     "cache_download_readiness_only_no_generation_or_load_proof",
     "instruct2507_full_generation_gate_plan_only_no_live_generation",
-    "445 passed, 23 skipped, 4 warnings",
+    "448 passed, 23 skipped, 4 warnings",
     "Do **not** claim from this artifact",
 )
 

@@ -40,6 +40,7 @@ def test_gate_plan_blocks_until_cache_ready_and_server_maddr_captured():
     assert plan["cache_readiness"]["present_shard_count"] == 5
     assert any("cache readiness is BLOCKED" in reason for reason in plan["blocked_reasons"])
     assert any("server multiaddr is not captured" in reason for reason in plan["blocked_reasons"])
+    assert "scripts/extract_bloombee_multiaddr.py" in plan["capture_multiaddr_instruction"]
     assert PLACEHOLDER_MADDR in plan["full_generation_plan"]["parity_command"]
     assert plan["generation_proven"] is False
     assert plan["cache_generation_proven"] is False

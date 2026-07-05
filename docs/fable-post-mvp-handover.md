@@ -221,11 +221,14 @@ source .venv/bin/activate
 .venv/bin/python scripts/fable_handoff_check.py --remote-download
 .venv/bin/python scripts/instruct2507_cache_readiness.py --remote
 .venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness
+.venv/bin/python scripts/extract_bloombee_multiaddr.py <server-log>
 ```
 
 `instruct2507_cache_readiness.py` returns `READY` only when required sidecars plus all expected shards are present in the Seagate snapshot. Its claim boundary is `cache_download_readiness_only_no_generation_or_load_proof`, so it does not prove full generation, cache generation, or load.
 
 `instruct2507_full_generation_gate.py` is the next broom pass after readiness: it emits the real `run_server`, full-generation `text_generation_parity.py`, cache-generation `text_generation_parity.py --mode generate-api`, and `multi_request_load_proof.py` direct-client commands for Instruct-2507, but its claim boundary is `instruct2507_full_generation_gate_plan_only_no_live_generation`; it refuses `ready_to_attempt_demo_safe_ladder=true` until cache readiness is green and a real server multiaddr is provided. The emitted sub-runbooks keep their own claim boundaries visible: `full_generation_proof_harness_only_no_live_generation`, `cache_generation_proof_harness_only_no_live_generation`, and `multi_request_load_harness_only_no_live_traffic`.
+
+`scripts/extract_bloombee_multiaddr.py` parses retained server logs and picks a preferred non-loopback `/ip4/.../tcp/.../p2p/...` address for the planner. Its claim boundary is `server_log_multiaddr_extraction_only_no_connectivity_proof`: it does not prove server liveness or client reachability.
 
 Then run the deeper checks if reviewing source/test integrity:
 
@@ -242,8 +245,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Grunt-filter/checker/cache-readiness/demo-safe-ladder/docs-coherence focused suite: `17 passed, 1 warning`.
-- Unfiltered default suite after the Instruct-2507 demo-safe ladder planner/checker integration: `445 passed, 23 skipped, 4 warnings`.
+- Grunt-filter/checker/cache-readiness/demo-safe-ladder/multiaddr/docs-coherence focused suite: `20 passed, 1 warning`.
+- Unfiltered default suite after the Instruct-2507 demo-safe ladder planner/checker/multiaddr integration: `448 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
