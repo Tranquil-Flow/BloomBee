@@ -1,0 +1,22 @@
+{
+  "assemble_command": "python -m mvp_capabilities.continuous_batching_live_server_capture assemble --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --live-report .local/live-continuous-server-report.json --request req-a:0:.local/baseline-req-a.json:.local/continuous-req-a.json --request req-b:1:.local/baseline-req-b.json:.local/continuous-req-b.json --out .local/live-continuous-batching-capture.json",
+  "can_update_demo_status": false,
+  "claim_boundary": "live_continuous_batching_capture_harness_no_live_server_proof",
+  "evidence_path": ".local/live-continuous-batching-capture.json",
+  "live_server_late_arrival_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": [
+    "Planning output is not proof.",
+    "The assembler refuses to infer server-observed status from client-only tick rows.",
+    "Promotion still requires continuous_batching_live_server_proof.py to pass on real live-server evidence and a later wall-clock throughput proof."
+  ],
+  "operator_commands": [
+    "Start the server with BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1 and capture at least two staggered live requests.",
+    "Capture no-continuous baseline and opt-in continuous JSON rows without hand-editing token IDs.",
+    "python -m mvp_capabilities.continuous_batching_live_server_capture assemble --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --live-report .local/live-continuous-server-report.json --request req-a:0:.local/baseline-req-a.json:.local/continuous-req-a.json --request req-b:1:.local/baseline-req-b.json:.local/continuous-req-b.json --out .local/live-continuous-batching-capture.json",
+    "python mvp_capabilities/continuous_batching_live_server_proof.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/live-continuous-batching-capture.json"
+  ],
+  "proof_gate": "continuous_batching",
+  "speedup_proven": false,
+  "verify_command": "python mvp_capabilities/continuous_batching_live_server_proof.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/live-continuous-batching-capture.json"
+}

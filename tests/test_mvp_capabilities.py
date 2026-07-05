@@ -627,6 +627,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "live-continuous-batching-loop-unit-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-same-arrival-client-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-live-server-proof-plan-20260705.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-batching-live-server-capture-harness-20260705T234958Z.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous_batching_live_server_capture.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["evidence"]
     assert "no live server" in tasks["continuous_batching"]["evidence"]
     assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in tasks["continuous_batching"]["next_step"]
