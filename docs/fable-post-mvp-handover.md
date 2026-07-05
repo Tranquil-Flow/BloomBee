@@ -185,9 +185,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused docs/continuous-batching guard suite: `7 passed, 1 warning`.
-- Broad MVP/status/dashboard/redaction/continuous suite: `209 passed, 1 warning`.
-- Unfiltered default suite after handoff cleanup: `423 passed, 23 skipped, 4 warnings`.
+- Focused docs/continuous-batching/status guard suite: `8 passed, 1 warning`.
+- Unfiltered default suite after handoff cleanup and continuous adapter: `423 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
