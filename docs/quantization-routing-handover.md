@@ -2,16 +2,17 @@
 
 > **For the build agent:** Fable did the research spikes, the hard modules,
 > and the routing-contract design in this handover. **Update 2026-07-05:**
-> Fable also completed the two hardest build tasks — server-side quantized
-> loading (old Task 2) and packed int4 expert quantization (old Task 6). Both
-> are committed with tests. Your job is now proof-ladder execution and the
-> remaining integration tasks below. Work task-by-task, RED tests first where
-> specified, commit after each task. Do not move the MVP-core denominator;
-> everything here is post-MVP.
+> Tasks 2, 3, 4 and 6 are DONE and committed with tests (server-side
+> quantized loading, quant-aware route memory math, quantized proof rows +
+> token-parity policy, packed int4 experts); Task 1 (TinyLlama load gate) was
+> closed by Moonsong. What remains is proof-ladder execution (Task 5 — the
+> payoff) and coordinator/dashboard wiring + docs (Tasks 7–8). Work
+> task-by-task, RED tests first where specified, commit after each task. Do
+> not move the MVP-core denominator; everything here is post-MVP.
 
 **Branch state:** committed on `main` through
-`587e27c feat(quant): wire server-side quantized loading for HF blocks`.
-Baseline suite: `466 passed, 23 skipped`.
+`beaf477 feat(route): quantized proof rows and quant-aware route candidates`.
+Baseline suite: `476 passed, 23 skipped`.
 
 **Related lane built by Moonsong meanwhile:**
 `mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
@@ -185,12 +186,9 @@ where exact greedy token-ID parity remains the demo_safe bar.
 
 ## 2. Build tasks, in order
 
-### Task 1 (trivial, do first): restore TinyLlama demo-safe fallback
-Run the existing `multi_request_load` proof for TinyLlama (same harness as
-Qwen3-8B: 3× seeded `scripts/direct_remote_call.py --seed N --input-scale
-0.1` over its full block range), commit evidence, flip
-`PROOF_STATUS.yaml` TinyLlama `multi_request_load: passed`. Until then the
-safe-demo fallback ladder has only Qwen3-8B.
+### Task 1: restore TinyLlama demo-safe fallback — **DONE (Moonsong)**
+`PROOF_STATUS.yaml` TinyLlama `multi_request_load: passed`; the safe-demo
+fallback ladder has TinyLlama and Qwen3-8B again.
 
 ### Task 2: server-side quantized loading for HF blocks — **DONE (Fable, 2026-07-05)**
 See §1.6. Commit `587e27c`; tests in `tests/test_quantized_block_loading.py`.
@@ -198,35 +196,46 @@ One intentional deviation from the original spec: `NF4` on qwen3_moe blocks
 is **not** blocked anymore — it maps to packed-int4 experts + qint8 Linears
 (Task 6 landed first). `NF4` on dense blocks remains fail-closed.
 
-### Task 3: quantization-aware route memory math
-`route_picker._model_required_gb` assumes fp16 registry numbers. Add registry
-fields (e.g. `int8_min_free_mem_gb`) OR compute `required_gb / 2` (int8) and
-`/ 3.7` (int4, later) when evaluating a quantized route variant. A quantized
-route candidate must carry `quant_type` in its evaluation payload so
-`route_report` output distinguishes `Qwen3-30B-A3B@int8` from fp16.
-RED test: with m4pro-like peer (37 GB free), fp16 30B is not memory_fit but
-int8 30B is.
+### Task 3: quantization-aware route memory math — **DONE (Fable, 2026-07-05)**
+Commit `beaf477`; tests in `tests/test_quantized_proof_routing.py`.
+`route_picker.derive_quantized_variant` / `expand_quantized_variants` build
+`model_id@int8` (fp16 required ÷ 2.0, any supported family) and `@nf4`
+(÷ 3.5, qwen3_moe only — dense nf4 variants are *blocked*, matching the
+fail-closed loader) candidates; registry entries may override with
+`int8_min_free_mem_gb` / `nf4_min_free_mem_gb`. Variants rank just below
+their fp16 base (fp16 preferred at equal fit, int8 over nf4) and are
+first-class in `route_report` candidates and pins by default
+(`include_quantized=True`; `choose_best_route`/`explain_route` keep it
+opt-in for backward compatibility). Verified: fp16 30B does not fit an
+m4pro-class peer (70 GB) but `@int8` does (35 GB ≤ 37 GB free).
+Follow-up idea (not blocking): derive required bytes from
+`get_block_size(..., quant_type=...)` instead of divisors once route
+planning has model configs at hand.
 
-**Update:** Moonsong's `mvp_capabilities/quantized_route_lane.py` already
-does exactly this for the single `Qwen/Qwen3-30B-A3B@int8` lane (memory math
-via measured 1.996× ratio, `@int8` proof-row keying, demo-safe gating).
-Generalize that into `route_picker.evaluate_model`/`route_report` — do not
-build a second parallel path. Prefer deriving required bytes from
-`get_block_size(..., quant_type=...)` over hardcoded ratios where a config is
-available; keep the lane's guardrail flags.
+### Task 4: proof gates for quantized serving — **DONE (Fable, 2026-07-05)**
+Commit `beaf477`. The policy is now code, centralized in
+`model_compat_scan`: `split_route_id`, `is_demo_safe(status, quant_type=...)`,
+`DEMO_SAFE_GATES`, `TOKEN_PARITY_KEY`. Rules enforced everywhere
+(`route_picker`, `proof_ladder`, `model_compat_scan` — whose own weak
+full_generation-only gate is also fixed — and `quantized_route_lane`):
 
-### Task 4: proof gates for quantized serving (policy — read carefully)
-Quantized routes must NOT inherit fp16 proof status. Key the proof registry by
-`(model_id, quant_type)` — suggested YAML shape:
-`Qwen/Qwen3-30B-A3B@int8:` alongside the existing plain ids (plain id ==
-fp16). `route_picker`/`proof_ladder` treat an absent quantized entry as all
-`pending` (fail-closed, they already default pending).
-Parity policy for the quantized `full_generation`/`cache_generation` gates:
-- exact greedy token-ID match vs the fp16 reference for the demo prompt set →
-  eligible for `demo_safe`
-- if IDs diverge, the quantized route caps at `showcase-attempt` and the
-  artifact must record first-divergence position + text sample. No "close
-  enough" demo_safe promotion. This keeps guardrail #2 intact.
+- proof rows keyed `model_id@int8` / `@nf4`; plain id == fp16; absent
+  quantized row == all pending (never inherits fp16 gates)
+- quantized `demo_safe` = all three gates passed **AND** `token_parity: exact`
+  in the row; `diverged`/absent parity caps below demo_safe, no exceptions
+- unknown `@suffix` is not a quant marker — a typo becomes an unknown
+  (all-pending) row, never an alias of the fp16 row
+- `PROOF_STATUS.yaml` documents the policy and carries the explicit
+  all-pending `Qwen/Qwen3-30B-A3B@int8` row (a default-suite test enforces it
+  stays all-pending until the ladder actually runs)
+- `proof_ladder` reports `quant_type`/`token_parity` and names
+  `token_parity` as the next gate when only parity is missing;
+  `Qwen/Qwen3-30B-A3B@int8` is in the fallback ladder
+
+**For the ladder runner (Task 5):** when the quantized full/cache gates pass,
+write `token_parity: exact` or `token_parity: diverged` into the `@int8` row
+alongside the gate results, and record first-divergence position + text
+sample in the evidence artifact on divergence.
 
 ### Task 5: Qwen3-30B-A3B int8 ladder on m4pro (the payoff — now fully unblocked)
 The serving path is real now: `--quant_type INT8` on a qwen3_moe server
@@ -258,8 +267,12 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
 ### Task 7: wire route_report into coordinator + dashboard
 - `join_http_server` `/route` (and `/handoff`'s embedded route decision):
   accept `requested_model` + `selector_mode`, return `route_report` payload
+  (pins may be quantized route ids like `Qwen/Qwen3-30B-A3B@int8` — the
+  report already evaluates them)
 - `demo_dashboard.py`: render "Serving: X (operator override — auto-pick: Y)"
-  when `override_active`, and the refusal reason when `override_refused`
+  when `override_active`, and the refusal reason when `override_refused`;
+  show `quant_type` on the serving row when set (never render a quantized
+  route without its quant marker)
 - keep the existing `/route` response shape backward compatible (add fields,
   don't rename)
 RED tests: HTTP handler returns `best_available` + `picked`; refused pin
@@ -307,9 +320,15 @@ never appears as `picked`.
 ```bash
 source .venv/bin/activate
 # current baseline (all green at handoff)
-.venv/bin/python -m pytest -q                                        # 466 passed, 23 skipped
+.venv/bin/python -m pytest -q                                        # 476 passed, 23 skipped
 .venv/bin/python -m pytest tests/test_moe_expert_quant.py -q         # 15 passed (int8 + int4)
 .venv/bin/python -m pytest tests/test_quantized_block_loading.py -q  # 9 passed (convert_block/get_block_size)
+.venv/bin/python -m pytest tests/test_quantized_proof_routing.py -q  # 10 passed (proof rows + quant routing)
+# quantized pin end-to-end (planning serves it; safe-demo refuses until the @int8 row passes)
+.venv/bin/python -m mvp_capabilities.route_picker --report --selector-mode planning \
+  --model Qwen/Qwen3-30B-A3B@int8 --synthetic-m4-laptops 2 \
+  --synthetic-total-gb 48 --synthetic-free-gb 37
+.venv/bin/python -m mvp_capabilities.proof_ladder --model Qwen/Qwen3-30B-A3B@int8
 # spike re-run (slow; MoE block needs ~4GB free)
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/quantized_block_spike.py --devices cpu --skip-moe
 # routing contract
