@@ -1,14 +1,24 @@
 # Quantization + Best-Model/Override Routing Handover
 
-> **For the build agent:** Fable did the research spikes, the hard module, and
-> the routing-contract design in this handover. Your job is integration,
-> proof-ladder execution, and the one remaining hard sub-task (int4 expert
-> packing). Work task-by-task, RED tests first where specified, commit after
-> each task. Do not move the MVP-core denominator; everything here is
-> post-MVP.
+> **For the build agent:** Fable did the research spikes, the hard modules,
+> and the routing-contract design in this handover. **Update 2026-07-05:**
+> Fable also completed the two hardest build tasks — server-side quantized
+> loading (old Task 2) and packed int4 expert quantization (old Task 6). Both
+> are committed with tests. Your job is now proof-ladder execution and the
+> remaining integration tasks below. Work task-by-task, RED tests first where
+> specified, commit after each task. Do not move the MVP-core denominator;
+> everything here is post-MVP.
 
-**Branch state at handoff:** uncommitted work on `main` (Evi reviews before
-commit). Baseline suite: `395 passed, 23 skipped`.
+**Branch state:** committed on `main` through
+`587e27c feat(quant): wire server-side quantized loading for HF blocks`.
+Baseline suite: `466 passed, 23 skipped`.
+
+**Related lane built by Moonsong meanwhile:**
+`mvp_capabilities/quantized_route_lane.py` (+ its evidence artifact and
+tests) — a claim-bounded planning report for `Qwen/Qwen3-30B-A3B@int8` that
+already encodes the `model_id@int8` proof-row keying and int8 memory math.
+Task 3 below should generalize that lane into `route_picker` rather than
+duplicating it.
 
 ---
 
@@ -69,10 +79,10 @@ residual). Real-weight parity is a REQUIRED gate before any serving claim
 
 Qwen3-30B-A3B: 48 layers ≈ 61 GB fp16 (m4pro has ~37 GB free → blocked today).
 
-- int8 (built): ≈ **30.5 GB** → 30B fits on m4pro alone; fp16 KV cache is
-  unchanged and small at demo batch sizes.
-- int4 experts (Task 6): ≈ **16 GB** → 30B on a 24 GB-class device; dense
-  Qwen3-8B at int4 ≈ 4 GB.
+- int8 (built, servable via `--quant_type INT8`): ≈ **30.5 GB** → 30B fits on
+  m4pro alone; fp16 KV cache is unchanged and small at demo batch sizes.
+- int4 experts (built, servable via `--quant_type NF4` on qwen3_moe): ≈
+  **16 GB** → 30B on a 24 GB-class device. Dense int4 stays blocked.
 
 ### 1.5 Routing: strict demo_safe + detect-best/route-to-choice (BUILT, TESTED)
 
@@ -94,12 +104,74 @@ Qwen3-30B-A3B: 48 layers ≈ 61 GB fp16 (m4pro has ~37 GB free → blocked today
   demo_safe; report detects best + serves allowed pin; disallowed pin refused
   fail-closed.
 
-### 1.6 Environment facts you will need
+### 1.6 Server-side quantized loading (BUILT, TESTED — was Task 2)
 
-- New dev deps installed in `.venv` (NOT yet in packaging metadata):
-  `optimum-quanto==0.2.7`, `torchao==0.17.0`, `ninja`. Task 2 decides where
-  they belong (`quant` extra suggested). torchao is unused so far — drop it
-  unless you pick it up deliberately.
+`convert_block` no longer treats `quant_type` as a FlexGen-only passenger.
+`bloombee.utils.convert_block.quantize_hf_block(block, quant_type=..., model_type=...)`
+implements the mapping and `convert_block()` calls it for any HF block with
+real (non-meta) weights; FlexGen-native LLaMA blocks are untouched.
+
+| quant_type | dense HF block | qwen3_moe block |
+|---|---|---|
+| `INT8` | quanto qint8 on all Linears | int8 expert swap + qint8 Linears |
+| `NF4` | **fail-closed** `NotImplementedError` | packed-int4 expert swap + qint8 Linears |
+| `NONE` | recorded no-op (`applied: false`) | recorded no-op |
+
+Decisions baked in (do not silently change):
+
+- **Router stays fp16.** Expert selection is an argmax over router logits;
+  quantizing it risks flipped expert picks and breaks the exact-token-parity
+  policy. transformers 5.x's `Qwen3MoeTopKRouter` is not an `nn.Linear` so
+  quanto skips it anyway; the `exclude=["*gate"]` guard covers older
+  versions where the router was a plain Linear.
+- **NF4 attention stays qint8**, not qint4: experts are ~97% of block bytes,
+  and quanto qint4 needs a JIT-built C++/MPS extension we refuse to depend on
+  in the serving path.
+- **Quantization + per-parameter CPU offload fails closed** (ValueError): the
+  offload path moves `param.data` and would corrupt packed tensors. The block
+  is ~2–3.8× smaller quantized, so offload need drops anyway.
+- `get_block_size(..., location="memory", quant_type=INT8/NF4)` now returns
+  compressed byte estimates (mirrors the load mapping incl. fp16 router/norm
+  exclusions) instead of raising — server memory planning and throughput math
+  no longer assume fp16. `get_dtype_name` reports "quantized to int8/nf4".
+
+Tests: `tests/test_quantized_block_loading.py` (9 tests, default suite).
+`server_info.quant_type` already advertises the mode (`server.py:414`) — no
+change was needed there.
+
+### 1.7 Packed int4 experts (BUILT, TESTED — was Task 6)
+
+`moe_expert_quant.py` now has the int4 lane:
+
+- `quantize_group_int4` / `dequant_group_int4` — symmetric int4, two nibbles
+  per byte along the input dim, group-wise fp16 scales (group=128). Partial
+  last groups get their own scale over the actual elements; odd input dims
+  pad a single zero nibble. Pure torch ops, CPU+MPS safe.
+- `QuantizedQwen3MoeExpertsInt4` — same routing forward as the int8 class
+  (shared `_RoutedExpertsForwardMixin`, mirrors upstream exactly).
+- `quantize_qwen3_moe_block_experts(block, scheme="int4")` — same fail-closed
+  swap helper; unknown schemes raise.
+
+Measured on the test fixtures: expert-tensor compression **≥3.5×** vs fp16 at
+group-amortized dims (analytically 3.88× at real 30B dims → experts ~16 GB).
+The packed forward is **bit-exact** vs running the reference module on
+`dequant(pack(w))` weights — that is the strong regression property; any
+packing/scale-layout/routing bug breaks it, inherent rounding noise cannot.
+
+Honest calibration note: at the residual-free sparse-MoE-module level on tiny
+random weights, int4-vs-fp16 cosine is ~0.985 (int4 rounding is ~18× coarser
+than int8). This is expected, not a bug; whole-decoder-layer parity with
+residual is the meaningful quality gate and belongs to the ladder (Tasks 4/5),
+where exact greedy token-ID parity remains the demo_safe bar.
+
+### 1.8 Environment facts you will need
+
+- `optimum-quanto` is now declared as the `quant` extra in `setup.cfg`
+  (`pip install -e .[quant]`); the serving path fails closed with a clear
+  error if quantization is requested without it. `torchao==0.17.0` and
+  `ninja` are still only in `.venv`: torchao is unused (drop it unless picked
+  up deliberately) and ninja is only needed to rebuild the quanto qint4
+  extension for spikes — the serving path deliberately never uses qint4.
 - quanto qint4 lazily builds C++/MPS extensions via torch cpp_extension and
   needs `ninja` **on PATH as an absolute entry** (subprocess lookup):
   `PATH="$PWD/.venv/bin:$PATH"`. First build is slow; cached afterwards under
@@ -120,30 +192,11 @@ Qwen3-8B: 3× seeded `scripts/direct_remote_call.py --seed N --input-scale
 `PROOF_STATUS.yaml` TinyLlama `multi_request_load: passed`. Until then the
 safe-demo fallback ladder has only Qwen3-8B.
 
-### Task 2: server-side quantized loading for HF blocks
-Integration point: `src/bloombee/server/from_pretrained.py::load_pretrained_block`
-(after state-dict load) or `convert_block.convert_block` (replace the no-op) —
-prefer `convert_block`, it already receives `quant_type`.
-
-Mapping (reuse the existing `QuantType` enum and `--quant_type` flag; do NOT
-invent a parallel flag):
-- `INT8` + dense HF block → quanto `quantize(block, weights=qint8); freeze`
-- `INT8` + qwen3_moe block → `quantize_qwen3_moe_block_experts(block)` then
-  quanto qint8 on remaining Linears (this is exactly the spike's
-  `moe_int8_experts+qint8_attn` mode, 1.996× proven)
-- `NF4` → blocked with a clear error until Task 6 (do not silently fall back)
-- FlexGen-native LLaMA path → untouched (keeps its own compression)
-
-RED tests first:
-- loading a tiny qwen3_moe block with `quant_type=INT8` produces a block whose
-  experts module is `QuantizedQwen3MoeExperts` and whose weight bytes shrink
-  ≥1.9× (tiny-config analog)
-- `quant_type=NF4` on an HF block raises (fail-closed) until Task 6
-- `server_info.quant_type` advertises the applied mode so peers/dashboard see
-  it (field already exists in `data_structures.py`)
-- `get_block_size(..., quant_type=INT8)` returns compressed bytes so
-  throughput/memory planning stops assuming fp16 (check
-  `server/block_utils.py` + `server/throughput.py`)
+### Task 2: server-side quantized loading for HF blocks — **DONE (Fable, 2026-07-05)**
+See §1.6. Commit `587e27c`; tests in `tests/test_quantized_block_loading.py`.
+One intentional deviation from the original spec: `NF4` on qwen3_moe blocks
+is **not** blocked anymore — it maps to packed-int4 experts + qint8 Linears
+(Task 6 landed first). `NF4` on dense blocks remains fail-closed.
 
 ### Task 3: quantization-aware route memory math
 `route_picker._model_required_gb` assumes fp16 registry numbers. Add registry
@@ -153,6 +206,14 @@ route candidate must carry `quant_type` in its evaluation payload so
 `route_report` output distinguishes `Qwen3-30B-A3B@int8` from fp16.
 RED test: with m4pro-like peer (37 GB free), fp16 30B is not memory_fit but
 int8 30B is.
+
+**Update:** Moonsong's `mvp_capabilities/quantized_route_lane.py` already
+does exactly this for the single `Qwen/Qwen3-30B-A3B@int8` lane (memory math
+via measured 1.996× ratio, `@int8` proof-row keying, demo-safe gating).
+Generalize that into `route_picker.evaluate_model`/`route_report` — do not
+build a second parallel path. Prefer deriving required bytes from
+`get_block_size(..., quant_type=...)` over hardcoded ratios where a config is
+available; keep the lane's guardrail flags.
 
 ### Task 4: proof gates for quantized serving (policy — read carefully)
 Quantized routes must NOT inherit fp16 proof status. Key the proof registry by
@@ -167,8 +228,14 @@ Parity policy for the quantized `full_generation`/`cache_generation` gates:
   artifact must record first-divergence position + text sample. No "close
   enough" demo_safe promotion. This keeps guardrail #2 intact.
 
-### Task 5: Qwen3-30B-A3B int8 ladder on m4pro (the payoff)
-Order: quantize-at-load smoke (one block, measure RSS) → one_block_server →
+### Task 5: Qwen3-30B-A3B int8 ladder on m4pro (the payoff — now fully unblocked)
+The serving path is real now: `--quant_type INT8` on a qwen3_moe server
+actually quantizes blocks at load (§1.6). Base 30B weights are cached on the
+m4pro Seagate snapshot (see `scripts/instruct2507_cache_readiness.py` lane
+for the cache layout conventions).
+
+Order: quantize-at-load smoke (one block, measure RSS; compare against
+`get_block_size(..., quant_type=INT8)` estimate) → one_block_server →
 multi_block 0:2 → full_generation (greedy parity vs fp16 single-host
 reference where feasible; if fp16 reference cannot run on the fleet, record
 that the reference is the HF CPU implementation on m4pro with short prompts)
@@ -179,18 +246,14 @@ Every artifact records: quant scheme (`int8_symmetric_per_out_channel` +
 `quanto qint8 attn`), source commit, block range, device. Use
 `ssh m4pro` directly; MacBook will OOM.
 
-### Task 6 (the remaining hard one): int4 expert packing
-Extend `moe_expert_quant.py` with a packed int4 mode:
-- pack two nibbles/byte along the input dim; group-wise scales (group=128,
-  fp16) instead of per-channel — per-channel int4 loses too much precision
-- unpack in `_dequant` for hit experts only (pure torch ops so CPU+MPS both
-  work; no custom kernels required for correctness — speed later)
-- target ≥3.5× vs fp16 on the expert tensors; parity gate: cosine > 0.999 on
-  the tiny fixture AND real-weight ladder per Task 4/5 before any route use
-- then unblock `NF4` mapping from Task 2
-This is genuinely fiddly (odd input dims, group boundaries, scale dtype
-drift). Write the round-trip property test first: for random W,
-`|W - dequant(pack(W))| <= group_max_abs / 7` elementwise.
+### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
+See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15
+total). The NF4 mapping in Task 2 is already unblocked for qwen3_moe blocks.
+One spec correction learned doing it: the original "cosine > 0.999 on the
+tiny fixture" bar is not achievable for int4 at the residual-free module
+level (~0.985 is inherent rounding noise); the enforced properties are the
+elementwise round-trip bound and bit-exact packed-forward-vs-dequantized-
+weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
 
 ### Task 7: wire route_report into coordinator + dashboard
 - `join_http_server` `/route` (and `/handoff`'s embedded route decision):
@@ -244,12 +307,15 @@ never appears as `picked`.
 ```bash
 source .venv/bin/activate
 # current baseline (all green at handoff)
-.venv/bin/python -m pytest -q                                    # 395 passed, 23 skipped
-.venv/bin/python -m pytest tests/test_moe_expert_quant.py -q     # 6 passed
+.venv/bin/python -m pytest -q                                        # 466 passed, 23 skipped
+.venv/bin/python -m pytest tests/test_moe_expert_quant.py -q         # 15 passed (int8 + int4)
+.venv/bin/python -m pytest tests/test_quantized_block_loading.py -q  # 9 passed (convert_block/get_block_size)
 # spike re-run (slow; MoE block needs ~4GB free)
 PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/quantized_block_spike.py --devices cpu --skip-moe
 # routing contract
 .venv/bin/python -m mvp_capabilities.route_picker --report --selector-mode safe-demo \
   --model Qwen/Qwen3-30B-A3B --synthetic-m4-laptops 10   # override_refused=true, picked=Qwen3-8B
+# quantized 30B planning lane (Moonsong)
+.venv/bin/python -m mvp_capabilities.quantized_route_lane
 .venv/bin/python -m json.tool mvp_capabilities/distributed_evidence/stretch/quantized-block-spike-20260704T203500Z.json >/dev/null
 ```
