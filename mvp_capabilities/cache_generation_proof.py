@@ -42,6 +42,10 @@ def build_cache_generation_plan(
     reference_device: str = "mps",
     reference_dtype: str = "float16",
     distributed_dtype: str = "float16",
+    reference_mode: str = "full-model",
+    checkpoint_model: str | None = None,
+    reference_cache_dir: str | None = None,
+    reference_local_files_only: bool = False,
 ) -> dict[str, Any]:
     plan = build_full_generation_plan(
         model_id=model_id,
@@ -54,6 +58,10 @@ def build_cache_generation_plan(
         reference_device=reference_device,
         reference_dtype=reference_dtype,
         distributed_dtype=distributed_dtype,
+        reference_mode=reference_mode,
+        checkpoint_model=checkpoint_model,
+        reference_cache_dir=reference_cache_dir,
+        reference_local_files_only=reference_local_files_only,
     )
     plan.update(
         {
@@ -100,7 +108,10 @@ def verify_cache_generation_evidence(
     if payload.get("distributed_steps") not in (None, []):
         failed.append("cache_generation evidence should use cached generate API, not forward-loop distributed steps")
     if payload.get("reference_steps") not in (None, []):
-        failed.append("cache_generation evidence should use cached generate API, not forward-loop reference steps")
+        if payload.get("reference_mode") != "streamed-blocks":
+            failed.append("cache_generation full-model reference evidence should use cached generate API, not forward-loop reference steps")
+        elif payload.get("reference_generation_path") != "streamed-forward-loop-correctness-fallback":
+            failed.append("streamed cache_generation reference steps must declare streamed-forward-loop-correctness-fallback")
 
     status = "passed" if not failed else "failed"
     return {
@@ -129,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--evidence", default=".local/cache-generation-evidence.json")
     plan.add_argument("--reference-device", default="mps")
     plan.add_argument("--reference-dtype", default="float16")
+    plan.add_argument("--reference-mode", choices=("full-model", "streamed-blocks"), default="full-model")
+    plan.add_argument("--checkpoint-model", default=None)
+    plan.add_argument("--reference-cache-dir", default=None)
+    plan.add_argument("--reference-local-files-only", action="store_true")
     plan.add_argument("--distributed-dtype", default="float16")
 
     verify = sub.add_parser("verify", help="Verify captured cache-generation parity evidence")
@@ -149,6 +164,10 @@ def main(argv: list[str] | None = None) -> int:
             reference_device=args.reference_device,
             reference_dtype=args.reference_dtype,
             distributed_dtype=args.distributed_dtype,
+            reference_mode=args.reference_mode,
+            checkpoint_model=args.checkpoint_model,
+            reference_cache_dir=args.reference_cache_dir,
+            reference_local_files_only=args.reference_local_files_only,
         )
     else:
         payload = verify_cache_generation_evidence(

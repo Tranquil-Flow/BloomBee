@@ -309,6 +309,7 @@ def main() -> int:
             if args.mode == "generate-api":
                 ref_generated = ref_model.generate(ref_input, **generation_kwargs).detach().cpu()
                 ref_steps = []
+                reference_generation_path = "full-model-generate-api"
             else:
                 ref_generated, ref_steps = _greedy_forward_loop(
                     ref_model,
@@ -316,9 +317,8 @@ def main() -> int:
                     max_new_tokens=args.max_new_tokens,
                     device=args.reference_device,
                 )
+                reference_generation_path = "full-model-forward-loop"
         else:
-            if args.mode != "forward-loop":
-                raise ValueError("streamed-block reference currently supports --mode forward-loop only")
             from scripts.streamed_reference_generation import streamed_forward_logits, streamed_greedy_generate_ids
 
             ref_logits, _ = streamed_forward_logits(
@@ -338,11 +338,13 @@ def main() -> int:
                 device=args.reference_device,
                 local_files_only=args.reference_local_files_only,
             )
+            reference_generation_path = "streamed-forward-loop-correctness-fallback"
     ref_seconds = time.time() - t0
     evidence.update(
         reference_seconds=ref_seconds,
         reference_next_token_id=int(ref_logits.argmax(dim=-1)[0]),
         reference_top5=_topk(ref_logits, 5),
+        reference_generation_path=reference_generation_path,
         reference_steps=ref_steps,
         reference_ids=_ids(ref_generated),
         reference_text=_decode(tokenizer, ref_generated),
