@@ -87,6 +87,9 @@ setup(
         "zstandard>=0.22.0",
     ],  
     extras_require={  
+        "quant": [
+            "optimum-quanto>=0.2.7,<0.3",
+        ],
         "dev": [  
             "pytest>=8.2,<10",  
             "pytest-forked",  
