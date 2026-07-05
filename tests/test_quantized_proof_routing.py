@@ -25,6 +25,7 @@ from mvp_capabilities.route_picker import (
     derive_quantized_variant,
     evaluate_model,
     expand_quantized_variants,
+    load_registry,
     route_report,
 )
 
@@ -141,6 +142,25 @@ def test_expand_quantized_variants_skips_blocked_and_orders_below_fp16():
     # prefer fp16 at equal fit, int8 over nf4
     assert by_id["Qwen/Qwen3-30B-A3B@int8"]["quality_rank"] < QWEN30B["quality_rank"]
     assert by_id["Qwen/Qwen3-30B-A3B@nf4"]["quality_rank"] < by_id["Qwen/Qwen3-30B-A3B@int8"]["quality_rank"]
+
+
+def test_expand_quantized_variants_skips_unsupported_frontier_models_in_registry():
+    registry = load_registry(Path(__file__).resolve().parents[1] / "mvp_capabilities" / "MODEL_REGISTRY.yaml")
+    base_ids = {model["model_id"] for model in registry}
+    frontier_ids = {
+        "MiniMaxAI/MiniMax-M3",
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4-Flash",
+        "moonshotai/Kimi-K2-Instruct",
+    }
+
+    assert frontier_ids <= base_ids
+    variants = expand_quantized_variants(registry)
+    variant_ids = {variant["model_id"] for variant in variants}
+
+    for model_id in frontier_ids:
+        assert f"{model_id}@int8" not in variant_ids
+        assert f"{model_id}@nf4" not in variant_ids
 
 
 def test_route_report_serves_proven_quantized_pin_and_refuses_unproven():

@@ -2232,6 +2232,61 @@ def test_registry_tracks_minimax_m3_as_high_compute_blocked_candidate():
     assert any("sparse attention" in reason.lower() for reason in route["blocked_reasons"])
 
 
+def test_registry_tracks_glm_deepseek_v4_kimi_as_blocked_frontier_candidates():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.route_picker import choose_best_route, load_registry, synthetic_m4_laptops
+
+    registry = load_registry(REGISTRY_PATH)
+    proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
+    by_id = {model["model_id"]: model for model in registry}
+    expected = {
+        "zai-org/GLM-5.2": "glm_moe_dsa",
+        "deepseek-ai/DeepSeek-V4-Flash": "deepseek_v4",
+        "moonshotai/Kimi-K2-Instruct": "kimi_k2",
+    }
+
+    for model_id, hf_model_type in expected.items():
+        model = by_id[model_id]
+        assert model["hf_model_type"] == hf_model_type
+        assert model["architecture_supported"] is False
+        assert model["supports_moe"] is True
+        assert any("No BloomBee block wrapper" in reason for reason in model["blocked_reasons"])
+        assert proof[model_id]["one_block_server"] == "blocked-by-wrapper"
+
+        planning = choose_best_route(
+            synthetic_m4_laptops(count=20, total_gb=128, free_gb=100, prefix="frontier"),
+            registry,
+            requested_model=model_id,
+            proof_status=proof,
+            selector_mode="planning",
+        )
+        assert planning["memory_fit"] is True
+        assert planning["runtime_supported"] is False
+        assert planning["claim_level"] == "blocked"
+        assert planning["selector_allowed"] is True
+
+        showcase = choose_best_route(
+            synthetic_m4_laptops(count=20, total_gb=128, free_gb=100, prefix="frontier"),
+            registry,
+            requested_model=model_id,
+            proof_status=proof,
+            selector_mode="showcase-attempt",
+        )
+        assert showcase["selector_allowed"] is False
+        assert "blocked" in showcase["selector_blocked_reason"].lower()
+
+    assert by_id["zai-org/GLM-5.2"]["num_experts_per_tok"] == 8
+    assert by_id["zai-org/GLM-5.2"]["num_kv_heads"] == 64
+    assert any("Dynamic Sparse Attention" in reason for reason in by_id["zai-org/GLM-5.2"]["blocked_reasons"])
+    assert by_id["deepseek-ai/DeepSeek-V4-Flash"]["quantization_method"] == "fp8"
+    assert by_id["deepseek-ai/DeepSeek-V4-Flash"]["quantization_supported"] is False
+    assert by_id["deepseek-ai/DeepSeek-V4-Flash"]["num_kv_heads"] == 1
+    assert any("FP8" in reason for reason in by_id["deepseek-ai/DeepSeek-V4-Flash"]["blocked_reasons"])
+    assert by_id["moonshotai/Kimi-K2-Instruct"]["quantization_method"] == "fp8"
+    assert by_id["moonshotai/Kimi-K2-Instruct"]["quantization_supported"] is False
+    assert any("trust_remote_code" in reason for reason in by_id["moonshotai/Kimi-K2-Instruct"]["blocked_reasons"])
+
+
 def test_layer_planner_assigns_contiguous_ranges_by_peer_capacity():
     from mvp_capabilities.layer_planner import plan_layer_placement
 

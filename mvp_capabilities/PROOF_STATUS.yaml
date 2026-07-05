@@ -137,3 +137,11 @@ models:
     full_generation: blocked-by-wrapper
     cache_generation: blocked-by-wrapper
     multi_request_load: blocked-by-wrapper
+
+  moonshotai/Kimi-K2-Instruct:
+    prescan: pending
+    one_block_server: blocked-by-wrapper
+    multi_block: blocked-by-wrapper
+    full_generation: blocked-by-wrapper
+    cache_generation: blocked-by-wrapper
+    multi_request_load: blocked-by-wrapper
