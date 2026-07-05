@@ -82,6 +82,10 @@ def build_full_generation_plan(
     evidence_path: str = ".local/full-generation-evidence.json",
     reference_device: str = "mps",
     reference_dtype: str = "float16",
+    reference_mode: str = "full-model",
+    checkpoint_model: str | None = None,
+    reference_cache_dir: str | None = None,
+    reference_local_files_only: bool = False,
     distributed_dtype: str = "float16",
 ) -> dict[str, Any]:
     if not server_maddrs:
@@ -98,9 +102,16 @@ def build_full_generation_plan(
         f"--mode {mode}",
         f"--reference-device {reference_device}",
         f"--reference-dtype {reference_dtype}",
+        f"--reference-mode {reference_mode}",
         f"--distributed-dtype {distributed_dtype}",
         f"--out {evidence_path}",
     ]
+    if checkpoint_model:
+        parts.append(f"--checkpoint-model {_quote(checkpoint_model)}")
+    if reference_cache_dir:
+        parts.append(f"--reference-cache-dir {_quote(reference_cache_dir)}")
+    if reference_local_files_only:
+        parts.append("--reference-local-files-only")
     parts.extend(f"--server-maddr {_quote(item)}" for item in server_maddrs)
     parts.extend(f"--server-placement {_quote(item)}" for item in server_placements)
     parity_command = _shell_join(parts)
@@ -122,6 +133,10 @@ def build_full_generation_plan(
         "prompt": prompt,
         "max_new_tokens": max_new_tokens,
         "mode": mode,
+        "reference_mode": reference_mode,
+        "checkpoint_model": checkpoint_model,
+        "reference_cache_dir": reference_cache_dir,
+        "reference_local_files_only": reference_local_files_only,
         "evidence_path": evidence_path,
         "parity_command": parity_command,
         "verify_command": verify_command,
@@ -202,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     plan.add_argument("--evidence", default=".local/full-generation-evidence.json")
     plan.add_argument("--reference-device", default="mps")
     plan.add_argument("--reference-dtype", default="float16")
+    plan.add_argument("--reference-mode", choices=("full-model", "streamed-blocks"), default="full-model")
+    plan.add_argument("--checkpoint-model", default=None)
+    plan.add_argument("--reference-cache-dir", default=None)
+    plan.add_argument("--reference-local-files-only", action="store_true")
     plan.add_argument("--distributed-dtype", default="float16")
 
     verify = sub.add_parser("verify", help="Verify captured full-generation parity evidence")
@@ -222,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
             evidence_path=args.evidence,
             reference_device=args.reference_device,
             reference_dtype=args.reference_dtype,
+            reference_mode=args.reference_mode,
+            checkpoint_model=args.checkpoint_model,
+            reference_cache_dir=args.reference_cache_dir,
+            reference_local_files_only=args.reference_local_files_only,
             distributed_dtype=args.distributed_dtype,
         )
     else:

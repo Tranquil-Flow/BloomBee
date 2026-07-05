@@ -112,7 +112,7 @@ Do not make both base 30B and Instruct-2507 required for the same post-MVP miles
 1. Run `python -m mvp_capabilities.qwen30b_priority` and confirm the priority order is still base 30B → Instruct-2507 → optional Thinking-2507.
 2. Treat Instruct-2507 prescan, one-block, and multi-block as passed from committed artifacts; do not repeat them unless the cache/model revision changes.
 3. Treat the full 16-shard Instruct-2507 cache as READY and `Instruct-2507@int8` multi-request load as passed from committed evidence.
-4. Solve the fp16 reference-token-parity path before marking full-generation or cache-generation passed.
+4. Use the streamed-block fp16 reference harness for the first full-generation attempt on m4pro (`scripts/text_generation_parity.py --reference-mode streamed-blocks --checkpoint-model <base-model> --reference-cache-dir /Volumes/Seagate\ Portable\ Drive/huggingface/hub --reference-local-files-only`). Keep this as a harness until the live int8 distributed trace exactly matches generated IDs/text.
 5. Keep Instruct-2507 blocked from `safe-demo` until full/cache generation and exact token parity pass.
 6. Only repeat the lower-gate ladder for Thinking-2507 if the demo spec requires reasoning-style behavior.
 

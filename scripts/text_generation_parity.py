@@ -170,6 +170,8 @@ def _greedy_forward_loop(
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+    p.add_argument("--checkpoint-model", default=None,
+                   help="HF checkpoint id/path to load when --model is a route/proof id such as repo/model@int8.")
     p.add_argument("--server-maddr", action="append", required=True,
                    help="BloomBee peer multiaddr. Pass once per peer.")
     p.add_argument("--server-placement", action="append", default=None,
@@ -177,7 +179,13 @@ def main() -> int:
     p.add_argument("--prompt", default="The capital of France is")
     p.add_argument("--max-new-tokens", type=int, default=6)
     p.add_argument("--reference-device", default="mps",
-                   help="Device for the full local reference model: mps/cpu/cuda.")
+                   help="Device for the reference model/streamed blocks: mps/cpu/cuda.")
+    p.add_argument("--reference-mode", choices=("full-model", "streamed-blocks"), default="full-model",
+                   help="full-model loads the whole HF reference; streamed-blocks loads one block at a time.")
+    p.add_argument("--reference-cache-dir", default=None,
+                   help="Optional HF cache dir for streamed-block reference weights.")
+    p.add_argument("--reference-local-files-only", action="store_true",
+                   help="Require streamed reference weights/config to be present locally.")
     p.add_argument("--reference-dtype", type=_dtype, default=torch.float16)
     p.add_argument("--distributed-dtype", type=_dtype, default=torch.float16)
     p.add_argument(
@@ -203,9 +211,13 @@ def main() -> int:
     torch.manual_seed(0)
 
     print(f"[parity] model={args.model}")
+    checkpoint_model = args.checkpoint_model or args.model
+    if checkpoint_model != args.model:
+        print(f"[parity] checkpoint_model={checkpoint_model}")
     print(f"[parity] prompt={args.prompt!r}")
     print(f"[parity] max_new_tokens={args.max_new_tokens}")
     print(f"[parity] mode={args.mode}")
+    print(f"[parity] reference_mode={args.reference_mode}")
     print(f"[parity] server_to_server={not args.no_server_to_server}")
     print(f"[parity] bootstrap peers ({len(args.server_maddr)}):")
     for addr in args.server_maddr:
@@ -217,8 +229,13 @@ def main() -> int:
             print(f"[parity]   {placement['host']} layers {start}:{end}")
 
     print("[parity] loading tokenizer...")
+    checkpoint_load_kwargs: dict[str, Any] = {}
+    if args.reference_cache_dir:
+        checkpoint_load_kwargs["cache_dir"] = args.reference_cache_dir
+    if args.reference_local_files_only:
+        checkpoint_load_kwargs["local_files_only"] = True
     t0 = time.time()
-    tokenizer = transformers.AutoTokenizer.from_pretrained(args.model, use_fast=False)
+    tokenizer = transformers.AutoTokenizer.from_pretrained(checkpoint_model, use_fast=False, **checkpoint_load_kwargs)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
     print(f"[parity]   ... {time.time() - t0:.1f}s")
@@ -227,26 +244,32 @@ def main() -> int:
     input_ids_cpu = encoded["input_ids"]
     print(f"[parity] input_ids={_ids(input_ids_cpu)}")
 
-    print("[parity] loading full local HF reference model...")
-    t0 = time.time()
-    ref_model = transformers.AutoModelForCausalLM.from_pretrained(
-        args.model,
-        torch_dtype=args.reference_dtype,
-        low_cpu_mem_usage=True,
-    ).eval()
-    if args.reference_device != "cpu":
-        ref_model = ref_model.to(args.reference_device)
-    print(f"[parity]   ... {time.time() - t0:.1f}s on {args.reference_device} dtype={args.reference_dtype}")
+    if args.reference_mode == "full-model":
+        print("[parity] loading full local HF reference model...")
+        t0 = time.time()
+        ref_model = transformers.AutoModelForCausalLM.from_pretrained(
+            checkpoint_model,
+            torch_dtype=args.reference_dtype,
+            low_cpu_mem_usage=True,
+            **checkpoint_load_kwargs,
+        ).eval()
+        if args.reference_device != "cpu":
+            ref_model = ref_model.to(args.reference_device)
+        print(f"[parity]   ... {time.time() - t0:.1f}s on {args.reference_device} dtype={args.reference_dtype}")
+    else:
+        ref_model = None
+        print("[parity] using streamed-block reference; no full local HF model will be loaded")
 
     print("[parity] loading BloomBee distributed model shell...")
     t0 = time.time()
     from bloombee import AutoDistributedModelForCausalLM
 
     dist_model = AutoDistributedModelForCausalLM.from_pretrained(
-        args.model,
+        checkpoint_model,
         initial_peers=args.server_maddr,
         torch_dtype=args.distributed_dtype,
         use_server_to_server=not args.no_server_to_server,
+        **checkpoint_load_kwargs,
     ).eval()
     print(f"[parity]   ... {time.time() - t0:.1f}s dtype={args.distributed_dtype}")
 
@@ -260,10 +283,14 @@ def main() -> int:
 
     evidence: dict[str, Any] = {
         "model": args.model,
+        "checkpoint_model": checkpoint_model,
         "prompt": args.prompt,
         "max_new_tokens": args.max_new_tokens,
         "server_maddrs": args.server_maddr,
         "server_placements": server_placements,
+        "reference_mode": args.reference_mode,
+        "reference_cache_dir": args.reference_cache_dir,
+        "reference_local_files_only": args.reference_local_files_only,
         "reference_device": args.reference_device,
         "reference_dtype": str(args.reference_dtype),
         "distributed_dtype": str(args.distributed_dtype),
@@ -275,17 +302,41 @@ def main() -> int:
     print("[parity] local reference forward/decode...")
     t0 = time.time()
     with torch.inference_mode():
-        ref_input = input_ids_cpu.to(args.reference_device)
-        ref_logits = ref_model(ref_input).logits[:, -1, :].detach().float().cpu()
-        if args.mode == "generate-api":
-            ref_generated = ref_model.generate(ref_input, **generation_kwargs).detach().cpu()
-            ref_steps = []
+        if args.reference_mode == "full-model":
+            assert ref_model is not None
+            ref_input = input_ids_cpu.to(args.reference_device)
+            ref_logits = ref_model(ref_input).logits[:, -1, :].detach().float().cpu()
+            if args.mode == "generate-api":
+                ref_generated = ref_model.generate(ref_input, **generation_kwargs).detach().cpu()
+                ref_steps = []
+            else:
+                ref_generated, ref_steps = _greedy_forward_loop(
+                    ref_model,
+                    input_ids_cpu,
+                    max_new_tokens=args.max_new_tokens,
+                    device=args.reference_device,
+                )
         else:
-            ref_generated, ref_steps = _greedy_forward_loop(
-                ref_model,
+            if args.mode != "forward-loop":
+                raise ValueError("streamed-block reference currently supports --mode forward-loop only")
+            from scripts.streamed_reference_generation import streamed_forward_logits, streamed_greedy_generate_ids
+
+            ref_logits, _ = streamed_forward_logits(
+                checkpoint_model,
+                input_ids_cpu,
+                cache_dir=args.reference_cache_dir,
+                dtype=args.reference_dtype,
+                device=args.reference_device,
+                local_files_only=args.reference_local_files_only,
+            )
+            ref_generated, ref_steps = streamed_greedy_generate_ids(
+                checkpoint_model,
                 input_ids_cpu,
                 max_new_tokens=args.max_new_tokens,
+                cache_dir=args.reference_cache_dir,
+                dtype=args.reference_dtype,
                 device=args.reference_device,
+                local_files_only=args.reference_local_files_only,
             )
     ref_seconds = time.time() - t0
     evidence.update(

@@ -279,11 +279,15 @@ Remaining Task 5 work: exact full/cache generation parity. The current
 `text_generation_parity.py` verifier loads a full local fp16 HF reference
 while the distributed server is live. The fp16 30B requirement (route planner:
 70 GB class) exceeds m4pro's ~48 GB unified memory / ~37 GB free, so this
-must remain fail-closed until there is a credible reference path (for example a
-larger host, a separately recorded fp16 reference trace, or a test-backed
-streaming/offloaded reference mode that still represents the fp16 baseline). Do
-not write `token_parity: exact` or mark `full_generation`/`cache_generation`
-passed from the load-only artifacts above.
+remained fail-closed until a credible reference path existed. The repo now has a
+test-backed streamed-block reference harness (`scripts/streamed_reference_generation.py`
+plus `scripts/text_generation_parity.py --reference-mode streamed-blocks`) that
+loads the outer weights plus one fp16 BloomBee block at a time and can compare a
+quantized route id (`model@int8`) against a base checkpoint id. This is still
+only a harness until a live distributed int8 server trace passes exact token-ID
+comparison; do not write `token_parity: exact` or mark `full_generation` /
+`cache_generation` passed from load-only artifacts or from a reference trace
+without distributed comparison.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15
