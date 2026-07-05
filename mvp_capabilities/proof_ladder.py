@@ -15,10 +15,26 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import (
+        DEFAULT_PROOF_STATUS,
+        DEMO_SAFE_GATES,
+        PROOF_KEYS,
+        TOKEN_PARITY_KEY,
+        is_demo_safe,
+        load_proof_status,
+        split_route_id,
+    )
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/proof_ladder.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import (
+        DEFAULT_PROOF_STATUS,
+        DEMO_SAFE_GATES,
+        PROOF_KEYS,
+        TOKEN_PARITY_KEY,
+        is_demo_safe,
+        load_proof_status,
+        split_route_id,
+    )
 
 CLAIM_BOUNDARY = "proof_ladder_audit_only_no_inference_proof"
 FALLBACK_LADDER = (
@@ -26,6 +42,7 @@ FALLBACK_LADDER = (
     "Qwen/Qwen3-8B",
     "Qwen/Qwen3-14B",
     "Qwen/Qwen3-30B-A3B",
+    "Qwen/Qwen3-30B-A3B@int8",
     "Qwen/Qwen3-30B-A3B-Instruct-2507",
     "Qwen/Qwen3-30B-A3B-Thinking-2507",
 )
@@ -48,15 +65,15 @@ def _default_status() -> dict[str, str]:
     return {gate: "pending" for gate in PROOF_KEYS}
 
 
-# Must stay aligned with route_picker.DEMO_SAFE_GATES: demo_safe requires
-# generation, cached-generation parity, and repeated-request load proof.
-DEMO_SAFE_GATES = ("full_generation", "cache_generation", "multi_request_load")
+# DEMO_SAFE_GATES is imported from model_compat_scan — the single policy home
+# shared with route_picker. Quantized rows (model_id@int8 / @nf4) additionally
+# require token_parity: exact; is_demo_safe encodes both rules.
 
 
-def _claim_level(status: dict[str, str]) -> str:
+def _claim_level(status: dict[str, str], *, quant_type: str | None = None) -> str:
     if any(_status_is_blocked(value) for value in status.values()):
         return "blocked"
-    if all(status.get(gate) == "passed" for gate in DEMO_SAFE_GATES):
+    if is_demo_safe(status, quant_type=quant_type):
         return "demo_safe"
     return "experimental"
 
@@ -75,6 +92,7 @@ def build_proof_ladder(
     if proof_status and model_id in proof_status:
         merged.update({str(key): str(value) for key, value in proof_status[model_id].items()})
 
+    base_model_id, quant_type = split_route_id(model_id)
     gates = [
         {
             "name": gate,
@@ -86,10 +104,18 @@ def build_proof_ladder(
         for gate in PROOF_KEYS
     ]
     next_gate = next((gate["name"] for gate in gates if gate["status"] != "passed"), None)
-    claim_level = _claim_level(merged)
+    claim_level = _claim_level(merged, quant_type=quant_type)
+    token_parity = merged.get(TOKEN_PARITY_KEY) if quant_type else None
+    if quant_type and next_gate is None and token_parity != "exact":
+        # all gates passed but the parity fact is missing/diverged: that IS
+        # the next thing standing between this row and demo_safe
+        next_gate = TOKEN_PARITY_KEY
 
     return {
         "model_id": model_id,
+        "base_model_id": base_model_id,
+        "quant_type": quant_type,
+        "token_parity": token_parity,
         "claim_boundary": CLAIM_BOUNDARY,
         "claim_level": claim_level,
         "safe_demo_selectable": claim_level == "demo_safe",

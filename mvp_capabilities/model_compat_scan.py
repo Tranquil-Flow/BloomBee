@@ -43,6 +43,41 @@ PROOF_KEYS = (
     "multi_request_load",
 )
 
+# Quantized proof rows are keyed "<model_id>@<quant_type>" (plain id == fp16)
+# and NEVER inherit fp16 gates. This is the single home of the demo-safe
+# policy; route_picker and proof_ladder import it rather than redefining it.
+QUANT_TYPES = ("int8", "nf4")
+DEMO_SAFE_GATES = ("full_generation", "cache_generation", "multi_request_load")
+TOKEN_PARITY_KEY = "token_parity"
+
+
+def split_route_id(route_id: str) -> tuple[str, str | None]:
+    """Split ``model_id@quant_type`` into ``(model_id, quant_type)``.
+
+    Unknown ``@suffix`` values are NOT treated as quant markers: the id stays
+    whole, so a typo'd suffix becomes an unknown (all-pending) row instead of
+    silently aliasing the fp16 row.
+    """
+    base, sep, suffix = str(route_id).rpartition("@")
+    if sep and suffix in QUANT_TYPES:
+        return base, suffix
+    return str(route_id), None
+
+
+def is_demo_safe(status: dict[str, str], *, quant_type: str | None = None) -> bool:
+    """demo_safe requires generation + cached-generation parity + load proof.
+
+    Quantized rows additionally require ``token_parity: exact`` — an exact
+    greedy token-ID match against the fp16 reference on the demo prompt set.
+    ``diverged`` or absent parity caps the row below demo_safe regardless of
+    gate status (no "close enough" promotions).
+    """
+    if not all(status.get(gate) == "passed" for gate in DEMO_SAFE_GATES):
+        return False
+    if quant_type is not None and status.get(TOKEN_PARITY_KEY) != "exact":
+        return False
+    return True
+
 
 def _read_config(source: str | Path, *, local_files_only: bool = True) -> dict[str, Any]:
     """Read a config dict from config.json, a model dir, or a HF model id."""
@@ -85,10 +120,11 @@ def _claim_level(
     architecture_supported: bool,
     proof_status: dict[str, str],
     runtime_blocked_reasons: list[str] | None = None,
+    quant_type: str | None = None,
 ) -> str:
     if not architecture_supported or runtime_blocked_reasons:
         return "blocked"
-    if proof_status.get("full_generation") == "passed":
+    if is_demo_safe(proof_status, quant_type=quant_type):
         return "demo_safe"
     return "experimental"
 
@@ -188,6 +224,7 @@ def scan_model_config(
             architecture_supported=architecture_supported,
             proof_status=merged_proof,
             runtime_blocked_reasons=blocked_reasons,
+            quant_type=split_route_id(model_id)[1] if model_id else None,
         ),
         "blocked_reasons": blocked_reasons,
     }

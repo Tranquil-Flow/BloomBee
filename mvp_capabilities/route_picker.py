@@ -17,11 +17,29 @@ from typing import Any
 import yaml
 
 try:
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, SUPPORTED_FAMILIES, load_proof_status
+    from mvp_capabilities.model_compat_scan import (
+        DEFAULT_PROOF_STATUS,
+        DEMO_SAFE_GATES,
+        PROOF_KEYS,
+        QUANT_TYPES,
+        SUPPORTED_FAMILIES,
+        is_demo_safe,
+        load_proof_status,
+        split_route_id,
+    )
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/route_picker.py
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, PROOF_KEYS, SUPPORTED_FAMILIES, load_proof_status
+    from mvp_capabilities.model_compat_scan import (
+        DEFAULT_PROOF_STATUS,
+        DEMO_SAFE_GATES,
+        PROOF_KEYS,
+        QUANT_TYPES,
+        SUPPORTED_FAMILIES,
+        is_demo_safe,
+        load_proof_status,
+        split_route_id,
+    )
     from mvp_capabilities.swarm_roster import DEFAULT_CAP_DIR, load_roster
 
 
@@ -142,6 +160,82 @@ def _model_required_gb(model: dict[str, Any]) -> float:
         return 0.0
 
 
+# Weight-memory divisors vs the fp16 requirement, derived from the quantized
+# loading lane: int8 measured 1.996x on the real-dim Qwen3-MoE block (planned
+# conservatively as /2.0); nf4 packs experts ~3.88x but attention stays qint8,
+# so /3.5 is the conservative whole-block floor. Registry entries may override
+# with explicit `int8_min_free_mem_gb` / `nf4_min_free_mem_gb` fields.
+QUANT_MEMORY_DIVISORS = {"int8": 2.0, "nf4": 3.5}
+
+
+def derive_quantized_variant(model: dict[str, Any], quant_type: str) -> dict[str, Any]:
+    """Build a quantized route candidate ``model_id@quant_type`` from a
+    registry model.
+
+    The variant carries its own memory requirement and its own (initially
+    all-pending) proof row; explicit proof/claim fields from the base model
+    are dropped so fp16 evidence can never leak into the quantized route.
+    """
+    if quant_type not in QUANT_TYPES:
+        raise ValueError(f"unknown quant_type={quant_type!r}; expected one of {QUANT_TYPES}")
+    base = _annotate_architecture_support(dict(model))
+    base_id = str(base.get("model_id"))
+
+    variant = dict(base)
+    variant.pop("proof_status", None)  # never inherit fp16 proof evidence
+    variant.pop("claim_level", None)
+    variant["model_id"] = f"{base_id}@{quant_type}"
+    variant["base_model_id"] = base_id
+    variant["quant_type"] = quant_type
+    variant["mvp_target"] = False
+    variant["stretch_target"] = False
+
+    override = base.get(f"{quant_type}_min_free_mem_gb")
+    if override:
+        required = float(override)
+    else:
+        required = round(_model_required_gb(base) / QUANT_MEMORY_DIVISORS[quant_type], 1)
+    variant["recommended_min_free_mem_gb"] = required
+    variant["min_total_mem_gb"] = required
+
+    # Prefer fp16 when both fit, and int8 over nf4: quantization trades
+    # quality for memory, never the reverse.
+    rank = float(base.get("quality_rank") or 0.0)
+    variant["quality_rank"] = rank - (0.001 if quant_type == "int8" else 0.002)
+
+    blocked = list(base.get("blocked_reasons") or [])
+    if quant_type == "nf4" and base.get("hf_model_type") != "qwen3_moe":
+        blocked.append(
+            "NF4 is only servable for qwen3_moe fused-expert blocks; dense int4 "
+            "loading is fail-closed in convert_block.quantize_hf_block"
+        )
+    if blocked:
+        variant["blocked_reasons"] = blocked
+    return variant
+
+
+def expand_quantized_variants(registry: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Derive the servable quantized route candidates for a registry.
+
+    int8 applies to every architecture-supported model (dense quanto qint8 or
+    MoE expert swap); nf4 only to qwen3_moe. Blocked/unsupported base models
+    get no variants — quantization cannot unblock a missing wrapper.
+    """
+    variants: list[dict[str, Any]] = []
+    for model in registry:
+        annotated = _annotate_architecture_support(dict(model))
+        if annotated.get("architecture_supported") is False:
+            continue
+        if annotated.get("blocked_reasons"):
+            continue
+        if _quant_type_for(annotated):
+            continue  # already a quantized variant; do not stack suffixes
+        variants.append(derive_quantized_variant(annotated, "int8"))
+        if annotated.get("hf_model_type") == "qwen3_moe":
+            variants.append(derive_quantized_variant(annotated, "nf4"))
+    return variants
+
+
 def _bench_score(model: dict[str, Any], bench_matrix: dict[str, Any] | None) -> float:
     if not bench_matrix:
         return 0.0
@@ -183,9 +277,16 @@ def _status_is_blocked(value: object) -> bool:
 
 # A model is demo_safe only when generation is proven end-to-end AND cached
 # generation parity AND repeated-request load behavior are proven for the
-# exact model id. full_generation alone is not enough: cache paths and load
-# stability fail independently of one-shot generation.
-DEMO_SAFE_GATES = ("full_generation", "cache_generation", "multi_request_load")
+# exact route id (quantized routes carry their own row and additionally need
+# token_parity: exact). DEMO_SAFE_GATES/is_demo_safe live in model_compat_scan
+# so proof_ladder and this module cannot drift apart.
+
+
+def _quant_type_for(model: dict[str, Any]) -> str | None:
+    explicit = model.get("quant_type")
+    if explicit:
+        return str(explicit)
+    return split_route_id(str(model.get("model_id") or ""))[1]
 
 
 def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
@@ -198,7 +299,7 @@ def _claim_level_for(model: dict[str, Any], status: dict[str, str]) -> str:
         return "blocked"
     if any(_status_is_blocked(value) for value in status.values()):
         return "blocked"
-    if all(status.get(gate) == "passed" for gate in DEMO_SAFE_GATES):
+    if is_demo_safe(status, quant_type=_quant_type_for(model)):
         return "demo_safe"
     return "experimental"
 
@@ -265,6 +366,8 @@ def evaluate_model(
 
     return {
         "model_id": model.get("model_id"),
+        "base_model_id": model.get("base_model_id") or split_route_id(str(model.get("model_id") or ""))[0],
+        "quant_type": _quant_type_for(model),
         "supported": memory_fit,
         "memory_fit": memory_fit,
         "architecture_supported": architecture_supported,
@@ -329,7 +432,10 @@ def choose_best_route(
     bench_matrix: dict[str, Any] | None = None,
     proof_status: dict[str, dict[str, str]] | None = None,
     selector_mode: str = "planning",
+    include_quantized: bool = False,
 ) -> dict[str, Any]:
+    if include_quantized:
+        registry = list(registry) + expand_quantized_variants(registry)
     if requested_model:
         for model in registry:
             if model.get("model_id") == requested_model:
@@ -404,6 +510,7 @@ def explain_route(
     bench_matrix: dict[str, Any] | None = None,
     proof_status: dict[str, dict[str, str]] | None = None,
     selector_mode: str = "planning",
+    include_quantized: bool = False,
 ) -> dict[str, Any]:
     """Return the picked route plus full evidence for every candidate.
 
@@ -412,6 +519,8 @@ def explain_route(
     whether measured bench data changed the outcome, and which proof gate made a
     candidate selectable for the requested mode.
     """
+    if include_quantized:
+        registry = list(registry) + expand_quantized_variants(registry)
     candidates: list[dict[str, Any]] = [
         evaluate_model(
             peers,
@@ -488,12 +597,17 @@ def route_report(
     bench_matrix: dict[str, Any] | None = None,
     proof_status: dict[str, dict[str, str]] | None = None,
     selector_mode: str = "planning",
+    include_quantized: bool = True,
 ) -> dict[str, Any]:
     """Return auto-pick plus requested-model serving/refusal metadata.
 
     ``explain_route`` answers "what would the router pick?". This report also
     answers "what did the operator pin, can we serve that pin under the selected
     mode, and if not what will actually be served?" No inference is run here.
+
+    Quantized route variants (``model_id@int8`` / ``@nf4``) are first-class
+    candidates and pins here by default; they carry their own proof rows and
+    stay fail-closed until those rows pass.
     """
     auto = explain_route(
         peers,
@@ -502,6 +616,7 @@ def route_report(
         bench_matrix=bench_matrix,
         proof_status=proof_status,
         selector_mode=selector_mode,
+        include_quantized=include_quantized,
     )
     best_available = dict(auto.get("picked") or {})
     requested_evaluation: dict[str, Any] | None = None
@@ -520,6 +635,7 @@ def route_report(
             bench_matrix=bench_matrix,
             proof_status=proof_status,
             selector_mode=selector_mode,
+            include_quantized=include_quantized,
         )
         requested_evaluation = dict(requested.get("picked") or {})
         requested_supported = requested_evaluation.get("supported") is True

@@ -4,8 +4,15 @@
 #
 # Fit math and benchmark quality are not enough for `demo_safe`. A model must
 # pass full_generation AND cache_generation AND multi_request_load before
-# safe-demo mode can auto-select it (route_picker.DEMO_SAFE_GATES).
+# safe-demo mode can auto-select it (model_compat_scan.DEMO_SAFE_GATES).
 # Unknown or omitted gates default to `pending` in model_compat_scan.py.
+#
+# Quantized rows are keyed "<model_id>@<quant_type>" (int8 / nf4). They NEVER
+# inherit the fp16 row's gates, and demo_safe additionally requires
+# `token_parity: exact` — exact greedy token-ID match vs the fp16 reference
+# on the demo prompt set. `token_parity: diverged` (record first-divergence
+# position in the evidence artifact) caps the row at showcase-attempt.
+# Quantized proofs must never update the plain fp16 row.
 # ----------------------------------------------------------------------
 
 models:
@@ -37,6 +44,16 @@ models:
     prescan: passed
     one_block_server: passed
     multi_block: passed
+    full_generation: pending
+    cache_generation: pending
+    multi_request_load: pending
+
+  # int8 serving lane (moe_int8_experts + qint8 attn via --quant_type INT8).
+  # Deliberately all-pending: the fp16 lower gates above do not transfer.
+  Qwen/Qwen3-30B-A3B@int8:
+    prescan: pending
+    one_block_server: pending
+    multi_block: pending
     full_generation: pending
     cache_generation: pending
     multi_request_load: pending

@@ -20,11 +20,11 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from mvp_capabilities.model_compat_scan import PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import PROOF_KEYS, is_demo_safe, load_proof_status
     from mvp_capabilities.route_picker import DEFAULT_REGISTRY, evaluate_model, load_registry
 except ModuleNotFoundError:  # direct script execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from mvp_capabilities.model_compat_scan import PROOF_KEYS, load_proof_status
+    from mvp_capabilities.model_compat_scan import PROOF_KEYS, is_demo_safe, load_proof_status
     from mvp_capabilities.route_picker import DEFAULT_REGISTRY, evaluate_model, load_registry
 
 MODEL_ID = "Qwen/Qwen3-30B-A3B"
@@ -110,7 +110,8 @@ def _next_gate(status: dict[str, str]) -> str | None:
 
 
 def _demo_safe(status: dict[str, str]) -> bool:
-    return all(status.get(gate) == "passed" for gate in ("full_generation", "cache_generation", "multi_request_load"))
+    # Shared policy: quantized rows also need token_parity: exact.
+    return is_demo_safe(status, quant_type=QUANT_TYPE)
 
 
 def _find_model(registry: list[dict[str, Any]], model_id: str) -> dict[str, Any]:
