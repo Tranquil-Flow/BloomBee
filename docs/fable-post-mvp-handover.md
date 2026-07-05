@@ -220,9 +220,12 @@ source .venv/bin/activate
 .venv/bin/python scripts/fable_handoff_check.py
 .venv/bin/python scripts/fable_handoff_check.py --remote-download
 .venv/bin/python scripts/instruct2507_cache_readiness.py --remote
+.venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness
 ```
 
 `instruct2507_cache_readiness.py` returns `READY` only when required sidecars plus all expected shards are present in the Seagate snapshot. Its claim boundary is `cache_download_readiness_only_no_generation_or_load_proof`, so it does not prove full generation, cache generation, or load.
+
+`instruct2507_full_generation_gate.py` is the next broom pass after readiness: it emits the real `run_server`, `text_generation_parity.py`, and `full_generation_proof.py verify` commands for Instruct-2507, but its claim boundary is `instruct2507_full_generation_gate_plan_only_no_live_generation`; it refuses `ready_to_attempt_full_generation=true` until cache readiness is green and a real server multiaddr is provided.
 
 Then run the deeper checks if reviewing source/test integrity:
 
@@ -239,8 +242,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Grunt-filter/checker/cache-readiness/docs-coherence focused suite: `10 passed, 1 warning`.
-- Unfiltered default suite after the Fable cache-readiness helper: `437 passed, 23 skipped, 4 warnings`.
+- Grunt-filter/checker/cache-readiness/full-generation-gate/docs-coherence focused suite: `15 passed, 1 warning`.
+- Unfiltered default suite after the Instruct-2507 gate planner: `442 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
@@ -350,7 +353,7 @@ Additional low-grunt remote readiness check before Fable unlock:
 m4pro identity: user=evinova-self, host=m4pro, project_exists=true
 Seagate APFS cache: /Volumes/Seagate Portable Drive/huggingface/hub writable
 Qwen/Qwen3-30B-A3B cache: migrated to Seagate, 16 safetensors, 0 incomplete, internal duplicate removed
-Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` for READY/BLOCKED cache state and `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for the combined handoff pulse before starting any expensive proof gate.
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` for READY/BLOCKED cache state, `.venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness` for the guarded full-generation runbook, and `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for the combined handoff pulse before starting any expensive proof gate.
 Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 

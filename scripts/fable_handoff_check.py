@@ -59,8 +59,10 @@ REQUIRED_HANDOFF_PHRASES = (
     "staged-root `curl | dd`",
     "instruct2507-full-download",
     "scripts/instruct2507_cache_readiness.py --remote",
+    "scripts/instruct2507_full_generation_gate.py --remote-readiness",
     "cache_download_readiness_only_no_generation_or_load_proof",
-    "437 passed, 23 skipped, 4 warnings",
+    "instruct2507_full_generation_gate_plan_only_no_live_generation",
+    "442 passed, 23 skipped, 4 warnings",
     "Do **not** claim from this artifact",
 )
 
@@ -86,6 +88,7 @@ DO_NOT_SPEND_FABLE_TOKENS_ON = (
     "Checking whether the live batching unit artifact claims speedup; this checker enforces negative flags.",
     "Manually hunting for the key evidence paths; this checker verifies them directly.",
     "Counting Instruct-2507 shards by hand; scripts/instruct2507_cache_readiness.py reports readiness and proof flags.",
+    "Assembling the Instruct-2507 full-generation runbook from scratch; scripts/instruct2507_full_generation_gate.py emits the guarded commands.",
 )
 
 
