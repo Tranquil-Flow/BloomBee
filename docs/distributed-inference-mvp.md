@@ -177,8 +177,11 @@ tracked in `docs/mvp-finish-plan.md`, and the post-MVP task scope is tracked in
   proof-gated demo-safe selection.
 - `MODEL_REGISTRY.yaml` includes the prepared core-dream Qwen3-MoE variants
   `Qwen/Qwen3-30B-A3B-Instruct-2507` and
-  `Qwen/Qwen3-30B-A3B-Thinking-2507` with pending proof gates; they are not
-  safe-demo candidates until full distributed generation passes.
+  `Qwen/Qwen3-30B-A3B-Thinking-2507`. Instruct-2507 now has exact-model
+  prescan, one-block, and two-server multi-block `0:2` proofs on the Seagate
+  APFS cache, but it is not a safe-demo candidate until full distributed
+  generation, cached generation, and multi-request load pass. Thinking-2507
+  remains optional/pending.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
   exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`,
@@ -359,11 +362,11 @@ Verified gates now include:
 - three-peer cached `.generate()` parity with S2S enabled by default as an
   opportunistic optimization plus direct client fallback,
 - one-block Qwen3-30B-A3B MoE live-server shard proof on M4 Pro,
-- two-server Qwen3-30B-A3B MoE multi-block `0:2` direct RPC proof on M4 Pro.
+- two-server Qwen3-30B-A3B MoE multi-block `0:2` direct RPC proof on M4 Pro,
+- Seagate-backed Qwen3-30B-A3B-Instruct-2507 prescan + one-block proof,
+- Seagate-backed Qwen3-30B-A3B-Instruct-2507 two-server multi-block `0:2` direct RPC proof (`mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json`).
 
-Next verification gates are Qwen3-30B-A3B full-generation/cache/load proofs,
-two-laptop cached `.generate()` with S2S/default fallback, and the physical
-10-laptop showcase.
+Next verification gates are Qwen3-30B-A3B and Instruct-2507 full-generation/cache/load proofs, two-laptop cached `.generate()` with S2S/default fallback, and any future 10-laptop physical showcase expansion beyond the already-closed MVP-core proof.
 
 ### Verified distributed-server boot on M4 Pro (2026-07-02 ~21:52)
 
@@ -400,9 +403,9 @@ environment problem, not a code correctness problem.
 ## No-overclaiming rules
 
 - Do not claim 10 physical laptops have run until the showcase test happens.
-- Do not claim full Qwen3-30B-A3B distributed generation works until the full
+- Do not claim full Qwen3-30B-A3B or Instruct-2507 distributed generation works until each exact model's full
   generation/cache/load ladder passes. Two-server `0:2` multi-block serving is
-  proven; full-model distributed generation is not.
+  proven for both exact model IDs; full-model distributed generation is not.
 - Do not claim a server gate is complete from registry fit alone; fit prediction is not inference proof.
 - Do not claim quantized checkpoints are BloomBee-runnable just because HF/vLLM/
   SGLang/llama.cpp can serve them. Current BloomBee HF-block loading expects

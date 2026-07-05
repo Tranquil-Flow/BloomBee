@@ -40,10 +40,10 @@ The Qwen3-30B-family ordering is now encoded in a test-backed audit helper:
 Use this order unless Fable finds a concrete reason to change it:
 
 1. `Qwen/Qwen3-30B-A3B` — substrate/risk reducer; already has prescan + one-block + multi-block proof, next gate `full_generation`.
-2. `Qwen/Qwen3-30B-A3B-Instruct-2507` — user-facing follow-up after base 30B full/cache/load behavior is understood; next gate `prescan`.
+2. `Qwen/Qwen3-30B-A3B-Instruct-2507` — user-facing follow-up with exact-model prescan + one-block + multi-block now passed; next gate `full_generation`.
 3. `Qwen/Qwen3-30B-A3B-Thinking-2507` — optional reasoning variant; do not spend proof budget unless the demo specifically needs thinking/reasoning behavior.
 
-Do not make both base 30B and 2507 required for the same post-MVP milestone. Exact 2507 model IDs still need prescan + one-block before route selection.
+Do not make both base 30B and Instruct-2507 required for the same post-MVP milestone. Exact 2507 lower gates are now proven for Instruct only; full-generation/cache/load remain required before route/demo promotion.
 
 ---
 
@@ -97,24 +97,24 @@ Do not make both base 30B and 2507 required for the same post-MVP milestone. Exa
 
 ---
 
-### Task 3: Scope Qwen3-30B-A3B Instruct-2507 first; keep Thinking-2507 optional
+### Task 3: Advance Qwen3-30B-A3B Instruct-2507 after lower-gate proof
 
-**Objective:** Turn the user-facing Instruct-2507 checkpoint from a shelf entry into a measured candidate, while keeping Thinking-2507 deferred unless the demo specifically needs reasoning behavior.
+**Objective:** Use the completed Seagate-backed Instruct-2507 lower gates as the starting point for full-generation/cache/load proof, while keeping Thinking-2507 deferred unless the demo specifically needs reasoning behavior.
 
 **Files:**
-- Modify: `mvp_capabilities/MODEL_REGISTRY.yaml`
 - Modify: `mvp_capabilities/PROOF_STATUS.yaml`
-- Add evidence: `mvp_capabilities/distributed_evidence/qwen30b-2507/<model>-prescan-<timestamp>.json`
+- Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-oneblock-proof-20260704T222230Z.json`
+- Existing evidence: `mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json`
+- Future evidence: `mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-full-generation-<timestamp>.json`
 - Test: `tests/test_mvp_capabilities.py`
 
 **Steps:**
 1. Run `python -m mvp_capabilities.qwen30b_priority` and confirm the priority order is still base 30B → Instruct-2507 → optional Thinking-2507.
-2. Run prescan against `Qwen/Qwen3-30B-A3B-Instruct-2507` first.
-3. Record exact `model_type`, layer count, hidden size, expert count, and top-k routing.
-4. Run one-block live server proof before any multi-block attempt.
+2. Treat Instruct-2507 prescan, one-block, and multi-block as passed from committed artifacts; do not repeat them unless the cache/model revision changes.
+3. Finish the full Instruct-2507 Seagate cache download before full-generation or cache-generation proof.
+4. Run full-generation parity before cache-generation or multi-request load.
 5. Keep Instruct-2507 blocked from `safe-demo` until full/cache/load gates pass.
-6. Add tests that Instruct-2507 route selection reports pending proof blockers.
-7. Only repeat the same prescan/one-block ladder for Thinking-2507 if the demo spec requires reasoning-style behavior.
+6. Only repeat the lower-gate ladder for Thinking-2507 if the demo spec requires reasoning-style behavior.
 
 **Verification command:**
 

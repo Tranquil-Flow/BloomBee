@@ -105,18 +105,18 @@ These do **not** block MVP 100%, but they remain tracked:
 |---|---:|---|
 | `qwen35b_candidate` | blocked after scout | Config-only scout complete at `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`; write/import-dispatch tests for `qwen3_5_moe` / `qwen3_5_moe_text` before wrapper code or selection. |
 | `minimax_m3_candidate` | blocked after spike | LayerExecutor/quantized feasibility spike complete; still needs runnable backend proof or native `minimax_m3_vl` + sparse-attention wrapper/kernels. |
-| `continuous_batching` | pending | Build live batching proof harness after MVP correctness. |
-| `kv_prefix_reuse` | pending | Build prefix-cache correctness/timing proof after cache-generation remains stable. |
+| `continuous_batching` | partial | Deterministic scheduler/planner proof exists; wire into live request loop behind opt-in flag, then prove parity and throughput. |
+| `kv_prefix_reuse` | partial | Deterministic prefix planner proof exists; wire into real prefill/session cache metadata, then prove parity and timing. |
 
 Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 
 | Workstream | Current progress | Next proof |
 |---|---:|---|
-| Qwen3-30B-A3B proof ladder | 35% | full-generation parity, then cache-generation, then multi-request load. |
-| Qwen3-30B-A3B 2507 variants | scoped / pending | prescan + one-block proof per exact model ID. |
+| Qwen3-30B-A3B proof ladder | 55% | base and Instruct-2507 lower gates are proven; next full-generation parity, then cache-generation, then multi-request load. |
+| Qwen3-30B-A3B Instruct-2507 | lower gates passed | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full-generation/cache/load remain pending. |
 | Live chain scheduler | scoped / pending | live request artifact with `verified_chain_scheduler_live_request_evidence`. |
-| Continuous batching | pending | concurrent request proof with correctness + throughput telemetry. |
-| KV prefix reuse | pending | exact-token/logit parity plus timing delta against no-reuse baseline. |
+| Continuous batching | partial | live request artifact with correctness + throughput telemetry behind opt-in integration. |
+| KV prefix reuse | partial | exact-token/logit parity plus timing delta against no-reuse baseline. |
 | Phone draft-provider wall-clock | partial | live phone token transport into verifier plus faster-than-baseline wall-clock gate. |
 | Android/Termux capability fidelity | partial | richer peer scan memory/storage reporting without block-serving overclaim. |
 | qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper blocked | `qwen-agentworld-35b-wrapper-scout-20260704.json` proves the text tower alternates `linear_attention`/`full_attention`; write RED import/config-dispatch tests before wrapper code. |

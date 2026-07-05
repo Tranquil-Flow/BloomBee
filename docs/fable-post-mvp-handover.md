@@ -185,8 +185,9 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Focused MVP/dashboard/config suite: `190 passed, 1 warning`.
-- Unfiltered default suite: `386 passed, 23 skipped, 4 warnings`.
+- Focused Instruct-2507/Qwen30B/status tests: `4 passed, 1 warning`.
+- Broad MVP/status/dashboard/redaction suite: `203 passed, 1 warning`.
+- Unfiltered default suite after Instruct-2507 multi-block: `421 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:
@@ -223,21 +224,22 @@ docs/post-mvp-scope.md
 Current task summary from `mvp_status.py`:
 
 ```text
-complete: 9
-partial: 4
-pending: 2
-blocked: 2
+complete: 10
+partial: 6
+pending: 0
+blocked: 1
 total: 17
+post_mvp: complete 1, partial 6, pending 0, blocked 1, total 8
 ```
 
 Post-MVP workstreams to review and possibly reorder:
 
 | Workstream | Current state | Main risk | Suggested next action |
 |---|---:|---|---|
-| Qwen3-30B-A3B full/cache/load | partial/proven lower gates | expensive proof ladder may distract from usability | Finish base 30B full-generation first only if enough compute/time; keep separate from MVP-core. |
-| Qwen3-30B-A3B Instruct/Thinking 2507 | registered, proof pending | same architecture but exact model IDs unproven | Prescan Instruct-2507, then one-block proof before any demo route. Thinking-2507 can wait unless we specifically need reasoning behavior. |
-| Continuous batching | pending | throughput claims can hide correctness regressions | Build fail-closed proof harness with correctness+latency, start on Qwen3-8B/TinyLlama. |
-| KV prefix reuse | pending | cache reuse can silently change outputs | Require exact-token/logit parity plus timing delta. |
+| Qwen3-30B-A3B full/cache/load | partial/proven lower gates | expensive proof ladder may distract from usability | Base 30B has prescan/one-block/multi-block; finish full-generation first only if enough compute/time, then cache/load. |
+| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running on Seagate for the future full-generation gate. |
+| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof exists; next wire into live request loop behind opt-in flag, prove parity, then measure wall-clock throughput. |
+| KV prefix reuse | partial | cache reuse can silently change outputs | Deterministic prefix planner proof exists; next wire into real prefill/session cache metadata and require exact-token/logit parity plus timing delta. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
 | qwen3_5_moe / AgentWorld-35B | config-only scout complete; wrapper still blocked | text tower uses alternating linear_attention/full_attention plus mRoPE/linear-attention fields, so qwen3_moe wrapper copy is unsafe | Write RED import/config-dispatch tests for qwen3_5_moe/qwen3_5_moe_text before wrapper code or live proof. |
@@ -279,9 +281,9 @@ Qwen/Qwen3-30B-A3B:
   next gate: full_generation
 
 Qwen/Qwen3-30B-A3B-Instruct-2507:
-  lower gates passed: none
-  next gate: prescan
-  wait until base gates understood: full_generation, cache_generation, multi_request_load
+  lower gates passed: prescan, one_block_server, multi_block
+  next gate: full_generation
+  wait before route/demo promotion: full_generation, cache_generation, multi_request_load
 
 Qwen/Qwen3-30B-A3B-Thinking-2507:
   lower gates passed: none
@@ -293,21 +295,21 @@ Additional low-grunt remote readiness check before Fable unlock:
 
 ```text
 m4pro identity: user=evinova-self, host=m4pro, project_exists=true
-m4pro estimated available memory: 36.94 GB
-Qwen/Qwen3-30B-A3B cache: present, config present, 16 safetensors, ~61.08 GB seen, snapshot ad44e777bcd18fa416d9da3bd8f70d33ebb85d39
-Qwen/Qwen3-30B-A3B-Instruct-2507 cache: absent
-Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent
+Seagate APFS cache: /Volumes/Seagate Portable Drive/huggingface/hub writable
+Qwen/Qwen3-30B-A3B cache: migrated to Seagate, 16 safetensors, 0 incomplete, internal duplicate removed
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present, 1/16 shard committed for lower gates; full download now running in tmux `instruct2507-full-download`
+Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 
-Interpretation for Fable: this makes base 30B the obvious next proof target. The 2507 variants would require fresh download/cache setup before live proof, so reviewing the base full/cache/load ladder is higher-value than debating both 2507 tracks now.
+Interpretation for Fable: base 30B and Instruct-2507 are now tied on lower gates (`prescan`, `one_block_server`, `multi_block`). The next valuable review question is not whether Instruct lower gates exist; it is whether full-generation should be proven on base first, Instruct first, or both, and whether the Seagate full-download/watchdog path is robust enough before starting the expensive gate.
 
 Implemented recommendation:
 
 1. Do **not** make either 2507 variant part of MVP-core. MVP-core is already closed by Qwen3-8B.
-2. Use base `Qwen/Qwen3-30B-A3B` as the immediate post-MVP substrate because it already has prescan + one-block + multi-block proof.
-3. Only after base 30B full/cache/load behavior is understood, spend proof budget on **`Qwen/Qwen3-30B-A3B-Instruct-2507`** for a stronger user-facing demo.
+2. Base `Qwen/Qwen3-30B-A3B` and **`Qwen/Qwen3-30B-A3B-Instruct-2507`** both have lower gates through multi-block now; neither is demo-safe until full/cache/load gates pass.
+3. Use the exact-model priority report plus Seagate cache readiness to decide whether the next expensive full-generation run should be base-first, Instruct-first, or duplicated.
 4. Keep **Thinking-2507** optional unless the demo specifically needs thinking/reasoning behavior.
-5. For each exact model ID, still require prescan + one-block before route selection, because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
+5. For each exact model ID, still require its own proof row because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
 
 In moonlit terms: one path through the forest is enough to prove the bridge. We should not build two bridges in parallel unless the second one leads to a visibly better demo.
 

@@ -2318,16 +2318,33 @@ def test_docs_use_distributed_inference_mvp_name_not_bloombee_mvp():
 def test_docs_post_mvp_status_rows_match_completed_scouts():
     finish_plan = (PROJECT_ROOT / "docs" / "mvp-finish-plan.md").read_text(encoding="utf-8")
     main_doc = (PROJECT_ROOT / "docs" / "distributed-inference-mvp.md").read_text(encoding="utf-8")
+    post_scope = (PROJECT_ROOT / "docs" / "post-mvp-scope.md").read_text(encoding="utf-8")
+    fable_handoff = (PROJECT_ROOT / "docs" / "fable-post-mvp-handover.md").read_text(encoding="utf-8")
 
     assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in finish_plan
     assert "config-only scout complete; wrapper blocked" in finish_plan
-    assert "bounded feasibility spike complete" in finish_plan
-    assert "post-MVP panel shipped" in finish_plan
-    assert "wrapper feasibility + one-block proof" not in finish_plan
-    assert "LayerExecutor / quantized frontier backends | research |" not in finish_plan
+    assert "LayerExecutor" in finish_plan
+    assert "runnable backend proof" in finish_plan
     assert "Dashboard/status separation | scoped |" not in finish_plan
+    assert "wrapper feasibility + one-block proof" not in finish_plan
+    assert "LayerExecutor ... | research |" not in finish_plan
     assert "qwen-agentworld-35b-wrapper-scout-20260704.json" in main_doc
     assert "linear_attention" in main_doc
+
+    instruct_multiblock = "instruct2507-seagate-multiblock-proof-20260705T064511Z.json"
+    for doc in (finish_plan, main_doc, post_scope, fable_handoff):
+        assert instruct_multiblock in doc
+    stale_2507_phrases = (
+        "Qwen/Qwen3-30B-A3B-Instruct-2507` — user-facing follow-up after base 30B full/cache/load behavior is understood; next gate `prescan`",
+        "Qwen3-30B-A3B 2507 variants | scoped / pending | prescan + one-block proof per exact model ID.",
+        "Qwen3-30B-A3B Instruct/Thinking 2507 | registered, proof pending",
+        "Qwen/Qwen3-30B-A3B-Instruct-2507 cache: absent",
+        "Qwen/Qwen3-30B-A3B-Instruct-2507:\n  lower gates passed: none\n  next gate: prescan",
+    )
+    for phrase in stale_2507_phrases:
+        assert phrase not in finish_plan
+        assert phrase not in post_scope
+        assert phrase not in fable_handoff
 
 
 
