@@ -242,8 +242,8 @@ source .venv/bin/activate
 
 Current verification notes from this handoff commit:
 
-- Grunt-filter/checker/cache-readiness/demo-safe-ladder/docs-coherence focused suite: `16 passed, 1 warning`.
-- Unfiltered default suite after the Instruct-2507 demo-safe ladder planner: `444 passed, 23 skipped, 4 warnings`.
+- Grunt-filter/checker/cache-readiness/demo-safe-ladder/docs-coherence focused suite: `17 passed, 1 warning`.
+- Unfiltered default suite after the Instruct-2507 demo-safe ladder planner/checker integration: `445 passed, 23 skipped, 4 warnings`.
 - Pytest timeout config is no longer a fake safety net: `pytest.ini` does not declare `timeout` / `timeout_method` unless `pytest-timeout` is installed or replaced by a local plugin, and `tests/test_pytest_config.py` guards that invariant.
 - Static docs coherence now has a regression test: `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts` rejects stale `mvp-finish-plan.md` rows such as `wrapper feasibility + one-block proof`, `LayerExecutor ... | research |`, and `Dashboard/status separation | scoped |` after those scout/spike/dashboard slices landed.
 - Former full-suite blockers are now explicit default skips instead of hidden caveats:

@@ -65,7 +65,7 @@ REQUIRED_HANDOFF_PHRASES = (
     "multi_request_load_harness_only_no_live_traffic",
     "cache_download_readiness_only_no_generation_or_load_proof",
     "instruct2507_full_generation_gate_plan_only_no_live_generation",
-    "444 passed, 23 skipped, 4 warnings",
+    "445 passed, 23 skipped, 4 warnings",
     "Do **not** claim from this artifact",
 )
 
@@ -314,6 +314,20 @@ def _remote_cache_readiness(errors: list[str]) -> dict[str, Any]:
 
 
 
+def _remote_demo_safe_ladder_plan(readiness: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+    try:
+        from scripts.instruct2507_full_generation_gate import build_gate_plan
+    except Exception as exc:  # pragma: no cover - defensive handoff checker path
+        errors.append(f"failed to import Instruct-2507 ladder planner: {exc}")
+        return {"ok": False, "ready_to_attempt_demo_safe_ladder": False, "errors": [str(exc)]}
+    try:
+        return build_gate_plan(readiness=readiness)
+    except Exception as exc:  # pragma: no cover - defensive handoff checker path
+        errors.append(f"failed to build Instruct-2507 ladder plan: {exc}")
+        return {"ok": False, "ready_to_attempt_demo_safe_ladder": False, "errors": [str(exc)]}
+
+
+
 def build_report(*, include_remote: bool = False) -> dict[str, Any]:
     errors: list[str] = []
     report: dict[str, Any] = {
@@ -330,6 +344,9 @@ def build_report(*, include_remote: bool = False) -> dict[str, Any]:
     if include_remote:
         report["remote_download"] = _remote_download_state(errors)
         report["remote_cache_readiness"] = _remote_cache_readiness(errors)
+        report["remote_demo_safe_ladder_plan"] = _remote_demo_safe_ladder_plan(
+            report["remote_cache_readiness"], errors
+        )
     report["errors"] = errors
     report["ok"] = not errors
     return report
@@ -396,6 +413,23 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"- Current phase: `{download_status.get('CURRENT_PHASE')}`",
                 f"- Stage part bytes: `{stage_part.get('bytes')}`",
                 f"- Can start expensive full-generation gate: `{readiness.get('can_start_expensive_full_generation_gate')}`",
+            ]
+        )
+
+    ladder = report.get("remote_demo_safe_ladder_plan")
+    if ladder:
+        lines.extend(
+            [
+                "",
+                "## Remote demo-safe ladder plan",
+                "",
+                f"- READY_TO_ATTEMPT_DEMO_SAFE_LADDER: `{ladder.get('ready_to_attempt_demo_safe_ladder')}`",
+                f"- Claim boundary: `{ladder.get('claim_boundary')}`",
+                f"- Gates: `{ladder.get('demo_safe_ladder_gates')}`",
+                f"- Full-generation command emitted: `{bool((ladder.get('full_generation_plan') or {}).get('parity_command'))}`",
+                f"- Cache-generation command emitted: `{bool((ladder.get('cache_generation_plan') or {}).get('parity_command'))}`",
+                f"- Load client command count: `{len((ladder.get('multi_request_load_plan') or {}).get('client_commands') or [])}`",
+                f"- Blocked reasons: `{ladder.get('blocked_reasons')}`",
             ]
         )
 

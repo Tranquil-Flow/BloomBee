@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import scripts.fable_handoff_check as fable_handoff_check
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = PROJECT_ROOT / "scripts" / "fable_handoff_check.py"
@@ -82,6 +84,38 @@ def test_fable_handoff_doc_points_to_checker_commands():
     assert "multi_request_load_harness_only_no_live_traffic" in text
     assert "Start with the grunt filter" in text
 
+
+
+def test_fable_handoff_check_remote_report_includes_demo_safe_ladder_plan(monkeypatch):
+    readiness = {
+        "ok": True,
+        "ready": False,
+        "claim_boundary": "cache_download_readiness_only_no_generation_or_load_proof",
+        "present_shard_count": 8,
+        "expected_shard_count": 16,
+        "first_missing_shard": "model-00009-of-00016.safetensors",
+        "can_start_expensive_full_generation_gate": False,
+        "errors": ["missing 8 expected shard(s)"],
+    }
+    monkeypatch.setattr(
+        fable_handoff_check,
+        "_remote_download_state",
+        lambda errors: {"STATE": "downloading", "SHARD_COUNT": "8", "CURRENT_FILE": "model-00009-of-00016.safetensors"},
+    )
+    monkeypatch.setattr(fable_handoff_check, "_remote_cache_readiness", lambda errors: readiness)
+
+    report = fable_handoff_check.build_report(include_remote=True)
+
+    ladder = report["remote_demo_safe_ladder_plan"]
+    assert ladder["ready_to_attempt_demo_safe_ladder"] is False
+    assert ladder["demo_safe_ladder_gates"] == ["full_generation", "cache_generation", "multi_request_load"]
+    assert ladder["claim_boundary"] == "instruct2507_full_generation_gate_plan_only_no_live_generation"
+    assert ladder["cache_readiness"]["present_shard_count"] == 8
+    assert ladder["cache_generation_plan"]["proof_gate"] == "cache_generation"
+    assert ladder["multi_request_load_plan"]["proof_gate"] == "multi_request_load"
+    assert ladder["generation_proven"] is False
+    assert ladder["cache_generation_proven"] is False
+    assert ladder["load_proven"] is False
 
 
 def test_fable_handoff_check_remote_mode_is_explicit_opt_in():
