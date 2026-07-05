@@ -10,6 +10,7 @@ from humanfriendly import parse_size
 
 from bloombee.constants import DTYPE_MAP, PUBLIC_INITIAL_PEERS
 from bloombee.server.server import Server
+from bloombee.utils.convert_block import QuantType
 from bloombee.utils.version import validate_version
 
 logger = get_logger(__name__)
@@ -106,6 +107,10 @@ def main():
     parser.add_argument("--torch_dtype", type=str, choices=DTYPE_MAP.keys(), default="auto",
                         help="Use this dtype to store block weights and do computations. "
                              "By default, respect the dtypes in the pre-trained state dict.")
+    parser.add_argument("--quant_type", type=lambda value: value.upper(), choices=[item.name for item in QuantType], default=QuantType.NONE.name,
+                        help="Weight-only quantization mode for loaded blocks. NONE disables quantization; "
+                             "INT8 applies qint8/packed-expert quantization where supported; "
+                             "NF4 applies the fail-closed packed-int4 qwen3_moe lane.")
     parser.add_argument('--max_alloc_timeout', type=float, default=600,
                         help="If the cache is full, the server will wait for memory to be freed up to this many seconds"
                              " before rejecting the request")
@@ -173,6 +178,7 @@ def main():
     args.pop("config", None)
 
     args["converted_model_name_or_path"] = args.pop("model") or args["converted_model_name_or_path"]
+    args["quant_type"] = QuantType[args["quant_type"]]
 
     host_maddrs = args.pop("host_maddrs")
     port = args.pop("port")
