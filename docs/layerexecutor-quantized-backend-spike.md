@@ -72,6 +72,28 @@ its config advertises `fp8`, but this still requires suitable NVIDIA GPU runtime
 support such as vLLM/SGLang/TensorRT-LLM. It is not a macOS/MPS proof and not a
 native BloomBee route.
 
+## Route-report visibility
+
+The route picker now exposes unsupported frontier rows as planning visibility,
+without selecting them for showcase or demo serving. Use `route_picker.py --report`
+when an operator wants to inspect a pinned frontier request and the fallback that
+would actually be served:
+
+```bash
+.venv/bin/python mvp_capabilities/route_picker.py --report \
+  --selector-mode showcase-attempt \
+  --model deepseek-ai/DeepSeek-V4-Flash \
+  --synthetic-m4-laptops 20 \
+  --synthetic-total-gb 128 \
+  --synthetic-free-gb 100 || true
+```
+
+The JSON includes `blocked_frontier_candidates` under claim boundary
+`blocked_frontier_candidates_no_serving_proof`. Entries in that array set
+`can_update_proof_status=false` and `inference_proven=false`; they are evidence
+that the planner knows why the target is blocked, not evidence that the target
+runs.
+
 ## Sources
 
 - MiniMax M3 official blog: <https://www.minimax.io/blog/minimax-m3>

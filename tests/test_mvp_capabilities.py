@@ -503,6 +503,9 @@ def test_layerexecutor_quantized_backend_spike_artifact_is_conservative():
     assert "frontier_backend_smoke_plan.py" in doc
     assert "frontier_external_runtime_smoke_plan_only_no_bloombee_route_claim" in doc
     assert "deepseek-ai/DeepSeek-V4-Flash" in doc
+    assert "route_picker.py --report" in doc
+    assert "blocked_frontier_candidates" in doc
+    assert "blocked_frontier_candidates_no_serving_proof" in doc
 
 
 
