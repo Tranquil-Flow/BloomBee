@@ -22,8 +22,50 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 VERIFY_CLAIM_BOUNDARY = "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing"
+PLAN_CLAIM_BOUNDARY = "kv_prefix_reuse_live_capture_plan_no_live_cache_reuse_proof"
 PROOF_GATE = "kv_prefix_reuse"
 REQUIRED_TELEMETRY_TAGS = ("kv_prefix_reuse", "no_reuse_baseline", "same_prefix_varied_suffix")
+OPT_IN_FLAG = "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
+
+
+def build_kv_prefix_reuse_live_capture_plan(
+    *,
+    model_id: str,
+    evidence_path: str = ".local/kv-prefix-reuse-live-evidence.json",
+    allow_no_speedup: bool = False,
+    min_requests: int = 2,
+) -> dict[str, Any]:
+    """Return the next live capture contract without claiming reuse proof."""
+
+    speedup_flag = " --allow-no-speedup" if allow_no_speedup else ""
+    verify_command = (
+        "python -m mvp_capabilities.kv_prefix_reuse_proof verify "
+        f"--model {model_id} --evidence {evidence_path} --min-requests {min_requests}{speedup_flag}"
+    )
+    return {
+        "model_id": model_id,
+        "claim_boundary": PLAN_CLAIM_BOUNDARY,
+        "proof_gate": PROOF_GATE,
+        "evidence_path": evidence_path,
+        "opt_in_flag": OPT_IN_FLAG,
+        "min_requests": min_requests,
+        "operator_commands": [
+            f"{OPT_IN_FLAG}=1 PYTHONPATH=.:src python scripts/text_generation_parity.py --server-maddr '<PASTE_SERVER_MULTIADDR>' --model {model_id} --prompt '<COMMON_PREFIX><SUFFIX_A>' --max-new-tokens 4 --mode generate-api --out .local/kv-prefix-baseline-suffix-a.json",
+            f"{OPT_IN_FLAG}=1 PYTHONPATH=.:src python scripts/text_generation_parity.py --server-maddr '<PASTE_SERVER_MULTIADDR>' --model {model_id} --prompt '<COMMON_PREFIX><SUFFIX_B>' --max-new-tokens 4 --mode generate-api --out .local/kv-prefix-reuse-suffix-b.json",
+            f"assemble {evidence_path} with common_prefix_token_ids, varied suffix_token_ids, no-reuse baseline rows, reuse rows, generated_token_ids, logits fingerprints, reused_prefix_token_count, and positive timings",
+            verify_command,
+        ],
+        "verify_command": verify_command,
+        "live_kv_cache_reuse_proven": False,
+        "speedup_proven": False,
+        "can_update_proof_status": False,
+        "can_update_demo_status": False,
+        "notes": [
+            "Planning output is not proof.",
+            "The existing metadata path proves only first-rpc prefill metadata, not KV tensor reuse.",
+            "Use --allow-no-speedup only for parity/timing capture; do not promote demo status without actual measured speedup and memory impact.",
+        ],
+    }
 
 
 def _stable_sha256(value: Any) -> str:
@@ -400,6 +442,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
+    plan = sub.add_parser("plan", help="Emit a claim-bounded live capture plan")
+    plan.add_argument("--model", required=True)
+    plan.add_argument("--evidence", default=".local/kv-prefix-reuse-live-evidence.json")
+    plan.add_argument("--min-requests", type=int, default=2)
+    plan.add_argument(
+        "--allow-no-speedup",
+        action="store_true",
+        help="Plan for parity/timing capture without requiring positive aggregate speedup.",
+    )
+    plan.add_argument("--out", default=None)
+
     verify = sub.add_parser("verify", help="Verify captured KV prefix-reuse parity/timing evidence")
     verify.add_argument("--model", required=True)
     verify.add_argument("--evidence", required=True)
@@ -411,13 +464,25 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
-    payload = verify_kv_prefix_reuse_evidence(
-        evidence_path=args.evidence,
-        model_id=args.model,
-        min_requests=args.min_requests,
-        require_speedup=not args.allow_no_speedup,
-    )
-    print(json.dumps(payload, indent=2, sort_keys=True))
+    if args.command == "plan":
+        payload = build_kv_prefix_reuse_live_capture_plan(
+            model_id=args.model,
+            evidence_path=args.evidence,
+            min_requests=args.min_requests,
+            allow_no_speedup=args.allow_no_speedup,
+        )
+    else:
+        payload = verify_kv_prefix_reuse_evidence(
+            evidence_path=args.evidence,
+            model_id=args.model,
+            min_requests=args.min_requests,
+            require_speedup=not args.allow_no_speedup,
+        )
+    text = json.dumps(payload, indent=2, sort_keys=True)
+    if getattr(args, "out", None):
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+    print(text)
     return 0
 
 

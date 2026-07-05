@@ -634,8 +634,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["kv_prefix_reuse"]["status"] == "partial"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv-prefix-reuse-live-capture-plan-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["evidence"]
     assert "first rpc_inference metadata" in tasks["kv_prefix_reuse"]["evidence"]
     assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["next_step"]
     assert "implement actual server KV tensor reuse" in tasks["kv_prefix_reuse"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]

@@ -1,0 +1,24 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "kv_prefix_reuse_live_capture_plan_no_live_cache_reuse_proof",
+  "evidence_path": ".local/kv-prefix-reuse-live-evidence.json",
+  "live_kv_cache_reuse_proven": false,
+  "min_requests": 2,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": [
+    "Planning output is not proof.",
+    "The existing metadata path proves only first-rpc prefill metadata, not KV tensor reuse.",
+    "Use --allow-no-speedup only for parity/timing capture; do not promote demo status without actual measured speedup and memory impact."
+  ],
+  "operator_commands": [
+    "BLOOMBEE_ENABLE_KV_PREFIX_REUSE=1 PYTHONPATH=.:src python scripts/text_generation_parity.py --server-maddr '<PASTE_SERVER_MULTIADDR>' --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --prompt '<COMMON_PREFIX><SUFFIX_A>' --max-new-tokens 4 --mode generate-api --out .local/kv-prefix-baseline-suffix-a.json",
+    "BLOOMBEE_ENABLE_KV_PREFIX_REUSE=1 PYTHONPATH=.:src python scripts/text_generation_parity.py --server-maddr '<PASTE_SERVER_MULTIADDR>' --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --prompt '<COMMON_PREFIX><SUFFIX_B>' --max-new-tokens 4 --mode generate-api --out .local/kv-prefix-reuse-suffix-b.json",
+    "assemble .local/kv-prefix-reuse-live-evidence.json with common_prefix_token_ids, varied suffix_token_ids, no-reuse baseline rows, reuse rows, generated_token_ids, logits fingerprints, reused_prefix_token_count, and positive timings",
+    "python -m mvp_capabilities.kv_prefix_reuse_proof verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/kv-prefix-reuse-live-evidence.json --min-requests 2 --allow-no-speedup"
+  ],
+  "opt_in_flag": "BLOOMBEE_ENABLE_KV_PREFIX_REUSE",
+  "proof_gate": "kv_prefix_reuse",
+  "speedup_proven": false,
+  "verify_command": "python -m mvp_capabilities.kv_prefix_reuse_proof verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/kv-prefix-reuse-live-evidence.json --min-requests 2 --allow-no-speedup"
+}

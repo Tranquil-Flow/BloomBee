@@ -210,3 +210,52 @@ def test_kv_prefix_reuse_proof_cli_verifies_evidence_file(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["status"] == "passed"
     assert payload["claim_boundary"] == "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing"
+
+
+def test_kv_prefix_reuse_live_capture_plan_is_claim_bounded(tmp_path: Path):
+    from mvp_capabilities.kv_prefix_reuse_proof import build_kv_prefix_reuse_live_capture_plan
+
+    evidence_path = tmp_path / "kv-prefix-live.json"
+    plan = build_kv_prefix_reuse_live_capture_plan(
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        evidence_path=str(evidence_path),
+        allow_no_speedup=True,
+    )
+
+    assert plan["claim_boundary"] == "kv_prefix_reuse_live_capture_plan_no_live_cache_reuse_proof"
+    assert plan["proof_gate"] == "kv_prefix_reuse"
+    assert plan["opt_in_flag"] == "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
+    assert plan["live_kv_cache_reuse_proven"] is False
+    assert plan["speedup_proven"] is False
+    assert plan["can_update_proof_status"] is False
+    assert plan["can_update_demo_status"] is False
+    assert "BLOOMBEE_ENABLE_KV_PREFIX_REUSE=1" in plan["operator_commands"][0]
+    assert "scripts/text_generation_parity.py" in "\n".join(plan["operator_commands"])
+    assert "--mode generate-api" in "\n".join(plan["operator_commands"])
+    assert "--allow-no-speedup" in plan["verify_command"]
+
+    out = tmp_path / "plan.json"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mvp_capabilities.kv_prefix_reuse_proof",
+            "plan",
+            "--model",
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            "--evidence",
+            str(evidence_path),
+            "--allow-no-speedup",
+            "--out",
+            str(out),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload == json.loads(out.read_text(encoding="utf-8"))
+    assert payload["claim_boundary"] == "kv_prefix_reuse_live_capture_plan_no_live_cache_reuse_proof"
