@@ -161,6 +161,25 @@ def _uses_sparse_attention(config: dict[str, Any]) -> bool:
     return bool(isinstance(sparse_cfg, dict) and sparse_cfg.get("use_sparse_attention"))
 
 
+def _requires_trust_remote_code(config: dict[str, Any]) -> bool:
+    auto_map = config.get("auto_map")
+    return isinstance(auto_map, dict) and bool(auto_map)
+
+
+def _frontier_attention_blockers(hf_model_type: str) -> list[str]:
+    if hf_model_type == "glm_moe_dsa":
+        return [
+            "glm_moe_dsa uses MLA plus Dynamic Sparse Attention / TileLang DSA; "
+            "current BloomBee wrappers do not implement this attention state or sparse kernels"
+        ]
+    if hf_model_type == "deepseek_v4":
+        return [
+            "deepseek_v4 uses hybrid sparse/compressed attention; current BloomBee wrappers "
+            "do not implement this attention state or quantized kernels"
+        ]
+    return []
+
+
 def scan_model_config(
     source: str | Path,
     *,
@@ -177,6 +196,7 @@ def scan_model_config(
     architecture_supported = support is not None
     quantization_method = _quantization_method(config)
     uses_sparse_attention = _uses_sparse_attention(body_config)
+    requires_trust_remote_code = _requires_trust_remote_code(config)
 
     merged_proof = _default_proof_status()
     merged_proof["prescan"] = "passed"
@@ -199,6 +219,12 @@ def scan_model_config(
             "fp16/bf16 PyTorch blocks and does not build GPTQ/AWQ/FP8/NVFP4/"
             "MXFP quantized Linear kernels"
         )
+    blocked_reasons.extend(_frontier_attention_blockers(hf_model_type))
+    if requires_trust_remote_code:
+        blocked_reasons.append(
+            "HF AutoConfig declares auto_map/custom code and may require trust_remote_code; "
+            "planning scans must use local config.json until custom model code is audited"
+        )
 
     result: dict[str, Any] = {
         "model_id": model_id or str(source),
@@ -217,6 +243,7 @@ def scan_model_config(
         "text_architectures": body_config.get("architectures") or [],
         "max_position_embeddings": body_config.get("max_position_embeddings"),
         "uses_sparse_attention": uses_sparse_attention,
+        "requires_trust_remote_code": requires_trust_remote_code,
         "quantization_method": quantization_method,
         "quantization_supported": False if quantization_method else None,
         "proof_status": merged_proof,

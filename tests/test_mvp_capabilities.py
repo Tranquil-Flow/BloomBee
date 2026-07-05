@@ -3003,26 +3003,97 @@ def test_model_compat_scan_extracts_minimax_m3_text_config_and_blocks_sparse_wra
     assert any("sparse_attention" in reason for reason in result["blocked_reasons"])
 
 
-def test_model_compat_scan_marks_unknown_frontier_family_blocked(tmp_path: Path):
+def test_model_compat_scan_extracts_glm_moe_dsa_and_blocks_sparse_attention_contract(tmp_path: Path):
     from mvp_capabilities.model_compat_scan import scan_model_config
 
     model_dir = tmp_path / "glm52"
     _write_hf_config(
         model_dir,
-        model_type="glm5_moe",
-        num_hidden_layers=128,
-        hidden_size=8192,
+        model_type="glm_moe_dsa",
+        num_hidden_layers=78,
+        hidden_size=6144,
         num_attention_heads=64,
+        num_key_value_heads=64,
         num_experts=256,
         num_experts_per_tok=8,
+        max_position_embeddings=1048576,
     )
 
     result = scan_model_config(model_dir, model_id="zai-org/GLM-5.2")
 
-    assert result["hf_model_type"] == "glm5_moe"
+    assert result["hf_model_type"] == "glm_moe_dsa"
+    assert result["num_layers"] == 78
+    assert result["hidden_size"] == 6144
+    assert result["num_key_value_heads"] == 64
+    assert result["num_experts"] == 256
+    assert result["experts_per_token"] == 8
+    assert result["max_position_embeddings"] == 1048576
     assert result["architecture_supported"] is False
     assert result["claim_level"] == "blocked"
-    assert "wrapper" in result["blocked_reasons"][0].lower()
+    assert any("Dynamic Sparse Attention" in reason for reason in result["blocked_reasons"])
+
+
+def test_model_compat_scan_extracts_deepseek_v4_fp8_and_blocks_quantized_loader(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "deepseek_v4_flash"
+    _write_hf_config(
+        model_dir,
+        model_type="deepseek_v4",
+        num_hidden_layers=43,
+        hidden_size=4096,
+        num_attention_heads=64,
+        num_key_value_heads=1,
+        num_experts=256,
+        num_experts_per_tok=6,
+        max_position_embeddings=1048576,
+        quantization_config={"quant_method": "fp8"},
+    )
+
+    result = scan_model_config(model_dir, model_id="deepseek-ai/DeepSeek-V4-Flash")
+
+    assert result["hf_model_type"] == "deepseek_v4"
+    assert result["num_layers"] == 43
+    assert result["hidden_size"] == 4096
+    assert result["num_key_value_heads"] == 1
+    assert result["num_experts"] == 256
+    assert result["experts_per_token"] == 6
+    assert result["quantization_method"] == "fp8"
+    assert result["quantization_supported"] is False
+    assert result["claim_level"] == "blocked"
+    assert any("FP8" in reason for reason in result["blocked_reasons"])
+    assert any("hybrid sparse/compressed attention" in reason for reason in result["blocked_reasons"])
+
+
+def test_model_compat_scan_extracts_kimi_k2_fp8_trust_remote_code_blocker(tmp_path: Path):
+    from mvp_capabilities.model_compat_scan import scan_model_config
+
+    model_dir = tmp_path / "kimi_k2"
+    _write_hf_config(
+        model_dir,
+        model_type="kimi_k2",
+        num_hidden_layers=61,
+        hidden_size=7168,
+        num_attention_heads=64,
+        num_key_value_heads=64,
+        num_experts=384,
+        num_experts_per_tok=8,
+        max_position_embeddings=131072,
+        quantization_config={"quant_method": "fp8"},
+        auto_map={"AutoConfig": "configuration_kimi_k2.KimiK2Config"},
+    )
+
+    result = scan_model_config(model_dir, model_id="moonshotai/Kimi-K2-Instruct")
+
+    assert result["hf_model_type"] == "kimi_k2"
+    assert result["num_layers"] == 61
+    assert result["hidden_size"] == 7168
+    assert result["num_experts"] == 384
+    assert result["experts_per_token"] == 8
+    assert result["quantization_method"] == "fp8"
+    assert result["requires_trust_remote_code"] is True
+    assert result["claim_level"] == "blocked"
+    assert any("trust_remote_code" in reason for reason in result["blocked_reasons"])
 
 
 def test_model_compat_scan_merges_proof_status_registry(tmp_path: Path):
