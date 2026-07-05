@@ -565,13 +565,13 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert post_mvp["layerexecutor_quantized_backend_spike"]["completion"] == 1.0
     assert "layerexecutor-feasibility-20260704.json" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
     assert "No runnable backend proof" in post_mvp["layerexecutor_quantized_backend_spike"]["evidence"]
-    assert post_mvp["quantization_routing_handoff"]["status"] == "int8_load_proven_route_dashboard_wired"
-    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.75
+    assert post_mvp["quantization_routing_handoff"]["status"] == "base_int8_demo_safe_instruct2507_pending"
+    assert post_mvp["quantization_routing_handoff"]["completion"] == 0.90
     assert "Qwen3-30B-A3B@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "Qwen3-30B-A3B-Instruct-2507@int8" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "join_http_server accepts requested_model/model quantized pins" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "--quant_type INT8" in post_mvp["quantization_routing_handoff"]["evidence"]
-    assert "full_generation/cache_generation/token_parity remain fail-closed" in post_mvp["quantization_routing_handoff"]["evidence"]
+    assert "lacks full/cache generation parity" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
     assert report["task_summary"] == {"complete": 10, "partial": 6, "pending": 0, "blocked": 1, "total": 17}
@@ -3203,7 +3203,7 @@ models:
     assert route["inference_proven"] is False
 
 
-def test_join_http_server_route_report_refuses_unproven_safe_demo_pin(tmp_path: Path):
+def test_join_http_server_route_report_refuses_fp16_pin_but_serves_demo_safe_int8(tmp_path: Path):
     from mvp_capabilities.join_http_server import handle_get, handle_post
 
     registry = tmp_path / "registry.yaml"
@@ -3246,13 +3246,14 @@ models:
     )
 
     assert status == 200
-    assert route["picked"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    assert route["best_available"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["picked"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
+    assert route["best_available"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["requested_model"] == "Qwen/Qwen3-30B-A3B"
     assert route["requested_evaluation"]["selector_allowed"] is False
     assert route["override_refused"] is True
     assert route["override_active"] is False
     assert "safe-demo" in route["override_reason"]
+    assert route["serving"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["inference_proven"] is False
 
 
@@ -3306,14 +3307,14 @@ models:
     assert route["requested_model"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["requested_evaluation"]["quant_type"] == "int8"
     assert route["requested_evaluation"]["supported"] is True
-    assert route["requested_evaluation"]["selector_allowed"] is False
+    assert route["requested_evaluation"]["selector_allowed"] is True
     assert route["requested_evaluation"]["proof_status"]["multi_request_load"] == "passed"
     assert route["requested_evaluation"]["proof_status"]["full_generation"] == "passed"
-    assert route["requested_evaluation"]["proof_status"]["cache_generation"] == "pending"
-    assert route["requested_evaluation"]["proof_status"]["token_parity"] == "exact_forward_loop_default_prompt_cache_pending"
-    assert route["override_refused"] is True
+    assert route["requested_evaluation"]["proof_status"]["cache_generation"] == "passed"
+    assert route["requested_evaluation"]["proof_status"]["token_parity"] == "exact"
+    assert route["override_refused"] is False
     assert route["override_active"] is False
-    assert route["serving"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["serving"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["source"] == "coordinator_http_route_endpoint"
     assert route["claim_boundary"] == "coordinator_route_only_no_inference_proof"
 
@@ -3364,7 +3365,7 @@ models:
     assert plan["inference_proven"] is False
 
 
-def test_join_http_server_handoff_surfaces_quantized_requested_model_refusal(tmp_path: Path):
+def test_join_http_server_handoff_surfaces_quantized_requested_model_acceptance(tmp_path: Path):
     from mvp_capabilities.join_http_server import handle_get, handle_post
 
     registry = tmp_path / "registry.yaml"
@@ -3412,12 +3413,12 @@ models:
 
     assert status == 200
     route = handoff["route_decision"]
-    assert handoff["plan"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert handoff["plan"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["requested_model"] == "Qwen/Qwen3-30B-A3B@int8"
     assert route["requested_evaluation"]["quant_type"] == "int8"
-    assert route["requested_evaluation"]["selector_allowed"] is False
-    assert route["override_refused"] is True
-    assert route["serving"]["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert route["requested_evaluation"]["selector_allowed"] is True
+    assert route["override_refused"] is False
+    assert route["serving"]["model_id"] == "Qwen/Qwen3-30B-A3B@int8"
     assert handoff["claim_boundary"] == "coordinator_handoff_bundle_only_no_server_started"
     assert handoff["inference_proven"] is False
     assert handoff["can_update_proof_status"] is False

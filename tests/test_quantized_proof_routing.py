@@ -192,7 +192,7 @@ def test_proof_ladder_quantized_row_reports_parity_gate():
     assert ladder["token_parity"] == "exact"
 
 
-def test_committed_proof_status_has_failclosed_partial_int8_rows():
+def test_committed_proof_status_has_base_demo_safe_and_instruct_failclosed_int8_rows():
     from mvp_capabilities.model_compat_scan import DEFAULT_PROOF_STATUS, load_proof_status
 
     proof = load_proof_status(DEFAULT_PROOF_STATUS)
@@ -204,9 +204,9 @@ def test_committed_proof_status_has_failclosed_partial_int8_rows():
     assert base["multi_block"] == "passed"
     assert base["multi_request_load"] == "passed"
     assert base["full_generation"] == "passed"
-    assert base["cache_generation"] == "pending"
-    assert base["token_parity"] == "exact_forward_loop_default_prompt_cache_pending"
-    assert is_demo_safe(base, quant_type="int8") is False
+    assert base["cache_generation"] == "passed"
+    assert base["token_parity"] == "exact"
+    assert is_demo_safe(base, quant_type="int8") is True
 
     instruct = proof.get("Qwen/Qwen3-30B-A3B-Instruct-2507@int8")
     assert instruct is not None, "quantized proof row must exist explicitly (fail-closed, not implied)"

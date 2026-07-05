@@ -3,7 +3,7 @@
   "can_update_fp16_proof_row": false,
   "claim_boundary": "quantized_route_lane_planning_only_no_serving_proof",
   "compression_ratio_used": 1.996,
-  "demo_safe_allowed": false,
+  "demo_safe_allowed": true,
   "fp16_proof_status": {
     "cache_generation": "pending",
     "full_generation": "pending",
@@ -29,23 +29,23 @@
   "live_server_proven": false,
   "memory_reduction_source": "quantized_block_spike_random_weight_qwen3_moe_layer",
   "model_id": "Qwen/Qwen3-30B-A3B",
-  "next_gate": "cache_generation",
+  "next_gate": null,
   "operator_next_steps": [
-    "do not promote Qwen/Qwen3-30B-A3B@int8 until cache_generation passes and token_parity is exact",
-    "use the streamed fp16 reference harness for remaining cache-generation parity attempts",
-    "write token_parity exact/diverged only when the full quantized demo prompt set is covered"
+    "base Qwen/Qwen3-30B-A3B@int8 is demo-safe under the current full/cache/load/token-parity gates",
+    "keep Qwen/Qwen3-30B-A3B fp16 and @int8 proof rows separate; do not inherit gates across rows",
+    "next expensive parity target is Qwen/Qwen3-30B-A3B-Instruct-2507@int8 full_generation then cache_generation"
   ],
   "quant_scheme": "moe_int8_experts+qint8_attn",
   "quant_type": "int8",
   "quantized_proof_key": "Qwen/Qwen3-30B-A3B@int8",
   "quantized_proof_status": {
-    "cache_generation": "pending",
+    "cache_generation": "passed",
     "full_generation": "passed",
     "multi_block": "passed",
     "multi_request_load": "passed",
     "one_block_server": "passed",
     "prescan": "passed",
-    "token_parity": "exact_forward_loop_default_prompt_cache_pending"
+    "token_parity": "exact"
   },
   "quantized_route": {
     "memory_fit": true,

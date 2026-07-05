@@ -1,0 +1,139 @@
+{
+  "checkpoint_model": "Qwen/Qwen3-30B-A3B",
+  "distributed_dtype": "torch.float16",
+  "distributed_ids": [
+    785,
+    6722,
+    315,
+    9625,
+    374,
+    20763
+  ],
+  "distributed_next_token_id": 20763,
+  "distributed_seconds": 6.100262880325317,
+  "distributed_steps": [],
+  "distributed_text": "The capital of France is disaster",
+  "distributed_top5": [
+    {
+      "logit": 18.084043502807617,
+      "token_id": 20763
+    },
+    {
+      "logit": 16.356666564941406,
+      "token_id": 76994
+    },
+    {
+      "logit": 16.05708122253418,
+      "token_id": 50651
+    },
+    {
+      "logit": 16.003997802734375,
+      "token_id": 115187
+    },
+    {
+      "logit": 15.831990242004395,
+      "token_id": 16675
+    }
+  ],
+  "generated_ids_match": true,
+  "generated_text_match": true,
+  "input_ids": [
+    785,
+    6722,
+    315,
+    9625,
+    374
+  ],
+  "logits_max_abs_diff": 1.3489205837249756,
+  "logits_mean_abs_diff": 0.2666855752468109,
+  "max_new_tokens": 1,
+  "mode": "generate-api",
+  "model": "Qwen/Qwen3-30B-A3B@int8",
+  "next_token_match": true,
+  "ok": true,
+  "prompt": "The capital of France is",
+  "reference_cache_dir": "/Volumes/Seagate Portable Drive/huggingface/hub",
+  "reference_device": "mps",
+  "reference_dtype": "torch.float16",
+  "reference_generation_path": "streamed-forward-loop-correctness-fallback",
+  "reference_ids": [
+    785,
+    6722,
+    315,
+    9625,
+    374,
+    20763
+  ],
+  "reference_local_files_only": true,
+  "reference_mode": "streamed-blocks",
+  "reference_next_token_id": 20763,
+  "reference_seconds": 660.6391327381134,
+  "reference_steps": [
+    {
+      "block_count": 48,
+      "block_timings": [],
+      "next_token_id": 20763,
+      "seconds": 309.41312527656555,
+      "step": 0,
+      "top5": [
+        {
+          "logit": 17.8125,
+          "token_id": 20763
+        },
+        {
+          "logit": 16.1875,
+          "token_id": 115187
+        },
+        {
+          "logit": 15.8515625,
+          "token_id": 76994
+        },
+        {
+          "logit": 15.8125,
+          "token_id": 50651
+        },
+        {
+          "logit": 15.421875,
+          "token_id": 107344
+        }
+      ]
+    }
+  ],
+  "reference_text": "The capital of France is disaster",
+  "reference_top5": [
+    {
+      "logit": 17.8125,
+      "token_id": 20763
+    },
+    {
+      "logit": 16.1875,
+      "token_id": 115187
+    },
+    {
+      "logit": 15.8515625,
+      "token_id": 76994
+    },
+    {
+      "logit": 15.8125,
+      "token_id": 50651
+    },
+    {
+      "logit": 15.421875,
+      "token_id": 107344
+    }
+  ],
+  "server_maddrs": [
+    "/ip4/100.84.252.4/tcp/31486/p2p/12D3KooWQLTke3QfanV77uUBThWsYrr8zAtmEUacPH4A1K62Ro6e"
+  ],
+  "server_placements": [
+    {
+      "host": "m4pro-full",
+      "layers": [
+        0,
+        48
+      ],
+      "server_maddr": "/ip4/100.84.252.4/tcp/31486/p2p/12D3KooWQLTke3QfanV77uUBThWsYrr8zAtmEUacPH4A1K62Ro6e"
+    }
+  ],
+  "server_to_server": true
+}

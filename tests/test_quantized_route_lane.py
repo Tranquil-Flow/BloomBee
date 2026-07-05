@@ -116,17 +116,17 @@ def test_quantized_qwen30b_lane_cli_and_tracked_evidence_are_claim_bounded():
     assert tracked["quantized_proof_status"]["multi_block"] == "passed"
     assert tracked["quantized_proof_status"]["multi_request_load"] == "passed"
     assert tracked["quantized_proof_status"]["full_generation"] == "passed"
-    assert tracked["quantized_proof_status"]["cache_generation"] == "pending"
-    assert tracked["quantized_proof_status"]["token_parity"] == "exact_forward_loop_default_prompt_cache_pending"
-    assert tracked["next_gate"] == "cache_generation"
+    assert tracked["quantized_proof_status"]["cache_generation"] == "passed"
+    assert tracked["quantized_proof_status"]["token_parity"] == "exact"
+    assert tracked["next_gate"] is None
     assert tracked["server_proof_status"] == "passed"
     assert tracked["can_inherit_fp16_proof"] is False
     assert tracked["can_update_fp16_proof_row"] is False
     # This artifact remains planning-only; live server/load proof lives in the qwen30b-int8-* artifacts.
     assert tracked["live_server_proven"] is False
-    assert tracked["demo_safe_allowed"] is False
+    assert tracked["demo_safe_allowed"] is True
     assert tracked["operator_next_steps"] == [
-        "do not promote Qwen/Qwen3-30B-A3B@int8 until cache_generation passes and token_parity is exact",
-        "use the streamed fp16 reference harness for remaining cache-generation parity attempts",
-        "write token_parity exact/diverged only when the full quantized demo prompt set is covered",
+        "base Qwen/Qwen3-30B-A3B@int8 is demo-safe under the current full/cache/load/token-parity gates",
+        "keep Qwen/Qwen3-30B-A3B fp16 and @int8 proof rows separate; do not inherit gates across rows",
+        "next expensive parity target is Qwen/Qwen3-30B-A3B-Instruct-2507@int8 full_generation then cache_generation",
     ]

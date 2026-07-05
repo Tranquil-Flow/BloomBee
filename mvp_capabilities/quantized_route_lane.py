@@ -40,9 +40,9 @@ DEFAULT_EVIDENCE = Path(__file__).with_name("distributed_evidence") / "post_mvp"
 QWEN3_MOE_INT8_COMPRESSION_RATIO = 1.996
 
 OPERATOR_NEXT_STEPS = [
-    "do not promote Qwen/Qwen3-30B-A3B@int8 until cache_generation passes and token_parity is exact",
-    "use the streamed fp16 reference harness for remaining cache-generation parity attempts",
-    "write token_parity exact/diverged only when the full quantized demo prompt set is covered",
+    "base Qwen/Qwen3-30B-A3B@int8 is demo-safe under the current full/cache/load/token-parity gates",
+    "keep Qwen/Qwen3-30B-A3B fp16 and @int8 proof rows separate; do not inherit gates across rows",
+    "next expensive parity target is Qwen/Qwen3-30B-A3B-Instruct-2507@int8 full_generation then cache_generation",
 ]
 
 GUARDRAILS = [

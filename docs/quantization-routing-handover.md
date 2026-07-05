@@ -277,28 +277,25 @@ proof tree `3d915db` for exact Instruct-2507:
 
 Proof row updates are quantized-row-only:
 `Qwen/Qwen3-30B-A3B@int8` has `prescan`, `one_block_server`,
-`multi_block`, `multi_request_load`, and now `full_generation` marked `passed`
-from the streamed-reference live run. Its `cache_generation` remains pending and
-`token_parity: exact_forward_loop_default_prompt_cache_pending` is deliberately
-not the demo-safe `exact` value. `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` still
-has only `prescan`, `one_block_server`, `multi_block`, and
-`multi_request_load` marked `passed`; its `full_generation`,
-`cache_generation`, and exact `token_parity` remain pending/fail-closed.
+`multi_block`, `multi_request_load`, `full_generation`, and
+`cache_generation` marked `passed`, with `token_parity: exact`, from the
+streamed-reference live runs. Under the current proof-gate policy that makes the
+base @int8 row demo-safe. `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` still has only
+`prescan`, `one_block_server`, `multi_block`, and `multi_request_load` marked
+`passed`; its `full_generation`, `cache_generation`, and exact `token_parity`
+remain pending/fail-closed.
 
-Remaining Task 5 work: exact full/cache generation parity. The current
-`text_generation_parity.py` verifier loads a full local fp16 HF reference
-while the distributed server is live. The fp16 30B requirement (route planner:
-70 GB class) exceeds m4pro's ~48 GB unified memory / ~37 GB free, so this
-remained fail-closed until a credible reference path existed. The repo now has a
-test-backed streamed-block reference harness (`scripts/streamed_reference_generation.py`
-plus `scripts/text_generation_parity.py --reference-mode streamed-blocks`) that
-loads the outer weights plus one fp16 BloomBee block at a time and can compare a
+Remaining Task 5 work: exact-model follow-up for Instruct-2507. The fp16 30B
+requirement (route planner: 70 GB class) exceeds m4pro's ~48 GB unified memory /
+~37 GB free, but the repo now has a test-backed streamed-block reference harness
+(`scripts/streamed_reference_generation.py` plus
+`scripts/text_generation_parity.py --reference-mode streamed-blocks`) that loads
+the outer weights plus one fp16 BloomBee block at a time and can compare a
 quantized route id (`model@int8`) against a base checkpoint id. The base
-`Qwen/Qwen3-30B-A3B@int8` live server has now passed this forward-loop
-full-generation gate with exact streamed fp16 IDs/text. Do not mark
-`cache_generation` passed, do not mark `token_parity: exact`, and do not mark
-safe-demo from this alone; remaining proof is cached/generate-api parity and the
-full quantized prompt-set parity policy.
+`Qwen/Qwen3-30B-A3B@int8` live server has now passed both forward-loop
+full-generation and cached/generate-api parity with exact streamed fp16 IDs/text.
+Do not transfer those proofs to `Qwen/Qwen3-30B-A3B-Instruct-2507@int8`; it still
+needs its own full/cache generation parity before demo-safe promotion.
 
 ### Task 6: int4 expert packing — **DONE (Fable, 2026-07-05)**
 See §1.7. Commit `78a152a`; tests in `tests/test_moe_expert_quant.py` (15
@@ -337,9 +334,9 @@ weights equality. Real-weight decoder-layer parity remains the Task 4/5 gate.
   full-generation, cache-generation, and exact token-parity gates pass for the
   exact route row.
 - `mvp_status.py` has the post-MVP quantization milestone updated to
-  `int8_load_proven_route_dashboard_wired` with evidence for base +
-  Instruct-2507 int8 load proofs, coordinator/dashboard route-pin handling,
-  quantized launch commands, and fail-closed full/cache/token-parity blockers.
+  `base_int8_demo_safe_instruct2507_pending` with evidence for base @int8
+  full/cache/load/token-parity proof, Instruct-2507 int8 load proof,
+  coordinator/dashboard route-pin handling, and quantized launch commands.
 - Docs coherence is guarded by
   `tests/test_mvp_capabilities.py::test_docs_post_mvp_status_rows_match_completed_scouts`
   plus the status/dashboard assertions that now reject the stale

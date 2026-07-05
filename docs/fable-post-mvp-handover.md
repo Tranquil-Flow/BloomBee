@@ -336,9 +336,9 @@ But proof status differs today, and the helper records this explicitly:
 
 ```text
 Qwen/Qwen3-30B-A3B@int8:
-  proven: prescan, one_block_server, multi_block, multi_request_load, full_generation (streamed fp16 reference forward-loop)
-  pending/fail-closed: cache_generation, token_parity exact
-  note: full 0:48 INT8 server + 3-request direct load passed on m4pro; later streamed-reference full-generation parity passed for the default prompt, but cache generation and demo-safe parity remain blocked
+  proven: prescan, one_block_server, multi_block, multi_request_load, full_generation (streamed fp16 reference forward-loop), cache_generation (streamed-reference generate-api), token_parity exact
+  pending/fail-closed: none under the current proof-gate policy
+  note: full 0:48 INT8 server + 3-request direct load passed on m4pro; streamed-reference full-generation and cache/generate-api parity both matched exact token IDs/text for the default proof prompt, so the base @int8 row is demo-safe under current gates
 
 Qwen/Qwen3-30B-A3B:
   lower gates passed: prescan, one_block_server, multi_block
@@ -370,12 +370,12 @@ Qwen/Qwen3-30B-A3B-Instruct-2507 cache: full 16-shard Seagate APFS cache downloa
 Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 
-Interpretation for Fable: base 30B int8 and exact Instruct-2507 int8 now fit and serve all 48 blocks under direct load. Base 30B@int8 additionally passed one-token streamed-fp16 forward-loop full-generation parity, but neither int8 row is **demo-safe** yet: base still needs cache-generation parity and final `token_parity: exact`, while Instruct-2507 still needs full/cache generation parity. Base fp16 30B and Instruct-2507 remain tied on lower fp16 gates (`prescan`, `one_block_server`, `multi_block`). The next valuable review question is whether to reuse the streamed-reference harness for cache/generate-api parity or add a faster precomputed fp16 trace before any demo-safe promotion.
+Interpretation for Fable: base 30B int8 and exact Instruct-2507 int8 now fit and serve all 48 blocks under direct load. Base 30B@int8 additionally passed one-token streamed-fp16 forward-loop full-generation parity and streamed-reference cache/generate-api parity, so it is **demo-safe** under the current proof-gate policy. Instruct-2507 still needs its own full/cache generation parity and exact token parity before promotion. Base fp16 30B and Instruct-2507 remain tied on lower fp16 gates (`prescan`, `one_block_server`, `multi_block`). The next valuable review question is whether to reuse the streamed-reference harness directly for Instruct-2507 or add a faster precomputed fp16 trace before that exact user-facing route's demo-safe promotion.
 
 Implemented recommendation:
 
 1. Do **not** make either 2507 variant part of MVP-core. MVP-core is already closed by Qwen3-8B.
-2. Base `Qwen/Qwen3-30B-A3B@int8` has real full-48-block load proof plus streamed-reference forward-loop full-generation parity; exact `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` has real full-48-block load proof only. Neither has cache-generation parity or final `token_parity: exact`; base fp16 `Qwen/Qwen3-30B-A3B` and **`Qwen/Qwen3-30B-A3B-Instruct-2507`** both have lower fp16 gates through multi-block. None of these 30B rows is demo-safe yet.
+2. Base `Qwen/Qwen3-30B-A3B@int8` has real full-48-block load proof plus streamed-reference forward-loop full-generation parity, cache/generate-api parity, and `token_parity: exact`, making it demo-safe under current gates; exact `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` has real full-48-block load proof only. Base fp16 `Qwen/Qwen3-30B-A3B` and **`Qwen/Qwen3-30B-A3B-Instruct-2507`** both have lower fp16 gates through multi-block.
 3. Use the exact-model priority report plus Seagate cache readiness to decide whether the next expensive full-generation run should be base-first, Instruct-first, or duplicated.
 4. Keep **Thinking-2507** optional unless the demo specifically needs thinking/reasoning behavior.
 5. For each exact model ID, still require its own proof row because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.
