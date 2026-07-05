@@ -59,24 +59,23 @@ def _tiny_qwen3_moe_config():
 
 
 def _make_stable_tiny_qwen3_moe_model():
-    """Create a tiny Qwen3-MoE fixture with bounded deterministic weights.
+    """Create a tiny Qwen3-MoE fixture with finite deterministic weights.
 
     This test covers streamed BloomBee block loading/execution, not HF random
-    tiny-MoE initialization. Full-suite order exposed occasional all-NaN logits
-    from the raw random fixture, so keep this model deterministic and finite.
+    tiny-MoE initialization. Full-suite order exposed all-NaN logits from raw
+    and small-random tiny-MoE fixtures, so remove random router/expert numerics:
+    norm weights stay 1.0 and all other floating weights are zero.
     """
     from transformers.models.qwen3_moe import Qwen3MoeForCausalLM
 
     model = Qwen3MoeForCausalLM(_tiny_qwen3_moe_config()).eval()
-    generator = torch.Generator(device="cpu").manual_seed(1234)
     with torch.no_grad():
         for name, param in model.named_parameters():
             if not param.dtype.is_floating_point:
                 continue
+            param.zero_()
             if name.endswith("norm.weight"):
                 param.fill_(1.0)
-            else:
-                param.uniform_(-0.01, 0.01, generator=generator)
     return model
 
 
