@@ -295,8 +295,8 @@ Post-MVP workstreams to review and possibly reorder:
 
 | Workstream | Current state | Main risk | Suggested next action |
 |---|---:|---|---|
-| Qwen3-30B-A3B@int8 full/cache/load | partial/proven int8 lower+load gates | load proof can be mistaken for token parity | Base 30B int8 now has prescan/one-block/0:2 multi-block/full-0:48 multi-request load evidence; keep full/cache generation pending until a credible fp16 reference parity path exists. |
-| Qwen3-30B-A3B Instruct-2507 | lower gates passed, full/cache/load pending | user-facing model still lacks generated-token/cache/load proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full model download is running in tmux `instruct2507-full-download` using a staged-root `curl | dd` pipeline through `/Volumes/Exchange` into the Seagate APFS snapshot. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` before any expensive gate, then `.venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness --server-maddr '<captured>'` to emit the full/cache/load demo-safe ladder commands. |
+| Qwen3-30B-A3B@int8 / Instruct-2507@int8 full/cache/load | partial/proven int8 load gates | load proof can be mistaken for token parity | Base 30B int8 has prescan/one-block/0:2 multi-block/full-0:48 multi-request load evidence; Instruct-2507 int8 has full-0:48 multi-request load evidence. Keep full/cache generation pending until a credible fp16 reference parity path exists. |
+| Qwen3-30B-A3B Instruct-2507 | lower gates passed, int8 load proof passed, full/cache parity pending | user-facing model still lacks generated-token/cache proof | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full 16-shard cache is downloaded; `Instruct-2507@int8` full `0:48` multi-request load evidence is committed in this slice. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` before any future expensive gate, then solve the fp16 reference-parity path before marking full/cache generation or token parity exact. |
 | Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, and injected live-loop unit seam exist; next wire `LiveContinuousDecodeLoop` rows into `inference_session.py` behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING`, prove parity, then measure wall-clock throughput. |
 | KV prefix reuse | partial | cache reuse can silently change outputs | Deterministic prefix planner proof exists; next wire into real prefill/session cache metadata and require exact-token/logit parity plus timing delta. |
 | Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
@@ -344,6 +344,11 @@ Qwen/Qwen3-30B-A3B:
   lower gates passed: prescan, one_block_server, multi_block
   next gate: full_generation
 
+Qwen/Qwen3-30B-A3B-Instruct-2507@int8:
+  proven: prescan, one_block_server, multi_block, multi_request_load
+  pending/fail-closed: full_generation, cache_generation, token_parity exact
+  note: full 0:48 INT8 server + 3-request direct load passed on m4pro from the complete 16-shard Seagate cache; load proof is not token parity
+
 Qwen/Qwen3-30B-A3B-Instruct-2507:
   lower gates passed: prescan, one_block_server, multi_block
   next gate: full_generation
@@ -361,16 +366,16 @@ Additional low-grunt remote readiness check before Fable unlock:
 m4pro identity: user=evinova-self, host=m4pro, project_exists=true
 Seagate APFS cache: /Volumes/Seagate Portable Drive/huggingface/hub writable
 Qwen/Qwen3-30B-A3B cache: migrated to Seagate, 16 safetensors, 0 incomplete, internal duplicate removed
-Qwen/Qwen3-30B-A3B-Instruct-2507 cache: proof subset present; full download now running in tmux `instruct2507-full-download` via fresh tmux + staged-root `curl | dd`. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` for READY/BLOCKED cache state, `.venv/bin/python scripts/instruct2507_full_generation_gate.py --remote-readiness` for the guarded full-generation runbook, and `.venv/bin/python scripts/fable_handoff_check.py --remote-download` for the combined handoff pulse before starting any expensive proof gate.
+Qwen/Qwen3-30B-A3B-Instruct-2507 cache: full 16-shard Seagate APFS cache downloaded and READY via the staged-root `curl | dd` pipeline through `/Volumes/Exchange`; `Instruct-2507@int8` full 0:48 multi-request load proof passed. Use `.venv/bin/python scripts/instruct2507_cache_readiness.py --remote` for a fresh READY/BLOCKED pulse, but do not promote full/cache generation until the fp16 reference parity path is solved.
 Qwen/Qwen3-30B-A3B-Thinking-2507 cache: absent/pending
 ```
 
-Interpretation for Fable: the base 30B int8 serving substrate now fits and serves all 48 blocks under direct load, but it is still **not demo-safe** because full/cache generation parity against fp16 is unproven. Base fp16 30B and Instruct-2507 remain tied on lower fp16 gates (`prescan`, `one_block_server`, `multi_block`). The next valuable review question is a reference strategy: larger host, precomputed fp16 reference trace, or a test-backed offloaded/streaming fp16 baseline before any `token_parity: exact` claim.
+Interpretation for Fable: base 30B int8 and exact Instruct-2507 int8 now fit and serve all 48 blocks under direct load, but neither is **demo-safe** because full/cache generation parity against fp16 is unproven. Base fp16 30B and Instruct-2507 remain tied on lower fp16 gates (`prescan`, `one_block_server`, `multi_block`). The next valuable review question is a reference strategy: larger host, precomputed fp16 reference trace, or a test-backed offloaded/streaming fp16 baseline before any `token_parity: exact` claim.
 
 Implemented recommendation:
 
 1. Do **not** make either 2507 variant part of MVP-core. MVP-core is already closed by Qwen3-8B.
-2. Base `Qwen/Qwen3-30B-A3B@int8` has a real full-48-block load proof, but **not** full/cache generation parity; base fp16 `Qwen/Qwen3-30B-A3B` and **`Qwen/Qwen3-30B-A3B-Instruct-2507`** both have lower fp16 gates through multi-block. None of these 30B rows is demo-safe yet.
+2. Base `Qwen/Qwen3-30B-A3B@int8` and exact `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` have real full-48-block load proofs, but **not** full/cache generation parity; base fp16 `Qwen/Qwen3-30B-A3B` and **`Qwen/Qwen3-30B-A3B-Instruct-2507`** both have lower fp16 gates through multi-block. None of these 30B rows is demo-safe yet.
 3. Use the exact-model priority report plus Seagate cache readiness to decide whether the next expensive full-generation run should be base-first, Instruct-first, or duplicated.
 4. Keep **Thinking-2507** optional unless the demo specifically needs thinking/reasoning behavior.
 5. For each exact model ID, still require its own proof row because cache names, configs, tokenizer/generation settings, and model repo packaging can differ even if the architecture looks the same.

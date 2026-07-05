@@ -112,8 +112,8 @@ Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 
 | Workstream | Current progress | Next proof |
 |---|---:|---|
-| Qwen3-30B-A3B proof ladder | 55% | base and Instruct-2507 lower gates are proven; next full-generation parity, then cache-generation, then multi-request load. |
-| Qwen3-30B-A3B Instruct-2507 | lower gates passed | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full-generation/cache/load remain pending. |
+| Qwen3-30B-A3B proof ladder | 60% | base and Instruct-2507 lower gates are proven; base@int8 and Instruct-2507@int8 full-0:48 load proofs passed; next full-generation parity, then cache-generation. |
+| Qwen3-30B-A3B Instruct-2507 | int8 load proof passed, fp16 full/cache/load pending | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); `Instruct-2507@int8` full 0:48 multi-request load passed, but full-generation/cache parity remain pending. |
 | Live chain scheduler | scoped / pending | live request artifact with `verified_chain_scheduler_live_request_evidence`. |
 | Continuous batching | partial | live-loop unit seam artifact exists; next real live request artifact with correctness + throughput telemetry behind opt-in integration. |
 | KV prefix reuse | partial | exact-token/logit parity plus timing delta against no-reuse baseline. |

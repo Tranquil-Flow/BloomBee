@@ -5,10 +5,12 @@
 > Tasks 2, 3, 4 and 6 are DONE and committed with tests (server-side
 > quantized loading, quant-aware route memory math, quantized proof rows +
 > token-parity policy, packed int4 experts); Task 1 (TinyLlama load gate) was
-> closed by Moonsong. Task 5 is partially executed on m4pro: int8 one-block,
-> 0:2 multi-block, and full 0:48 multi-request load passed, but full/cache
-> generation and token parity remain fail-closed pending. What remains is the
-> parity/reference problem plus coordinator/dashboard wiring + docs (Tasks 7–8).
+> closed by Moonsong. Task 5 is partially executed on m4pro: base 30B@int8
+> one-block, 0:2 multi-block, and full 0:48 multi-request load passed; exact
+> Instruct-2507@int8 also has a full 0:48 multi-request load proof. Full/cache
+> generation and token parity remain fail-closed pending for both quantized
+> rows. What remains is the parity/reference problem plus coordinator/dashboard
+> wiring + docs (Tasks 7–8).
 > Work task-by-task, RED tests first where specified, commit after each task. Do
 > not move the MVP-core denominator; everything here is post-MVP.
 
@@ -246,7 +248,8 @@ The serving path is real now: `--quant_type INT8` on a qwen3_moe server
 actually quantizes blocks at load (§1.6). Base 30B weights are cached on the
 m4pro Seagate snapshot.
 
-Verified on m4pro from clean proof tree `7830e76`:
+Verified on m4pro from clean proof tree `7830e76` for base 30B, then clean
+proof tree `3d915db` for exact Instruct-2507:
 
 - `qwen30b-int8-oneblock-20260705T131443Z.json` — one-block INT8 server +
   direct RPC forward/backward passed; block compressed 1246.2 MB → 624.3 MB
@@ -257,12 +260,18 @@ Verified on m4pro from clean proof tree `7830e76`:
   server loaded all 48 blocks and passed `multi_request_load_proof.py verify`
   for 3 seeded/scaled direct-client requests. Forward latencies: avg 2.645s;
   backward avg 4.566s; 0 failures.
+- `instruct2507-int8-full-load-0-48-20260705T133853Z.json` — exact
+  `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` full `0:48` INT8 server loaded all
+  48 blocks from the complete Seagate cache and passed the same 3-request load
+  verifier. Forward latencies: avg 2.467s; backward avg 4.544s; 0 failures.
 
-Proof row update applied only to `Qwen/Qwen3-30B-A3B@int8`:
-`prescan`, `one_block_server`, `multi_block`, and `multi_request_load` are
-`passed`. `full_generation` and `cache_generation` stay `pending`, and
-`token_parity: not_evaluated_reference_fp16_exceeds_m4pro_memory` keeps the
-row below demo_safe.
+Proof row updates are quantized-row-only:
+`Qwen/Qwen3-30B-A3B@int8` and
+`Qwen/Qwen3-30B-A3B-Instruct-2507@int8` have `prescan`,
+`one_block_server`, `multi_block`, and `multi_request_load` marked `passed`.
+`full_generation` and `cache_generation` stay `pending`, and
+`token_parity: not_evaluated_reference_fp16_exceeds_m4pro_memory` keeps both
+rows below demo_safe.
 
 Remaining Task 5 work: exact full/cache generation parity. The current
 `text_generation_parity.py` verifier loads a full local fp16 HF reference

@@ -179,9 +179,10 @@ tracked in `docs/mvp-finish-plan.md`, and the post-MVP task scope is tracked in
   `Qwen/Qwen3-30B-A3B-Instruct-2507` and
   `Qwen/Qwen3-30B-A3B-Thinking-2507`. Instruct-2507 now has exact-model
   prescan, one-block, and two-server multi-block `0:2` proofs on the Seagate
-  APFS cache, but it is not a safe-demo candidate until full distributed
-  generation, cached generation, and multi-request load pass. Thinking-2507
-  remains optional/pending.
+  APFS cache, plus a separate `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` full
+  `0:48` multi-request load proof. It is not a safe-demo candidate until full
+  distributed generation, cached generation, and exact token parity pass.
+  Thinking-2507 remains optional/pending.
 - `mvp_capabilities/join_coordinator.py` creates `bloombee://join?...` offers
   and token-scoped heartbeat rosters. `mvp_capabilities/join_http_server.py`
   exposes `/healthz`, `/offer`, `/heartbeat`, `/active`, `/route`, `/plan`,
@@ -364,9 +365,10 @@ Verified gates now include:
 - one-block Qwen3-30B-A3B MoE live-server shard proof on M4 Pro,
 - two-server Qwen3-30B-A3B MoE multi-block `0:2` direct RPC proof on M4 Pro,
 - Seagate-backed Qwen3-30B-A3B-Instruct-2507 prescan + one-block proof,
-- Seagate-backed Qwen3-30B-A3B-Instruct-2507 two-server multi-block `0:2` direct RPC proof (`mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json`).
+- Seagate-backed Qwen3-30B-A3B-Instruct-2507 two-server multi-block `0:2` direct RPC proof (`mvp_capabilities/distributed_evidence/post_mvp/instruct2507-seagate-multiblock-proof-20260705T064511Z.json`),
+- Seagate-backed `Qwen/Qwen3-30B-A3B-Instruct-2507@int8` full `0:48` multi-request load proof (`mvp_capabilities/distributed_evidence/post_mvp/instruct2507-int8-full-load-0-48-20260705T133853Z.json`).
 
-Next verification gates are Qwen3-30B-A3B and Instruct-2507 full-generation/cache/load proofs, two-laptop cached `.generate()` with S2S/default fallback, and any future 10-laptop physical showcase expansion beyond the already-closed MVP-core proof.
+Next verification gates are Qwen3-30B-A3B and Instruct-2507 full-generation/cache parity proofs, two-laptop cached `.generate()` with S2S/default fallback, and any future 10-laptop physical showcase expansion beyond the already-closed MVP-core proof.
 
 ### Verified distributed-server boot on M4 Pro (2026-07-02 ~21:52)
 
