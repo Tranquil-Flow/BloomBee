@@ -10,7 +10,7 @@ import torch.nn as nn
 from hivemind import DHT
 from hivemind.utils.logging import get_logger
 from transformers.cache_utils import Cache
-from transformers.modeling_outputs import BaseModelOutputWithPast
+from transformers.modeling_outputs import MoeModelOutputWithPast
 try:
     from transformers.models.qwen3_moe import (
         Qwen3MoeForCausalLM as _BaseCausalLM,
@@ -78,6 +78,7 @@ class DistributedQwen3MoeModel(DefaultRevisionMixin, FromPretrainedMixin, PTuneM
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.Tensor] = None,
+        output_router_logits: Optional[bool] = None,
     ):
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -103,6 +104,7 @@ class DistributedQwen3MoeModel(DefaultRevisionMixin, FromPretrainedMixin, PTuneM
         assert not output_attentions, f"{output_attentions=} is not supported"
         assert not output_hidden_states, f"{output_hidden_states=} is not supported"
         assert return_dict is None or return_dict, f"{return_dict=} is not supported"
+        assert not output_router_logits, f"{output_router_logits=} is not supported"
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
@@ -135,11 +137,12 @@ class DistributedQwen3MoeModel(DefaultRevisionMixin, FromPretrainedMixin, PTuneM
         # Add last hidden state
         hidden_states = self.norm(hidden_states)
         hidden_states = hidden_states.view(output_shape)
-        return BaseModelOutputWithPast(
+        return MoeModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values,
             hidden_states=None,
             attentions=None,
+            router_logits=None,
         )
 
     @property
