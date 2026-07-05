@@ -58,7 +58,9 @@ REQUIRED_HANDOFF_PHRASES = (
     "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
     "staged-root `curl | dd`",
     "instruct2507-full-download",
-    "432 passed, 23 skipped, 4 warnings",
+    "scripts/instruct2507_cache_readiness.py --remote",
+    "cache_download_readiness_only_no_generation_or_load_proof",
+    "437 passed, 23 skipped, 4 warnings",
     "Do **not** claim from this artifact",
 )
 
@@ -83,6 +85,7 @@ DO_NOT_SPEND_FABLE_TOKENS_ON = (
     "Rediscovering the Instruct-2507 download failure mode; staged-root curl|dd details are in the handoff.",
     "Checking whether the live batching unit artifact claims speedup; this checker enforces negative flags.",
     "Manually hunting for the key evidence paths; this checker verifies them directly.",
+    "Counting Instruct-2507 shards by hand; scripts/instruct2507_cache_readiness.py reports readiness and proof flags.",
 )
 
 
@@ -272,6 +275,39 @@ echo TMUX_SESSIONS_END
     return parsed
 
 
+def _remote_cache_readiness(errors: list[str]) -> dict[str, Any]:
+    script = PROJECT_ROOT / "scripts" / "instruct2507_cache_readiness.py"
+    if not script.exists():
+        errors.append("missing scripts/instruct2507_cache_readiness.py")
+        return {"ok": False, "ready": False, "errors": ["missing script"]}
+    result = subprocess.run(
+        [sys.executable, str(script), "--remote", "--json"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=75,
+        check=False,
+    )
+    if result.returncode != 0:
+        errors.append(f"remote cache readiness failed: {result.stderr.strip() or result.stdout.strip()}")
+        return {
+            "ok": False,
+            "ready": False,
+            "exit_code": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        errors.append(f"remote cache readiness emitted invalid JSON: {exc}")
+        return {"ok": False, "ready": False, "stdout": result.stdout.strip(), "errors": [str(exc)]}
+    if not payload.get("ok", False):
+        errors.append("remote cache readiness script returned ok=false")
+    return payload
+
+
+
 def build_report(*, include_remote: bool = False) -> dict[str, Any]:
     errors: list[str] = []
     report: dict[str, Any] = {
@@ -287,6 +323,7 @@ def build_report(*, include_remote: bool = False) -> dict[str, Any]:
     report["evidence"] = _check_evidence(errors)
     if include_remote:
         report["remote_download"] = _remote_download_state(errors)
+        report["remote_cache_readiness"] = _remote_cache_readiness(errors)
     report["errors"] = errors
     report["ok"] = not errors
     return report
@@ -333,6 +370,26 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"- CURRENT_FILE: `{remote.get('CURRENT_FILE')}`",
                 f"- STAGE_PART_BYTES: `{remote.get('STAGE_PART_BYTES')}`",
                 f"- FINAL_BYTES: `{remote.get('FINAL_BYTES')}`",
+            ]
+        )
+
+    readiness = report.get("remote_cache_readiness")
+    if readiness:
+        stage_part = readiness.get("stage_part") or {}
+        download_status = readiness.get("download_status") or {}
+        lines.extend(
+            [
+                "",
+                "## Remote cache readiness",
+                "",
+                f"- READY: `{readiness.get('ready')}`",
+                f"- Claim boundary: `{readiness.get('claim_boundary')}`",
+                f"- Shards: `{readiness.get('present_shard_count')}/{readiness.get('expected_shard_count')}`",
+                f"- First missing shard: `{readiness.get('first_missing_shard')}`",
+                f"- Current file: `{download_status.get('CURRENT_FILE')}`",
+                f"- Current phase: `{download_status.get('CURRENT_PHASE')}`",
+                f"- Stage part bytes: `{stage_part.get('bytes')}`",
+                f"- Can start expensive full-generation gate: `{readiness.get('can_start_expensive_full_generation_gate')}`",
             ]
         )
 
