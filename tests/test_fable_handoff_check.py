@@ -32,22 +32,23 @@ def test_fable_handoff_check_json_is_grunt_free_and_claim_bounded():
     assert payload["ok"] is True
     assert payload["project"] == "distributed-inference-mvp"
     assert payload["mvp_status"]["task_summary"] == {
-        "complete": 11,
-        "partial": 5,
+        "complete": 13,
+        "partial": 3,
         "pending": 0,
         "blocked": 1,
         "total": 17,
     }
     assert payload["mvp_status"]["post_mvp_task_summary"] == {
-        "complete": 2,
-        "partial": 5,
+        "complete": 4,
+        "partial": 3,
         "pending": 0,
         "blocked": 1,
         "total": 8,
     }
     continuous = payload["mvp_status"]["continuous_batching"]
-    assert continuous["status"] == "partial"
+    assert continuous["status"] == "complete"
     assert "live-continuous-batching-loop-unit-20260705.json" in continuous["evidence"]
+    assert "strict-live-cbkv-v16-outer-row-local-verified-20260706.json" in continuous["evidence"]
     assert payload["evidence"]["live_loop"]["claim_boundary"] == "live_continuous_decode_loop_unit_no_server_no_speedup"
     assert payload["evidence"]["live_loop"]["live_loop_unit_proven"] is True
     assert payload["evidence"]["live_loop"]["live_server_proven"] is False

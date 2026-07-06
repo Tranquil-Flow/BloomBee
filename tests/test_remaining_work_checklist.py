@@ -23,15 +23,13 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     assert payload["core_mvp_complete"] is True
     assert payload["mvp_bar"] == "████████████████████ 100%"
     assert payload["remaining_count"] == len(payload["items"])
-    assert payload["remaining_count"] == 6
+    assert payload["remaining_count"] == 4
     by_id = {item["id"]: item for item in payload["items"]}
     assert set(by_id) == {
         "qwen35b_candidate",
         "minimax_m3_candidate",
         "speculative_decode",
         "phone_worker",
-        "continuous_batching",
-        "kv_prefix_reuse",
     }
     assert by_id["qwen35b_candidate"]["status"] == "partial"
     assert "one-block server proof" in by_id["qwen35b_candidate"]["next_step"]
@@ -41,14 +39,8 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     assert "minimax-reap-family-comparison-current-20260706.json" in minimax_evidence
     assert "M4+M4Pro memory is not additive" in minimax_evidence
     assert "M3 as likely stronger but not easier" in minimax_evidence
-    continuous_evidence = by_id["continuous_batching"]["evidence"]
-    assert "continuous-batching-server-merge-report-live-20260706T0812.json" in continuous_evidence
-    assert "strict verifier still fails closed" in continuous_evidence
-    assert "strict-live-cbkv-blocker-20260706.json" in continuous_evidence
-    assert "dynamic batch parity failed closed" in continuous_evidence
-    assert "wall-clock speedup, or demo promotion yet" in continuous_evidence
     assert all(item["done"] is False for item in payload["items"])
-    assert payload["by_status"] == {"partial": 5, "blocked": 1}
+    assert payload["by_status"] == {"partial": 3, "blocked": 1}
 
 
 def test_remaining_work_checklist_markdown_lists_next_steps_without_overclaiming():
