@@ -93,6 +93,22 @@ def test_kv_prefix_report_is_attached_to_first_server_session_metadata(monkeypat
     assert report["can_update_demo_status"] is False
 
 
+def test_kv_prefix_prefill_metadata_updates_existing_server_sessions(monkeypatch):
+    from bloombee.client.inference_session import InferenceSession
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    session = InferenceSession(SimpleNamespace(), max_length=8)
+    server_session = SimpleNamespace(session_metadata={"kept": True})
+    session._server_sessions = [server_session]
+
+    session.record_kv_prefix_reuse_prefill([[101, 102, 201], [101, 102, 202]], request_ids=["a", "b"])
+
+    report = server_session.session_metadata["kv_prefix_reuse"]
+    assert report["runtime_prefill_metadata_proven"] is True
+    assert report["events"][0]["common_prefix_token_ids"] == [101, 102]
+    assert server_session.session_metadata["kept"] is True
+
+
 def test_kv_prefix_metadata_is_sent_in_first_rpc_inference_request(monkeypatch):
     from bloombee.client import inference_session as inference_session_mod
     from bloombee.client.inference_session import _ServerInferenceSession
@@ -144,6 +160,60 @@ def test_kv_prefix_metadata_is_sent_in_first_rpc_inference_request(monkeypatch):
     assert metadata["kv_prefix_reuse"]["speedup_proven"] is False
 
 
+def test_server_session_live_tick_rows_preserve_kv_prefix_reuse_metadata(monkeypatch):
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+    from bloombee.client.live_continuous_batching import LiveDecodeRow
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    inputs = torch.zeros((2, 1, 4), dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(inputs, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=8,
+        kv_prefix_reuse=_kv_prefix_report(),
+    )
+    captured_request = {}
+
+    async def fake_step(inputs_serialized):
+        captured_request["request"] = inputs_serialized
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(inputs, runtime_pb2.CompressionType.NONE)]
+        )
+
+    session._step = fake_step
+    session.stage_live_continuous_tick_rows(
+        [
+            LiveDecodeRow(request_id="a", tick=0, position=0, input_token_id=201),
+            LiveDecodeRow(request_id="b", tick=0, position=0, input_token_id=202),
+        ]
+    )
+    session.step(
+        inputs,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.zeros(inputs.shape[0]),
+        step_id="step-live-kv",
+    )
+
+    metadata = MSGPackSerializer.loads(captured_request["request"].metadata)
+    assert metadata["kv_prefix_reuse"]["event_count"] == 1
+    live_batch = metadata["live_continuous_batching"]["tick_batches"][0]
+    assert live_batch["kv_prefix_reuse"]["event_count"] == 1
+    assert live_batch["kv_prefix_reuse"]["events"][0]["common_prefix_token_ids"] == [101, 102]
+
+
 def test_server_observes_kv_prefix_reuse_metadata_only_with_opt_in(monkeypatch):
     from bloombee.server.handler import _extract_kv_prefix_reuse_metadata
 
@@ -164,6 +234,30 @@ def test_server_observes_kv_prefix_reuse_metadata_only_with_opt_in(monkeypatch):
     assert observed["can_update_demo_status"] is False
 
     assert _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": "not-a-dict"}) is None
+
+
+def test_server_observes_nested_live_batch_kv_prefix_reuse_metadata(monkeypatch):
+    from bloombee.server.handler import _extract_kv_prefix_reuse_metadata
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    metadata = {
+        "live_continuous_batching": {
+            "tick_batches": [
+                {
+                    "tick": 0,
+                    "request_ids": ["a", "b"],
+                    "positions": [0, 0],
+                    "input_token_ids": [201, 202],
+                    "kv_prefix_reuse": _kv_prefix_report(),
+                }
+            ]
+        }
+    }
+
+    observed = _extract_kv_prefix_reuse_metadata(metadata)
+    assert observed is not None
+    assert observed["server_observed_metadata"] is True
+    assert observed["events"][0]["common_prefix_token_ids"] == [101, 102]
 
 
 def test_server_records_real_kv_prefix_handoff_from_allocated_cache_slices(monkeypatch):
@@ -304,6 +398,57 @@ def test_server_response_metadata_accepts_same_handle_non_overlapping_kv_slices(
     assert observed["cache_write_destination_handle_id"] == 11
     assert observed["cache_read_source_bh_slice"] == [0, 4]
     assert observed["cache_write_destination_bh_slice"] == [4, 8]
+
+
+def test_server_response_metadata_reports_kv_handoff_diagnostic_when_not_promoted(monkeypatch):
+    from bloombee.server.handler import (
+        _build_rpc_inference_response_metadata,
+        _extract_kv_prefix_reuse_metadata,
+        _maybe_record_kv_prefix_reuse_handoff,
+    )
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    metadata = {"kv_prefix_reuse_server_observed": _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": _kv_prefix_report()})}
+
+    handoff = _maybe_record_kv_prefix_reuse_handoff(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        cache_handles=(),
+        cache_manager=SimpleNamespace(),
+        batch_size=2,
+    )
+    warm = _build_rpc_inference_response_metadata(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        requested_uids=("block.0",),
+        cache_handles=(),
+    )
+
+    assert handoff is None
+    assert "kv_prefix_reuse_server_observed" not in warm
+    diagnostic = warm["kv_prefix_reuse_server_diagnostic"]
+    assert diagnostic["claim_boundary"] == "kv_prefix_reuse_server_handoff_diagnostic_no_proof"
+    assert diagnostic["reason"] == "missing_cache_handle"
+    assert diagnostic["server_observed_kv_cache_reuse"] is False
+    assert diagnostic["live_kv_cache_reuse_proven"] is False
+
+
+def test_client_kv_report_records_server_handoff_diagnostics(monkeypatch):
+    from bloombee.client.inference_session import InferenceSession
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    session = InferenceSession(SimpleNamespace(), max_length=8)
+    diagnostic = {
+        "claim_boundary": "kv_prefix_reuse_server_handoff_diagnostic_no_proof",
+        "reason": "missing_cache_handle",
+        "server_observed_kv_cache_reuse": False,
+        "live_kv_cache_reuse_proven": False,
+    }
+    session.record_server_response_metadata({"kv_prefix_reuse_server_diagnostic": diagnostic})
+
+    report = session.kv_prefix_reuse_report()
+    assert report["server_diagnostics"] == [diagnostic]
+    assert report["server_observed_kv_cache_reuse"] is False
 
 
 def test_client_records_server_response_kv_cache_reuse(monkeypatch):

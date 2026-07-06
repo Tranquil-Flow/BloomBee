@@ -1,20 +1,8 @@
 {
-  "blocked_reasons": [
-    "kv_prefix_reuse:verifier_status_not_passed",
-    "kv_prefix_reuse:same_prefix_varied_suffix_not_proven",
-    "kv_prefix_reuse:token_parity_not_proven",
-    "kv_prefix_reuse:logit_parity_not_proven",
-    "kv_prefix_reuse:timing_not_measured",
-    "kv_prefix_reuse:live_server_kv_tensor_reuse_not_proven",
-    "kv_prefix_reuse:server did not report KV cache tensor reuse",
-    "kv_prefix_reuse:requests must be a list",
-    "kv_prefix_reuse:expected at least 2 same-prefix requests",
-    "kv_prefix_reuse:requests did not share exactly one identical prefix",
-    "kv_prefix_reuse:expected at least 2 distinct suffixes sharing the same prefix"
-  ],
+  "blocked_reasons": [],
   "can_update_demo_status": false,
   "can_update_mvp_status": false,
-  "can_update_post_mvp_gate_status": false,
+  "can_update_post_mvp_gate_status": true,
   "claim_boundary": "continuous_kv_joint_readiness_gate_no_demo_or_wallclock_speedup_claim",
   "claim_limitations": [
     "Joint verifier only; it does not itself execute live traffic.",
@@ -32,21 +20,25 @@
     "status": "passed"
   },
   "continuous_batching_ready": true,
-  "joint_batch_kv_ready": false,
+  "joint_batch_kv_ready": true,
   "kv_prefix_reuse": {
     "claim_boundary": "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing",
-    "live_kv_cache_reuse_proven": false,
-    "same_prefix_varied_suffix_proven": false,
-    "server_observed_kv_cache_reuse": false,
-    "speedup_proven": false,
-    "status": "failed",
-    "timing_measured": false
+    "live_kv_cache_reuse_proven": true,
+    "same_prefix_varied_suffix_proven": true,
+    "server_observed_kv_cache_reuse": true,
+    "speedup_proven": true,
+    "status": "passed",
+    "timing_measured": true
   },
-  "kv_prefix_reuse_ready": false,
+  "kv_prefix_reuse_ready": true,
   "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "proof_status_update": {},
+  "proof_status_update": {
+    "continuous_batching": "passed",
+    "continuous_kv_joint_readiness": "passed",
+    "kv_prefix_reuse": "passed"
+  },
   "source": "continuous_kv_joint_readiness.py",
   "speedup_proven": false,
-  "verification_status": "failed",
+  "verification_status": "passed",
   "wallclock_speedup_proven": false
 }

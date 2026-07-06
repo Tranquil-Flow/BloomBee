@@ -1,0 +1,38 @@
+{
+  "model_id": "AliesTaha/fable-traces",
+  "checked_at": "2026-07-06",
+  "source": "hf_model_card_and_model_compat_scan",
+  "hf_sha": "917928ff2d76c83b8dc48de55a7a34ee1f259585",
+  "license": "apache-2.0",
+  "base_model": "Qwen/Qwen3-4B-Instruct-2507",
+  "model_type": "qwen3",
+  "architecture": "Qwen3ForCausalLM",
+  "parameters_bf16": 4022468096,
+  "used_storage_bytes": 8056404646,
+  "hidden_size": 2560,
+  "num_hidden_layers": 36,
+  "num_attention_heads": 32,
+  "num_key_value_heads": 8,
+  "max_position_embeddings": 262144,
+  "requires_trust_remote_code": false,
+  "bloombee_architecture_supported": true,
+  "bloombee_family": "qwen3",
+  "bloombee_claim_level": "experimental",
+  "proof_status": {
+    "prescan": "passed",
+    "one_block_server": "pending",
+    "multi_block": "pending",
+    "full_generation": "pending",
+    "cache_generation": "pending",
+    "multi_request_load": "pending"
+  },
+  "viability": "experimental_candidate_only",
+  "recommendation": "Add only as an experimental Qwen3-4B candidate after one-block/full-generation/cache-generation proof. Do not route MVP demos to it yet.",
+  "quality_risk": "model card ends with disclaimer: This is a joke. This is not an actual model. Please read the full post first",
+  "notes": [
+    "Architecturally compatible with the existing qwen3 block wrapper family.",
+    "Small enough (~8.06GB BF16 storage) to be practical for local/M4 smoke and distributed proof ladders.",
+    "No LoRA adapter_config.json; repository contains full BF16 safetensors shards.",
+    "Fable-reasoning distillation claim is unproven by the model card; treat behavior as unknown until benchmarked."
+  ]
+}

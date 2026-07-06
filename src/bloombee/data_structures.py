@@ -132,6 +132,9 @@ class InferenceMetadata:
     need_pruning: Optional[torch.Tensor] = None
     is_spec_dec: Optional[torch.Tensor] = None
     active_mask: Optional[torch.Tensor] = None
+    kv_prefix_reuse_enabled: bool = False
+    kv_prefix_reuse_common_prefix_token_count: int = 0
+    kv_prefix_reuse_request_count: int = 0
     # Micro-batch support: batch slicing for KV cache
     batch_offset: int = 0  # Start index in the full batch for this micro-batch
     full_batch_size: int = 0  # Total batch size (0 means no micro-batch, use entire cache)

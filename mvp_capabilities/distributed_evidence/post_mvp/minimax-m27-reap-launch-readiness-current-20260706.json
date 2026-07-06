@@ -14,6 +14,8 @@
     "gguf_size_gb": 36.72,
     "incomplete_files": [],
     "model_dir": "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf",
+    "model_path": "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf/m51Lab-MiniMax-M2.7-REAP-139B-A10B.i1-IQ2_XXS.gguf",
+    "model_size_bytes": 36719971456,
     "partial_bytes": 0,
     "partial_gb": 0.0
   },
@@ -23,9 +25,10 @@
   "memory": {
     "attemptable": false,
     "definition": "macOS vm_stat free+inactive+speculative+purgeable pages",
-    "freeable_gb": 27.278,
+    "freeable_gb": 31.995,
     "required_free_gb": 40.8
   },
+  "model": {},
   "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
   "native_bloombee_support_proven": false,
   "runtime": {
@@ -46,6 +49,11 @@
     "--host",
     "127.0.0.1"
   ],
+  "smoke": {
+    "external_runtime_smoke_proven": false,
+    "latest_attempt_artifact": "mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-smoke-blocked-memory-20260706T163118Z.json",
+    "latest_attempt_status": "blocked"
+  },
   "smoke_command": [
     "/opt/homebrew/bin/llama-cli",
     "-m",

@@ -284,6 +284,9 @@ class _ServerInferenceSession:
 
     def stage_live_continuous_tick_rows(self, rows) -> dict:
         batch = self._normalize_live_continuous_tick_rows_for_server(rows)
+        kv_prefix_reuse_metadata = self.session_metadata.get("kv_prefix_reuse")
+        if isinstance(kv_prefix_reuse_metadata, dict):
+            batch["kv_prefix_reuse"] = dict(kv_prefix_reuse_metadata)
         self._pending_live_continuous_tick_batch = dict(batch)
         return dict(batch)
 
@@ -302,6 +305,8 @@ class _ServerInferenceSession:
         for key in ("batch_offset", "full_batch_size", "micro_batch_size"):
             if key in batch and batch[key] is not None:
                 staged[key] = int(batch[key])
+        if isinstance(batch.get("kv_prefix_reuse"), dict):
+            staged["kv_prefix_reuse"] = dict(batch["kv_prefix_reuse"])
         self._pending_live_continuous_tick_batch = staged
         return dict(staged)
 
@@ -561,6 +566,9 @@ class _ServerInferenceSession:
                 request_metadata: dict[str, Any] = dict(session_id=self.session_id, step_id=step_id)
                 if not self.stepped:
                     request_metadata.update(self.session_metadata)
+                kv_prefix_reuse_metadata = self.session_metadata.get("kv_prefix_reuse")
+                if isinstance(kv_prefix_reuse_metadata, dict):
+                    request_metadata["kv_prefix_reuse"] = kv_prefix_reuse_metadata
                 # Only send non-default control flags; the server already
                 # treats missing values as false/zero.
                 if is_spec_dec:
@@ -596,6 +604,8 @@ class _ServerInferenceSession:
                             request_metadata[key] = int(live_batch[key])
                     if "full_batch_size" in request_metadata:
                         request_metadata["live_continuous_full_batch_size"] = int(request_metadata["full_batch_size"])
+                    if isinstance(live_batch.get("kv_prefix_reuse"), dict):
+                        request_metadata["kv_prefix_reuse"] = dict(live_batch["kv_prefix_reuse"])
 
                 # TODO: make possible to use different compression method for different tensors
                 server_side_inference_schema, kwargs_schema = self.rpc_info["inference_schema"]
@@ -803,6 +813,7 @@ class InferenceSession:
         self._live_continuous_server_observations = []
         self._kv_prefix_reuse_events = []
         self._kv_prefix_reuse_server_observations = []
+        self._kv_prefix_reuse_server_diagnostics = []
         
         # [MBPIPE] Log micro-batch pipeline configuration at client session creation
         mbpipe_log_config(logger, context="InferenceSession.__init__")
@@ -910,6 +921,16 @@ class InferenceSession:
         """
 
         batch = self._normalize_live_continuous_tick_rows(rows)
+        try:
+            kv_prefix_report = self.kv_prefix_reuse_report()
+        except Exception:
+            kv_prefix_report = {}
+        if (
+            isinstance(kv_prefix_report, dict)
+            and kv_prefix_report.get("opt_in_enabled")
+            and kv_prefix_report.get("runtime_prefill_metadata_proven")
+        ):
+            batch["kv_prefix_reuse"] = dict(kv_prefix_report)
         self._pending_live_continuous_tick_batch = dict(batch)
         return dict(batch)
 
@@ -928,6 +949,8 @@ class InferenceSession:
         for key in ("batch_offset", "full_batch_size", "micro_batch_size"):
             if key in batch and batch[key] is not None:
                 staged[key] = int(batch[key])
+        if isinstance(batch.get("kv_prefix_reuse"), dict):
+            staged["kv_prefix_reuse"] = dict(batch["kv_prefix_reuse"])
         self._pending_live_continuous_tick_batch = staged
         return dict(staged)
 
@@ -960,6 +983,9 @@ class InferenceSession:
         kv_observed = metadata.get("kv_prefix_reuse_server_observed")
         if isinstance(kv_observed, dict):
             self._kv_prefix_reuse_server_observations.append(dict(kv_observed))
+        kv_diagnostic = metadata.get("kv_prefix_reuse_server_diagnostic")
+        if isinstance(kv_diagnostic, dict):
+            self._kv_prefix_reuse_server_diagnostics.append(dict(kv_diagnostic))
 
     def live_continuous_batching_report(self) -> dict:
         from bloombee.client.live_continuous_batching import (
@@ -1015,9 +1041,14 @@ class InferenceSession:
         event = build_prefill_metadata_event(input_ids, request_ids=request_ids)
         event["opt_in_enabled"] = True
         self._kv_prefix_reuse_events.append(event)
+        report = self.kv_prefix_reuse_report()
         metadata = getattr(self, "session_metadata", None)
         if isinstance(metadata, dict):
-            metadata["kv_prefix_reuse"] = self.kv_prefix_reuse_report()
+            metadata["kv_prefix_reuse"] = report
+        for server_session in getattr(self, "_server_sessions", []) or []:
+            session_metadata = getattr(server_session, "session_metadata", None)
+            if isinstance(session_metadata, dict):
+                session_metadata["kv_prefix_reuse"] = report
         return event
 
     def kv_prefix_reuse_report(self) -> dict:
@@ -1040,6 +1071,7 @@ class InferenceSession:
             "event_count": len(self._kv_prefix_reuse_events),
             "events": [dict(event) for event in self._kv_prefix_reuse_events],
             "server_observations": [dict(observation) for observation in self._kv_prefix_reuse_server_observations],
+            "server_diagnostics": [dict(diagnostic) for diagnostic in self._kv_prefix_reuse_server_diagnostics],
             "runtime_prefill_metadata_proven": bool(self._kv_prefix_reuse_events),
             "server_observed_kv_cache_reuse": server_observed_kv_cache_reuse,
             "live_kv_cache_reuse_proven": server_observed_kv_cache_reuse,
@@ -1210,6 +1242,13 @@ class InferenceSession:
                         self._update_sequence(server_idx, block_idx, attempt_no)
 
                     server_session = self._server_sessions[server_idx]
+                    kv_prefix_report = self.kv_prefix_reuse_report()
+                    if (
+                        isinstance(getattr(server_session, "session_metadata", None), dict)
+                        and kv_prefix_report.get("opt_in_enabled")
+                        and kv_prefix_report.get("runtime_prefill_metadata_proven")
+                    ):
+                        server_session.session_metadata["kv_prefix_reuse"] = kv_prefix_report
                     # assert server_session.position == self.position, f"{server_session.position} and {self.position}"
                     
                     # 🔍 CLIENT DEBUG: Log server span processing start
@@ -1224,6 +1263,9 @@ class InferenceSession:
                     staged_live_batch_for_attempt = None
                     if server_idx == 0 and self._pending_live_continuous_tick_batch is not None:
                         staged_live_batch_for_attempt = dict(self._pending_live_continuous_tick_batch)
+                        kv_prefix_report = self.kv_prefix_reuse_report()
+                        if kv_prefix_report.get("opt_in_enabled") and kv_prefix_report.get("runtime_prefill_metadata_proven"):
+                            staged_live_batch_for_attempt["kv_prefix_reuse"] = kv_prefix_report
                         server_session.stage_live_continuous_tick_batch(staged_live_batch_for_attempt)
                     inputs, keep_indices, *_ = server_session.step(
                         server_inputs,

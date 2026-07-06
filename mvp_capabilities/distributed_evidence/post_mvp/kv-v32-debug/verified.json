@@ -1,0 +1,85 @@
+{
+  "can_update_mvp_status": false,
+  "can_update_proof_status": true,
+  "claim_boundary": "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing",
+  "claim_limitations": [
+    "Verifier only; runtime evidence must carry server response metadata from a prefix-cache read.",
+    "Passing evidence proves the supplied same-prefix/varied-suffix artifact, not broad production coverage.",
+    "MVP-core status remains unchanged."
+  ],
+  "evidence_path": "/private/tmp/bloombee-kv-v32/.local/strict-kv-prefix-reuse-v32/strict-kv-prefix-reuse-v32-evidence.json",
+  "evidence_summary": {
+    "baseline_total_seconds": 14.563297748566,
+    "correctness_sha256": "dfdb6e7abf7944409318d74571af5e52850d3e533769f646d77756925c4c6ed3",
+    "distinct_suffix_count": 2,
+    "min_requests": 2,
+    "observed_telemetry_tags": [
+      "kv_prefix_reuse",
+      "live_server_capture",
+      "no_reuse_baseline",
+      "same_prefix_varied_suffix"
+    ],
+    "prefix_sha256": "3a291163dd39a22dd8fbf7d3279e0b32e086783584d884e05c4c7ddbd7d760d3",
+    "prefix_token_count": 1,
+    "request_count": 2,
+    "request_summaries": [
+      {
+        "baseline_logits": "6b9a5550f2b36060ff7f0acda6e9ee2313798eec70979627921565d87662c16a",
+        "baseline_seconds": 14.285188913345,
+        "baseline_tokens_sha256": "a0b54674b266880e3e4fd49ec9b72623b0f9e53846c36bd152678097f848500e",
+        "logits_max_abs_diff": 1.9073486e-05,
+        "logits_mean_abs_diff": 1.74268e-06,
+        "prefix_sha256": "3a291163dd39a22dd8fbf7d3279e0b32e086783584d884e05c4c7ddbd7d760d3",
+        "request_id": "suffix-a",
+        "reuse_logits": "abd29b9b5eba649af4ba178453236bcd99433c1b874331698ad95a6f6aafd8cd",
+        "reuse_seconds": 0.17208647728,
+        "reuse_tokens_sha256": "a0b54674b266880e3e4fd49ec9b72623b0f9e53846c36bd152678097f848500e",
+        "reused_prefix_token_count": 1,
+        "suffix_sha256": "a03784a7b22741e366e82c8832180a685e98efea44fb13914cbb2e9e7f8e36fb"
+      },
+      {
+        "baseline_logits": "1f8666e75cb1b770560760a30169ec26fcdfa0c3b9535d0b1105e6534de9d4e0",
+        "baseline_seconds": 0.27810883522,
+        "baseline_tokens_sha256": "e71272c42b4df87e763b5671c9c6b5635c39db9116f5bd28052ffee763e06f31",
+        "logits_max_abs_diff": 2.0027161e-05,
+        "logits_mean_abs_diff": 1.570825e-06,
+        "prefix_sha256": "3a291163dd39a22dd8fbf7d3279e0b32e086783584d884e05c4c7ddbd7d760d3",
+        "request_id": "suffix-b",
+        "reuse_logits": "1801c2b5e4faceb91c31bcfdea97fbd09dc13bfb383283c9163d3291b5645609",
+        "reuse_seconds": 0.17208647728,
+        "reuse_tokens_sha256": "e71272c42b4df87e763b5671c9c6b5635c39db9116f5bd28052ffee763e06f31",
+        "reused_prefix_token_count": 1,
+        "suffix_sha256": "08ce35311d06db1b03040b15c47ea597b8de369c3a4ba2d6b1ec6f10fcef2834"
+      }
+    ],
+    "required_telemetry_tags": [
+      "kv_prefix_reuse",
+      "no_reuse_baseline",
+      "same_prefix_varied_suffix"
+    ],
+    "reuse_event_count": 2,
+    "reuse_total_seconds": 0.344172954559,
+    "server_observation_count": 2,
+    "server_observation_sha256": "142a00acb996e96300f9f3f018bb4b453602e9bac4a906e893f2adfd9902a28d",
+    "speedup_ratio": 42.313893510931,
+    "suffix_sha256s": [
+      "a03784a7b22741e366e82c8832180a685e98efea44fb13914cbb2e9e7f8e36fb",
+      "08ce35311d06db1b03040b15c47ea597b8de369c3a4ba2d6b1ec6f10fcef2834"
+    ],
+    "timing_delta_seconds": 14.219124794006
+  },
+  "failed_checks": [],
+  "live_kv_cache_reuse_proven": true,
+  "logit_parity_proven": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "kv_prefix_reuse",
+  "proof_status_update": {
+    "kv_prefix_reuse": "passed"
+  },
+  "same_prefix_varied_suffix_proven": true,
+  "server_observed_kv_cache_reuse": true,
+  "speedup_proven": true,
+  "status": "passed",
+  "timing_measured": true,
+  "token_parity_proven": true
+}
