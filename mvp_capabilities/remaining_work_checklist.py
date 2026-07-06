@@ -23,6 +23,27 @@ from mvp_capabilities.mvp_status import build_status_report
 CLAIM_BOUNDARY = "status_derived_remaining_work_no_new_proof"
 SOURCE = "mvp_capabilities.mvp_status.build_status_report"
 
+_ONE_BLOCK_MEMORY = {
+    "qwen35b_candidate": {
+        "per_layer_gb_bf16": 1.75,
+        "hosts_that_fit_one_block": ["m4pro (48GB)"],
+        "one_block_fits": True,
+        "collective_full_gb": 70,
+        "per_peer_4way_gb": 18,
+        "note": "35B total / 40 layers ≈ 0.88B params/layer; one-block bf16 proof fits M4 Pro easily. The 80GB gate was for single-host full-model parity reference load, NOT the block-server proof.",
+    },
+    "minimax_m3_candidate": {
+        "per_layer_gb_bf16": 4.45,
+        "per_layer_gb_int8": 2.22,
+        "per_layer_gb_int4": 1.11,
+        "hosts_that_fit_one_block": ["m4pro (48GB)"],
+        "one_block_fits": True,
+        "collective_full_gb_int8": 138,
+        "per_peer_4way_gb_int8": 34,
+        "note": "138B total / 62 layers ≈ 2.22B params/layer; one-block bf16/int8/int4 proof all fit M4 Pro. The ~280GB number was for single-host full-model fp16 — irrelevant for BloomBee distributed inference.",
+    },
+}
+
 
 def _blocker_classification(task: dict[str, Any]) -> tuple[str, list[str], bool]:
     """Return claim-bounded blocker metadata for a remaining status item.
@@ -38,11 +59,23 @@ def _blocker_classification(task: dict[str, Any]) -> tuple[str, list[str], bool]
         for value in (task.get("evidence"), task.get("next_step"), task.get("status"))
     ).lower()
 
-    if task_id == "qwen35b_candidate" or "at least 80gb free memory" in text:
-        return "hardware_memory", ["requires_at_least_80gb_free_memory"], True
+    if task_id == "qwen35b_candidate":
+        mem = _ONE_BLOCK_MEMORY.get(task_id, {})
+        reasons = [
+            f"one_block_proof_fits_m4pro_48gb_{mem.get('per_layer_gb_bf16', 1.8)}_gb_bf16_per_layer",
+            f"full_distributed_needs_{mem.get('collective_full_gb', 70)}_gb_collective_bf16_total",
+            f"full_distributed_{mem.get('per_peer_4way_gb', 18)}_gb_per_peer_at_4_way_split",
+            "needs_real_one_block_server_proof_not_just_config_scan",
+        ]
+        return "hardware_memory", reasons, True
 
     if task_id == "minimax_m3_candidate":
-        reasons = ["requires_suitable_memory_for_real_weight_oneblock"]
+        mem = _ONE_BLOCK_MEMORY.get(task_id, {})
+        reasons = [
+            f"one_block_proof_fits_m4pro_48gb_{mem.get('per_layer_gb_bf16', 4.5)}_gb_bf16_{mem.get('per_layer_gb_int8', 2.2)}_gb_int8_per_layer",
+            f"full_distributed_needs_{mem.get('collective_full_gb_int8', 138)}_gb_collective_int8_total",
+            f"full_distributed_{mem.get('per_peer_4way_gb_int8', 34)}_gb_per_peer_int8_at_4_way_split",
+        ]
         if "full mtp module proof" in text or "base_decoder_only mtp guard" in text:
             reasons.append("requires_real_weight_or_full_mtp_module_proof")
         return "hardware_memory_or_real_model_proof", reasons, True
