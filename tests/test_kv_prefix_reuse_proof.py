@@ -196,7 +196,7 @@ def test_kv_prefix_reuse_proof_rejects_metadata_without_handle_handoff(tmp_path:
     assert "server did not report handle-to-handle KV cache tensor reuse" in result["failed_checks"]
 
 
-def test_kv_prefix_reuse_proof_requires_distinct_handoff_handles(tmp_path: Path):
+def test_kv_prefix_reuse_proof_requires_distinct_handoff_handles_or_non_overlapping_slices(tmp_path: Path):
     from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
 
     payload = _valid_kv_prefix_reuse_evidence()
@@ -213,7 +213,27 @@ def test_kv_prefix_reuse_proof_requires_distinct_handoff_handles(tmp_path: Path)
     assert result["status"] == "failed"
     assert result["server_observed_kv_cache_reuse"] is False
     assert result["live_kv_cache_reuse_proven"] is False
-    assert "server KV cache handoff source and destination handles were not distinct" in result["failed_checks"]
+    assert "server KV cache handoff source and destination handles/slices were not distinct" in result["failed_checks"]
+
+
+def test_kv_prefix_reuse_proof_accepts_same_handle_non_overlapping_bh_slices(tmp_path: Path):
+    from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
+
+    payload = _valid_kv_prefix_reuse_evidence()
+    observation = payload["server_observations"][0]
+    observation["cache_write_destination_handle_id"] = observation["cache_read_source_handle_id"]
+    observation["cache_read_source_bh_slice"] = [0, 2]
+    observation["cache_write_destination_bh_slice"] = [2, 4]
+    evidence_path = tmp_path / "kv-prefix-reuse-same-handle-slices.json"
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = verify_kv_prefix_reuse_evidence(
+        evidence_path=evidence_path,
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+
+    assert result["status"] == "passed"
+    assert result["live_kv_cache_reuse_proven"] is True
 
 
 def test_kv_prefix_reuse_proof_rejects_token_mismatch_fail_closed(tmp_path: Path):

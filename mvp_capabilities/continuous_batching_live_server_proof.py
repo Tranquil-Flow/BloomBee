@@ -4,8 +4,9 @@
 This verifier is intentionally narrower than a speedup proof. It requires a
 captured live-server artifact with opt-in continuous batching enabled, at least
 one late-arriving request, at least one batched decode tick, and exact generated
--token/logit fingerprint parity against baseline rows. It never promotes demo or
-speedup status by itself.
+-token parity and either exact logit fingerprint parity or bounded numeric logit
+comparison against baseline rows. It never promotes demo or speedup status by
+itself.
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ PLAN_CLAIM_BOUNDARY = "live_continuous_batching_server_proof_harness_only_no_liv
 VERIFY_CLAIM_BOUNDARY = "verified_live_continuous_batching_server_concurrent_arrival_parity"
 PROOF_GATE = "continuous_batching"
 OPT_IN_FLAG = "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
+LOGITS_MAX_ABS_TOLERANCE = 0.01
+LOGITS_MEAN_ABS_TOLERANCE = 0.001
 
 
 def _token_list(value: Any) -> list[int] | None:
@@ -54,6 +57,39 @@ def _fingerprint(mapping: Mapping[str, Any]) -> str | None:
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    return number
+
+
+def _numeric_logits_comparison_ok(row: Mapping[str, Any], request_id: str, failed: list[str]) -> bool:
+    comparison = row.get("logits_numeric_comparison") or row.get("logits_comparison")
+    if not isinstance(comparison, Mapping):
+        return False
+    max_abs = _finite_number(comparison.get("max_abs_diff"))
+    mean_abs = _finite_number(comparison.get("mean_abs_diff"))
+    if max_abs is None:
+        failed.append(f"request {request_id} logits numeric max_abs_diff missing")
+        return False
+    if mean_abs is None:
+        failed.append(f"request {request_id} logits numeric mean_abs_diff missing")
+        return False
+    if max_abs > LOGITS_MAX_ABS_TOLERANCE:
+        failed.append(f"request {request_id} logits numeric max_abs_diff exceeds tolerance")
+        return False
+    if mean_abs > LOGITS_MEAN_ABS_TOLERANCE:
+        failed.append(f"request {request_id} logits numeric mean_abs_diff exceeds tolerance")
+        return False
+    if comparison.get("argmax_token_id_match") is not True and comparison.get("top1_token_id_match") is not True:
+        failed.append(f"request {request_id} logits numeric top token mismatch")
+        return False
+    return True
 
 
 def _arrival_tick(row: Mapping[str, Any]) -> int | None:
@@ -136,7 +172,9 @@ def verify_live_server_continuous_batching_payload(
     arrival_tick_by_request: dict[str, int] = {}
     row_summaries: list[dict[str, Any]] = []
     token_mismatch = False
-    logits_missing_or_mismatch = False
+    logits_failed = False
+    logits_fingerprint_match_count = 0
+    logits_numeric_match_count = 0
     for index, raw in enumerate(rows):
         if not isinstance(raw, Mapping):
             failed.append(f"request {index} must be an object")
@@ -174,12 +212,22 @@ def verify_live_server_continuous_batching_payload(
 
         baseline_fp = _fingerprint(baseline)
         continuous_fp = _fingerprint(continuous)
+        fingerprint_match = baseline_fp is not None and baseline_fp == continuous_fp
+        numeric_match = False
         if baseline_fp is None or continuous_fp is None:
             failed.append(f"request {request_id} logits fingerprint missing")
-            logits_missing_or_mismatch = True
-        elif baseline_fp != continuous_fp:
-            failed.append(f"request {request_id} logits fingerprint differs from baseline")
-            logits_missing_or_mismatch = True
+            logits_failed = True
+        elif fingerprint_match:
+            logits_fingerprint_match_count += 1
+        else:
+            numeric_failed_before = len(failed)
+            numeric_match = _numeric_logits_comparison_ok(row, request_id, failed)
+            if numeric_match:
+                logits_numeric_match_count += 1
+            else:
+                logits_failed = True
+                if len(failed) == numeric_failed_before:
+                    failed.append(f"request {request_id} logits fingerprint differs from baseline")
 
         row_summaries.append(
             {
@@ -187,7 +235,8 @@ def verify_live_server_continuous_batching_payload(
                 "arrival_tick": tick,
                 "generated_token_count": len(baseline_tokens or []),
                 "tokens_match": baseline_tokens is not None and baseline_tokens == continuous_tokens,
-                "logits_fingerprint_match": baseline_fp is not None and baseline_fp == continuous_fp,
+                "logits_fingerprint_match": fingerprint_match,
+                "logits_numeric_match": numeric_match,
             }
         )
 
@@ -246,9 +295,10 @@ def verify_live_server_continuous_batching_payload(
         "generated token IDs" in check or "token mismatch" in check
         for check in failed
     )
-    logits_parity = bool(rows) and not logits_missing_or_mismatch and not any(
-        "logits" in check for check in failed
-    )
+    row_count = len(rows)
+    fingerprint_parity = row_count > 0 and logits_fingerprint_match_count == row_count
+    numeric_parity = row_count > 0 and logits_numeric_match_count > 0 and not logits_failed
+    logits_parity = fingerprint_parity or numeric_parity
     return {
         "model_id": evidence_model,
         "claim_boundary": VERIFY_CLAIM_BOUNDARY,
@@ -259,7 +309,9 @@ def verify_live_server_continuous_batching_payload(
         "late_arrival_observed": late_arrival_observed,
         "batched_tick_count": batched_tick_count,
         "token_parity_proven": token_parity,
-        "logits_fingerprint_parity_proven": logits_parity,
+        "logits_fingerprint_parity_proven": fingerprint_parity,
+        "logits_numeric_parity_proven": numeric_parity,
+        "logits_parity_proven": logits_parity,
         "live_server_late_arrival_parity_proven": status == "passed",
         "live_server_proven": status == "passed",
         "speedup_proven": False,

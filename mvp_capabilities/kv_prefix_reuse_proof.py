@@ -171,6 +171,23 @@ def _server_observed_kv_reuse(payload: Mapping[str, Any], observations: Sequence
     )
 
 
+def _normalize_bh_slice(value: Any) -> tuple[int, int] | None:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 2:
+        return None
+    try:
+        start = int(value[0])
+        end = int(value[1])
+    except Exception:
+        return None
+    if start < 0 or end <= start:
+        return None
+    return start, end
+
+
+def _slices_are_non_overlapping(source_slice: tuple[int, int], destination_slice: tuple[int, int]) -> bool:
+    return source_slice[1] <= destination_slice[0] or destination_slice[1] <= source_slice[0]
+
+
 def _validate_server_handle_handoff(observations: Sequence[Mapping[str, Any]]) -> tuple[bool, list[str]]:
     handoff_observations = [
         observation
@@ -186,8 +203,16 @@ def _validate_server_handle_handoff(observations: Sequence[Mapping[str, Any]]) -
         checksum = observation.get("kv_prefix_byte_checksum_sha256")
         if source_handle is None or destination_handle is None:
             continue
-        if str(source_handle) == str(destination_handle):
-            return False, ["server KV cache handoff source and destination handles were not distinct"]
+        same_handle = str(source_handle) == str(destination_handle)
+        if same_handle:
+            source_slice = _normalize_bh_slice(observation.get("cache_read_source_bh_slice"))
+            destination_slice = _normalize_bh_slice(observation.get("cache_write_destination_bh_slice"))
+            if source_slice is None or destination_slice is None:
+                return False, ["server KV cache handoff source and destination handles/slices were not distinct"]
+            if (source_slice[1] - source_slice[0]) != (destination_slice[1] - destination_slice[0]):
+                return False, ["server KV cache handoff source and destination slices had different widths"]
+            if not _slices_are_non_overlapping(source_slice, destination_slice):
+                return False, ["server KV cache handoff source and destination handles/slices were not distinct"]
         if not isinstance(checksum, str) or len(checksum) != 64:
             continue
         client_count = observation.get("client_claimed_prefix_token_count")

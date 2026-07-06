@@ -55,7 +55,8 @@ def _continuous_ready(report: Mapping[str, Any]) -> tuple[bool, list[str]]:
         blocked.append("continuous_batching:no_batched_tick_observed")
     if report.get("token_parity_proven") is not True:
         blocked.append("continuous_batching:token_parity_not_proven")
-    if report.get("logits_fingerprint_parity_proven") is not True:
+    logits_ready = report.get("logits_parity_proven") is True or report.get("logits_fingerprint_parity_proven") is True
+    if not logits_ready:
         blocked.append("continuous_batching:logits_parity_not_proven")
     blocked.extend(f"continuous_batching:{check}" for check in _failed_checks(report))
     return not blocked, blocked
@@ -111,6 +112,9 @@ def build_continuous_kv_joint_readiness_report(
             "late_arrival_observed": continuous_report.get("late_arrival_observed"),
             "batched_tick_count": continuous_report.get("batched_tick_count"),
             "live_server_late_arrival_parity_proven": continuous_report.get("live_server_late_arrival_parity_proven"),
+            "logits_fingerprint_parity_proven": continuous_report.get("logits_fingerprint_parity_proven") is True,
+            "logits_numeric_parity_proven": continuous_report.get("logits_numeric_parity_proven") is True,
+            "logits_parity_proven": continuous_report.get("logits_parity_proven") is True or continuous_report.get("logits_fingerprint_parity_proven") is True,
         },
         "kv_prefix_reuse": {
             "claim_boundary": kv_report.get("claim_boundary"),

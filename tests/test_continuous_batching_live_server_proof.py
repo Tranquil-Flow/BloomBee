@@ -53,11 +53,56 @@ def test_live_server_continuous_batching_verifier_accepts_late_arrival_token_par
     assert result["late_arrival_observed"] is True
     assert result["token_parity_proven"] is True
     assert result["logits_fingerprint_parity_proven"] is True
+    assert result["logits_numeric_parity_proven"] is False
+    assert result["logits_parity_proven"] is True
     assert result["live_server_late_arrival_parity_proven"] is True
     assert result["speedup_proven"] is False
     assert result["can_update_demo_status"] is False
     assert result["can_update_proof_status"] is False
     assert result["failed_checks"] == []
+
+
+def test_live_server_continuous_batching_verifier_accepts_bounded_numeric_logit_drift():
+    from mvp_capabilities.continuous_batching_live_server_proof import verify_live_server_continuous_batching_payload
+
+    capture = _valid_capture()
+    for row in capture["requests"]:
+        row["baseline"]["logits_sha256"] = "baseline-" + row["request_id"]
+        row["continuous"]["logits_sha256"] = "continuous-" + row["request_id"]
+        row["logits_numeric_comparison"] = {
+            "max_abs_diff": 0.001,
+            "mean_abs_diff": 0.0001,
+            "argmax_token_id_match": True,
+            "top1_token_id_match": True,
+        }
+
+    result = verify_live_server_continuous_batching_payload(capture, model_id=MODEL_ID)
+
+    assert result["status"] == "passed"
+    assert result["logits_fingerprint_parity_proven"] is False
+    assert result["logits_numeric_parity_proven"] is True
+    assert result["logits_parity_proven"] is True
+    assert result["failed_checks"] == []
+
+
+def test_live_server_continuous_batching_verifier_rejects_unbounded_numeric_logit_drift():
+    from mvp_capabilities.continuous_batching_live_server_proof import verify_live_server_continuous_batching_payload
+
+    capture = _valid_capture()
+    capture["requests"][0]["baseline"]["logits_sha256"] = "baseline-a"
+    capture["requests"][0]["continuous"]["logits_sha256"] = "continuous-a"
+    capture["requests"][0]["logits_numeric_comparison"] = {
+        "max_abs_diff": 0.25,
+        "mean_abs_diff": 0.02,
+        "argmax_token_id_match": True,
+        "top1_token_id_match": True,
+    }
+
+    result = verify_live_server_continuous_batching_payload(capture, model_id=MODEL_ID)
+
+    assert result["status"] == "failed"
+    assert "request req-a logits numeric max_abs_diff exceeds tolerance" in result["failed_checks"]
+    assert result["logits_parity_proven"] is False
 
 
 def test_live_server_continuous_batching_verifier_rejects_missing_late_arrival_and_token_mismatch():

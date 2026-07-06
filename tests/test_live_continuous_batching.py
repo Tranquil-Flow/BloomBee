@@ -216,7 +216,15 @@ def test_remote_generation_base_live_impl_records_inference_session_tick_rows(mo
     assert report["request_count"] == 1
     tick_batches = report["tick_batches"]
     assert [len(batch["output_logits_sha256"][0]) for batch in tick_batches] == [64, 64]
-    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
+    assert [batch["output_logits_summary"] for batch in tick_batches] == [
+        [{"top1_token_id": 10, "top1_logit": 1000.0, "top2_logit": -1000.0, "top1_margin": 2000.0}],
+        [{"top1_token_id": 11, "top1_logit": 1000.0, "top2_logit": -1000.0, "top1_margin": 2000.0}],
+    ]
+    assert "output_logits_values" not in tick_batches[0]
+    assert [
+        {k: v for k, v in batch.items() if k not in {"output_logits_sha256", "output_logits_summary"}}
+        for batch in tick_batches
+    ] == [
         {
             "tick": 0,
             "request_ids": ["generate-0"],
@@ -235,6 +243,22 @@ def test_remote_generation_base_live_impl_records_inference_session_tick_rows(mo
     assert report["live_server_proven"] is False
     assert report["speedup_proven"] is False
     assert report["can_update_demo_status"] is False
+
+
+def test_remote_generation_base_live_impl_records_full_logits_when_strict_capture_opted_in(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setenv("BLOOMBEE_LIVE_CONTINUOUS_CAPTURE_LOGITS", "1")
+    model = _RemoteGenerationLiveImplStub()
+    inputs = torch.tensor([[101]], dtype=torch.long)
+
+    model.generate(inputs, max_new_tokens=1)
+
+    report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    logits_values = report["tick_batches"][0]["output_logits_values"]
+    assert len(logits_values) == 1
+    assert len(logits_values[0]) == 256
+    assert logits_values[0][10] == 1000.0
+    assert logits_values[0][0] == -1000.0
 
 
 def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch):
@@ -262,7 +286,7 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
     for batch in tick_batches:
         assert [len(value) for value in batch["output_logits_sha256"]] == [64, 64]
     assert tick_batches[0]["output_logits_sha256"][0] != tick_batches[0]["output_logits_sha256"][1]
-    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
+    assert [{k: v for k, v in batch.items() if k not in {"output_logits_sha256", "output_logits_summary"}} for batch in tick_batches] == [
         {
             "tick": 0,
             "request_ids": ["generate-0", "generate-1"],
@@ -327,7 +351,7 @@ def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch)
     tick_batches = report["tick_batches"]
     assert [len(batch["output_logits_sha256"]) for batch in tick_batches] == [2, 2, 2]
     assert tick_batches[1]["output_logits_sha256"][0] != tick_batches[1]["output_logits_sha256"][1]
-    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
+    assert [{k: v for k, v in batch.items() if k not in {"output_logits_sha256", "output_logits_summary"}} for batch in tick_batches] == [
         {
             "tick": 0,
             "request_ids": ["generate-0", "generate-1"],

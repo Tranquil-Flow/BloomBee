@@ -311,8 +311,21 @@ def _build_kv_cache_reuse_observation(
     observed_metadata = metadata.get("kv_prefix_reuse_server_observed")
     if not isinstance(observed_metadata, Mapping):
         return None
+    handoff = metadata.get("kv_prefix_reuse_server_handoff")
+    if not isinstance(handoff, Mapping) or handoff.get("server_handle_handoff_observed") is not True:
+        return None
+    for required_key in (
+        "cache_read_source_handle_id",
+        "cache_write_destination_handle_id",
+        "server_recovered_prefix_token_count",
+        "kv_prefix_byte_checksum_sha256",
+    ):
+        if required_key not in handoff:
+            return None
+    if handoff.get("cache_read_source_handle_id") == handoff.get("cache_write_destination_handle_id"):
+        return None
     try:
-        prefix_length = int(step_metadata.get("_prefix_length", 0) or 0)
+        prefix_length = int(handoff.get("prefix_length", step_metadata.get("_prefix_length", 0)) or 0)
     except Exception:
         prefix_length = 0
     if prefix_length <= 0:
@@ -322,7 +335,10 @@ def _build_kv_cache_reuse_observation(
         return None
 
     common_prefix_count = _common_prefix_token_count_from_kv_metadata(observed_metadata)
-    reused_prefix_token_count = min(prefix_length, common_prefix_count) if common_prefix_count else prefix_length
+    recovered_prefix_count = int(handoff.get("server_recovered_prefix_token_count", 0) or 0)
+    reused_prefix_token_count = recovered_prefix_count if recovered_prefix_count > 0 else (
+        min(prefix_length, common_prefix_count) if common_prefix_count else prefix_length
+    )
     return {
         "source": "bloombee.server.handler",
         "claim_boundary": KV_PREFIX_REUSE_SERVER_CLAIM_BOUNDARY,
@@ -331,10 +347,15 @@ def _build_kv_cache_reuse_observation(
         "server_observed_metadata": True,
         "server_observed_kv_cache_reuse": True,
         "live_kv_cache_reuse_proven": True,
+        "server_handle_handoff_observed": True,
+        "cache_read_source_handle_id": handoff["cache_read_source_handle_id"],
+        "cache_write_destination_handle_id": handoff["cache_write_destination_handle_id"],
+        "kv_prefix_byte_checksum_sha256": handoff["kv_prefix_byte_checksum_sha256"],
         "speedup_proven": False,
         "can_update_demo_status": False,
         "prefix_length": prefix_length,
         "common_prefix_token_count": common_prefix_count,
+        "server_recovered_prefix_token_count": recovered_prefix_count,
         "reused_prefix_token_count": reused_prefix_token_count,
         "cache_handle_group_count": len(cache_handles),
         "cache_handle_count": handle_count,

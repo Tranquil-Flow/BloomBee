@@ -94,9 +94,36 @@ def test_kv_cache_manager_copy_prefix_does_not_double_count_cache_tokens():
     assert manager.cache.current_size_tokens == before
 
 
-def test_kv_cache_manager_copy_prefix_rejects_same_handle():
+def test_kv_cache_manager_copy_prefix_rejects_same_handle_without_distinct_slices():
     manager = _manager_with_slabs()
     manager.cache._allocated_tensors[101] = _kv_pair()
 
     with pytest.raises(ValueError, match="distinct"):
         manager.copy_prefix_from_handle(source_handle=101, destination_handle=101, prefix_length=1)
+
+
+def test_kv_cache_manager_copy_prefix_allows_same_handle_non_overlapping_bh_slices():
+    manager = _manager_with_slabs()
+    kv = _kv_pair()
+    manager.cache._allocated_tensors[101] = kv
+    src_k, src_v = kv
+    src_k.data.copy_(torch.arange(src_k.data.numel(), dtype=torch.float32).reshape_as(src_k.data))
+    src_v.data.copy_(src_k.data + 10_000.0)
+    before_dst_k = src_k.data[:3, 2:4].clone()
+
+    report = manager.copy_prefix_from_handle(
+        source_handle=101,
+        destination_handle=101,
+        prefix_length=3,
+        source_bh_slice=(0, 2),
+        destination_bh_slice=(2, 4),
+    )
+
+    torch.testing.assert_close(src_k.data[:3, 2:4], src_k.data[:3, 0:2])
+    torch.testing.assert_close(src_v.data[:3, 2:4], src_v.data[:3, 0:2])
+    assert not torch.equal(before_dst_k, src_k.data[:3, 2:4])
+    assert report["server_handle_handoff_observed"] is True
+    assert report["cache_read_source_handle_id"] == 101
+    assert report["cache_write_destination_handle_id"] == 101
+    assert report["cache_read_source_bh_slice"] == [0, 2]
+    assert report["cache_write_destination_bh_slice"] == [2, 4]

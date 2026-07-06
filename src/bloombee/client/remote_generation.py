@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 # (e.g. large-batch serving, single-GPU deployments, or if someone later
 # builds a StaticCache-equivalent for distributed KV).
 _FAST_GENERATE_ENABLED = os.environ.get("BLOOMBEE_FAST_GENERATE", "0") == "1"
+_LIVE_CONTINUOUS_CAPTURE_LOGITS = "BLOOMBEE_LIVE_CONTINUOUS_CAPTURE_LOGITS"
 
 
 class RemotePastKeyValues(Cache):
@@ -110,6 +111,43 @@ def _logits_sha256_per_row(logits: torch.Tensor) -> list[str]:
         raise ValueError("logits must have shape [batch, vocab] or [batch, 1, vocab]")
     rows = logits.detach().to(device="cpu", dtype=torch.float32).contiguous()
     return [hashlib.sha256(row.numpy().tobytes()).hexdigest() for row in rows]
+
+
+def _logits_summary_per_row(logits: torch.Tensor) -> list[dict[str, float | int]]:
+    """Return compact per-row top-logit summaries for numeric parity evidence."""
+    if logits.ndim == 3:
+        logits = logits[:, -1, :]
+    if logits.ndim != 2:
+        raise ValueError("logits must have shape [batch, vocab] or [batch, 1, vocab]")
+    rows = logits.detach().to(device="cpu", dtype=torch.float32).contiguous()
+    k = min(2, int(rows.shape[-1]))
+    if k <= 0:
+        raise ValueError("logits vocab dimension must be non-empty")
+    values, indices = torch.topk(rows, k=k, dim=-1)
+    summaries: list[dict[str, float | int]] = []
+    for row_idx in range(rows.shape[0]):
+        top1_logit = float(values[row_idx, 0].item())
+        top2_logit = float(values[row_idx, 1].item()) if k > 1 else top1_logit
+        summaries.append(
+            {
+                "top1_token_id": int(indices[row_idx, 0].item()),
+                "top1_logit": top1_logit,
+                "top2_logit": top2_logit,
+                "top1_margin": float(top1_logit - top2_logit),
+            }
+        )
+    return summaries
+
+
+def _logits_values_per_row_if_enabled(logits: torch.Tensor) -> list[list[float]] | None:
+    if os.environ.get(_LIVE_CONTINUOUS_CAPTURE_LOGITS, "0") != "1":
+        return None
+    if logits.ndim == 3:
+        logits = logits[:, -1, :]
+    if logits.ndim != 2:
+        raise ValueError("logits must have shape [batch, vocab] or [batch, 1, vocab]")
+    rows = logits.detach().to(device="cpu", dtype=torch.float32).contiguous()
+    return [[float(value) for value in row.tolist()] for row in rows]
 
 
 class _SkipTokensMixin:
@@ -446,6 +484,8 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                     rows,
                     output_token_ids=[int(token.detach().cpu().item()) for token in next_id[:, 0]],
                     output_logits_sha256=_logits_sha256_per_row(logits),
+                    output_logits_summary=_logits_summary_per_row(logits),
+                    output_logits_values=_logits_values_per_row_if_enabled(logits),
                 )
 
                 output = torch.cat([output, next_id], dim=1)
@@ -580,6 +620,8 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                     active_mask=active_mask,
                     output_token_ids=output_tokens,
                     output_logits_sha256=_logits_sha256_per_row(logits),
+                    output_logits_summary=_logits_summary_per_row(logits),
+                    output_logits_values=_logits_values_per_row_if_enabled(logits),
                 )
 
                 for row_idx in row_indices:

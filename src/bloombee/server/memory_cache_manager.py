@@ -985,6 +985,8 @@ class KVCacheManager:
         destination_handle: Handle,
         prefix_length: int,
         bh_slice: tuple[int, int] | None = None,
+        source_bh_slice: tuple[int, int] | None = None,
+        destination_bh_slice: tuple[int, int] | None = None,
     ) -> dict:
         """Copy KV prefix tensor bytes from one cache handle into another.
 
@@ -994,8 +996,7 @@ class KVCacheManager:
         accounting must remain unchanged.
         """
 
-        if source_handle == destination_handle:
-            raise ValueError("source_handle and destination_handle must be distinct")
+        same_handle = source_handle == destination_handle
         prefix_length = int(prefix_length)
         if prefix_length <= 0:
             raise ValueError("prefix_length must be positive")
@@ -1024,20 +1025,40 @@ class KVCacheManager:
         if prefix_length > src_k_t.shape[0] or prefix_length > dst_k_t.shape[0]:
             raise ValueError("prefix_length exceeds source or destination cache capacity")
 
-        if bh_slice is None:
-            bh_start = 0
-            bh_end = min(int(src_k_t.shape[1]), int(dst_k_t.shape[1]))
-        else:
-            bh_start, bh_end = int(bh_slice[0]), int(bh_slice[1])
-        if bh_start < 0 or bh_end <= bh_start:
-            raise ValueError("bh_slice must be a non-empty positive range")
-        if bh_end > src_k_t.shape[1] or bh_end > dst_k_t.shape[1]:
-            raise ValueError("bh_slice exceeds source or destination BH capacity")
+        def _normalize_bh_slice(value, *, max_bh: int, label: str) -> tuple[int, int]:
+            start, end = int(value[0]), int(value[1])
+            if start < 0 or end <= start:
+                raise ValueError(f"{label} must be a non-empty positive range")
+            if end > max_bh:
+                raise ValueError(f"{label} exceeds source or destination BH capacity")
+            return start, end
 
-        src_k_prefix = src_k_t[:prefix_length, bh_start:bh_end].detach()
-        src_v_prefix = src_v_t[:prefix_length, bh_start:bh_end].detach()
-        dst_k_t[:prefix_length, bh_start:bh_end].copy_(src_k_prefix.to(dst_k_t.device), non_blocking=False)
-        dst_v_t[:prefix_length, bh_start:bh_end].copy_(src_v_prefix.to(dst_v_t.device), non_blocking=False)
+        shared_bh_limit = min(int(src_k_t.shape[1]), int(dst_k_t.shape[1]))
+        if source_bh_slice is None and destination_bh_slice is None:
+            if bh_slice is None:
+                source_slice = (0, shared_bh_limit)
+                destination_slice = (0, shared_bh_limit)
+            else:
+                source_slice = _normalize_bh_slice(bh_slice, max_bh=shared_bh_limit, label="bh_slice")
+                destination_slice = source_slice
+        elif source_bh_slice is not None and destination_bh_slice is not None:
+            if bh_slice is not None:
+                raise ValueError("bh_slice cannot be combined with source_bh_slice/destination_bh_slice")
+            source_slice = _normalize_bh_slice(source_bh_slice, max_bh=int(src_k_t.shape[1]), label="source_bh_slice")
+            destination_slice = _normalize_bh_slice(destination_bh_slice, max_bh=int(dst_k_t.shape[1]), label="destination_bh_slice")
+            if (source_slice[1] - source_slice[0]) != (destination_slice[1] - destination_slice[0]):
+                raise ValueError("source_bh_slice and destination_bh_slice must have the same width")
+        else:
+            raise ValueError("source_bh_slice and destination_bh_slice must be provided together")
+        if same_handle and not (source_slice[1] <= destination_slice[0] or destination_slice[1] <= source_slice[0]):
+            raise ValueError("same-handle KV prefix handoff requires distinct non-overlapping BH slices")
+
+        src_bh_start, src_bh_end = source_slice
+        dst_bh_start, dst_bh_end = destination_slice
+        src_k_prefix = src_k_t[:prefix_length, src_bh_start:src_bh_end].detach().clone()
+        src_v_prefix = src_v_t[:prefix_length, src_bh_start:src_bh_end].detach().clone()
+        dst_k_t[:prefix_length, dst_bh_start:dst_bh_end].copy_(src_k_prefix.to(dst_k_t.device), non_blocking=False)
+        dst_v_t[:prefix_length, dst_bh_start:dst_bh_end].copy_(src_v_prefix.to(dst_v_t.device), non_blocking=False)
 
         checksum = hashlib.sha256()
         checksum.update(src_k_prefix.to("cpu").contiguous().numpy().tobytes())
@@ -1048,7 +1069,9 @@ class KVCacheManager:
             "cache_write_destination_handle_id": destination_handle,
             "server_recovered_prefix_token_count": prefix_length,
             "prefix_length": prefix_length,
-            "bh_slice": [bh_start, bh_end],
+            "bh_slice": [dst_bh_start, dst_bh_end],
+            "cache_read_source_bh_slice": [src_bh_start, src_bh_end],
+            "cache_write_destination_bh_slice": [dst_bh_start, dst_bh_end],
             "kv_prefix_byte_checksum_sha256": checksum.hexdigest(),
         }
 

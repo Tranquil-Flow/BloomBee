@@ -166,7 +166,7 @@ def test_server_observes_kv_prefix_reuse_metadata_only_with_opt_in(monkeypatch):
     assert _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": "not-a-dict"}) is None
 
 
-def test_server_response_metadata_reports_kv_cache_reuse_only_after_prefix_read(monkeypatch):
+def test_server_response_metadata_reports_kv_cache_reuse_only_after_real_handle_handoff(monkeypatch):
     from bloombee.server.handler import _build_rpc_inference_response_metadata, _extract_kv_prefix_reuse_metadata
 
     monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
@@ -180,7 +180,7 @@ def test_server_response_metadata_reports_kv_cache_reuse_only_after_prefix_read(
         requested_uids=requested_uids,
         cache_handles=cache_handles,
     )
-    warm = _build_rpc_inference_response_metadata(
+    metadata_only_warm = _build_rpc_inference_response_metadata(
         metadata,
         {"step_id": "warm", "_prefix_length": 2},
         requested_uids=requested_uids,
@@ -188,10 +188,30 @@ def test_server_response_metadata_reports_kv_cache_reuse_only_after_prefix_read(
     )
 
     assert "kv_prefix_reuse_server_observed" not in cold
+    assert "kv_prefix_reuse_server_observed" not in metadata_only_warm
+
+    metadata["kv_prefix_reuse_server_handoff"] = {
+        "server_handle_handoff_observed": True,
+        "cache_read_source_handle_id": 11,
+        "cache_write_destination_handle_id": 12,
+        "server_recovered_prefix_token_count": 2,
+        "prefix_length": 2,
+        "kv_prefix_byte_checksum_sha256": "a" * 64,
+    }
+    warm = _build_rpc_inference_response_metadata(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        requested_uids=requested_uids,
+        cache_handles=cache_handles,
+    )
+
     observed = warm["kv_prefix_reuse_server_observed"]
     assert observed["claim_boundary"] == "kv_prefix_reuse_server_cache_read_observed_no_speedup"
     assert observed["server_observed_kv_cache_reuse"] is True
     assert observed["live_kv_cache_reuse_proven"] is True
+    assert observed["server_handle_handoff_observed"] is True
+    assert observed["cache_read_source_handle_id"] == 11
+    assert observed["cache_write_destination_handle_id"] == 12
     assert observed["prefix_length"] == 2
     assert observed["cache_handle_count"] == 2
     assert observed["requested_block_count"] == 1

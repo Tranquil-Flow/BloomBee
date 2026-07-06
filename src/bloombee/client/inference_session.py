@@ -781,7 +781,7 @@ class InferenceSession:
     def position(self) -> int:
         return self._position
 
-    def _normalize_live_continuous_tick_rows(self, rows, *, active_mask=None, output_token_ids=None, output_logits_sha256=None) -> dict:
+    def _normalize_live_continuous_tick_rows(self, rows, *, active_mask=None, output_token_ids=None, output_logits_sha256=None, output_logits_summary=None, output_logits_values=None) -> dict:
         """Normalize opt-in live-continuous decode rows for this session.
 
         This is deliberately telemetry/control-plane only: staged or recorded
@@ -837,6 +837,32 @@ class InferenceSession:
             if any(not value for value in normalized_logits_hashes):
                 raise ValueError("output_logits_sha256 values must be non-empty strings")
             batch["output_logits_sha256"] = normalized_logits_hashes
+        if output_logits_summary is not None:
+            summaries = []
+            for item in output_logits_summary:
+                if not isinstance(item, dict):
+                    raise ValueError("output_logits_summary entries must be objects")
+                summaries.append(
+                    {
+                        "top1_token_id": int(item["top1_token_id"]),
+                        "top1_logit": float(item["top1_logit"]),
+                        "top2_logit": float(item["top2_logit"]),
+                        "top1_margin": float(item["top1_margin"]),
+                    }
+                )
+            if len(summaries) != len(normalized_rows):
+                raise ValueError("output_logits_summary length must match live continuous batching rows")
+            batch["output_logits_summary"] = summaries
+        if output_logits_values is not None:
+            values = [[float(value) for value in row] for row in output_logits_values]
+            if len(values) != len(normalized_rows):
+                raise ValueError("output_logits_values length must match live continuous batching rows")
+            vocab_lengths = {len(row) for row in values}
+            if 0 in vocab_lengths:
+                raise ValueError("output_logits_values rows must be non-empty")
+            if len(vocab_lengths) != 1:
+                raise ValueError("output_logits_values rows must share a vocab length")
+            batch["output_logits_values"] = values
         return batch
 
     def stage_live_continuous_tick_rows(self, rows) -> dict:
@@ -877,12 +903,16 @@ class InferenceSession:
         active_mask=None,
         output_token_ids=None,
         output_logits_sha256=None,
+        output_logits_summary=None,
+        output_logits_values=None,
     ) -> None:
         batch = self._normalize_live_continuous_tick_rows(
             rows,
             active_mask=active_mask,
             output_token_ids=output_token_ids,
             output_logits_sha256=output_logits_sha256,
+            output_logits_summary=output_logits_summary,
+            output_logits_values=output_logits_values,
         )
         self._live_continuous_tick_batches.append(batch)
 

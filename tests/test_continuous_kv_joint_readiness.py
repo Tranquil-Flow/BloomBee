@@ -17,6 +17,8 @@ def _continuous_report() -> dict:
         "batched_tick_count": 1,
         "token_parity_proven": True,
         "logits_fingerprint_parity_proven": True,
+        "logits_numeric_parity_proven": False,
+        "logits_parity_proven": True,
         "live_server_late_arrival_parity_proven": True,
         "live_server_proven": True,
         "speedup_proven": False,
@@ -66,6 +68,23 @@ def test_joint_gate_passes_only_when_late_arrival_batching_and_live_kv_reuse_are
         "kv_prefix_reuse": "passed",
         "continuous_kv_joint_readiness": "passed",
     }
+
+
+def test_joint_gate_accepts_numeric_logit_parity_when_fingerprints_differ():
+    from mvp_capabilities.continuous_kv_joint_readiness import build_continuous_kv_joint_readiness_report
+
+    continuous = _continuous_report()
+    continuous["logits_fingerprint_parity_proven"] = False
+    continuous["logits_numeric_parity_proven"] = True
+    continuous["logits_parity_proven"] = True
+    report = build_continuous_kv_joint_readiness_report(
+        continuous_report=continuous,
+        kv_report=_kv_report(live_reuse=True),
+    )
+
+    assert report["verification_status"] == "passed"
+    assert report["continuous_batching_ready"] is True
+    assert report["continuous_batching"]["logits_parity_proven"] is True
 
 
 def test_joint_gate_rejects_metadata_only_kv_even_if_kv_verifier_status_passed():
