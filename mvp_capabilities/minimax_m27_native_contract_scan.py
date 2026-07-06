@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """MiniMax M2.7 REAP native-contract scan.
 
-This is a claim-boundary scanner for the exact REAP config. It does not create a
-BloomBee wrapper, run inference, or update proof status. It records what a native
-`minimax_m2` BloomBee block wrapper must support before M2.7 REAP can move from
-planning to proof.
+This is a claim-boundary scanner for the exact REAP config. It does not run
+inference or update proof status. It records what the native `minimax_m2`
+BloomBee block wrapper supports and what must still be proven before M2.7 REAP
+can move from planning to proof.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODEL_ID = "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B"
-CLAIM_BOUNDARY = "minimax_m27_reap_native_contract_scan_no_wrapper_or_live_inference"
+CLAIM_BOUNDARY = "minimax_m27_reap_native_contract_scan_no_live_inference"
 
 
 def _first_architecture(config: dict[str, Any]) -> str | None:
@@ -75,8 +75,10 @@ def build_minimax_m27_native_contract_report(
     remaining_blockers = []
     if not wrapper_present:
         remaining_blockers.append("bloombee_minimax_m2_wrapper_missing")
-    if num_local_experts and top_k:
+    if num_local_experts and top_k and not wrapper_present:
         remaining_blockers.append("minimax_m2_moe_router_contract_unimplemented")
+    elif num_local_experts and top_k:
+        remaining_blockers.append("minimax_m2_moe_router_real_weight_proof_missing")
     if use_mtp:
         remaining_blockers.append("minimax_m2_mtp_contract_unimplemented")
     remaining_blockers.append("one_block_server_proof_missing")
@@ -108,6 +110,7 @@ def build_minimax_m27_native_contract_report(
         "scoring_func": config.get("scoring_func"),
         "router_jitter_noise": config.get("router_jitter_noise"),
         "native_wrapper_package_present": wrapper_present,
+        "wrapper_block_contract_available": wrapper_present,
         "state_cache_contract": {
             "attention_cache_kind": "dynamic_kv_per_layer",
             "kv_layers": num_layers,
@@ -133,7 +136,8 @@ def build_minimax_m27_native_contract_report(
         "can_update_demo_status": False,
         "remaining_blockers": remaining_blockers,
         "do_not_claim": [
-            "no BloomBee minimax_m2 wrapper exists in this repository yet",
+            "no live MiniMax M2.7 REAP inference was attempted",
+            "wrapper-contract tests are not one-block server proof",
             "no live inference was attempted",
             "no one-block server proof",
             "no route/demo promotion",

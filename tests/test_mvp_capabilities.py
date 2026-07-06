@@ -603,7 +603,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["tinyllama_distributed_generation"]["done"] is True
     assert "frontier-distributed-pathway-minimax-m27-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
     assert "main native BloomBee distributed path" in tasks["minimax_m3_candidate"]["evidence"]
-    assert "native BloomBee minimax_m2 wrapper" in tasks["minimax_m3_candidate"]["next_step"]
+    assert "native minimax_m2 wrapper contract exists" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "real-weight one-block server proof" in tasks["minimax_m3_candidate"]["next_step"]
+    assert "build or verify the native BloomBee minimax_m2 wrapper" not in tasks["minimax_m3_candidate"]["next_step"]
+    assert "still lacks a native BloomBee minimax_m2 wrapper" not in tasks["minimax_m3_candidate"]["evidence"]
     assert "external-runtime smoke, or run the M3" not in tasks["minimax_m3_candidate"]["next_step"]
     assert "minimax-reap-family-comparison-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
     assert "minimax-m27-reap-memory-watch-final-20260706T193704Z.json" in tasks["minimax_m3_candidate"]["evidence"]

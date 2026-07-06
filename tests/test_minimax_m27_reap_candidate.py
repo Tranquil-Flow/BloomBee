@@ -14,15 +14,18 @@ def test_minimax_m27_reap_candidate_marks_bloombee_native_blocked_but_llamacpp_q
         peers=[{"hostname": "m4pro", "memory": {"total_gb": 48.0, "free_gb": 42.0}}]
     )
 
-    assert report["claim_boundary"] == "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim"
+    assert report["claim_boundary"] == "minimax_m27_reap_candidate_preflight_external_runtime_no_live_inference_claim"
     assert report["model_id"] == MODEL_ID
     assert report["params_b"] == 139.0
     assert report["active_params_b"] == 10.0
+    assert report["architecture_supported"] is True
+    assert report["native_wrapper_package_present"] is True
     assert report["native_bloombee_support_proven"] is False
     assert report["route_picker_eligible"] is False
     assert report["can_update_proof_status"] is False
     assert report["live_run_attempted"] is False
-    assert "No BloomBee block wrapper registered for model_type=minimax_m2" in report["bloombee_blocked_reasons"]
+    assert "real-weight one-block server proof" in " ".join(report["bloombee_blocked_reasons"])
+    assert "external runtime is side diagnostics only" in " ".join(report["bloombee_blocked_reasons"])
     assert report["gguf_external_runtime"]["attemptable_on_best_peer"] is True
     assert report["gguf_external_runtime"]["best_peer"]["hostname"] == "m4pro"
     assert report["gguf_external_runtime"]["selected_quant"]["name"] == "i1-IQ2_XXS"
@@ -55,7 +58,9 @@ def test_minimax_m27_reap_registry_row_is_visible_but_not_quant_variant_expanded
 
     assert MODEL_ID in by_id
     row = by_id[MODEL_ID]
-    assert row["architecture_supported"] is False
+    assert row["architecture_supported"] is True
+    assert row["bloombee_family"] == "minimax_m2"
+    assert row["block_prefix"] == "model.layers"
     assert row["recommended_min_free_mem_gb"] == 280
     assert row["native_contract_artifact"] == "mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-native-contract-scan-20260706.json"
     assert "minimax_m2" in " ".join(row["blocked_reasons"])

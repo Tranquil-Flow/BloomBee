@@ -1,17 +1,19 @@
 {
-  "claim_boundary": "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim",
+  "claim_boundary": "minimax_m27_reap_candidate_preflight_external_runtime_no_live_inference_claim",
   "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
   "params_b": 139.0,
   "active_params_b": 10.0,
-  "architecture_supported": false,
+  "architecture_supported": true,
+  "native_wrapper_package_present": true,
   "native_bloombee_support_proven": false,
   "route_picker_eligible": false,
   "can_update_proof_status": false,
   "can_update_demo_status": false,
   "live_run_attempted": false,
   "bloombee_blocked_reasons": [
-    "No BloomBee block wrapper registered for model_type=minimax_m2",
-    "MiniMax-M2.7-REAP community prune \u2014 BloomBee block family covers upstream MiniMax but not pruned/REAPed variants"
+    "BloomBee block wrapper registered for model_type=minimax_m2, but no MiniMax-M2.7 REAP real-weight one-block server proof exists",
+    "MiniMax-M2.7-REAP MTP modules remain fail-closed until an explicit proof-time guard/contract exists",
+    "GGUF/llama.cpp external runtime is side diagnostics only and does not prove native BloomBee block-parallel routing"
   ],
   "gguf_external_runtime": {
     "framework": "llama.cpp",
@@ -19,7 +21,7 @@
     "best_peer": {
       "hostname": "m4pro",
       "total_gb": 48.0,
-      "free_gb": 27.9
+      "free_gb": 33.163
     },
     "selected_quant": null,
     "all_quants_attempted": [
@@ -43,9 +45,9 @@
     "required_free_headroom": 0.1
   },
   "blocked_reasons": [
-    "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_25.1gb",
-    "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_25.1gb",
-    "quant_Q4_K_M_size_89.5gb_exceeds_required_25.1gb",
+    "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_29.8gb",
+    "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_29.8gb",
+    "quant_Q4_K_M_size_89.5gb_exceeds_required_29.8gb",
     "no_peer_has_free_memory_for_i1-IQ2_XXS_plus_margin"
   ],
   "operator_commands": [],

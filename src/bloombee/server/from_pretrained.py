@@ -30,6 +30,7 @@ from bloombee.models.falcon.block import WrappedFalconBlock
 from bloombee.models.gemma4.block import WrappedGemma4Block
 from bloombee.models.qwen3.block import WrappedQwen3Block
 from bloombee.models.qwen3_moe.block import WrappedQwen3MoeBlock
+from bloombee.models.minimax_m2.block import WrappedMiniMaxM2Block
 from bloombee.server.block_utils import get_model_block, resolve_block_dtype
 from bloombee.utils.auto_config import AutoDistributedConfig
 from bloombee.utils.disk_cache import DEFAULT_CACHE_DIR, allow_cache_reads, allow_cache_writes, free_disk_space_for
@@ -103,6 +104,7 @@ def load_pretrained_block(
         WrappedMixtralBlock,
         WrappedQwen3Block,
         WrappedQwen3MoeBlock,
+        WrappedMiniMaxM2Block,
         WrappedGemma4Block,
     )
 

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """MiniMax-M2.7-REAP-139B-A10B candidate preflight.
 
-Claim boundary: ``minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim``.
+Claim boundary: ``minimax_m27_reap_candidate_preflight_external_runtime_no_live_inference_claim``.
 
 This is an OPERATOR harness — it produces a structured preflight report about
 whether ``dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B`` can be smoked on a small
 fleet of peers using the **external runtime** (llama.cpp GGUF), NOT whether
 BloomBee can serve it natively. It:
 
-- States up-front that this model has NO native BloomBee block wrapper.
+- States up-front that the external GGUF lane is NOT native BloomBee proof,
+  even though a first native `minimax_m2` block wrapper now exists.
 - Estimates total memory footprint at multiple GGUF quant levels.
 - Picks the smallest quant that fits on the best peer plus margin.
 - Emits operator commands that use llama.cpp directly (not BloomBee).
@@ -161,19 +162,21 @@ def build_minimax_m27_reap_candidate_report(
         ])
 
     return {
-        "claim_boundary": "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim",
+        "claim_boundary": "minimax_m27_reap_candidate_preflight_external_runtime_no_live_inference_claim",
         "model_id": MODEL_ID,
         "params_b": TOTAL_PARAMS_B,
         "active_params_b": ACTIVE_PARAMS_B,
-        "architecture_supported": False,
+        "architecture_supported": True,
+        "native_wrapper_package_present": True,
         "native_bloombee_support_proven": False,
         "route_picker_eligible": False,
         "can_update_proof_status": False,
         "can_update_demo_status": False,
         "live_run_attempted": False,
         "bloombee_blocked_reasons": [
-            f"No BloomBee block wrapper registered for model_type={REAP_HF_MODEL_TYPE}",
-            "MiniMax-M2.7-REAP community prune — BloomBee block family covers upstream MiniMax but not pruned/REAPed variants",
+            f"BloomBee block wrapper registered for model_type={REAP_HF_MODEL_TYPE}, but no MiniMax-M2.7 REAP real-weight one-block server proof exists",
+            "MiniMax-M2.7-REAP MTP modules remain fail-closed until an explicit proof-time guard/contract exists",
+            "GGUF/llama.cpp external runtime is side diagnostics only and does not prove native BloomBee block-parallel routing",
         ],
         "gguf_external_runtime": {
             "framework": "llama.cpp",
@@ -326,7 +329,7 @@ def build_minimax_reap_family_comparison_report(
         "can_pool_m4_and_m4pro_memory_for_external_runtime": False,
         "shared_limitations": [
             "external runtimes need one host memory pool; local M4 + M4 Pro RAM is not additive for llama.cpp/vMLX",
-            "BloomBee can distribute only registered block families; MiniMax M2/M3 wrappers are not registered here",
+            "BloomBee can distribute only registered block families; MiniMax M2 now has a first wrapper contract but M3 remains unregistered and M2.7 REAP still lacks real-weight one-block proof",
             "any live route/demo promotion still needs real token-generation evidence and verifier output",
         ],
         "decision": {
