@@ -615,12 +615,16 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "phone_count_below_min:1<3" in tasks["phone_worker"]["evidence"]
     assert "phone-speculative-readiness-bundle-pixel8pro-live-adb-20260704T210323Z.json" in tasks["speculative_decode"]["evidence"]
     assert "phone_speculative_trial_plan.py" in tasks["phone_worker"]["evidence"]
+    assert "phone_speculative_integrated_trial_gate.py" in tasks["phone_worker"]["evidence"]
+    assert "phone-speculative-integrated-trial-gate-harness-20260706.json" in tasks["phone_worker"]["evidence"]
+    assert "phone_speculative_integrated_trial_gate.py" in tasks["speculative_decode"]["evidence"]
+    assert "phone-speculative-integrated-trial-gate-harness-20260706.json" in tasks["speculative_decode"]["evidence"]
     assert "bridge live token transport" not in tasks["phone_worker"]["next_step"]
     assert "3-4 phone" in tasks["phone_worker"]["next_step"]
-    assert "integrated non-sequential verifier path" in tasks["phone_worker"]["next_step"]
+    assert "phone_speculative_integrated_trial_gate.py" in tasks["phone_worker"]["next_step"]
     assert "bridge live token transport" not in tasks["speculative_decode"]["next_step"]
     assert "3-4 phone" in tasks["speculative_decode"]["next_step"]
-    assert "integrated non-sequential verifier path" in tasks["speculative_decode"]["next_step"]
+    assert "phone_speculative_integrated_trial_gate.py" in tasks["speculative_decode"]["next_step"]
     assert tasks["continuous_batching"]["status"] == "partial"
     assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-live-adapter-20260705.json" in tasks["continuous_batching"]["evidence"]
@@ -5718,6 +5722,23 @@ def test_phone_context_token_id_verifier_live_adb_rerun_is_claim_bounded():
     assert verifier_report["phone_integrated_verifier_proven"] is True
     assert verifier_report["speedup_proven"] is False
     assert verifier_report["bloombee_block_serving_proven"] is False
+
+
+def test_phone_speculative_integrated_trial_gate_harness_artifact_is_fail_closed():
+    path = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/phone/phone-speculative-integrated-trial-gate-harness-20260706.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+
+    assert report["claim_boundary"] == "phone_speculative_integrated_trial_gate_harness_no_measurement"
+    assert report["plan_status"] == "blocked_by_readiness_manifest"
+    assert report["readiness_manifest_path"].endswith("multi-phone-speculative-readiness-one-phone-20260705T214620Z.json")
+    assert report["measurement_kind"] == "measured_integrated_non_sequential_draft_plus_verifier"
+    assert report["speedup_proven"] is False
+    assert report["wallclock_speedup_proven"] is False
+    assert report["can_update_speculative_speedup_status"] is False
+    assert report["bloombee_block_serving_proven"] is False
+    assert report["can_update_phone_worker_status"] is False
+    assert "phone_count_below_min:1<3" in report["blocked_reasons"]
+    assert "phone_speculative_integrated_trial_gate.py verify" in report["verify_command"]
 
 
 def test_phone_integrated_verifier_preflight_records_external_token_blocker():

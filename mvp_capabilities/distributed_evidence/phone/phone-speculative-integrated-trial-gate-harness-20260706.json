@@ -1,0 +1,31 @@
+{
+  "blocked_reasons": [
+    "readiness_manifest_not_passed",
+    "phone_count_below_min:1<3",
+    "ready_phone_count_below_min:1<3"
+  ],
+  "bloombee_block_serving_proven": false,
+  "can_update_phone_worker_status": false,
+  "can_update_speculative_speedup_status": false,
+  "claim_boundary": "phone_speculative_integrated_trial_gate_harness_no_measurement",
+  "evidence_path": ".local/phone/integrated-trial-gate.json",
+  "measurement_kind": "measured_integrated_non_sequential_draft_plus_verifier",
+  "notes": [
+    "Planning output is not proof.",
+    "The verify command exits non-zero unless readiness is passed and integrated timing beats verifier-only timing.",
+    "BloomBee phone block-worker status remains a separate proof gate."
+  ],
+  "operator_commands": [
+    "run the verifier-only baseline and save the raw timing log",
+    "run the integrated non-sequential phone draft-plus-verifier path and save the raw timing log",
+    "python mvp_capabilities/phone_speculative_integrated_trial_gate.py verify --readiness-manifest mvp_capabilities/distributed_evidence/phone/multi-phone-speculative-readiness-one-phone-20260705T214620Z.json --verifier-only-elapsed-s $VERIFIER_ONLY_ELAPSED_S --integrated-draft-plus-verifier-elapsed-s $INTEGRATED_DRAFT_PLUS_VERIFIER_ELAPSED_S --out .local/phone/integrated-trial-gate.json"
+  ],
+  "plan_status": "blocked_by_readiness_manifest",
+  "readiness_claim_boundary": "multi_phone_speculative_readiness_manifest_no_speedup_claim",
+  "readiness_manifest_path": "mvp_capabilities/distributed_evidence/phone/multi-phone-speculative-readiness-one-phone-20260705T214620Z.json",
+  "selected_phone_ids": [],
+  "source": "phone_speculative_integrated_trial_gate.py",
+  "speedup_proven": false,
+  "verify_command": "python mvp_capabilities/phone_speculative_integrated_trial_gate.py verify --readiness-manifest mvp_capabilities/distributed_evidence/phone/multi-phone-speculative-readiness-one-phone-20260705T214620Z.json --verifier-only-elapsed-s $VERIFIER_ONLY_ELAPSED_S --integrated-draft-plus-verifier-elapsed-s $INTEGRATED_DRAFT_PLUS_VERIFIER_ELAPSED_S --out .local/phone/integrated-trial-gate.json",
+  "wallclock_speedup_proven": false
+}
