@@ -6,14 +6,14 @@
       "hostname": "local-m4",
       "memory": {
         "total_gb": 16.0,
-        "free_gb": 3.85
+        "free_gb": 8.0
       }
     },
     {
       "hostname": "m4pro",
       "memory": {
         "total_gb": 48.0,
-        "free_gb": 27.3
+        "free_gb": 33.163
       }
     }
   ],
@@ -28,13 +28,13 @@
     }
   },
   "combined_nominal_memory_gb": 64.0,
-  "combined_free_memory_gb": 31.2,
+  "combined_free_memory_gb": 41.2,
   "largest_single_host_total_gb": 48.0,
-  "largest_single_host_free_gb": 27.3,
+  "largest_single_host_free_gb": 33.2,
   "can_pool_m4_and_m4pro_memory_for_external_runtime": false,
   "shared_limitations": [
     "external runtimes need one host memory pool; local M4 + M4 Pro RAM is not additive for llama.cpp/vMLX",
-    "BloomBee can distribute only registered block families; MiniMax M2/M3 wrappers are not registered here",
+    "BloomBee can distribute only registered block families; MiniMax M2 now has a first wrapper contract but M3 remains unregistered and M2.7 REAP still lacks real-weight one-block proof",
     "any live route/demo promotion still needs real token-generation evidence and verifier output"
   ],
   "decision": {
@@ -52,19 +52,21 @@
   },
   "models": {
     "m2_7_reap_139b_a10b": {
-      "claim_boundary": "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim",
+      "claim_boundary": "minimax_m27_reap_candidate_preflight_external_runtime_no_live_inference_claim",
       "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
       "params_b": 139.0,
       "active_params_b": 10.0,
-      "architecture_supported": false,
+      "architecture_supported": true,
+      "native_wrapper_package_present": true,
       "native_bloombee_support_proven": false,
       "route_picker_eligible": false,
       "can_update_proof_status": false,
       "can_update_demo_status": false,
       "live_run_attempted": false,
       "bloombee_blocked_reasons": [
-        "No BloomBee block wrapper registered for model_type=minimax_m2",
-        "MiniMax-M2.7-REAP community prune \u2014 BloomBee block family covers upstream MiniMax but not pruned/REAPed variants"
+        "BloomBee block wrapper registered for model_type=minimax_m2, but no MiniMax-M2.7 REAP real-weight one-block server proof exists",
+        "MiniMax-M2.7-REAP MTP modules remain fail-closed until an explicit proof-time guard/contract exists",
+        "GGUF/llama.cpp external runtime is side diagnostics only and does not prove native BloomBee block-parallel routing"
       ],
       "gguf_external_runtime": {
         "framework": "llama.cpp",
@@ -72,7 +74,7 @@
         "best_peer": {
           "hostname": "m4pro",
           "total_gb": 48.0,
-          "free_gb": 27.3
+          "free_gb": 33.163
         },
         "selected_quant": null,
         "all_quants_attempted": [
@@ -96,9 +98,9 @@
         "required_free_headroom": 0.1
       },
       "blocked_reasons": [
-        "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_24.6gb",
-        "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_24.6gb",
-        "quant_Q4_K_M_size_89.5gb_exceeds_required_24.6gb",
+        "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_29.8gb",
+        "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_29.8gb",
+        "quant_Q4_K_M_size_89.5gb_exceeds_required_29.8gb",
         "no_peer_has_free_memory_for_i1-IQ2_XXS_plus_margin"
       ],
       "operator_commands": [],
@@ -123,7 +125,7 @@
         "MiniMax-M3 llama.cpp support is preliminary and requires a fresh PR/release-capable build",
         "m3_minimum_gguf_128.0gb_exceeds_largest_single_host_48.0gb",
         "m3_minimum_gguf_128.0gb_exceeds_combined_nominal_64.0gb",
-        "m3_minimum_gguf_128.0gb_exceeds_current_best_free_27.3gb"
+        "m3_minimum_gguf_128.0gb_exceeds_current_best_free_33.2gb"
       ]
     },
     "m3_reap_jang": {

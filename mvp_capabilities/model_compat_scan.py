@@ -30,6 +30,7 @@ SUPPORTED_FAMILIES: dict[str, dict[str, str]] = {
     "gemma4": {"bloombee_family": "gemma4", "block_prefix": "model.layers"},
     "llama": {"bloombee_family": "llama", "block_prefix": "model.layers"},
     "mixtral": {"bloombee_family": "mixtral", "block_prefix": "model.layers"},
+    "minimax_m2": {"bloombee_family": "minimax_m2", "block_prefix": "model.layers"},
     "qwen3": {"bloombee_family": "qwen3", "block_prefix": "model.layers"},
     "qwen3_moe": {"bloombee_family": "qwen3_moe", "block_prefix": "model.layers"},
 }
