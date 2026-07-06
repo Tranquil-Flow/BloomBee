@@ -1,0 +1,23 @@
+{
+  "attempted_after_fix": "build_hivemind_sandbox_runtime_patch",
+  "blocked": true,
+  "blocker": "hermes_sandbox_dht_listen_blocked_after_shm_fallback",
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "live_continuous_kv_capture_blocked_no_live_server_proof",
+  "continuous_batching": {
+    "live_server_late_arrival_parity_proven": false,
+    "live_server_proven": false,
+    "speedup_proven": false,
+    "wallclock_speedup_proven": false
+  },
+  "detail": "Live capture runner progressed past torch_shm_manager shared-memory failure, then DHT failed to listen on 127.0.0.1:31337/0.0.0.0:31337 inside Hermes sandbox. server_log_tail=Traceback (most recent call last):\n  File \"<string>\", line 29, in <module>\n  File \"/Users/evinova/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/dht/dht.py\", line 87, in __init__\n    self.run_in_background(await_ready=await_ready)\n  File \"/Users/evinova/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/dht/dht.py\", line 148, in run_in_background\n    self.wait_until_ready(timeout)\n  File \"/Users/evinova/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/dht/dht.py\", line 151, in wait_until_ready\n    self._ready.result(timeout=timeout)\n  File \"/Users/evinova/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/utils/mpfuture.py\", line 263, in result\n    return super().result(timeout)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova/.local/share/uv/python/cpython-3.11.14-macos-aarch64-none/lib/python3.11/concurrent/futures/_base.py\", line 456, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova/.local/share/uv/python/cpython-3.11.14-macos-aarch64-none/lib/python3.11/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\nhivemind.p2p.p2p_daemon_bindings.utils.P2PDaemonError: Daemon failed to start: 2026/07/06 10:37:40 failed to listen on any addresses: [listen tcp4 0.0.0.0:31337: bind: operation not permitted]",
+  "kv_prefix_reuse": {
+    "live_kv_cache_reuse_proven": false,
+    "server_observed_kv_cache_reuse": false,
+    "speedup_proven": false
+  },
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "source": "scripts/live_continuous_kv_capture.py",
+  "timestamp": "2026-07-06T10:38:22"
+}

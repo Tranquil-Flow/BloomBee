@@ -37,9 +37,14 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     assert "one-block server proof" in by_id["qwen35b_candidate"]["next_step"]
     assert by_id["minimax_m3_candidate"]["status"] == "blocked"
     assert by_id["minimax_m3_candidate"]["blocked"] is True
+    minimax_evidence = by_id["minimax_m3_candidate"]["evidence"]
+    assert "minimax-reap-family-comparison-current-20260706.json" in minimax_evidence
+    assert "M4+M4Pro memory is not additive" in minimax_evidence
+    assert "M3 as likely stronger but not easier" in minimax_evidence
     continuous_evidence = by_id["continuous_batching"]["evidence"]
     assert "continuous-batching-server-merge-report-live-20260706T0812.json" in continuous_evidence
     assert "strict verifier still fails closed" in continuous_evidence
+    assert "live-continuous-kv-capture-blocked-hermes-sandbox-20260706.json" in continuous_evidence
     assert "wall-clock speedup, or demo promotion yet" in continuous_evidence
     assert all(item["done"] is False for item in payload["items"])
     assert payload["by_status"] == {"partial": 5, "blocked": 1}

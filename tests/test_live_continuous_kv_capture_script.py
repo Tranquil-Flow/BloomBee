@@ -100,3 +100,26 @@ def test_reset_capture_workspace_removes_stale_peer_and_marker_files(tmp_path, m
     assert not server_log.exists()
     assert not peer_file.exists()
     assert not marker_file.exists()
+
+
+def test_sandbox_runtime_patch_resets_mpfuture_and_falls_back_from_torch_shm_manager():
+    module = _load_script_module()
+
+    patch = module.build_hivemind_sandbox_runtime_patch()
+
+    assert "MPFuture.reset_backend()" in patch
+    assert "SharedBytes.next" in patch
+    assert "share_memory_" in patch
+    assert "torch.zeros" in patch
+    assert "torch_shm_manager" in patch
+
+
+def test_dht_bootstrap_script_applies_sandbox_runtime_patch_before_creating_dht():
+    module = _load_script_module()
+
+    script = module.build_dht_bootstrap_script()
+
+    patch_index = script.index("MPFuture.reset_backend()")
+    dht_index = script.index("DHT(start=True")
+    assert patch_index < dht_index
+    assert "SharedBytes.next" in script

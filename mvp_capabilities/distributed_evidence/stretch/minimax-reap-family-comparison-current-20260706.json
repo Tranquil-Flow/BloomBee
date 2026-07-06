@@ -1,0 +1,156 @@
+{
+  "claim_boundary": "minimax_reap_family_comparison_no_live_inference_claim",
+  "source": "mvp_capabilities.minimax_m27_reap_candidate",
+  "peers": [
+    {
+      "hostname": "local-m4",
+      "memory": {
+        "total_gb": 16.0,
+        "free_gb": 3.85
+      }
+    },
+    {
+      "hostname": "m4pro",
+      "memory": {
+        "total_gb": 48.0,
+        "free_gb": 27.3
+      }
+    }
+  ],
+  "runtime_inventory": {
+    "local-m4": {
+      "llama_cpp": true,
+      "vmlx": false
+    },
+    "m4pro": {
+      "llama_cpp": false,
+      "vmlx": false
+    }
+  },
+  "combined_nominal_memory_gb": 64.0,
+  "combined_free_memory_gb": 31.2,
+  "largest_single_host_total_gb": 48.0,
+  "largest_single_host_free_gb": 27.3,
+  "can_pool_m4_and_m4pro_memory_for_external_runtime": false,
+  "shared_limitations": [
+    "external runtimes need one host memory pool; local M4 + M4 Pro RAM is not additive for llama.cpp/vMLX",
+    "BloomBee can distribute only registered block families; MiniMax M2/M3 wrappers are not registered here",
+    "any live route/demo promotion still needs real token-generation evidence and verifier output"
+  ],
+  "decision": {
+    "preferred_current_local_target": "none_current_memory_too_low",
+    "keep_m3_as_option": true,
+    "m3_is_likely_more_powerful": true,
+    "m3_is_easier_to_run_now": false,
+    "prefer_m3_if": [
+      "a MiniMax-M3 REAP/GGUF/JANG artifact is verified on a single available host with enough memory",
+      "vMLX JANG runtime is installed and smoke-tested for JANG REAP variants, or a released llama.cpp build supports the chosen GGUF",
+      "a 128GB+ Apple Silicon host or equivalent GPU host is available for M3-family local runtime"
+    ],
+    "m2_7_reap_can_run_using_both_m4_and_m4pro": false,
+    "m2_7_reap_can_run_on_m4pro_alone_if_freed": false
+  },
+  "models": {
+    "m2_7_reap_139b_a10b": {
+      "claim_boundary": "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim",
+      "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
+      "params_b": 139.0,
+      "active_params_b": 10.0,
+      "architecture_supported": false,
+      "native_bloombee_support_proven": false,
+      "route_picker_eligible": false,
+      "can_update_proof_status": false,
+      "can_update_demo_status": false,
+      "live_run_attempted": false,
+      "bloombee_blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=minimax_m2",
+        "MiniMax-M2.7-REAP community prune \u2014 BloomBee block family covers upstream MiniMax but not pruned/REAPed variants"
+      ],
+      "gguf_external_runtime": {
+        "framework": "llama.cpp",
+        "attemptable_on_best_peer": false,
+        "best_peer": {
+          "hostname": "m4pro",
+          "total_gb": 48.0,
+          "free_gb": 27.3
+        },
+        "selected_quant": null,
+        "all_quants_attempted": [
+          {
+            "name": "i1-IQ2_XXS",
+            "size_gb": 36.8,
+            "quality_note": "low_quality_but_first_m4pro_plausible_smoke"
+          },
+          {
+            "name": "i1-IQ2_XS",
+            "size_gb": 40.8,
+            "quality_note": "low_quality"
+          },
+          {
+            "name": "Q4_K_M",
+            "size_gb": 89.5,
+            "quality_note": "decent_quality_but_too_large_for_m4_pro_solo"
+          }
+        ],
+        "overhead_multiplier": 1.15,
+        "required_free_headroom": 0.1
+      },
+      "blocked_reasons": [
+        "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_24.6gb",
+        "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_24.6gb",
+        "quant_Q4_K_M_size_89.5gb_exceeds_required_24.6gb",
+        "no_peer_has_free_memory_for_i1-IQ2_XXS_plus_margin"
+      ],
+      "operator_commands": [],
+      "suggested_proof_gate": "minimax_m2_7_reap_external_runtime"
+    },
+    "m3_full": {
+      "model_id": "MiniMaxAI/MiniMax-M3",
+      "gguf_repo_id": "unsloth/MiniMax-M3-GGUF",
+      "params_b": 428.0,
+      "active_params_b": 23.0,
+      "context_tokens": 1048576,
+      "minimum_known_gguf_gb": 128.0,
+      "bf16_weight_gb": 855.0,
+      "likely_more_powerful_than_m2_7_reap": true,
+      "easier_to_run_on_current_macs": false,
+      "route_picker_eligible": false,
+      "native_bloombee_support_proven": false,
+      "live_run_attempted": false,
+      "blocked_reasons": [
+        "No BloomBee block wrapper registered for model_type=minimax_m3",
+        "MiniMax-M3 GGUF path is text-only and does not preserve MiniMax Sparse Attention / native multimodality claims",
+        "MiniMax-M3 llama.cpp support is preliminary and requires a fresh PR/release-capable build",
+        "m3_minimum_gguf_128.0gb_exceeds_largest_single_host_48.0gb",
+        "m3_minimum_gguf_128.0gb_exceeds_combined_nominal_64.0gb",
+        "m3_minimum_gguf_128.0gb_exceeds_current_best_free_27.3gb"
+      ]
+    },
+    "m3_reap_jang": {
+      "repo_id": "JANGQ-AI/MiniMax-M3-REAP32-Coder",
+      "format": "vMLX JANG affine-mixed AWQ + REAP",
+      "reported_target_host_gb": 128.0,
+      "requires_vmlx": true,
+      "generic_runtime_supported": false,
+      "vmlx_installed_on_any_peer": false,
+      "route_picker_eligible": false,
+      "native_bloombee_support_proven": false,
+      "live_run_attempted": false,
+      "blocked_reasons": [
+        "JANG REAP variants require vMLX-specific loader/runtime; generic transformers, vLLM, and MLX loaders are not accepted",
+        "No BloomBee block wrapper registered for MiniMax-M3 REAP/JANG variants",
+        "vmlx_not_installed_on_any_peer",
+        "m3_reap_jang_reported_target_128.0gb_exceeds_combined_nominal_64.0gb"
+      ]
+    }
+  },
+  "source_urls": [
+    "https://huggingface.co/mradermacher/m51Lab-MiniMax-M2.7-REAP-139B-A10B-i1-GGUF",
+    "https://huggingface.co/unsloth/MiniMax-M3-GGUF",
+    "https://huggingface.co/JANGQ-AI/MiniMax-M3-REAP32-Coder",
+    "https://github.com/MiniMax-AI/MiniMax-M3"
+  ],
+  "can_update_proof_status": false,
+  "can_update_demo_status": false,
+  "live_run_attempted": false
+}

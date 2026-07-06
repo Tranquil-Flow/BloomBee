@@ -601,6 +601,9 @@ def test_mvp_status_report_has_weighted_progress_bar():
     }
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
+    assert "minimax-reap-family-comparison-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "M3 as likely stronger but not easier" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "M4+M4Pro memory is not additive" in tasks["minimax_m3_candidate"]["evidence"]
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
     assert "Pixel 8 Pro" in tasks["phone_worker"]["evidence"]
     assert "p95=0.001669ms" in tasks["phone_worker"]["evidence"]
@@ -642,6 +645,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_wallclock_gate.py" in tasks["continuous_batching"]["evidence"]
     assert "no live server" in tasks["continuous_batching"]["evidence"]
+    assert "live-continuous-kv-capture-blocked-hermes-sandbox-20260706.json" in tasks["continuous_batching"]["evidence"]
+    assert "DHT listen was blocked by the Hermes sandbox" in tasks["continuous_batching"]["evidence"]
     assert "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING" in tasks["continuous_batching"]["next_step"]
     assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["next_step"]
     assert "continuous_batching_wallclock_gate.py" in tasks["continuous_batching"]["next_step"]
@@ -658,6 +663,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["evidence"]
     assert "first rpc_inference metadata" in tasks["kv_prefix_reuse"]["evidence"]
     assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "live-continuous-kv-capture-blocked-hermes-sandbox-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "continuous-kv-joint-readiness-current-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["next_step"]
     assert "implement actual server KV tensor reuse" in tasks["kv_prefix_reuse"]["next_step"]
     assert tasks["qwen35b_candidate"]["status"] == "partial"

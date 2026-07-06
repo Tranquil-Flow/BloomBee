@@ -86,3 +86,76 @@ def test_minimax_m27_reap_candidate_cli_writes_json(tmp_path: Path):
     assert payload == json.loads(out_path.read_text(encoding="utf-8"))
     assert payload["model_id"] == MODEL_ID
     assert payload["gguf_external_runtime"]["attemptable_on_best_peer"] is True
+
+
+def test_minimax_family_comparison_keeps_m3_as_powerful_but_not_currently_easier_on_macs():
+    from mvp_capabilities.minimax_m27_reap_candidate import build_minimax_reap_family_comparison_report
+
+    report = build_minimax_reap_family_comparison_report(
+        peers=[
+            {"hostname": "local-m4", "memory": {"total_gb": 16.0, "free_gb": 4.0}},
+            {"hostname": "m4pro", "memory": {"total_gb": 48.0, "free_gb": 27.3}},
+        ],
+        runtime_inventory={"local-m4": {"llama_cpp": True, "vmlx": False}, "m4pro": {"llama_cpp": False, "vmlx": False}},
+    )
+
+    assert report["claim_boundary"] == "minimax_reap_family_comparison_no_live_inference_claim"
+    assert report["combined_nominal_memory_gb"] == 64.0
+    assert report["combined_free_memory_gb"] == 31.3
+    assert report["can_pool_m4_and_m4pro_memory_for_external_runtime"] is False
+    assert report["decision"]["keep_m3_as_option"] is True
+    assert report["decision"]["m3_is_likely_more_powerful"] is True
+    assert report["decision"]["m3_is_easier_to_run_now"] is False
+    assert report["decision"]["preferred_current_local_target"] == "none_current_memory_too_low"
+    assert report["models"]["m3_full"]["minimum_known_gguf_gb"] == 128.0
+    assert "m3_minimum_gguf_128.0gb_exceeds_combined_nominal_64.0gb" in report["models"]["m3_full"]["blocked_reasons"]
+    assert "vmlx_not_installed_on_any_peer" in report["models"]["m3_reap_jang"]["blocked_reasons"]
+    assert "external runtimes need one host" in " ".join(report["shared_limitations"])
+
+
+def test_minimax_family_comparison_prefers_m27_when_one_m4pro_has_enough_free_memory():
+    from mvp_capabilities.minimax_m27_reap_candidate import build_minimax_reap_family_comparison_report
+
+    report = build_minimax_reap_family_comparison_report(
+        peers=[
+            {"hostname": "local-m4", "memory": {"total_gb": 16.0, "free_gb": 8.0}},
+            {"hostname": "m4pro", "memory": {"total_gb": 48.0, "free_gb": 42.0}},
+        ],
+        runtime_inventory={"m4pro": {"llama_cpp": True, "vmlx": False}},
+    )
+
+    assert report["decision"]["preferred_current_local_target"] == "minimax_m2_7_reap_139b_a10b_external_llamacpp"
+    assert report["models"]["m2_7_reap_139b_a10b"]["gguf_external_runtime"]["attemptable_on_best_peer"] is True
+    assert report["models"]["m2_7_reap_139b_a10b"]["gguf_external_runtime"]["selected_quant"]["name"] == "i1-IQ2_XXS"
+    assert report["can_pool_m4_and_m4pro_memory_for_external_runtime"] is False
+
+
+def test_minimax_family_comparison_cli_writes_json(tmp_path: Path):
+    out_path = tmp_path / "minimax-family-comparison.json"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "mvp_capabilities/minimax_m27_reap_candidate.py",
+            "--compare-family",
+            "--peer",
+            "local-m4:16:4",
+            "--peer",
+            "m4pro:48:27.3",
+            "--runtime",
+            "local-m4:llama_cpp=1:vmlx=0",
+            "--runtime",
+            "m4pro:llama_cpp=0:vmlx=0",
+            "--out",
+            str(out_path),
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload == json.loads(out_path.read_text(encoding="utf-8"))
+    assert payload["decision"]["keep_m3_as_option"] is True
+    assert payload["models"]["m2_7_reap_139b_a10b"]["live_run_attempted"] is False

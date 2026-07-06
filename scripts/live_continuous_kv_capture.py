@@ -108,6 +108,65 @@ def reset_capture_workspace() -> None:
             path.unlink()
 
 
+def build_hivemind_sandbox_runtime_patch() -> str:
+    """Return Python source that lets Hivemind run in Hermes' sandbox.
+
+    The Hermes macOS sandbox can deny PyTorch's ``torch_shm_manager`` helper.
+    Hivemind's ``MPFuture`` normally allocates a one-byte shared tensor via
+    ``SharedBytes.next`` during DHT construction. For this single-process proof
+    harness, a regular heap tensor is enough; the patch preserves normal shared
+    memory when available and falls back only after a real ``share_memory_``
+    probe fails.
+    """
+    return r'''
+# BloomBee live-capture sandbox patch: torch_shm_manager may be blocked.
+try:
+    import os as _bb_os
+    import torch as _bb_torch
+    from hivemind.utils.mpfuture import MPFuture, SharedBytes
+    MPFuture.reset_backend()
+    try:
+        _bb_torch.empty([4], dtype=_bb_torch.uint8).share_memory_()
+    except (RuntimeError, OSError, PermissionError) as _bb_shm_error:
+        _bb_shm_reason = f"torch_shm_manager unavailable: {_bb_shm_error!r}"
+        def _bb_heap_shared_bytes_next(cls):
+            with cls._ensure_lock():
+                buffer_size = int(_bb_os.environ.get("HIVEMIND_SHM_BUFFER_SIZE", 16))
+                if cls._pid != _bb_os.getpid() or cls._buffer is None or cls._index >= len(cls._buffer):
+                    cls._pid = _bb_os.getpid()
+                    cls._buffer = _bb_torch.zeros([buffer_size], dtype=_bb_torch.uint8)
+                    cls._index = 0
+                cls._index += 1
+                return cls._buffer[cls._index - 1]
+        SharedBytes.next = classmethod(_bb_heap_shared_bytes_next)
+except Exception as _bb_sandbox_patch_error:
+    print(f"HIVEMIND_SANDBOX_PATCH_ERROR: {_bb_sandbox_patch_error!r}", flush=True)
+'''
+
+
+def build_dht_bootstrap_script() -> str:
+    """Return the DHT bootstrap subprocess script."""
+    return f'''
+{build_hivemind_sandbox_runtime_patch()}
+import sys, time, os
+sys.path.insert(0, "src")
+from hivemind import DHT
+dht = DHT(start=True, host_maddrs=["/ip4/0.0.0.0/tcp/{DHT_PORT}"])
+try:
+    dht.wait_until_ready(timeout=30)
+except Exception as e:
+    print(f"DHT_READY_ERROR: {{e}}", flush=True)
+maddrs = dht.get_visible_maddrs()
+if maddrs:
+    peer_id = str(maddrs[0]).rsplit("/p2p/", 1)[-1]
+    print(f"DHT_PEER_ID: {{peer_id}}", flush=True)
+    with open("{EVIDENCE_DIR}/dht_peer.txt", "w") as f:
+        f.write(peer_id)
+while True:
+    time.sleep(60)
+'''
+
+
 def run_cmd(cmd: list[str], env: dict | None = None, timeout: int = 60) -> tuple[int, str, str]:
     merged_env = dict(os.environ)
     if env:
@@ -272,6 +331,7 @@ print(json.dumps({
 }))
 '''
 
+    script = build_hivemind_sandbox_runtime_patch() + "\n" + script
     code, stdout, stderr = run_cmd([sys.executable, "-u", "-c", script], env=env, timeout=240)
     if code != 0:
         # Try to extract the JSON error from output
@@ -396,24 +456,7 @@ def parse_server_log() -> dict:
 def start_dht_process():
     """Start DHT subprocess and write peer_id to file."""
     dht_proc = subprocess.Popen(
-        [sys.executable, "-u", "-c", f"""
-import sys, time, os
-sys.path.insert(0, "src")
-from hivemind import DHT
-dht = DHT(start=True, host_maddrs=["/ip4/0.0.0.0/tcp/{DHT_PORT}"])
-try:
-    dht.wait_until_ready(timeout=30)
-except Exception as e:
-    print(f"DHT_READY_ERROR: {{e}}", flush=True)
-maddrs = dht.get_visible_maddrs()
-if maddrs:
-    peer_id = str(maddrs[0]).rsplit("/p2p/", 1)[-1]
-    print(f"DHT_PEER_ID:​{{peer_id}}", flush=True)
-    with open("{EVIDENCE_DIR}/dht_peer.txt", "w") as f:
-        f.write(peer_id)
-while True:
-    time.sleep(60)
-"""],
+        [sys.executable, "-u", "-c", build_dht_bootstrap_script()],
         stdout=open(SERVER_LOG, "a"),
         stderr=subprocess.STDOUT,
         cwd=str(PROJECT_ROOT),
