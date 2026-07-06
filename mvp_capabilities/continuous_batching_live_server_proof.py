@@ -133,6 +133,7 @@ def verify_live_server_continuous_batching_payload(
 
     seen_ids: set[str] = set()
     arrival_ticks: list[int] = []
+    arrival_tick_by_request: dict[str, int] = {}
     row_summaries: list[dict[str, Any]] = []
     token_mismatch = False
     logits_missing_or_mismatch = False
@@ -153,6 +154,7 @@ def verify_live_server_continuous_batching_payload(
             failed.append(f"request {request_id} arrival tick/offset missing")
         else:
             arrival_ticks.append(tick)
+            arrival_tick_by_request[request_id] = tick
 
         baseline = _first_mapping(row, ("baseline", "serial_baseline", "verifier_only")) or {}
         continuous = _first_mapping(row, ("continuous", "live_continuous", "batched")) or {}
@@ -199,11 +201,35 @@ def verify_live_server_continuous_batching_payload(
         failed.append("live_continuous_report.tick_batches must be a list")
         tick_batches = []
     batched_tick_count = 0
-    for tick in tick_batches:
-        if isinstance(tick, Mapping) and isinstance(tick.get("request_ids"), list) and len(tick["request_ids"]) > 1:
-            batched_tick_count += 1
+    server_first_seen_tick_by_request: dict[str, int] = {}
+    for index, tick in enumerate(tick_batches):
+        if isinstance(tick, Mapping) and isinstance(tick.get("request_ids"), list):
+            tick_value = tick.get("tick")
+            if not isinstance(tick_value, int) or isinstance(tick_value, bool):
+                failed.append(f"live_continuous_report tick batch {index} tick missing")
+                continue
+            request_ids = tick["request_ids"]
+            if len(request_ids) > 1:
+                batched_tick_count += 1
+            for raw_request_id in request_ids:
+                if not isinstance(raw_request_id, str) or not raw_request_id:
+                    failed.append(f"live_continuous_report tick batch {index} has invalid request_id")
+                    continue
+                if raw_request_id not in seen_ids:
+                    failed.append(f"server tick batch references unknown request_id: {raw_request_id}")
+                    continue
+                server_first_seen_tick_by_request.setdefault(raw_request_id, int(tick_value))
     if batched_tick_count <= 0:
         failed.append("no batched live-continuous tick observed")
+
+    for request_id in sorted(seen_ids):
+        first_seen_tick = server_first_seen_tick_by_request.get(request_id)
+        if first_seen_tick is None:
+            failed.append(f"server tick batches never mention request {request_id}")
+            continue
+        declared_arrival_tick = arrival_tick_by_request.get(request_id)
+        if declared_arrival_tick is not None and first_seen_tick < declared_arrival_tick:
+            failed.append(f"server observed request {request_id} before declared arrival tick")
 
     status = "passed" if not failed else "failed"
     token_parity = status == "passed" and not token_mismatch

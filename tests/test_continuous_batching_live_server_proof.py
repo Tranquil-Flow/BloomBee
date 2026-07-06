@@ -82,6 +82,26 @@ def test_live_server_continuous_batching_verifier_rejects_missing_late_arrival_a
     assert result["token_parity_proven"] is False
 
 
+def test_live_server_continuous_batching_verifier_rejects_same_arrival_server_ticks_masquerading_as_late_arrival():
+    from mvp_capabilities.continuous_batching_live_server_proof import verify_live_server_continuous_batching_payload
+
+    disguised_same_arrival = _valid_capture()
+    # Client-side rows alone can claim req-b arrived at tick 1. A same-arrival
+    # server trace for req-b at tick 0 must not satisfy the stricter live/late
+    # server gate; otherwise a same-arrival capture can be mislabeled as a
+    # late-arrival continuous-batching proof.
+    disguised_same_arrival["live_continuous_report"]["tick_batches"] = [
+        {"tick": 0, "request_ids": ["req-a", "req-b"], "output_token_ids": [10, 20]},
+        {"tick": 1, "request_ids": ["req-a", "req-b"], "output_token_ids": [11, 21]},
+    ]
+
+    result = verify_live_server_continuous_batching_payload(disguised_same_arrival, model_id=MODEL_ID)
+
+    assert result["status"] == "failed"
+    assert "server observed request req-b before declared arrival tick" in result["failed_checks"]
+    assert result["live_server_late_arrival_parity_proven"] is False
+
+
 def test_live_server_continuous_batching_plan_and_cli_verify(tmp_path: Path):
     from mvp_capabilities.continuous_batching_live_server_proof import build_live_server_continuous_batching_plan
 
