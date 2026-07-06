@@ -69,6 +69,7 @@ class _FakeLiveRemoteLayers:
         self._active_session = None
         self.hidden_calls = []
         self.sessions = []
+        self.pending_live_batches_seen = []
 
     @property
     def active_session(self):
@@ -94,6 +95,8 @@ class _FakeLiveRemoteLayers:
 
     def __call__(self, hidden_states):
         assert self._active_session is not None
+        pending = getattr(self._active_session, "_pending_live_continuous_tick_batch", None)
+        self.pending_live_batches_seen.append(dict(pending) if isinstance(pending, dict) else None)
         self.hidden_calls.append(hidden_states.detach().clone())
         return hidden_states
 
@@ -240,6 +243,10 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
         [[10], [20]],
     ]
     report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    assert [batch["request_ids"] if batch is not None else None for batch in model.transformer.h.pending_live_batches_seen] == [
+        ["generate-0", "generate-1"],
+        ["generate-0", "generate-1"],
+    ]
     assert report["request_count"] == 2
     assert report["total_decode_batches"] == 2
     assert report["tick_batches"] == [
@@ -260,6 +267,129 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
     ]
     assert report["live_server_proven"] is False
     assert report["speedup_proven"] is False
+
+
+def test_live_continuous_tick_rows_are_sent_in_rpc_inference_metadata(monkeypatch):
+    import asyncio
+
+    from hivemind.proto import runtime_pb2
+    from hivemind.utils.tensor_descr import BatchTensorDescriptor
+
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+    from bloombee.client.live_continuous_batching import LiveDecodeRow
+    from bloombee.utils.hivemind_compat import MSGPackSerializer
+    from bloombee.utils.lossless_transport import serialize_torch_tensor
+    from bloombee.utils.misc import DUMMY, DUMMY_INT64
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    inputs = torch.zeros((2, 1, 4), dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(inputs, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=8,
+    )
+    captured_requests = []
+
+    async def fake_step(request):
+        captured_requests.append(request)
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(inputs, runtime_pb2.CompressionType.NONE)]
+        )
+
+    session._step = fake_step
+    rows = [
+        LiveDecodeRow(request_id="generate-0", tick=3, position=0, input_token_id=101),
+        LiveDecodeRow(request_id="generate-1", tick=3, position=0, input_token_id=201),
+    ]
+
+    staged = session.stage_live_continuous_tick_rows(rows)
+    outputs = session.step(
+        inputs,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.zeros(inputs.shape[0]),
+        step_id="step-live-1",
+    )
+
+    assert torch.equal(outputs[0], inputs)
+    assert staged["request_ids"] == ["generate-0", "generate-1"]
+    metadata = MSGPackSerializer.loads(captured_requests[0].metadata)
+    live_metadata = metadata["live_continuous_batching"]
+    assert live_metadata["claim_boundary"] == "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
+    assert live_metadata["opt_in_flag"] == "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
+    assert live_metadata["request_count"] == 2
+    assert live_metadata["tick_batches"] == [
+        {
+            "tick": 3,
+            "request_ids": ["generate-0", "generate-1"],
+            "positions": [0, 0],
+            "input_token_ids": [101, 201],
+        }
+    ]
+    assert live_metadata["live_server_proven"] is False
+    assert live_metadata["speedup_proven"] is False
+    assert live_metadata["can_update_demo_status"] is False
+
+    session.step(
+        inputs,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.zeros(inputs.shape[0]),
+        step_id="step-live-2",
+    )
+    stale_metadata = MSGPackSerializer.loads(captured_requests[1].metadata)
+    assert "live_continuous_batching" not in stale_metadata
+
+
+def test_server_observes_live_continuous_batching_metadata_only_with_opt_in(monkeypatch):
+    from bloombee.server.handler import _extract_live_continuous_batching_metadata
+
+    payload = {
+        "claim_boundary": "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup",
+        "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+        "opt_in_enabled": True,
+        "request_count": 2,
+        "tick_batches": [
+            {
+                "tick": 1,
+                "request_ids": ["generate-0", "generate-1"],
+                "positions": [0, 0],
+                "input_token_ids": [101, 201],
+            }
+        ],
+        "live_server_proven": False,
+        "speedup_proven": False,
+        "can_update_demo_status": False,
+    }
+
+    monkeypatch.delenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", raising=False)
+    assert _extract_live_continuous_batching_metadata({"live_continuous_batching": payload}) is None
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    observed = _extract_live_continuous_batching_metadata({"live_continuous_batching": payload})
+
+    assert observed["claim_boundary"] == "live_continuous_batching_server_metadata_observed_no_parity_or_speedup"
+    assert observed["opt_in_flag"] == "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
+    assert observed["server_observed_live_continuous_batches"] is True
+    assert observed["live_server_proven"] is True
+    assert observed["speedup_proven"] is False
+    assert observed["wallclock_speedup_proven"] is False
+    assert observed["can_update_demo_status"] is False
+    assert observed["tick_batches"][0]["request_ids"] == ["generate-0", "generate-1"]
+
+    assert _extract_live_continuous_batching_metadata({"live_continuous_batching": "not-a-dict"}) is None
 
 
 def test_inference_session_live_tick_rows_fail_closed_without_opt_in(monkeypatch):

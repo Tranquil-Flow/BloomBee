@@ -213,6 +213,11 @@ def build_live_server_continuous_batching_capture_plan(
     model_id: str,
     evidence_path: str = DEFAULT_EVIDENCE_PATH,
 ) -> dict[str, Any]:
+    log_report_command = (
+        "python -m mvp_capabilities.continuous_batching_server_log_report "
+        "--log .local/live-continuous-batching-server.log "
+        "--out .local/live-continuous-server-report.json"
+    )
     assemble_command = (
         "python -m mvp_capabilities.continuous_batching_live_server_capture assemble "
         f"--model {model_id} --live-report .local/live-continuous-server-report.json "
@@ -232,9 +237,11 @@ def build_live_server_continuous_batching_capture_plan(
         "operator_commands": [
             f"Start the server with {OPT_IN_FLAG}=1 and capture at least two staggered live requests.",
             "Capture no-continuous baseline and opt-in continuous JSON rows without hand-editing token IDs.",
+            log_report_command,
             assemble_command,
             verify_command,
         ],
+        "log_report_command": log_report_command,
         "assemble_command": assemble_command,
         "verify_command": verify_command,
         "live_server_late_arrival_parity_proven": False,

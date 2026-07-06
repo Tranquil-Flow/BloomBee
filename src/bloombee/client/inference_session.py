@@ -4,7 +4,7 @@ import asyncio
 import itertools
 import time
 import uuid
-from typing import AsyncIterator, List, Optional, Tuple
+from typing import Any, AsyncIterator, List, Optional, Tuple
 
 import torch
 from hivemind.moe.client.remote_expert_worker import RemoteExpertWorker
@@ -215,6 +215,7 @@ class _ServerInferenceSession:
         self._position = 0
         self.history = None  # Used in case of server failures to regenerate attention caches on new servers
         self.next_session = None
+        self._pending_live_continuous_tick_batch = None
 
     @classmethod
     async def create(
@@ -253,6 +254,71 @@ class _ServerInferenceSession:
         self._position = start_from_position
         if self.history is not None and self.history.shape[1] >= start_from_position:
             self.history = self.history[:, :start_from_position, :] if start_from_position > 0 else None
+
+    def _normalize_live_continuous_tick_rows_for_server(self, rows) -> dict:
+        from bloombee.client.live_continuous_batching import (
+            ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            is_live_continuous_batching_enabled,
+        )
+
+        if not is_live_continuous_batching_enabled():
+            raise RuntimeError(
+                f"{ENV_ENABLE_LIVE_CONTINUOUS_BATCHING}=1 is required to stage live continuous batching rows"
+            )
+        normalized_rows = list(rows)
+        if not normalized_rows:
+            raise ValueError("live continuous batching tick rows must be non-empty")
+        tick = int(normalized_rows[0].tick)
+        if any(int(row.tick) != tick for row in normalized_rows):
+            raise ValueError("all live continuous batching rows in one batch must share a tick")
+        request_ids = [str(row.request_id) for row in normalized_rows]
+        if len(set(request_ids)) != len(request_ids):
+            raise ValueError("duplicate request_id in live continuous batching tick")
+        return {
+            "tick": tick,
+            "request_ids": request_ids,
+            "positions": [int(row.position) for row in normalized_rows],
+            "input_token_ids": [int(row.input_token_id) for row in normalized_rows],
+        }
+
+    def stage_live_continuous_tick_rows(self, rows) -> dict:
+        batch = self._normalize_live_continuous_tick_rows_for_server(rows)
+        self._pending_live_continuous_tick_batch = dict(batch)
+        return dict(batch)
+
+    def stage_live_continuous_tick_batch(self, batch: dict) -> dict:
+        staged = {
+            "tick": int(batch["tick"]),
+            "request_ids": [str(item) for item in batch["request_ids"]],
+            "positions": [int(item) for item in batch["positions"]],
+            "input_token_ids": [int(item) for item in batch["input_token_ids"]],
+        }
+        self._pending_live_continuous_tick_batch = staged
+        return dict(staged)
+
+    def _consume_live_continuous_batching_metadata(self) -> dict | None:
+        if not self._pending_live_continuous_tick_batch:
+            return None
+        from bloombee.client.live_continuous_batching import (
+            ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
+            is_live_continuous_batching_enabled,
+        )
+
+        batch = dict(self._pending_live_continuous_tick_batch)
+        self._pending_live_continuous_tick_batch = None
+        return {
+            "source": "bloombee.client.inference_session",
+            "claim_boundary": INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
+            "opt_in_flag": ENV_ENABLE_LIVE_CONTINUOUS_BATCHING,
+            "opt_in_enabled": is_live_continuous_batching_enabled(),
+            "request_count": len(batch.get("request_ids", [])),
+            "tick_batches": [batch],
+            "live_server_proven": False,
+            "speedup_proven": False,
+            "wallclock_speedup_proven": False,
+            "can_update_demo_status": False,
+        }
 
     def step(
         self,
@@ -402,7 +468,7 @@ class _ServerInferenceSession:
                         "prompts",
                         "hypo_ids",
                     )
-                request_metadata = dict(session_id=self.session_id, step_id=step_id)
+                request_metadata: dict[str, Any] = dict(session_id=self.session_id, step_id=step_id)
                 if not self.stepped:
                     request_metadata.update(self.session_metadata)
                 # Only send non-default control flags; the server already
@@ -426,6 +492,10 @@ class _ServerInferenceSession:
                     next_servers = self._collect_next_servers()
                     if next_servers:
                         request_metadata["next_servers"] = next_servers
+
+                live_continuous_metadata = self._consume_live_continuous_batching_metadata()
+                if live_continuous_metadata is not None:
+                    request_metadata["live_continuous_batching"] = live_continuous_metadata
 
                 # TODO: make possible to use different compression method for different tensors
                 server_side_inference_schema, kwargs_schema = self.rpc_info["inference_schema"]
@@ -622,6 +692,7 @@ class InferenceSession:
         self.prefill_length = 0
         self._step_count = 0  # Track step count for logging
         self._live_continuous_tick_batches = []
+        self._pending_live_continuous_tick_batch = None
         self._kv_prefix_reuse_events = []
         
         # [MBPIPE] Log micro-batch pipeline configuration at client session creation
@@ -636,17 +707,12 @@ class InferenceSession:
     def position(self) -> int:
         return self._position
 
-    def record_live_continuous_tick_rows(
-        self,
-        rows,
-        *,
-        output_token_ids=None,
-    ) -> None:
-        """Record opt-in live-continuous decode rows for this session.
+    def _normalize_live_continuous_tick_rows(self, rows, *, output_token_ids=None) -> dict:
+        """Normalize opt-in live-continuous decode rows for this session.
 
-        This is deliberately telemetry/control-plane only: recording rows does
-        not prove server-side continuous batching, parity, or speedup. It is
-        also fail-closed; callers must be behind
+        This is deliberately telemetry/control-plane only: staged or recorded
+        rows do not prove server-side continuous batching, parity, or speedup.
+        It is also fail-closed; callers must be behind
         ``BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1`` rather than silently
         accumulating rows when the experimental path is disabled.
         """
@@ -685,6 +751,28 @@ class InferenceSession:
             if len(normalized_outputs) != len(normalized_rows):
                 raise ValueError("output_token_ids length must match live continuous batching rows")
             batch["output_token_ids"] = normalized_outputs
+        return batch
+
+    def stage_live_continuous_tick_rows(self, rows) -> dict:
+        """Stage a live-continuous batch for the next rpc_inference metadata.
+
+        The server can only observe client batching if the batch metadata is
+        present before ``RemoteSequential`` sends hidden states. Generated output
+        IDs are still recorded later by ``record_live_continuous_tick_rows``;
+        this staged payload is claim-bounded and never proves parity/speedup.
+        """
+
+        batch = self._normalize_live_continuous_tick_rows(rows)
+        self._pending_live_continuous_tick_batch = dict(batch)
+        return dict(batch)
+
+    def record_live_continuous_tick_rows(
+        self,
+        rows,
+        *,
+        output_token_ids=None,
+    ) -> None:
+        batch = self._normalize_live_continuous_tick_rows(rows, output_token_ids=output_token_ids)
         self._live_continuous_tick_batches.append(batch)
 
     def live_continuous_batching_report(self) -> dict:
@@ -906,6 +994,9 @@ class InferenceSession:
                         downstream_position=server_session.position,
                         is_spec_dec=is_spec_dec,
                     )
+                    if server_idx == 0 and self._pending_live_continuous_tick_batch is not None:
+                        server_session.stage_live_continuous_tick_batch(self._pending_live_continuous_tick_batch)
+                        self._pending_live_continuous_tick_batch = None
                     inputs, keep_indices, *_ = server_session.step(
                         server_inputs,
                         prompts[server_session.span.start : server_session.span.end],

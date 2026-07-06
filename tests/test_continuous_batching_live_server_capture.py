@@ -134,6 +134,8 @@ def test_capture_plan_and_cli_assemble_write_verifiable_evidence(tmp_path: Path)
     assert plan["proof_gate"] == "continuous_batching"
     assert plan["live_server_late_arrival_parity_proven"] is False
     assert plan["speedup_proven"] is False
+    assert "continuous_batching_server_log_report" in "\n".join(plan["operator_commands"])
+    assert plan["log_report_command"].startswith("python -m mvp_capabilities.continuous_batching_server_log_report")
     assert "continuous_batching_live_server_capture" in plan["assemble_command"]
     assert "continuous_batching_live_server_proof.py verify" in plan["verify_command"]
 

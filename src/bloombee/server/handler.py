@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import multiprocessing as mp
 import os
 import sys
@@ -137,6 +138,10 @@ sys.modules["runtime_pb2"] = runtime_pb2
 CACHE_TOKENS_AVAILABLE = "cache_tokens_available"
 KV_PREFIX_REUSE_ENV_FLAG = "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
 KV_PREFIX_REUSE_CLAIM_BOUNDARY = "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+LIVE_CONTINUOUS_BATCHING_ENV_FLAG = "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
+LIVE_CONTINUOUS_BATCHING_CLAIM_BOUNDARY = "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
+LIVE_CONTINUOUS_BATCHING_SERVER_CLAIM_BOUNDARY = "live_continuous_batching_server_metadata_observed_no_parity_or_speedup"
+LIVE_CONTINUOUS_BATCHING_LOG_PREFIX = "[LIVE_CONTINUOUS_BATCHING]"
 
 
 def _extract_kv_prefix_reuse_metadata(metadata: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -159,6 +164,90 @@ def _extract_kv_prefix_reuse_metadata(metadata: dict[str, Any]) -> Optional[dict
     normalized["speedup_proven"] = False
     normalized["can_update_demo_status"] = False
     return normalized
+
+
+def _normalize_live_continuous_tick_batch(raw: Any) -> Optional[dict[str, Any]]:
+    if not isinstance(raw, dict):
+        return None
+    request_ids = raw.get("request_ids")
+    positions = raw.get("positions")
+    input_token_ids = raw.get("input_token_ids")
+    if not isinstance(request_ids, list) or not request_ids:
+        return None
+    if not isinstance(positions, list) or len(positions) != len(request_ids):
+        return None
+    if not isinstance(input_token_ids, list) or len(input_token_ids) != len(request_ids):
+        return None
+    try:
+        tick = int(raw.get("tick", 0))
+        normalized_request_ids = [str(item) for item in request_ids]
+        normalized_positions = [int(item) for item in positions]
+        normalized_input_token_ids = [int(item) for item in input_token_ids]
+    except Exception:
+        return None
+    if len(set(normalized_request_ids)) != len(normalized_request_ids):
+        return None
+    return {
+        "tick": tick,
+        "request_ids": normalized_request_ids,
+        "positions": normalized_positions,
+        "input_token_ids": normalized_input_token_ids,
+    }
+
+
+def _extract_live_continuous_batching_metadata(metadata: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Observe client live-continuous batch metadata behind explicit opt-in.
+
+    This proves only that a live server received the opt-in batching metadata.
+    It does not prove token/logit parity, late-arrival concurrency, wall-clock
+    speedup, or demo readiness.
+    """
+
+    if os.environ.get(LIVE_CONTINUOUS_BATCHING_ENV_FLAG, "0") != "1":
+        return None
+    payload = metadata.get("live_continuous_batching") if isinstance(metadata, dict) else None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("claim_boundary") != LIVE_CONTINUOUS_BATCHING_CLAIM_BOUNDARY:
+        return None
+    if payload.get("opt_in_flag") != LIVE_CONTINUOUS_BATCHING_ENV_FLAG:
+        return None
+    if payload.get("opt_in_enabled") is not True:
+        return None
+
+    tick_batches = []
+    for raw_batch in payload.get("tick_batches", []):
+        normalized = _normalize_live_continuous_tick_batch(raw_batch)
+        if normalized is not None:
+            tick_batches.append(normalized)
+    if not tick_batches:
+        return None
+
+    request_ids = []
+    seen = set()
+    for batch in tick_batches:
+        for request_id in batch["request_ids"]:
+            if request_id not in seen:
+                request_ids.append(request_id)
+                seen.add(request_id)
+    return {
+        "source": "bloombee.server.handler",
+        "claim_boundary": LIVE_CONTINUOUS_BATCHING_SERVER_CLAIM_BOUNDARY,
+        "opt_in_flag": LIVE_CONTINUOUS_BATCHING_ENV_FLAG,
+        "opt_in_enabled": True,
+        "request_count": len(request_ids),
+        "tick_batches": tick_batches,
+        "server_observed_live_continuous_batches": any(len(batch["request_ids"]) > 1 for batch in tick_batches),
+        "live_server_proven": True,
+        "speedup_proven": False,
+        "wallclock_speedup_proven": False,
+        "can_update_demo_status": False,
+        "can_update_proof_status": False,
+    }
+
+
+def _format_live_continuous_batching_observation(observed: dict[str, Any]) -> str:
+    return f"{LIVE_CONTINUOUS_BATCHING_LOG_PREFIX} {json.dumps(observed, sort_keys=True, separators=(',', ':'))}"
 
 
 class Event(Enum):
@@ -621,6 +710,10 @@ class TransformerConnectionHandler(ConnectionHandler):
                 observed_kv_prefix_reuse = _extract_kv_prefix_reuse_metadata(metadata)
                 if observed_kv_prefix_reuse is not None:
                     metadata["kv_prefix_reuse_server_observed"] = observed_kv_prefix_reuse
+                observed_live_continuous_batching = _extract_live_continuous_batching_metadata(metadata)
+                if observed_live_continuous_batching is not None:
+                    metadata["live_continuous_batching_server_observed"] = observed_live_continuous_batching
+                    logger.info(_format_live_continuous_batching_observation(observed_live_continuous_batching))
                 end_msg_serial_time = perf_counter()
                 # print_time_now('')
                 

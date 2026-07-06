@@ -360,11 +360,22 @@ class RemoteGenerationMixin(_SkipTokensMixin):
 
         with context_manager as live_session:
             recorder = getattr(live_session, "record_live_continuous_tick_rows", None)
-            if not callable(recorder):
-                raise RuntimeError("InferenceSession cannot record live continuous batching rows")
+            stager = getattr(live_session, "stage_live_continuous_tick_rows", None)
+            if not callable(recorder) or not callable(stager):
+                raise RuntimeError("InferenceSession cannot stage and record live continuous batching rows")
 
             for tick in range(max_new_tokens):
                 row_input_ids = [int(token.detach().cpu().item()) for token in step_ids[:, -1]]
+                rows = [
+                    LiveDecodeRow(
+                        request_id=f"generate-{batch_idx}",
+                        tick=tick,
+                        position=tick,
+                        input_token_id=row_input_id,
+                    )
+                    for batch_idx, row_input_id in enumerate(row_input_ids)
+                ]
+                stager(rows)
                 hidden = embed(step_ids)
                 hidden = layers(hidden)
                 hidden = ln_f(hidden)
@@ -376,15 +387,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                         done = done | next_id.squeeze(-1).eq(eos_id)
 
                 recorder(
-                    [
-                        LiveDecodeRow(
-                            request_id=f"generate-{batch_idx}",
-                            tick=tick,
-                            position=tick,
-                            input_token_id=row_input_id,
-                        )
-                        for batch_idx, row_input_id in enumerate(row_input_ids)
-                    ],
+                    rows,
                     output_token_ids=[int(token.detach().cpu().item()) for token in next_id[:, 0]],
                 )
 

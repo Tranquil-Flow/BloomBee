@@ -636,6 +636,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous-batching-live-server-proof-plan-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-live-server-capture-harness-20260705T234958Z.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-wallclock-gate-harness-20260706T003844Z.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-batching-server-log-report-harness-20260706T053751Z.json" in tasks["continuous_batching"]["evidence"]
+    assert "continuous_batching_server_log_report.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_live_server_capture.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_wallclock_gate.py" in tasks["continuous_batching"]["evidence"]

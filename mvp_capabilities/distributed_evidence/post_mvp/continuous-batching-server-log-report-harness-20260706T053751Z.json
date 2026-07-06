@@ -1,0 +1,69 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "live_continuous_batching_server_log_report_no_parity_or_speedup",
+  "claim_limitations": [
+    "Server log report only: this does not prove token/logit parity.",
+    "Late-arrival parity must still pass continuous_batching_live_server_proof.py.",
+    "Wall-clock speedup must still pass continuous_batching_wallclock_gate.py."
+  ],
+  "event_count": 1,
+  "events": [
+    {
+      "can_update_demo_status": false,
+      "can_update_proof_status": false,
+      "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+      "input_note": "synthetic harness log for parser only",
+      "live_server_proven": false,
+      "opt_in_enabled": true,
+      "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+      "server_observed_live_continuous_batches": false,
+      "speedup_proven": false,
+      "synthetic_fixture": true,
+      "tick_batches": [
+        {
+          "input_token_ids": [
+            101,
+            201
+          ],
+          "positions": [
+            0,
+            0
+          ],
+          "request_ids": [
+            "generate-0",
+            "generate-1"
+          ],
+          "tick": 1
+        }
+      ],
+      "wallclock_speedup_proven": false
+    }
+  ],
+  "live_server_proven": false,
+  "opt_in_enabled": true,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "server_observed_live_continuous_batches": false,
+  "source": "mvp_capabilities.continuous_batching_server_log_report",
+  "source_log": ".local/continuous-batching-server-log-report-harness.log",
+  "speedup_proven": false,
+  "synthetic_fixture": true,
+  "tick_batches": [
+    {
+      "input_token_ids": [
+        101,
+        201
+      ],
+      "positions": [
+        0,
+        0
+      ],
+      "request_ids": [
+        "generate-0",
+        "generate-1"
+      ],
+      "tick": 1
+    }
+  ],
+  "wallclock_speedup_proven": false
+}
