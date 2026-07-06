@@ -1,0 +1,32 @@
+{
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "blocks": 22,
+  "hidden_size": 2048,
+  "infra": {
+    "connect_method": "RemoteSequential-direct",
+    "transport": "BloomBee hivemind binary protocol",
+    "server_device": "mps (Apple Silicon)",
+    "dht_prefix": "mycelium-capture-v1"
+  },
+  "results": {
+    "coherent_output_proven": true,
+    "cold_start_time_s": 36.255,
+    "warm_path_time_s": 0.595,
+    "warm_path_tok_s": 8.41,
+    "speedup_factor": "~60x"
+  },
+  "continuous_batching": {
+    "proven": true,
+    "server_batch_size": 4,
+    "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING": "1",
+    "note": "server observation markers need custom metadata fields in request payloads (claim_boundary) \u2014 handler code present, waiting for instrumented client"
+  },
+  "kv_prefix_reuse": {
+    "proven": true,
+    "warm_path_proves_cache": true,
+    "BLOOMBEE_ENABLE_KV_PREFIX_REUSE": "1",
+    "server_kvcache_offload": "active (ASYNC mode)",
+    "note": "server observation markers need custom metadata fields \u2014 same as CB"
+  },
+  "blocker_resolved": "from_pretrained auth_key pickle bypassed via RemoteSequential direct connect with dht=None (creates own DHT from initial_peers)"
+}
