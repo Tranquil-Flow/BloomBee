@@ -216,6 +216,7 @@ class _ServerInferenceSession:
         self.history = None  # Used in case of server failures to regenerate attention caches on new servers
         self.next_session = None
         self._pending_live_continuous_tick_batch = None
+        self._server_response_metadata_events = []
 
     @classmethod
     async def create(
@@ -320,6 +321,21 @@ class _ServerInferenceSession:
             "can_update_demo_status": False,
         }
 
+    def _record_response_metadata(self, response: runtime_pb2.ExpertResponse) -> None:
+        if response is None or not response.metadata:
+            return
+        try:
+            metadata = MSGPackSerializer.loads(response.metadata)
+        except Exception:
+            return
+        if isinstance(metadata, dict) and metadata:
+            self._server_response_metadata_events.append(metadata)
+
+    def consume_server_response_metadata_events(self) -> list[dict]:
+        events = [dict(event) for event in self._server_response_metadata_events]
+        self._server_response_metadata_events.clear()
+        return events
+
     def step(
         self,
         inputs: torch.Tensor,
@@ -385,6 +401,7 @@ class _ServerInferenceSession:
             _infer_batch_dim(prefill_length),
             _infer_batch_dim(draft_tokens),
             _infer_batch_dim(tree_attention_mask),
+            int(self.session_metadata.get("live_continuous_full_batch_size", 0) or 0),
             1,
         )
         push_only_decode = (
@@ -576,6 +593,7 @@ class _ServerInferenceSession:
                         )
                     )
                 )
+            self._record_response_metadata(outputs_serialized)
 
             network_end = time.perf_counter()
             network_rtt_ms = (network_end - network_start) * 1000
@@ -693,7 +711,10 @@ class InferenceSession:
         self._step_count = 0  # Track step count for logging
         self._live_continuous_tick_batches = []
         self._pending_live_continuous_tick_batch = None
+        self._live_continuous_full_batch_size = 0
+        self._live_continuous_server_observations = []
         self._kv_prefix_reuse_events = []
+        self._kv_prefix_reuse_server_observations = []
         
         # [MBPIPE] Log micro-batch pipeline configuration at client session creation
         mbpipe_log_config(logger, context="InferenceSession.__init__")
@@ -707,7 +728,7 @@ class InferenceSession:
     def position(self) -> int:
         return self._position
 
-    def _normalize_live_continuous_tick_rows(self, rows, *, output_token_ids=None) -> dict:
+    def _normalize_live_continuous_tick_rows(self, rows, *, output_token_ids=None, output_logits_sha256=None) -> dict:
         """Normalize opt-in live-continuous decode rows for this session.
 
         This is deliberately telemetry/control-plane only: staged or recorded
@@ -751,6 +772,13 @@ class InferenceSession:
             if len(normalized_outputs) != len(normalized_rows):
                 raise ValueError("output_token_ids length must match live continuous batching rows")
             batch["output_token_ids"] = normalized_outputs
+        if output_logits_sha256 is not None:
+            normalized_logits_hashes = [str(value) for value in output_logits_sha256]
+            if len(normalized_logits_hashes) != len(normalized_rows):
+                raise ValueError("output_logits_sha256 length must match live continuous batching rows")
+            if any(not value for value in normalized_logits_hashes):
+                raise ValueError("output_logits_sha256 values must be non-empty strings")
+            batch["output_logits_sha256"] = normalized_logits_hashes
         return batch
 
     def stage_live_continuous_tick_rows(self, rows) -> dict:
@@ -771,9 +799,24 @@ class InferenceSession:
         rows,
         *,
         output_token_ids=None,
+        output_logits_sha256=None,
     ) -> None:
-        batch = self._normalize_live_continuous_tick_rows(rows, output_token_ids=output_token_ids)
+        batch = self._normalize_live_continuous_tick_rows(
+            rows,
+            output_token_ids=output_token_ids,
+            output_logits_sha256=output_logits_sha256,
+        )
         self._live_continuous_tick_batches.append(batch)
+
+    def record_server_response_metadata(self, metadata: dict) -> None:
+        if not isinstance(metadata, dict):
+            return
+        live_observed = metadata.get("live_continuous_batching_server_observed")
+        if isinstance(live_observed, dict):
+            self._live_continuous_server_observations.append(dict(live_observed))
+        kv_observed = metadata.get("kv_prefix_reuse_server_observed")
+        if isinstance(kv_observed, dict):
+            self._kv_prefix_reuse_server_observations.append(dict(kv_observed))
 
     def live_continuous_batching_report(self) -> dict:
         from bloombee.client.live_continuous_batching import (
@@ -790,6 +833,11 @@ class InferenceSession:
                     request_ids.append(request_id)
                     seen.add(request_id)
 
+        server_observed_live_continuous_batches = any(
+            bool(observation.get("server_observed_live_continuous_batches"))
+            for observation in self._live_continuous_server_observations
+            if isinstance(observation, dict)
+        )
         return {
             "source": "bloombee.client.inference_session",
             "claim_boundary": INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
@@ -798,7 +846,9 @@ class InferenceSession:
             "request_count": len(request_ids),
             "total_decode_batches": len(self._live_continuous_tick_batches),
             "tick_batches": [dict(batch) for batch in self._live_continuous_tick_batches],
-            "live_server_proven": False,
+            "server_observations": [dict(observation) for observation in self._live_continuous_server_observations],
+            "server_observed_live_continuous_batches": server_observed_live_continuous_batches,
+            "live_server_proven": bool(self._live_continuous_server_observations),
             "speedup_proven": False,
             "can_update_demo_status": False,
         }
@@ -834,6 +884,11 @@ class InferenceSession:
             is_kv_prefix_reuse_enabled,
         )
 
+        server_observed_kv_cache_reuse = any(
+            bool(observation.get("server_observed_kv_cache_reuse"))
+            for observation in self._kv_prefix_reuse_server_observations
+            if isinstance(observation, dict)
+        )
         return {
             "source": "bloombee.client.inference_session",
             "claim_boundary": CLAIM_BOUNDARY,
@@ -841,8 +896,10 @@ class InferenceSession:
             "opt_in_enabled": is_kv_prefix_reuse_enabled(),
             "event_count": len(self._kv_prefix_reuse_events),
             "events": [dict(event) for event in self._kv_prefix_reuse_events],
+            "server_observations": [dict(observation) for observation in self._kv_prefix_reuse_server_observations],
             "runtime_prefill_metadata_proven": bool(self._kv_prefix_reuse_events),
-            "live_kv_cache_reuse_proven": False,
+            "server_observed_kv_cache_reuse": server_observed_kv_cache_reuse,
+            "live_kv_cache_reuse_proven": server_observed_kv_cache_reuse,
             "speedup_proven": False,
             "can_update_demo_status": False,
         }
@@ -864,6 +921,9 @@ class InferenceSession:
                     "rpc_inference", span_uids, peer_id=span.peer_id
                 ) or {}
                 kv_prefix_report = self.kv_prefix_reuse_report()
+                live_full_batch_size = int(getattr(self, "_live_continuous_full_batch_size", 0) or 0)
+                if live_full_batch_size > 0:
+                    metadata["live_continuous_full_batch_size"] = live_full_batch_size
                 if (
                     kv_prefix_report.get("opt_in_enabled")
                     and kv_prefix_report.get("runtime_prefill_metadata_proven")
@@ -1010,6 +1070,8 @@ class InferenceSession:
                         is_spec_dec,
                         step_id=step_id,
                     )
+                    for response_metadata in server_session.consume_server_response_metadata_events():
+                        self.record_server_response_metadata(response_metadata)
                     if is_spec_dec and need_pruning:
                         self.keep_indices = keep_indices
                     

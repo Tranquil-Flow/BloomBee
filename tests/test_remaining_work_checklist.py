@@ -44,7 +44,8 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     continuous_evidence = by_id["continuous_batching"]["evidence"]
     assert "continuous-batching-server-merge-report-live-20260706T0812.json" in continuous_evidence
     assert "strict verifier still fails closed" in continuous_evidence
-    assert "live-continuous-kv-capture-blocked-hermes-sandbox-20260706.json" in continuous_evidence
+    assert "strict-live-cbkv-blocker-20260706.json" in continuous_evidence
+    assert "dynamic batch parity failed closed" in continuous_evidence
     assert "wall-clock speedup, or demo promotion yet" in continuous_evidence
     assert all(item["done"] is False for item in payload["items"])
     assert payload["by_status"] == {"partial": 5, "blocked": 1}

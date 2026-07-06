@@ -149,6 +149,28 @@ def _round_seconds(value: float | None) -> float | None:
     return round(value, 12)
 
 
+def _server_observation_list(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    raw = (
+        payload.get("server_observations")
+        or payload.get("kv_prefix_reuse_server_observations")
+        or payload.get("server_observed_kv_cache_reuse_events")
+        or []
+    )
+    if not isinstance(raw, list):
+        return []
+    return [item for item in raw if isinstance(item, Mapping)]
+
+
+def _server_observed_kv_reuse(payload: Mapping[str, Any], observations: Sequence[Mapping[str, Any]]) -> bool:
+    if payload.get("server_observed_kv_cache_reuse") is True and payload.get("live_kv_cache_reuse_proven") is True:
+        return True
+    return any(
+        observation.get("server_observed_kv_cache_reuse") is True
+        and observation.get("live_kv_cache_reuse_proven") is True
+        for observation in observations
+    )
+
+
 def verify_kv_prefix_reuse_payload(
     payload: Mapping[str, Any],
     *,
@@ -191,6 +213,11 @@ def verify_kv_prefix_reuse_payload(
     missing_tags = [tag for tag in REQUIRED_TELEMETRY_TAGS if tag not in telemetry_tags_set]
     if missing_tags:
         failed.append("missing telemetry tags: " + ", ".join(missing_tags))
+
+    server_observations = _server_observation_list(payload)
+    server_observed_kv_cache_reuse = _server_observed_kv_reuse(payload, server_observations)
+    if not server_observed_kv_cache_reuse:
+        failed.append("server did not report KV cache tensor reuse")
 
     request_rows = payload.get("requests") or payload.get("request_results")
     if not isinstance(request_rows, list):
@@ -379,6 +406,8 @@ def verify_kv_prefix_reuse_payload(
         "reuse_total_seconds": _round_seconds(reuse_total) if timing_row_count else None,
         "timing_delta_seconds": _round_seconds(total_delta) if total_delta is not None else None,
         "speedup_ratio": _round_seconds(baseline_total / reuse_total) if timing_measured and reuse_total > 0 else None,
+        "server_observation_count": len(server_observations),
+        "server_observation_sha256": _stable_sha256(server_observations) if server_observations else None,
         "required_telemetry_tags": list(REQUIRED_TELEMETRY_TAGS),
         "observed_telemetry_tags": sorted(telemetry_tags_set),
         "request_summaries": row_summaries,
@@ -401,10 +430,12 @@ def verify_kv_prefix_reuse_payload(
         "logit_parity_proven": logit_parity_proven,
         "timing_measured": timing_measured,
         "speedup_proven": speedup_proven,
+        "server_observed_kv_cache_reuse": server_observed_kv_cache_reuse,
+        "live_kv_cache_reuse_proven": server_observed_kv_cache_reuse,
         "evidence_path": str(evidence_path) if evidence_path is not None else None,
         "evidence_summary": summary,
         "claim_limitations": [
-            "Verifier only; does not wire BloomBee runtime prefix-cache reuse.",
+            "Verifier only; runtime evidence must carry server response metadata from a prefix-cache read.",
             "Passing evidence proves the supplied same-prefix/varied-suffix artifact, not broad production coverage.",
             "MVP-core status remains unchanged.",
         ],

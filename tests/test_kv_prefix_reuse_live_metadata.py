@@ -164,3 +164,88 @@ def test_server_observes_kv_prefix_reuse_metadata_only_with_opt_in(monkeypatch):
     assert observed["can_update_demo_status"] is False
 
     assert _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": "not-a-dict"}) is None
+
+
+def test_server_response_metadata_reports_kv_cache_reuse_only_after_prefix_read(monkeypatch):
+    from bloombee.server.handler import _build_rpc_inference_response_metadata, _extract_kv_prefix_reuse_metadata
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    metadata = {"kv_prefix_reuse_server_observed": _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": _kv_prefix_report()})}
+    requested_uids = ("block.0",)
+    cache_handles = ((11, 12),)
+
+    cold = _build_rpc_inference_response_metadata(
+        metadata,
+        {"step_id": "cold", "_prefix_length": 0},
+        requested_uids=requested_uids,
+        cache_handles=cache_handles,
+    )
+    warm = _build_rpc_inference_response_metadata(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        requested_uids=requested_uids,
+        cache_handles=cache_handles,
+    )
+
+    assert "kv_prefix_reuse_server_observed" not in cold
+    observed = warm["kv_prefix_reuse_server_observed"]
+    assert observed["claim_boundary"] == "kv_prefix_reuse_server_cache_read_observed_no_speedup"
+    assert observed["server_observed_kv_cache_reuse"] is True
+    assert observed["live_kv_cache_reuse_proven"] is True
+    assert observed["prefix_length"] == 2
+    assert observed["cache_handle_count"] == 2
+    assert observed["requested_block_count"] == 1
+    assert observed["speedup_proven"] is False
+
+
+def test_client_records_server_response_kv_cache_reuse(monkeypatch):
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    inputs = torch.zeros((2, 1, 4), dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(inputs, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=8,
+        kv_prefix_reuse=_kv_prefix_report(),
+    )
+
+    response_metadata = {
+        "kv_prefix_reuse_server_observed": {
+            "claim_boundary": "kv_prefix_reuse_server_cache_read_observed_no_speedup",
+            "server_observed_kv_cache_reuse": True,
+            "live_kv_cache_reuse_proven": True,
+            "prefix_length": 2,
+            "cache_handle_count": 2,
+        }
+    }
+
+    async def fake_step(_request):
+        session.stepped = True
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(inputs, runtime_pb2.CompressionType.NONE)],
+            metadata=MSGPackSerializer.dumps(response_metadata),
+        )
+
+    session._step = fake_step
+    session.step(
+        inputs,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.zeros(inputs.shape[0]),
+        step_id="step-1",
+    )
+
+    events = session.consume_server_response_metadata_events()
+    assert events == [response_metadata]

@@ -66,11 +66,12 @@ class _GreedyNextTokenHead(torch.nn.Module):
 
 
 class _FakeLiveRemoteLayers:
-    def __init__(self):
+    def __init__(self, *, pad_to_batch_size: int | None = None):
         self._active_session = None
         self.hidden_calls = []
         self.sessions = []
         self.pending_live_batches_seen = []
+        self.pad_to_batch_size = pad_to_batch_size
 
     @property
     def active_session(self):
@@ -99,6 +100,9 @@ class _FakeLiveRemoteLayers:
         pending = getattr(self._active_session, "_pending_live_continuous_tick_batch", None)
         self.pending_live_batches_seen.append(dict(pending) if isinstance(pending, dict) else None)
         self.hidden_calls.append(hidden_states.detach().clone())
+        if self.pad_to_batch_size is not None and hidden_states.shape[0] < self.pad_to_batch_size:
+            pad_rows = self.pad_to_batch_size - hidden_states.shape[0]
+            hidden_states = torch.cat([hidden_states, hidden_states[-1:].expand(pad_rows, *hidden_states.shape[1:])], dim=0)
         return hidden_states
 
 
@@ -208,7 +212,9 @@ def test_remote_generation_base_live_impl_records_inference_session_tick_rows(mo
     assert report["claim_boundary"] == "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
     assert report["opt_in_flag"] == "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
     assert report["request_count"] == 1
-    assert report["tick_batches"] == [
+    tick_batches = report["tick_batches"]
+    assert [len(batch["output_logits_sha256"][0]) for batch in tick_batches] == [64, 64]
+    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
         {
             "tick": 0,
             "request_ids": ["generate-0"],
@@ -250,7 +256,11 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
     ]
     assert report["request_count"] == 2
     assert report["total_decode_batches"] == 2
-    assert report["tick_batches"] == [
+    tick_batches = report["tick_batches"]
+    for batch in tick_batches:
+        assert [len(value) for value in batch["output_logits_sha256"]] == [64, 64]
+    assert tick_batches[0]["output_logits_sha256"][0] != tick_batches[0]["output_logits_sha256"][1]
+    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
         {
             "tick": 0,
             "request_ids": ["generate-0", "generate-1"],
@@ -268,6 +278,90 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
     ]
     assert report["live_server_proven"] is False
     assert report["speedup_proven"] is False
+
+
+def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    model = _RemoteGenerationLiveImplStub()
+    model.lm_head = _GreedyNextTokenHead({101: 10, 201: 20, 10: 11, 20: 21})
+    inputs = torch.tensor([[101], [201]], dtype=torch.long)
+
+    result = model.generate(inputs, max_new_tokens=2, live_arrival_ticks=[0, 1])
+
+    assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
+    assert model.fallback_calls == []
+    assert [call.squeeze(-1).to(dtype=torch.long).tolist() for call in model.transformer.h.hidden_calls] == [
+        [[101]],
+        [[10], [201]],
+        [[20]],
+    ]
+    report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    assert getattr(model.transformer.h.sessions[0], "_live_continuous_full_batch_size") == 2
+    assert report["request_count"] == 2
+    assert report["total_decode_batches"] == 3
+    tick_batches = report["tick_batches"]
+    assert [len(value) for value in tick_batches[0]["output_logits_sha256"]] == [64]
+    assert [len(value) for value in tick_batches[1]["output_logits_sha256"]] == [64, 64]
+    assert [len(value) for value in tick_batches[2]["output_logits_sha256"]] == [64]
+    assert tick_batches[1]["output_logits_sha256"][0] != tick_batches[1]["output_logits_sha256"][1]
+    assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
+        {
+            "tick": 0,
+            "request_ids": ["generate-0"],
+            "positions": [0],
+            "input_token_ids": [101],
+            "output_token_ids": [10],
+        },
+        {
+            "tick": 1,
+            "request_ids": ["generate-0", "generate-1"],
+            "positions": [1, 0],
+            "input_token_ids": [10, 201],
+            "output_token_ids": [11, 20],
+        },
+        {
+            "tick": 2,
+            "request_ids": ["generate-1"],
+            "positions": [1],
+            "input_token_ids": [20],
+            "output_token_ids": [21],
+        },
+    ]
+    assert report["live_server_proven"] is False
+    assert report["speedup_proven"] is False
+
+
+def test_remote_generation_late_arrival_trims_full_batch_padded_hidden_states(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setenv("BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE", "2")
+    model = _RemoteGenerationLiveImplStub()
+    model.transformer.h = _FakeLiveRemoteLayers(pad_to_batch_size=2)
+    model.lm_head = _GreedyNextTokenHead({101: 10, 10: 11, 201: 20, 20: 21})
+    inputs = torch.tensor([[101], [201]], dtype=torch.long)
+
+    result = model.generate(inputs, max_new_tokens=2, live_arrival_ticks=[0, 1])
+
+    assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
+    report = model.transformer.h.sessions[0].live_continuous_batching_report()
+    assert [len(batch["request_ids"]) for batch in report["tick_batches"]] == [1, 2, 1]
+    assert [len(batch["output_token_ids"]) for batch in report["tick_batches"]] == [1, 2, 1]
+    assert [len(batch["output_logits_sha256"]) for batch in report["tick_batches"]] == [1, 2, 1]
+
+
+def test_remote_generation_base_live_impl_allows_explicit_session_for_evidence_reports(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    model = _RemoteGenerationLiveImplStub()
+    model.lm_head = _GreedyNextTokenHead({101: 10, 10: 11})
+    inputs = torch.tensor([[101]], dtype=torch.long)
+    with model.transformer.h.inference_session(max_length=4) as session:
+        result = model.generate(inputs, max_new_tokens=2, session=session)
+        report = session.live_continuous_batching_report()
+
+    assert result.tolist() == [[101, 10, 11]]
+    assert report["total_decode_batches"] == 2
+    assert report["tick_batches"][0]["output_token_ids"] == [10]
+    assert len(report["tick_batches"][0]["output_logits_sha256"][0]) == 64
+    assert model.fallback_calls == []
 
 
 def test_live_generate_records_kv_prefix_metadata_for_same_prefix_batch(monkeypatch):

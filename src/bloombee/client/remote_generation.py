@@ -1,8 +1,9 @@
 import contextlib
 import dataclasses
+import hashlib
 import os
 from contextvars import ContextVar
-from typing import Any, ContextManager, Dict, List, Optional, Tuple, Union
+from typing import Any, ContextManager, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 import transformers
@@ -99,6 +100,16 @@ class RemotePastKeyValues(Cache):
 
 
 _skipped_tokens = ContextVar("skipped_tokens", default=0)
+
+
+def _logits_sha256_per_row(logits: torch.Tensor) -> list[str]:
+    """Return stable per-row fingerprints for logits used by live parity evidence."""
+    if logits.ndim == 3:
+        logits = logits[:, -1, :]
+    if logits.ndim != 2:
+        raise ValueError("logits must have shape [batch, vocab] or [batch, 1, vocab]")
+    rows = logits.detach().to(device="cpu", dtype=torch.float32).contiguous()
+    return [hashlib.sha256(row.numpy().tobytes()).hexdigest() for row in rows]
 
 
 class _SkipTokensMixin:
@@ -236,7 +247,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             "max_length", "max_new_tokens", "do_sample", "pad_token_id",
             "eos_token_id", "bos_token_id", "use_cache", "num_beams",
             "num_return_sequences", "return_dict_in_generate", "attention_mask",
-            "logits_processor", "stopping_criteria", "generation_config",
+            "logits_processor", "stopping_criteria", "generation_config", "live_arrival_ticks",
         }
     )
 
@@ -270,7 +281,12 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 return False
         if args:
             return False
-        if session is not None or self.active_session is not None:
+        if self.active_session is not None and session is not self.active_session:
+            return False
+        if session is not None and (
+            not callable(getattr(session, "stage_live_continuous_tick_rows", None))
+            or not callable(getattr(session, "record_live_continuous_tick_rows", None))
+        ):
             return False
         if kwargs.get("do_sample", False):
             return False
@@ -309,6 +325,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         eos_token_id: Optional[Union[int, List[int]]] = None,
         bos_token_id: Optional[int] = None,
         use_cache: Optional[bool] = None,
+        live_arrival_ticks: Optional[Sequence[int]] = None,
         **_ignored,
     ) -> torch.Tensor:
         """Minimal opt-in live-continuous request loop for conservative greedy decode.
@@ -322,8 +339,8 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         """
         if args:
             raise RuntimeError("live continuous batching does not accept positional generation args")
-        if session is not None or self.active_session is not None:
-            raise RuntimeError("live continuous batching requires a fresh inference session")
+        if self.active_session is not None and session is not self.active_session:
+            raise RuntimeError("live continuous batching requires a fresh or explicitly active inference session")
         if input_ids.ndim != 2 or input_ids.shape[0] < 1:
             raise RuntimeError("live continuous batching expects rank-2 input_ids with at least one row")
 
@@ -347,7 +364,31 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             eos_set = ()
 
         pre_seq_len = getattr(self.transformer.config, "pre_seq_len", 0) or 0
-        context_manager = self.inference_session(max_length=pre_seq_len + prompt_len + max_new_tokens)
+        if session is not None:
+            context_manager = self.use_session(session)
+        else:
+            context_manager = self.inference_session(max_length=pre_seq_len + prompt_len + max_new_tokens)
+
+        normalized_arrival_ticks: list[int] | None = None
+        if live_arrival_ticks is not None:
+            normalized_arrival_ticks = [int(tick) for tick in live_arrival_ticks]
+            if len(normalized_arrival_ticks) != batch_size:
+                raise ValueError("live_arrival_ticks length must match input batch size")
+            if any(tick < 0 for tick in normalized_arrival_ticks):
+                raise ValueError("live_arrival_ticks must be non-negative")
+            if any(tick > 0 for tick in normalized_arrival_ticks):
+                if prompt_len != 1:
+                    raise RuntimeError(
+                        "late-arrival live continuous batching currently requires one-token prompt rows; "
+                        "multi-token ragged prefill remains fail-closed"
+                    )
+                return self._live_continuous_generate_late_arrival_impl(
+                    input_ids,
+                    context_manager=context_manager,
+                    max_new_tokens=max_new_tokens,
+                    eos_set=eos_set,
+                    arrival_ticks=normalized_arrival_ticks,
+                )
 
         embed = self.transformer.word_embeddings
         layers = self.transformer.h
@@ -404,6 +445,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 recorder(
                     rows,
                     output_token_ids=[int(token.detach().cpu().item()) for token in next_id[:, 0]],
+                    output_logits_sha256=_logits_sha256_per_row(logits),
                 )
 
                 output = torch.cat([output, next_id], dim=1)
@@ -414,6 +456,136 @@ class RemoteGenerationMixin(_SkipTokensMixin):
 
             live_session.output_ids = output
 
+        return output
+
+    @torch.inference_mode()
+    def _live_continuous_generate_late_arrival_impl(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        context_manager: ContextManager,
+        max_new_tokens: int,
+        eos_set: Tuple[int, ...],
+        arrival_ticks: Sequence[int],
+    ) -> torch.Tensor:
+        """Token-level live-continuous scheduler for staggered one-token rows.
+
+        This path is intentionally narrow. It proves a real late-arrival merge
+        seam for already-tokenized one-token prompts without pretending to solve
+        ragged multi-token prefill.
+        """
+        from collections import deque
+        from bloombee.client.live_continuous_batching import LiveDecodeRow
+
+        embed = self.transformer.word_embeddings
+        layers = self.transformer.h
+        ln_f = self.transformer.ln_f
+        lm_head = self.lm_head
+
+        batch_size = int(input_ids.shape[0])
+        generated_by_row: list[list[int]] = [[] for _ in range(batch_size)]
+        done = [False for _ in range(batch_size)]
+        pending = deque(sorted(range(batch_size), key=lambda idx: (int(arrival_ticks[idx]), idx)))
+        active: deque[int] = deque()
+        active_set: set[int] = set()
+        tick = min(int(tick_value) for tick_value in arrival_ticks) if arrival_ticks else 0
+
+        with context_manager as live_session:
+            setattr(live_session, "_live_continuous_full_batch_size", batch_size)
+            recorder = getattr(live_session, "record_live_continuous_tick_rows", None)
+            stager = getattr(live_session, "stage_live_continuous_tick_rows", None)
+            if not callable(recorder) or not callable(stager):
+                raise RuntimeError("InferenceSession cannot stage and record live continuous batching rows")
+
+            request_ids = [f"generate-{batch_idx}" for batch_idx in range(batch_size)]
+            while any(len(tokens) < max_new_tokens for tokens in generated_by_row):
+                while pending and int(arrival_ticks[pending[0]]) <= tick:
+                    row_idx = pending.popleft()
+                    if row_idx not in active_set and not done[row_idx]:
+                        active.append(row_idx)
+                        active_set.add(row_idx)
+                if not active:
+                    if pending:
+                        tick = max(tick + 1, int(arrival_ticks[pending[0]]))
+                        continue
+                    break
+
+                row_indices: list[int] = []
+                max_batch_raw = os.environ.get("BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE")
+                max_batch = batch_size
+                if max_batch_raw:
+                    try:
+                        max_batch = max(1, min(batch_size, int(max_batch_raw)))
+                    except ValueError:
+                        max_batch = batch_size
+                for _ in range(max_batch):
+                    if not active:
+                        break
+                    row_idx = active.popleft()
+                    active_set.remove(row_idx)
+                    if not done[row_idx]:
+                        row_indices.append(row_idx)
+                if not row_indices:
+                    tick += 1
+                    continue
+
+                input_tokens = []
+                rows = []
+                for row_idx in row_indices:
+                    position = len(generated_by_row[row_idx])
+                    token_id = int(input_ids[row_idx, -1].detach().cpu().item()) if position == 0 else generated_by_row[row_idx][-1]
+                    input_tokens.append(token_id)
+                    rows.append(
+                        LiveDecodeRow(
+                            request_id=request_ids[row_idx],
+                            tick=tick,
+                            position=position,
+                            input_token_id=token_id,
+                        )
+                    )
+
+                stager(rows)
+                step_ids = torch.tensor(input_tokens, dtype=input_ids.dtype, device=input_ids.device).unsqueeze(1)
+                hidden = embed(step_ids)
+                hidden = layers(hidden)
+                if hidden.shape[0] < len(row_indices):
+                    raise RuntimeError(
+                        "live continuous batching server returned fewer rows than the active tick batch"
+                    )
+                if hidden.shape[0] > len(row_indices):
+                    hidden = hidden[: len(row_indices)]
+                hidden = ln_f(hidden)
+                logits = lm_head(hidden[:, -1:, :])
+                next_id = logits.argmax(dim=-1)
+                output_tokens = [int(token.detach().cpu().item()) for token in next_id[:, 0]]
+                recorder(
+                    rows,
+                    output_token_ids=output_tokens,
+                    output_logits_sha256=_logits_sha256_per_row(logits),
+                )
+
+                for row_idx, token_id in zip(row_indices, output_tokens):
+                    generated_by_row[row_idx].append(int(token_id))
+                    if eos_set and token_id in eos_set:
+                        done[row_idx] = True
+                    if not done[row_idx] and len(generated_by_row[row_idx]) < max_new_tokens:
+                        active.append(row_idx)
+                        active_set.add(row_idx)
+
+                tick += 1
+
+            output_rows = []
+            for row_idx in range(batch_size):
+                generated = generated_by_row[row_idx]
+                if len(generated) < max_new_tokens:
+                    generated = generated + [int(input_ids[row_idx, -1].detach().cpu().item())] * (max_new_tokens - len(generated))
+                output_rows.append(
+                    torch.cat(
+                        [input_ids[row_idx], torch.tensor(generated[:max_new_tokens], dtype=input_ids.dtype, device=input_ids.device)]
+                    )
+                )
+            output = torch.stack(output_rows, dim=0)
+            live_session.output_ids = output
         return output
 
     # Kwargs that the fast path consumes or can safely ignore. Anything

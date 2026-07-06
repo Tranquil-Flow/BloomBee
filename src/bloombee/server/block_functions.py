@@ -760,6 +760,9 @@ async def iterate_rpc_inference(
             #     prefix_length >= start_from_position,
             # ), f"prefix_length={prefix_length}, start_from_position={start_from_position}"
             prefix_length = start_from_position
+        if isinstance(step_metadata, dict):
+            step_metadata["_prefix_length"] = int(prefix_length)
+            step_metadata["_kv_cache_read_candidate"] = int(prefix_length > 0)
 
 
         # ========== [MBPIPE] MICRO-BATCH BRANCH ==========

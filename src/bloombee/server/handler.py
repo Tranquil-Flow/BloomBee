@@ -9,7 +9,7 @@ import sys
 from collections import deque
 from enum import Enum
 from itertools import chain
-from typing import TYPE_CHECKING, Any, AsyncIterator, Deque, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, AsyncIterator, Deque, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 from time import perf_counter
 import time
@@ -138,6 +138,7 @@ sys.modules["runtime_pb2"] = runtime_pb2
 CACHE_TOKENS_AVAILABLE = "cache_tokens_available"
 KV_PREFIX_REUSE_ENV_FLAG = "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
 KV_PREFIX_REUSE_CLAIM_BOUNDARY = "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+KV_PREFIX_REUSE_SERVER_CLAIM_BOUNDARY = "kv_prefix_reuse_server_cache_read_observed_no_speedup"
 LIVE_CONTINUOUS_BATCHING_ENV_FLAG = "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
 LIVE_CONTINUOUS_BATCHING_CLAIM_BOUNDARY = "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup"
 LIVE_CONTINUOUS_BATCHING_SERVER_CLAIM_BOUNDARY = "live_continuous_batching_server_metadata_observed_no_parity_or_speedup"
@@ -250,7 +251,114 @@ def _format_live_continuous_batching_observation(observed: dict[str, Any]) -> st
     return f"{LIVE_CONTINUOUS_BATCHING_LOG_PREFIX} {json.dumps(observed, sort_keys=True, separators=(',', ':'))}"
 
 
+def _common_prefix_token_count_from_kv_metadata(observed_metadata: Mapping[str, Any] | None) -> int:
+    if not isinstance(observed_metadata, Mapping):
+        return 0
+    events = observed_metadata.get("events")
+    if not isinstance(events, list):
+        return 0
+    counts: list[int] = []
+    for event in events:
+        if not isinstance(event, Mapping):
+            continue
+        value = event.get("common_prefix_token_count")
+        if isinstance(value, int) and not isinstance(value, bool):
+            counts.append(int(value))
+            continue
+        tokens = event.get("common_prefix_token_ids")
+        if isinstance(tokens, list):
+            counts.append(len(tokens))
+    return max(counts) if counts else 0
+
+
+def _cache_handle_count(cache_handles: Sequence[Sequence[Handle]] | None) -> int:
+    if not cache_handles:
+        return 0
+    total = 0
+    for group in cache_handles:
+        try:
+            total += len(group)
+        except TypeError:
+            total += 1
+    return int(total)
+
+
+def _build_kv_cache_reuse_observation(
+    metadata: Mapping[str, Any],
+    step_metadata: Mapping[str, Any],
+    *,
+    requested_uids: Sequence[str],
+    cache_handles: Sequence[Sequence[Handle]],
+) -> Optional[dict[str, Any]]:
+    """Build server response telemetry after an actual prefix-cache read candidate.
+
+    This does not claim speedup. It proves the live server reached a decode step
+    with existing allocated KV handles and ``prefix_length > 0`` while the
+    explicit KV-prefix opt-in metadata was present on the session.
+    """
+
+    if os.environ.get(KV_PREFIX_REUSE_ENV_FLAG, "0") != "1":
+        return None
+    observed_metadata = metadata.get("kv_prefix_reuse_server_observed")
+    if not isinstance(observed_metadata, Mapping):
+        return None
+    try:
+        prefix_length = int(step_metadata.get("_prefix_length", 0) or 0)
+    except Exception:
+        prefix_length = 0
+    if prefix_length <= 0:
+        return None
+    handle_count = _cache_handle_count(cache_handles)
+    if handle_count <= 0:
+        return None
+
+    common_prefix_count = _common_prefix_token_count_from_kv_metadata(observed_metadata)
+    reused_prefix_token_count = min(prefix_length, common_prefix_count) if common_prefix_count else prefix_length
+    return {
+        "source": "bloombee.server.handler",
+        "claim_boundary": KV_PREFIX_REUSE_SERVER_CLAIM_BOUNDARY,
+        "opt_in_flag": KV_PREFIX_REUSE_ENV_FLAG,
+        "opt_in_enabled": True,
+        "server_observed_metadata": True,
+        "server_observed_kv_cache_reuse": True,
+        "live_kv_cache_reuse_proven": True,
+        "speedup_proven": False,
+        "can_update_demo_status": False,
+        "prefix_length": prefix_length,
+        "common_prefix_token_count": common_prefix_count,
+        "reused_prefix_token_count": reused_prefix_token_count,
+        "cache_handle_group_count": len(cache_handles),
+        "cache_handle_count": handle_count,
+        "requested_block_count": len(requested_uids),
+        "requested_uids": [str(uid) for uid in requested_uids],
+        "step_id": str(step_metadata.get("step_id", "unknown")),
+    }
+
+
+def _build_rpc_inference_response_metadata(
+    metadata: Mapping[str, Any],
+    step_metadata: Mapping[str, Any],
+    *,
+    requested_uids: Sequence[str],
+    cache_handles: Sequence[Sequence[Handle]],
+) -> dict[str, Any]:
+    response_metadata: dict[str, Any] = {}
+    live_observed = metadata.get("live_continuous_batching_server_observed")
+    if isinstance(live_observed, Mapping):
+        response_metadata["live_continuous_batching_server_observed"] = dict(live_observed)
+    kv_observed = _build_kv_cache_reuse_observation(
+        metadata,
+        step_metadata,
+        requested_uids=requested_uids,
+        cache_handles=cache_handles,
+    )
+    if kv_observed is not None:
+        response_metadata["kv_prefix_reuse_server_observed"] = kv_observed
+    return response_metadata
+
+
 class Event(Enum):
+
     NEW_SESSION = 0
     END_SESSION = 1
     PUSH = 2
@@ -803,6 +911,12 @@ class TransformerConnectionHandler(ConnectionHandler):
                             f"full_batch_size {metadata_full_batch_size} for stable KV allocation"
                         )
                         batch_size = metadata_full_batch_size
+                    elif metadata.get("live_continuous_full_batch_size") and metadata_full_batch_size is not None and metadata_full_batch_size > batch_size:
+                        logger.info(
+                            f"{MBPIPE_LOG_PREFIX} Live-continuous request: preallocating KV batch_size "
+                            f"{batch_size} -> {metadata_full_batch_size} for late-arrival merge capacity"
+                        )
+                        batch_size = metadata_full_batch_size
                     # Non-streaming RPC path keeps logical full batch size here.
                     # Physical KV cache allocation is decided in _allocate_cache():
                     # when micro-batching is enabled and batch_size > micro_batch_size,
@@ -1041,7 +1155,16 @@ class TransformerConnectionHandler(ConnectionHandler):
                         push_time.append(push_schedule_ms) ###
                         # print('current step push outputs task prepare time ', start_ExpertResponse_time-can_push_case_time) ###
                         # print_time_now('')
-                        yield runtime_pb2.ExpertResponse(tensors=output_tensors)
+                        response_metadata = _build_rpc_inference_response_metadata(
+                            metadata,
+                            step_metadata if isinstance(step_metadata, dict) else {},
+                            requested_uids=requested_uids,
+                            cache_handles=cache_handles,
+                        )
+                        response_metadata_bytes = (
+                            MSGPackSerializer.dumps(response_metadata) if response_metadata else b""
+                        )
+                        yield runtime_pb2.ExpertResponse(tensors=output_tensors, metadata=response_metadata_bytes)
                         end_ExpertResponse_time=perf_counter() ###
                         response_emit_ms = (end_ExpertResponse_time - start_ExpertResponse_time) * 1000.0
                         handler_step_total_ms = (end_ExpertResponse_time - handler_step_start) * 1000.0
