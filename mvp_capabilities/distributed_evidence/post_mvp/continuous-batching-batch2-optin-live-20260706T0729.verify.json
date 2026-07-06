@@ -1,0 +1,38 @@
+{
+  "batched_tick_count": 1,
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "verified_live_continuous_batching_server_concurrent_arrival_parity",
+  "evidence_path": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-batch2-optin-live-20260706T0729.json",
+  "failed_checks": [
+    "no late-arrival request observed"
+  ],
+  "late_arrival_observed": false,
+  "live_server_late_arrival_parity_proven": false,
+  "live_server_proven": false,
+  "logits_fingerprint_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "continuous_batching",
+  "proof_status_update": {},
+  "request_count": 2,
+  "requests": [
+    {
+      "arrival_tick": 0,
+      "generated_token_count": 2,
+      "logits_fingerprint_match": true,
+      "request_id": "generate-0",
+      "tokens_match": true
+    },
+    {
+      "arrival_tick": 0,
+      "generated_token_count": 2,
+      "logits_fingerprint_match": true,
+      "request_id": "generate-1",
+      "tokens_match": true
+    }
+  ],
+  "speedup_proven": false,
+  "status": "failed",
+  "token_parity_proven": false,
+  "wallclock_speedup_proven": false
+}

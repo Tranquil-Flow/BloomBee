@@ -1,0 +1,236 @@
+{
+  "arrival_ticks": {
+    "req-a": 0,
+    "req-b": 0
+  },
+  "baseline": {
+    "connect_seconds": 0.07640480995178223,
+    "decoded_by_request": {
+      "req-a": "You are concise. Shared prefix question: what is two plus two?\n-",
+      "req-b": "You are concise. Shared prefix question: what is three plus three?\n-"
+    },
+    "full_output_ids_by_request": {
+      "req-a": [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        1023,
+        2298,
+        1023,
+        29973,
+        13,
+        29899
+      ],
+      "req-b": [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        2211,
+        2298,
+        2211,
+        29973,
+        13,
+        29899
+      ]
+    },
+    "generated_token_ids_by_request": {
+      "req-a": [
+        13,
+        29899
+      ],
+      "req-b": [
+        13,
+        29899
+      ]
+    },
+    "generated_token_ids_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+    "generation_seconds": 0.5417790412902832,
+    "input_ids_rows": [
+      [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        1023,
+        2298,
+        1023,
+        29973
+      ],
+      [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        2211,
+        2298,
+        2211,
+        29973
+      ]
+    ],
+    "input_shape": [
+      2,
+      16
+    ],
+    "label": "baseline_batch2_no_live_continuous_client_optin",
+    "opt_in_enabled": false,
+    "output_shape": [
+      2,
+      18
+    ]
+  },
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "m4pro_live_batch2_optin_capture_no_late_arrival_or_speedup",
+  "continuous": {
+    "connect_seconds": 0.07945585250854492,
+    "decoded_by_request": {
+      "req-a": "You are concise. Shared prefix question: what is two plus two?\n-",
+      "req-b": "You are concise. Shared prefix question: what is three plus three?\n-"
+    },
+    "full_output_ids_by_request": {
+      "req-a": [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        1023,
+        2298,
+        1023,
+        29973,
+        13,
+        29899
+      ],
+      "req-b": [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        2211,
+        2298,
+        2211,
+        29973,
+        13,
+        29899
+      ]
+    },
+    "generated_token_ids_by_request": {
+      "req-a": [
+        13,
+        29899
+      ],
+      "req-b": [
+        13,
+        29899
+      ]
+    },
+    "generated_token_ids_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+    "generation_seconds": 0.390733003616333,
+    "input_ids_rows": [
+      [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        1023,
+        2298,
+        1023,
+        29973
+      ],
+      [
+        1,
+        887,
+        526,
+        3022,
+        895,
+        29889,
+        21236,
+        10944,
+        1139,
+        29901,
+        825,
+        338,
+        2211,
+        2298,
+        2211,
+        29973
+      ]
+    ],
+    "input_shape": [
+      2,
+      16
+    ],
+    "label": "same_arrival_batch2_live_continuous_client_optin",
+    "opt_in_enabled": true,
+    "output_shape": [
+      2,
+      18
+    ]
+  },
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "prompts_sha256": "070584e3e253b48a18169fc7669772e5510cac227ee975a4b13d7eeb9281294b",
+  "request_ids": [
+    "req-a",
+    "req-b"
+  ],
+  "server_maddr": "/ip4/192.168.178.37/tcp/31382/p2p/12D3KooWGqyQwLjeojMwdLVKd1xcwtXYzbRjwjnhDW2g4dHorzAa",
+  "speedup_proven": false,
+  "wallclock_speedup_proven": false
+}

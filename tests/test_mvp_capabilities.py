@@ -648,6 +648,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert tasks["kv_prefix_reuse"]["status"] == "partial"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv-prefix-reuse-live-generate-metadata-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "generate-* request IDs before the first RPC" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-capture-plan-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-capture-assembler-harness-20260706T013128Z.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-cli-fail-closed-20260705T225105Z.json" in tasks["kv_prefix_reuse"]["evidence"]

@@ -1,0 +1,57 @@
+{
+  "claim_boundary": "kv_prefix_reuse_live_generate_metadata_no_cache_reuse_or_speedup",
+  "source": "tests/test_live_continuous_batching.py::test_live_generate_records_kv_prefix_metadata_for_same_prefix_batch",
+  "verification_status": "passed",
+  "model_scope": "RemoteGenerationMixin live-continuous same-prefix batch seam",
+  "opt_in_flags": [
+    "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING=1",
+    "BLOOMBEE_ENABLE_KV_PREFIX_REUSE=1"
+  ],
+  "request_ids": [
+    "generate-0",
+    "generate-1"
+  ],
+  "common_prefix_token_ids": [
+    101,
+    102
+  ],
+  "requests": [
+    {
+      "request_id": "generate-0",
+      "prefix_token_ids": [
+        101,
+        102
+      ],
+      "suffix_token_ids": [
+        201
+      ],
+      "prefill_token_count": 3,
+      "reusable_prefix_token_count": 2
+    },
+    {
+      "request_id": "generate-1",
+      "prefix_token_ids": [
+        101,
+        102
+      ],
+      "suffix_token_ids": [
+        202
+      ],
+      "prefill_token_count": 3,
+      "reusable_prefix_token_count": 2
+    }
+  ],
+  "runtime_prefill_metadata_proven": true,
+  "live_generate_metadata_attached_to_first_rpc": true,
+  "server_metadata_observation_proven_elsewhere": true,
+  "server_metadata_observation_evidence": "tests/test_kv_prefix_reuse_live_metadata.py::test_kv_prefix_metadata_is_sent_in_first_rpc_inference_request",
+  "live_kv_cache_reuse_proven": false,
+  "speedup_proven": false,
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "do_not_claim": [
+    "server_kv_tensor_reuse",
+    "wall_clock_speedup",
+    "demo_safe_promotion"
+  ]
+}

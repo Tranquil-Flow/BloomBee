@@ -364,11 +364,26 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             if not callable(recorder) or not callable(stager):
                 raise RuntimeError("InferenceSession cannot stage and record live continuous batching rows")
 
+            request_ids = [f"generate-{batch_idx}" for batch_idx in range(batch_size)]
+            try:
+                from bloombee.client.kv_prefix_reuse import is_kv_prefix_reuse_enabled
+            except Exception:
+                is_kv_prefix_reuse_enabled = lambda: False  # type: ignore[assignment]
+            if batch_size >= 2 and is_kv_prefix_reuse_enabled():
+                kv_recorder = getattr(live_session, "record_kv_prefix_reuse_prefill", None)
+                if callable(kv_recorder):
+                    try:
+                        kv_recorder(input_ids, request_ids=request_ids)
+                    except ValueError:
+                        # Not every live-continuous batch has a reusable prefix;
+                        # keep generation working and simply omit KV-prefix metadata.
+                        pass
+
             for tick in range(max_new_tokens):
                 row_input_ids = [int(token.detach().cpu().item()) for token in step_ids[:, -1]]
                 rows = [
                     LiveDecodeRow(
-                        request_id=f"generate-{batch_idx}",
+                        request_id=request_ids[batch_idx],
                         tick=tick,
                         position=tick,
                         input_token_id=row_input_id,

@@ -1,0 +1,73 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "live_continuous_batching_server_log_report_no_parity_or_speedup",
+  "claim_limitations": [
+    "Server log report only: this does not prove token/logit parity.",
+    "Merged-inference stats prove only that the server batched examples; they do not prove client request identity, late-arrival timing, parity, or speedup.",
+    "Late-arrival parity must still pass continuous_batching_live_server_proof.py.",
+    "Wall-clock speedup must still pass continuous_batching_wallclock_gate.py."
+  ],
+  "event_count": 1,
+  "events": [
+    {
+      "can_update_demo_status": false,
+      "can_update_proof_status": false,
+      "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+      "live_server_proven": true,
+      "opt_in_enabled": true,
+      "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+      "request_count": 2,
+      "server_observed_live_continuous_batches": true,
+      "source": "bloombee.server.handler",
+      "speedup_proven": false,
+      "tick_batches": [
+        {
+          "input_token_ids": [
+            29973,
+            29973
+          ],
+          "positions": [
+            0,
+            0
+          ],
+          "request_ids": [
+            "generate-0",
+            "generate-1"
+          ],
+          "tick": 0
+        }
+      ],
+      "wallclock_speedup_proven": false
+    }
+  ],
+  "live_server_proven": true,
+  "merged_inference_stats": [],
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "opt_in_enabled": true,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "server_observed_actual_multi_request_batch": false,
+  "server_observed_live_continuous_batches": true,
+  "source": "mvp_capabilities.continuous_batching_server_log_report",
+  "source_log": "/Users/evinova-self/Projects/distributed-inference-mvp-proof-20260706T0729/.local/logs/live-tinyllama-batch2-optin-20260706T0729.log",
+  "speedup_proven": false,
+  "synthetic_fixture": false,
+  "tick_batches": [
+    {
+      "input_token_ids": [
+        29973,
+        29973
+      ],
+      "positions": [
+        0,
+        0
+      ],
+      "request_ids": [
+        "generate-0",
+        "generate-1"
+      ],
+      "tick": 0
+    }
+  ],
+  "wallclock_speedup_proven": false
+}

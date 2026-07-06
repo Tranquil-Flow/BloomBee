@@ -11,6 +11,7 @@ from bloombee.client.remote_generation import RemoteGenerationMixin
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LIVE_LOOP_EVIDENCE_PATH = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/post_mvp/live-continuous-batching-loop-unit-20260705.json"
+KV_PREFIX_LIVE_GENERATE_EVIDENCE_PATH = PROJECT_ROOT / "mvp_capabilities/distributed_evidence/post_mvp/kv-prefix-reuse-live-generate-metadata-20260706.json"
 
 
 class _FallbackGenerate:
@@ -269,6 +270,44 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
     assert report["speedup_proven"] is False
 
 
+def test_live_generate_records_kv_prefix_metadata_for_same_prefix_batch(monkeypatch):
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    model = _RemoteGenerationLiveImplStub()
+    model.lm_head = _GreedyNextTokenHead({201: 10, 202: 20})
+    inputs = torch.tensor([[101, 102, 201], [101, 102, 202]], dtype=torch.long)
+
+    result = model.generate(inputs, max_new_tokens=1)
+
+    assert result.tolist() == [[101, 102, 201, 10], [101, 102, 202, 20]]
+    report = model.transformer.h.sessions[0].kv_prefix_reuse_report()
+    assert report["claim_boundary"] == "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+    assert report["opt_in_flag"] == "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
+    assert report["event_count"] == 1
+    assert report["runtime_prefill_metadata_proven"] is True
+    assert report["live_kv_cache_reuse_proven"] is False
+    assert report["speedup_proven"] is False
+    event = report["events"][0]
+    assert event["common_prefix_token_ids"] == [101, 102]
+    assert event["same_prefix_varied_suffix_proven"] is True
+    assert event["requests"] == [
+        {
+            "request_id": "generate-0",
+            "prefix_token_ids": [101, 102],
+            "suffix_token_ids": [201],
+            "prefill_token_count": 3,
+            "reusable_prefix_token_count": 2,
+        },
+        {
+            "request_id": "generate-1",
+            "prefix_token_ids": [101, 102],
+            "suffix_token_ids": [202],
+            "prefill_token_count": 3,
+            "reusable_prefix_token_count": 2,
+        },
+    ]
+
+
 def test_live_continuous_tick_rows_are_sent_in_rpc_inference_metadata(monkeypatch):
     import asyncio
 
@@ -419,6 +458,26 @@ def test_live_continuous_batching_loop_report_does_not_promote_demo_status():
     assert tracked["can_update_demo_status"] is False
     assert tracked["do_not_claim"] == [
         "live_server_integration",
+        "wall_clock_speedup",
+        "demo_safe_promotion",
+    ]
+
+
+def test_kv_prefix_live_generate_metadata_evidence_is_claim_bounded():
+    import json
+
+    tracked = json.loads(KV_PREFIX_LIVE_GENERATE_EVIDENCE_PATH.read_text(encoding="utf-8"))
+
+    assert tracked["claim_boundary"] == "kv_prefix_reuse_live_generate_metadata_no_cache_reuse_or_speedup"
+    assert tracked["verification_status"] == "passed"
+    assert tracked["source"] == "tests/test_live_continuous_batching.py::test_live_generate_records_kv_prefix_metadata_for_same_prefix_batch"
+    assert tracked["runtime_prefill_metadata_proven"] is True
+    assert tracked["live_generate_metadata_attached_to_first_rpc"] is True
+    assert tracked["live_kv_cache_reuse_proven"] is False
+    assert tracked["speedup_proven"] is False
+    assert tracked["can_update_demo_status"] is False
+    assert tracked["do_not_claim"] == [
+        "server_kv_tensor_reuse",
         "wall_clock_speedup",
         "demo_safe_promotion",
     ]

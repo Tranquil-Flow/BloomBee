@@ -1,0 +1,101 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "m4pro_live_batch2_optin_same_arrival_capture_no_late_arrival_or_speedup",
+  "claim_limitations": [
+    "Assembler only; proof still depends on strict verifier output.",
+    "Server-observed flags are carried from the live report and are never inferred from client-only rows.",
+    "This artifact does not prove wall-clock speedup or demo readiness.",
+    "Request IDs are aligned to server-emitted generate-0/generate-1 tick rows; client prompt labels remain in source_artifacts.",
+    "This proves server-observed same-arrival opt-in batching metadata plus token/logit-fingerprint parity, not late-arrival continuous batching."
+  ],
+  "live_continuous_report": {
+    "source": "mvp_capabilities.continuous_batching_server_log_report",
+    "tick_batches": [
+      {
+        "input_token_ids": [
+          29973,
+          29973
+        ],
+        "positions": [
+          0,
+          0
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 0
+      }
+    ]
+  },
+  "live_server_proven": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "opt_in_enabled": true,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "proof_gate": "continuous_batching",
+  "request_id_mapping": {
+    "generate-0": "req-a",
+    "generate-1": "req-b"
+  },
+  "requests": [
+    {
+      "arrival_tick": 0,
+      "baseline": {
+        "generated_token_ids": [
+          13,
+          29899
+        ],
+        "logits_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+        "seconds": 0.5417790412902832,
+        "text_sha256": "0d8d03eb535133b92aeb5aea9e9bdd0494affe48ca38706e4882efe7ce870876"
+      },
+      "continuous": {
+        "generated_token_ids": [
+          13,
+          29899
+        ],
+        "logits_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+        "seconds": 0.390733003616333,
+        "text_sha256": "0d8d03eb535133b92aeb5aea9e9bdd0494affe48ca38706e4882efe7ce870876"
+      },
+      "request_id": "generate-0",
+      "source_artifacts": {
+        "client": "mvp_capabilities/distributed_evidence/post_mvp/tinyllama-batch2-optin-client-m4pro-20260706T0729.json",
+        "client_request_id": "req-a",
+        "server_report": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-server-log-report-batch2-optin-20260706T0729.json"
+      }
+    },
+    {
+      "arrival_tick": 0,
+      "baseline": {
+        "generated_token_ids": [
+          13,
+          29899
+        ],
+        "logits_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+        "seconds": 0.5417790412902832,
+        "text_sha256": "2d3eabef60ca9f1c044e087006bd702be8f8c5c6b5f7bad9eca632ff00421312"
+      },
+      "continuous": {
+        "generated_token_ids": [
+          13,
+          29899
+        ],
+        "logits_sha256": "d613edcfe4b5773da6aceb12b722aa37fde5cf33812a389210c60697c2c9a9f9",
+        "seconds": 0.390733003616333,
+        "text_sha256": "2d3eabef60ca9f1c044e087006bd702be8f8c5c6b5f7bad9eca632ff00421312"
+      },
+      "request_id": "generate-1",
+      "source_artifacts": {
+        "client": "mvp_capabilities/distributed_evidence/post_mvp/tinyllama-batch2-optin-client-m4pro-20260706T0729.json",
+        "client_request_id": "req-b",
+        "server_report": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-server-log-report-batch2-optin-20260706T0729.json"
+      }
+    }
+  ],
+  "server_observed_live_continuous_batches": true,
+  "source": "m4pro live TinyLlama batch_size=2 opt-in same-arrival capture",
+  "speedup_proven": false,
+  "wallclock_speedup_proven": false
+}

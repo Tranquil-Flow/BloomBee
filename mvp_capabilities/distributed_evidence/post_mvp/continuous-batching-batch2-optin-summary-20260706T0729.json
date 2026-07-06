@@ -1,0 +1,34 @@
+{
+  "artifacts": {
+    "assembled_evidence": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-batch2-optin-live-20260706T0729.json",
+    "client": "mvp_capabilities/distributed_evidence/post_mvp/tinyllama-batch2-optin-client-m4pro-20260706T0729.json",
+    "server_report": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-server-log-report-batch2-optin-20260706T0729.json",
+    "verifier": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-batch2-optin-live-20260706T0729.verify.json"
+  },
+  "baseline_continuous_tokens_match": true,
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "continuous_batching_m4pro_batch2_optin_same_arrival_summary_no_late_arrival_or_speedup",
+  "claim_limitations": [
+    "This is real live-server same-arrival batch_size=2 opt-in metadata plus token/logit-fingerprint parity evidence.",
+    "The strict late-arrival verifier still fails only because no request arrived after tick 0.",
+    "No wall-clock speedup or demo promotion is claimed."
+  ],
+  "live_server_late_arrival_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "request_id_mapping": {
+    "generate-0": "req-a",
+    "generate-1": "req-b"
+  },
+  "server_event_count": 1,
+  "server_maddr": "/ip4/192.168.178.37/tcp/31382/p2p/12D3KooWGqyQwLjeojMwdLVKd1xcwtXYzbRjwjnhDW2g4dHorzAa",
+  "server_observed_live_continuous_batches": true,
+  "server_tick_batch_count": 1,
+  "source": "m4pro live TinyLlama batch_size=2 opt-in capture",
+  "speedup_proven": false,
+  "verifier_failed_checks": [
+    "no late-arrival request observed"
+  ],
+  "verifier_status": "failed",
+  "wallclock_speedup_proven": false
+}
