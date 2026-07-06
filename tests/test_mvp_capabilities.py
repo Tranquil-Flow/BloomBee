@@ -601,6 +601,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     }
     tasks = {item["id"]: item for item in report["planned_tasks"]}
     assert tasks["tinyllama_distributed_generation"]["done"] is True
+    assert "frontier-distributed-pathway-minimax-m27-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "main native BloomBee distributed path" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "native BloomBee minimax_m2 wrapper" in tasks["minimax_m3_candidate"]["next_step"]
+    assert "external-runtime smoke, or run the M3" not in tasks["minimax_m3_candidate"]["next_step"]
     assert "minimax-reap-family-comparison-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
     assert "M3 as likely stronger but not easier" in tasks["minimax_m3_candidate"]["evidence"]
     assert "M4+M4Pro memory is not additive" in tasks["minimax_m3_candidate"]["evidence"]
@@ -625,6 +629,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "phone-speculative-integrated-trial-gate-harness-20260706.json" in tasks["phone_worker"]["evidence"]
     assert "phone_speculative_integrated_trial_gate.py" in tasks["speculative_decode"]["evidence"]
     assert "phone-speculative-integrated-trial-gate-harness-20260706.json" in tasks["speculative_decode"]["evidence"]
+    assert "speculative-phone-worker-wrapup-current-20260706.json" in tasks["speculative_decode"]["evidence"]
+    assert "blocked_by_missing_ios_and_multiphone_integrated_speedup" in tasks["speculative_decode"]["evidence"]
+    assert "speculative-phone-worker-wrapup-current-20260706.json" in tasks["phone_worker"]["evidence"]
+    assert "blocked_by_missing_ios_and_multiphone_integrated_speedup" in tasks["phone_worker"]["evidence"]
     assert "bridge live token transport" not in tasks["phone_worker"]["next_step"]
     assert "3-4 phone" in tasks["phone_worker"]["next_step"]
     assert "phone_speculative_integrated_trial_gate.py" in tasks["phone_worker"]["next_step"]
@@ -666,6 +674,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous-kv-joint-readiness-current-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert tasks["kv_prefix_reuse"]["next_step"] is None
     assert tasks["qwen35b_candidate"]["status"] == "partial"
+    assert "Qwen35B/Qwen36A" in tasks["qwen35b_candidate"]["label"]
+    assert "Qwen/Qwen3.6-35B-A3B" in tasks["qwen35b_candidate"]["evidence"]
+    assert "frontier-distributed-pathway-qwen36a-current-20260706.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "main native BloomBee distributed path" in tasks["qwen35b_candidate"]["evidence"]
+    assert "Qwen36A exact config scan" in tasks["qwen35b_candidate"]["next_step"]
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "qwen35b-oneblock-host-preflight-20260705T214226Z.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "blocked-by-host-memory" in tasks["qwen35b_candidate"]["evidence"]

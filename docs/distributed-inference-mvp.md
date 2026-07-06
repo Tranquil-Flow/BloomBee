@@ -54,21 +54,29 @@ Why:
   model that the connected swarm can prove safe to run.
 
 Last-stage stretch targets are tracked in the final plan and come **after** the
-core live demo works. The new near-term candidate branch is
-**Qwen/Qwen-AgentWorld-35B-A3B**: it fits the synthetic 10-laptop memory budget
-(~80GB recommended) but is blocked today because HF reports `model_type=qwen3_5_moe`
-with a `qwen3_5_moe_text` tower, and BloomBee only has a `qwen3_moe` wrapper.
-A config-only scout is committed at
-`mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`:
+core live demo works. The near-term native candidate branch is
+**Qwen/Qwen-AgentWorld-35B-A3B** plus the user-requested **Qwen36A/Qwen3.6**
+lane: AgentWorld fits the synthetic 10-laptop memory budget (~80GB recommended)
+and now has green text-tower/backend state-cache groundwork, while Qwen36A is
+tracked at `mvp_capabilities/distributed_evidence/stretch/frontier-distributed-pathway-qwen36a-current-20260706.json`
+as a desired main native BloomBee distributed-path target. AgentWorld still needs
+one-block server proof, and Qwen36A still needs exact config scan plus wrapper
+or state-cache mapping before any route/demo claim. The original AgentWorld scout
+is committed at `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`:
 the text tower alternates `linear_attention` and `full_attention` layers with
-mRoPE/linear-attention head fields, so copying the existing `Qwen3MoeDecoderLayer`
-wrapper would overclaim compatibility.
+mRoPE/linear-attention head fields, so blindly copying the existing
+`Qwen3MoeDecoderLayer` wrapper would overclaim compatibility.
 First true high-compute stretch is the same-family
 **Qwen/Qwen3-235B-A22B-Instruct-2507** if enough aggregate memory appears. After
 that, a LayerExecutor backend can try quantized frontier serving backends for
-**MiniMaxAI/MiniMax-M3**, **GLM-5.2**, and **DeepSeek-V4-Flash**. DeepSeek-V4-Pro,
-Kimi K2.x, and giant Qwen3-Coder MoEs stay post-MVP unless quantized expert paging
-or a much larger hardware pool exists. The first bounded LayerExecutor/quantized
+**MiniMaxAI/MiniMax-M3**, **GLM-5.2**, and **DeepSeek-V4-Flash**. MiniMax M2.7
+REAP is explicitly tracked as a main native BloomBee distributed-path target at
+`mvp_capabilities/distributed_evidence/stretch/frontier-distributed-pathway-minimax-m27-current-20260706.json`,
+but it is blocked until a native `minimax_m2` wrapper plus MiniMax MoE/sparse-attention
+state/cache contract and one-block proof exist. Its GGUF/llama.cpp smoke lane is
+side diagnostics only; peer RAM is not additive there. DeepSeek-V4-Pro, Kimi K2.x,
+and giant Qwen3-Coder MoEs stay post-MVP unless quantized expert paging or a much
+larger hardware pool exists. The first bounded LayerExecutor/quantized
 backend spike is committed at
 `mvp_capabilities/distributed_evidence/stretch/layerexecutor-feasibility-20260704.json`;
 it does not prove a runnable backend, and all scanned frontier targets remain
