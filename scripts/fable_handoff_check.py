@@ -148,22 +148,24 @@ def _check_mvp_status(errors: list[str]) -> dict[str, Any]:
 
     if report.get("overall_percent") != 100:
         errors.append(f"unexpected MVP percent: {report.get('overall_percent')}")
-    expected_task_summary = {"complete": 11, "partial": 5, "pending": 0, "blocked": 1, "total": 17}
+    expected_task_summary = {"complete": 13, "partial": 3, "pending": 0, "blocked": 1, "total": 17}
     if report.get("task_summary") != expected_task_summary:
         errors.append(f"unexpected task_summary: {report.get('task_summary')}")
-    expected_post_summary = {"complete": 2, "partial": 5, "pending": 0, "blocked": 1, "total": 8}
+    expected_post_summary = {"complete": 4, "partial": 3, "pending": 0, "blocked": 1, "total": 8}
     if report.get("post_mvp_task_summary") != expected_post_summary:
         errors.append(f"unexpected post_mvp_task_summary: {report.get('post_mvp_task_summary')}")
     if not continuous:
         errors.append("missing continuous_batching planned task")
     else:
         evidence = continuous.get("evidence", "")
-        if continuous.get("status") != "partial":
-            errors.append(f"continuous_batching must remain partial, got {continuous.get('status')}")
+        if continuous.get("status") != "complete":
+            errors.append(f"continuous_batching must be complete, got {continuous.get('status')}")
         if "live-continuous-batching-loop-unit-20260705.json" not in evidence:
             errors.append("continuous_batching evidence missing live-loop unit artifact")
-        if "no live server" not in evidence:
-            errors.append("continuous_batching evidence missing no-live-server claim boundary")
+        if "strict-live-cbkv-v16-outer-row-local-verified-20260706.json" not in evidence:
+            errors.append("continuous_batching evidence missing strict live parity artifact")
+        if "continuous-kv-joint-readiness-current-20260706.json" not in evidence:
+            errors.append("continuous_batching evidence missing joint readiness artifact")
 
     return {
         "overall_bar": report.get("overall_bar"),

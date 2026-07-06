@@ -583,10 +583,10 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "both have claim-bounded m4pro full 0:48" in post_mvp["quantization_routing_handoff"]["evidence"]
     assert "stash@{0}" not in post_mvp["quantization_routing_handoff"]["evidence"]
     assert not any(item["id"] == "quantization_routing_handoff" for item in report["milestones"])
-    assert report["task_summary"] == {"complete": 11, "partial": 5, "pending": 0, "blocked": 1, "total": 17}
+    assert report["task_summary"] == {"complete": 13, "partial": 3, "pending": 0, "blocked": 1, "total": 17}
     assert report["task_summary_scope"] == "all_tasks_including_post_mvp_backlog"
     assert report["core_task_summary"] == {"complete": 9, "partial": 0, "pending": 0, "blocked": 0, "total": 9}
-    assert report["post_mvp_task_summary"] == {"complete": 2, "partial": 5, "pending": 0, "blocked": 1, "total": 8}
+    assert report["post_mvp_task_summary"] == {"complete": 4, "partial": 3, "pending": 0, "blocked": 1, "total": 8}
     assert report["core_tasks_complete"] is True
     assert {item["status"] for item in report["core_tasks"]} == {"complete"}
     assert {item["id"] for item in report["post_mvp_tasks"]} == {
@@ -631,7 +631,7 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "bridge live token transport" not in tasks["speculative_decode"]["next_step"]
     assert "3-4 phone" in tasks["speculative_decode"]["next_step"]
     assert "phone_speculative_integrated_trial_gate.py" in tasks["speculative_decode"]["next_step"]
-    assert tasks["continuous_batching"]["status"] == "partial"
+    assert tasks["continuous_batching"]["status"] == "complete"
     assert "continuous-batching-scheduler-20260704.json" in tasks["continuous_batching"]["evidence"]
     assert "continuous-batching-live-adapter-20260705.json" in tasks["continuous_batching"]["evidence"]
     assert "live-continuous-batching-loop-unit-20260705.json" in tasks["continuous_batching"]["evidence"]
@@ -644,13 +644,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "continuous_batching_live_server_capture.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_live_server_proof.py" in tasks["continuous_batching"]["evidence"]
     assert "continuous_batching_wallclock_gate.py" in tasks["continuous_batching"]["evidence"]
-    assert "no live server" in tasks["continuous_batching"]["evidence"]
-    assert "strict-live-cbkv-blocker-20260706.json" in tasks["continuous_batching"]["evidence"]
-    assert "dynamic batch parity failed closed" in tasks["continuous_batching"]["evidence"]
-    assert "server-side per-request slot/cache-position ownership" in tasks["continuous_batching"]["next_step"]
-    assert "live-server late-arrival token/logit parity" in tasks["continuous_batching"]["next_step"]
-    assert "continuous_batching_wallclock_gate.py" in tasks["continuous_batching"]["next_step"]
-    assert tasks["kv_prefix_reuse"]["status"] == "partial"
+    assert "strict-live-cbkv-v16-outer-row-local-verified-20260706.json" in tasks["continuous_batching"]["evidence"]
+    assert "late-arrival token/logit parity" in tasks["continuous_batching"]["evidence"]
+    assert "continuous-kv-joint-readiness-current-20260706.json" in tasks["continuous_batching"]["evidence"]
+    assert tasks["continuous_batching"]["next_step"] is None
+    assert tasks["kv_prefix_reuse"]["status"] == "complete"
     assert "kv-prefix-reuse-planner-20260704.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-metadata-20260705.json" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv-prefix-reuse-live-generate-metadata-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
@@ -662,12 +660,11 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "kv_prefix_reuse_live_capture.py" in tasks["kv_prefix_reuse"]["evidence"]
     assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["evidence"]
     assert "first rpc_inference metadata" in tasks["kv_prefix_reuse"]["evidence"]
-    assert "no live KV cache" in tasks["kv_prefix_reuse"]["evidence"]
-    assert "strict-live-cbkv-blocker-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
-    assert "dynamic late-arrival batch/cache shape" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "kv-v32-debug/verified-local.json" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "server-observed KV tensor reuse" in tasks["kv_prefix_reuse"]["evidence"]
+    assert "numeric logit parity" in tasks["kv_prefix_reuse"]["evidence"]
     assert "continuous-kv-joint-readiness-current-20260706.json" in tasks["kv_prefix_reuse"]["evidence"]
-    assert "kv_prefix_reuse_proof.py" in tasks["kv_prefix_reuse"]["next_step"]
-    assert "implement actual server KV tensor reuse" in tasks["kv_prefix_reuse"]["next_step"]
+    assert tasks["kv_prefix_reuse"]["next_step"] is None
     assert tasks["qwen35b_candidate"]["status"] == "partial"
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "qwen35b-oneblock-host-preflight-20260705T214226Z.json" in tasks["qwen35b_candidate"]["evidence"]
@@ -698,8 +695,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "## MVP-core tasks" in markdown
     assert "MVP-core task summary: 9 complete, 0 partial, 0 pending, 0 blocked" in markdown
     assert "## Post-MVP backlog tasks" in markdown
-    assert "Post-MVP backlog task summary: 2 complete, 5 partial, 0 pending, 1 blocked" in markdown
-    assert "All-task summary: 11 complete, 5 partial, 0 pending, 1 blocked" in markdown
+    assert "Post-MVP backlog task summary: 4 complete, 3 partial, 0 pending, 1 blocked" in markdown
+    assert "All-task summary: 13 complete, 3 partial, 0 pending, 1 blocked" in markdown
 
 
 
@@ -828,8 +825,8 @@ def test_mvp_status_cli_outputs_json():
     assert payload["next_gate"] == "MVP core complete; post-MVP improvements next"
     assert payload["scope"] == "mvp_core"
     assert payload["task_summary"]["blocked"] == 1
-    assert payload["task_summary"]["partial"] == 5
-    assert payload["task_summary"]["complete"] == 11
+    assert payload["task_summary"]["partial"] == 3
+    assert payload["task_summary"]["complete"] == 13
     assert any(task["id"] == "qwen35b_candidate" and task["status"] == "partial" for task in payload["planned_tasks"])
     assert any(task["id"] == "minimax_m3_candidate" and task["status"] == "blocked" for task in payload["planned_tasks"])
 
