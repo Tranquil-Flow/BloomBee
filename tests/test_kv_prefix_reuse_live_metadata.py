@@ -271,6 +271,41 @@ def test_server_response_metadata_reports_kv_cache_reuse_only_after_real_handle_
     assert observed["speedup_proven"] is False
 
 
+def test_server_response_metadata_accepts_same_handle_non_overlapping_kv_slices(monkeypatch):
+    from bloombee.server.handler import _build_rpc_inference_response_metadata, _extract_kv_prefix_reuse_metadata
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    metadata = {
+        "kv_prefix_reuse_server_observed": _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": _kv_prefix_report()}),
+        "kv_prefix_reuse_server_handoff": {
+            "server_handle_handoff_observed": True,
+            "cache_read_source_handle_id": 11,
+            "cache_write_destination_handle_id": 11,
+            "cache_read_source_bh_slice": [0, 4],
+            "cache_write_destination_bh_slice": [4, 8],
+            "server_recovered_prefix_token_count": 2,
+            "prefix_length": 2,
+            "kv_prefix_byte_checksum_sha256": "c" * 64,
+        },
+    }
+
+    warm = _build_rpc_inference_response_metadata(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        requested_uids=("block.0",),
+        cache_handles=((11,),),
+    )
+
+    observed = warm["kv_prefix_reuse_server_observed"]
+    assert observed["server_observed_kv_cache_reuse"] is True
+    assert observed["live_kv_cache_reuse_proven"] is True
+    assert observed["server_handle_handoff_observed"] is True
+    assert observed["cache_read_source_handle_id"] == 11
+    assert observed["cache_write_destination_handle_id"] == 11
+    assert observed["cache_read_source_bh_slice"] == [0, 4]
+    assert observed["cache_write_destination_bh_slice"] == [4, 8]
+
+
 def test_client_records_server_response_kv_cache_reuse(monkeypatch):
     from bloombee.client import inference_session as inference_session_mod
     from bloombee.client.inference_session import _ServerInferenceSession
