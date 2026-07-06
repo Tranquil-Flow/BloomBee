@@ -379,9 +379,10 @@ models:
     gguf_recommended_quant: i1-Q4_K_M
     gguf_recommended_quant_size_gb: 84.3
     architecture_supported: false
+    native_contract_artifact: mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-native-contract-scan-20260706.json
     blocked_reasons:
       - No BloomBee block wrapper registered for model_type=minimax_m2
-      - MiniMax-M2.7 MoE/sparse-attention state and router contract are not implemented in BloomBee block wrappers
+      - Exact MiniMax-M2.7 REAP config scan is green for MiniMaxM2ForCausalLM/minimax_m2 but MiniMax-M2.7 MoE router and MTP contracts are not implemented in BloomBee block wrappers
       - GGUF/llama.cpp external runtime is not a BloomBee block-parallel route proof
     hf_config_url: https://huggingface.co/dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B/blob/main/config.json
 

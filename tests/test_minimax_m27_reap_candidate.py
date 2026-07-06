@@ -57,6 +57,7 @@ def test_minimax_m27_reap_registry_row_is_visible_but_not_quant_variant_expanded
     row = by_id[MODEL_ID]
     assert row["architecture_supported"] is False
     assert row["recommended_min_free_mem_gb"] == 280
+    assert row["native_contract_artifact"] == "mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-native-contract-scan-20260706.json"
     assert "minimax_m2" in " ".join(row["blocked_reasons"])
 
     variant_ids = {row["model_id"] for row in expand_quantized_variants(registry)}

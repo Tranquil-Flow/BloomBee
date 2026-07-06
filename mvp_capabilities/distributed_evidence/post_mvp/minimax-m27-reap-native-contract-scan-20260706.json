@@ -1,0 +1,66 @@
+{
+  "architecture": "MiniMaxM2ForCausalLM",
+  "attn_type_counts": {
+    "1": 62
+  },
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "minimax_m27_reap_native_contract_scan_no_wrapper_or_live_inference",
+  "do_not_claim": [
+    "no BloomBee minimax_m2 wrapper exists in this repository yet",
+    "no live inference was attempted",
+    "no one-block server proof",
+    "no route/demo promotion"
+  ],
+  "exact_config_has_sparse_attention_flag": false,
+  "generated_at_utc": null,
+  "head_dim": 128,
+  "hidden_size": 3072,
+  "intermediate_size": 1536,
+  "live_run_attempted": false,
+  "max_position_embeddings": 196608,
+  "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
+  "model_type": "minimax_m2",
+  "mtp_transformer_layers": 1,
+  "native_bloombee_support_proven": false,
+  "native_bloombee_target": true,
+  "native_wrapper_package_present": false,
+  "num_attention_heads": 48,
+  "num_experts_per_tok": 8,
+  "num_hidden_layers": 62,
+  "num_key_value_heads": 8,
+  "num_local_experts": 154,
+  "num_mtp_modules": 3,
+  "one_block_server_proven": false,
+  "qk_norm_type": "per_layer",
+  "remaining_blockers": [
+    "bloombee_minimax_m2_wrapper_missing",
+    "minimax_m2_moe_router_contract_unimplemented",
+    "minimax_m2_mtp_contract_unimplemented",
+    "one_block_server_proof_missing"
+  ],
+  "required_native_components": [
+    "MiniMaxM2DecoderLayer block wrapper",
+    "MiniMaxM2Attention q/k/v/o projection + QK norm + rotary path",
+    "DynamicCache-compatible per-layer KV descriptor select/update",
+    "MiniMaxM2SparseMoeBlock sigmoid top-k router with routing bias",
+    "MTP module guard/contract so base decoder proof cannot silently include unsupported MTP behavior"
+  ],
+  "router_jitter_noise": 0.0,
+  "scoring_func": "sigmoid",
+  "shared_intermediate_size": 0,
+  "state_cache_contract": {
+    "attention_cache_kind": "dynamic_kv_per_layer",
+    "head_dim": 128,
+    "kv_heads": 8,
+    "kv_layers": 62,
+    "local_experts": 154,
+    "moe_router_kind": "sigmoid_top_k_with_optional_routing_bias",
+    "moe_router_top_k": 8,
+    "mtp_requires_explicit_contract": true,
+    "sparse_attention_requires_explicit_contract": false
+  },
+  "use_mtp": true,
+  "use_qk_norm": true,
+  "use_routing_bias": true
+}

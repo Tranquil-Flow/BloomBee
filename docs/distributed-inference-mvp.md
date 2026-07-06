@@ -69,8 +69,12 @@ that, a LayerExecutor backend can try quantized frontier serving backends for
 **MiniMaxAI/MiniMax-M3**, **GLM-5.2**, and **DeepSeek-V4-Flash**. MiniMax M2.7
 REAP is explicitly tracked as a main native BloomBee distributed-path target at
 `mvp_capabilities/distributed_evidence/stretch/frontier-distributed-pathway-minimax-m27-current-20260706.json`,
-but it is blocked until a native `minimax_m2` wrapper plus MiniMax MoE/sparse-attention
-state/cache contract and one-block proof exist. Its GGUF/llama.cpp smoke lane is
+and exact native-contract scan evidence at
+`mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-native-contract-scan-20260706.json`
+records MiniMaxM2ForCausalLM/minimax_m2 with 62 decoder layers, hidden size 3072,
+154 experts, top-k 8, MTP enabled, all attention type entries=1, and no exact
+sparse-attention flag. It remains blocked until a native `minimax_m2` wrapper plus
+MoE router/MTP contract and one-block proof exist. Its GGUF/llama.cpp smoke lane is
 side diagnostics only; peer RAM is not additive there. DeepSeek-V4-Pro, Kimi K2.x,
 and giant Qwen3-Coder MoEs stay post-MVP unless quantized expert paging or a much
 larger hardware pool exists. The first bounded LayerExecutor/quantized
