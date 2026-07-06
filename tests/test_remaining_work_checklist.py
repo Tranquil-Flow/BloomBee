@@ -49,9 +49,15 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     }
     assert all(item["requires_human_or_hardware"] is True for item in payload["items"])
     assert by_id["qwen35b_candidate"]["blocker_category"] == "hardware_memory"
-    assert "requires_at_least_80gb_free_memory" in by_id["qwen35b_candidate"]["blocker_reasons"]
+    assert "one_block_proof_fits_m4pro_48gb" in by_id["qwen35b_candidate"]["blocker_reasons"][0]
+    assert "full_distributed_needs" in by_id["qwen35b_candidate"]["blocker_reasons"][1]
+    assert "full_distributed_" in by_id["qwen35b_candidate"]["blocker_reasons"][2]
+    assert "needs_real_one_block_server_proof" in by_id["qwen35b_candidate"]["blocker_reasons"][3]
     assert by_id["minimax_m3_candidate"]["blocker_category"] == "hardware_memory_or_real_model_proof"
-    assert "requires_suitable_memory_for_real_weight_oneblock" in by_id["minimax_m3_candidate"]["blocker_reasons"]
+    minimax_reasons = by_id["minimax_m3_candidate"]["blocker_reasons"]
+    assert any("one_block_proof_fits_m4pro_48gb" in r for r in minimax_reasons)
+    assert any("full_distributed_needs" in r for r in minimax_reasons)
+    assert any("requires_real_weight_or_full_mtp_module_proof" in r for r in minimax_reasons)
     assert by_id["speculative_decode"]["blocker_category"] == "human_operator_devices"
     assert "requires_ios_artifact" in by_id["speculative_decode"]["blocker_reasons"]
     assert "requires_three_or_more_ready_phones" in by_id["phone_worker"]["blocker_reasons"]
