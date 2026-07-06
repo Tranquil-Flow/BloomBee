@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "seconds": 1.353869915008545,
+  "input_shape": [
+    2,
+    16
+  ],
+  "output_shape": [
+    2,
+    18
+  ],
+  "decoded": [
+    "<s> You are concise. Shared prefix question: what is two plus two?\n-",
+    "<s> You are concise. Shared prefix question: what is three plus three?\n-"
+  ]
+}

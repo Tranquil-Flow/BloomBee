@@ -1,0 +1,52 @@
+{
+  "claim_boundary": "minimax_m3_quantized_runtime_scout_no_local_or_bloombee_support_claim",
+  "source": "interactive_web_scout_20260706",
+  "model": "MiniMaxAI/MiniMax-M3",
+  "base_model_summary": {
+    "parameters_total_approx": "428B",
+    "parameters_active_approx": "23B",
+    "architecture": "MoE + MiniMax Sparse Attention + multimodal model",
+    "native_bloombee_support_proven": false
+  },
+  "local_hardware_checked": {
+    "local_m4_memory_gb": 16,
+    "m4pro_memory_gb": 48,
+    "combined_m4_plus_m4pro_memory_gb_nominal": 64
+  },
+  "quantized_options_found": [
+    {
+      "repo": "unsloth/MiniMax-M3-GGUF",
+      "runtime": "llama.cpp experimental PR #24523 / Unsloth Studio",
+      "notes": "GGUF support is preliminary; MiniMax Sparse Attention not supported in released llama.cpp path and falls back to dense attention.",
+      "smallest_reported_memory": "1-bit GGUF about 128GB; dynamic 2-bit about 138GB; 3-bit about 165GB",
+      "fits_m4_or_m4pro": false
+    },
+    {
+      "repo": "mlx-community/MiniMax-M3-4bit / pipenetwork MiniMax-M3 MLX variants",
+      "runtime": "MLX on Apple Silicon",
+      "notes": "Quantized MLX repos exist, but 428B-param class 4-bit weights exceed 48GB by a wide margin before KV/cache/runtime overhead.",
+      "fits_m4_or_m4pro": false
+    },
+    {
+      "repo": "MiniMaxAI/MiniMax-M3-MXFP8, nvidia/MiniMax-M3-NVFP4, amd/MiniMax-M3-MXFP4",
+      "runtime": "vLLM/SGLang on NVIDIA/AMD Instinct-class GPUs",
+      "notes": "External-runtime candidate only; not a native BloomBee block-serving proof and not runnable on current macOS/MPS hosts.",
+      "fits_m4_or_m4pro": false
+    }
+  ],
+  "conclusion": "Quantized MiniMax-M3 is worth tracking, but current M4 16GB + M4 Pro 48GB cannot host even the reported smallest MiniMax-M3 quant. The next practical MiniMax-M3 gate remains external-runtime smoke on a >=128GB RAM/VRAM machine for 1-bit GGUF, or approved multi-GPU NVIDIA/AMD runtime for MXFP/NVFP/AWQ paths.",
+  "recommended_next_steps": [
+    "Do not churn local macOS downloads for MiniMax-M3; they will not fit.",
+    "If we want a local MiniMax-family experiment, scout MiniMax-M2.7 or smaller variants separately, not as MiniMax-M3 proof.",
+    "Update the existing external-runtime smoke plan with a quantized GGUF path guarded by >=128GB host requirement and a vLLM/SGLang path guarded by approved GPU runtime requirement."
+  ],
+  "references": [
+    "https://unsloth.ai/docs/models/minimax-m3",
+    "https://huggingface.co/unsloth/MiniMax-M3-GGUF",
+    "https://huggingface.co/models?other=base_model%3Aquantized%3AMiniMaxAI%2FMiniMax-M3",
+    "https://www.amd.com/en/developer/resources/technical-articles/2026/day-0-support-for-minimax-m3-on-amd-instinct-gpus.html"
+  ],
+  "can_update_demo_status": false,
+  "can_update_route_status": false,
+  "can_update_proof_status": false
+}

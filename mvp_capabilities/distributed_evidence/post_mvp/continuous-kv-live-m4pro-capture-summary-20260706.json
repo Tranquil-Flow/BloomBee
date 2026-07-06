@@ -1,0 +1,46 @@
+{
+  "claim_boundary": "m4pro_live_capture_observation_no_demo_or_speedup_claim",
+  "source": "interactive_m4pro_live_capture_20260706",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "hosts": {
+    "local_m4": {
+      "role": "attempted_client",
+      "result": "blocked_by_hermes_p2p_socket_bind_denied",
+      "error_excerpt": "listen unix /tmp/hivemind-p2pd-*.sock: bind: operation not permitted"
+    },
+    "m4pro": {
+      "role": "live_server_and_client_probe",
+      "memory_bytes": 51539607552,
+      "scratch_tree": "~/Projects/distributed-inference-mvp-proof-20260706T0800"
+    }
+  },
+  "single_request_generate_api": {
+    "server_maddr": "/ip4/192.168.178.37/tcp/31370/p2p/12D3KooWDmy2vuPiUAz9NS3Kntiy6EzeYqAdNKevJAnazYnMNTXj",
+    "evidence_file": "mvp_capabilities/distributed_evidence/post_mvp/tinyllama-generate-api-m4pro-20260706T0804.json",
+    "generated_ids_match_reference": true,
+    "generated_text_match_reference": true,
+    "next_token_match_reference": true,
+    "server_log_report": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-server-log-report-live-20260706T0804.json",
+    "server_observed_live_continuous_batching_metadata": true,
+    "server_observed_actual_multi_request_batch": false
+  },
+  "batch2_generate_api": {
+    "server_maddr": "/ip4/192.168.178.37/tcp/31371/p2p/12D3KooWA7FMYW33tPmrs91QJn7kQ8vgL8Ram3beQHM9GgPyaDYZ",
+    "evidence_file": "mvp_capabilities/distributed_evidence/post_mvp/tinyllama-batch2-generate-api-m4pro-20260706T0812.json",
+    "input_shape": [2, 16],
+    "output_shape": [2, 18],
+    "client_completed_generation": true,
+    "client_process_shutdown_clean": false,
+    "shutdown_issue": "SSH command timed out after result was printed; client DHT cleanup did not exit cleanly under this harness.",
+    "server_stats_excerpt": "merged_inference: 2 batches (2.64 batches/s), 4 examples (5.28 examples/s), avg batch size 2.00",
+    "first_attempt_blocker": "server launched with batch_size=1 rejected batch_size=2; relaunched with --batch_size 2"
+  },
+  "claim_limits": [
+    "This is real live-server evidence, but not the continuous_batching_live_server_proof late-arrival parity artifact.",
+    "No wall-clock speedup claim is made.",
+    "KV prefix metadata/control-plane is not actual server KV tensor reuse.",
+    "Local M4 -> M4 Pro client path is still blocked in Hermes terminal by P2P daemon socket bind denial; m4pro self-client path works."
+  ],
+  "can_update_demo_status": false,
+  "can_update_proof_status": false
+}
