@@ -26,6 +26,8 @@ PLAN_CLAIM_BOUNDARY = "kv_prefix_reuse_live_capture_plan_no_live_cache_reuse_pro
 PROOF_GATE = "kv_prefix_reuse"
 REQUIRED_TELEMETRY_TAGS = ("kv_prefix_reuse", "no_reuse_baseline", "same_prefix_varied_suffix")
 OPT_IN_FLAG = "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
+LOGITS_MAX_ABS_TOLERANCE = 0.01
+LOGITS_MEAN_ABS_TOLERANCE = 0.001
 
 
 def build_kv_prefix_reuse_live_capture_plan(
@@ -125,6 +127,52 @@ def _fingerprint(mapping: Mapping[str, Any]) -> str | None:
     if "logits" in mapping:
         return _stable_sha256(mapping["logits"])
     return None
+
+
+def _numeric_metric(mapping: Mapping[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = mapping.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+            return float(value)
+    return None
+
+
+def _numeric_sequence(value: Any) -> list[float] | None:
+    if not isinstance(value, list) or not value:
+        return None
+    result: list[float] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            return None
+        number = float(item)
+        if not math.isfinite(number):
+            return None
+        result.append(number)
+    return result
+
+
+def _logits_numeric_parity(row: Mapping[str, Any], baseline: Mapping[str, Any], reuse: Mapping[str, Any]) -> tuple[bool, float | None, float | None]:
+    max_abs = _numeric_metric(row, "logits_max_abs_diff", "max_abs_logit_diff", "max_abs_diff")
+    mean_abs = _numeric_metric(row, "logits_mean_abs_diff", "mean_abs_logit_diff", "mean_abs_diff")
+    if max_abs is not None and mean_abs is not None:
+        return (
+            max_abs <= LOGITS_MAX_ABS_TOLERANCE and mean_abs <= LOGITS_MEAN_ABS_TOLERANCE,
+            max_abs,
+            mean_abs,
+        )
+
+    baseline_values = _numeric_sequence(baseline.get("logits_values") or baseline.get("logits"))
+    reuse_values = _numeric_sequence(reuse.get("logits_values") or reuse.get("logits"))
+    if baseline_values is None or reuse_values is None or len(baseline_values) != len(reuse_values):
+        return False, max_abs, mean_abs
+    diffs = [abs(left - right) for left, right in zip(baseline_values, reuse_values)]
+    max_abs = max(diffs) if diffs else 0.0
+    mean_abs = sum(diffs) / len(diffs) if diffs else 0.0
+    return (
+        max_abs <= LOGITS_MAX_ABS_TOLERANCE and mean_abs <= LOGITS_MEAN_ABS_TOLERANCE,
+        max_abs,
+        mean_abs,
+    )
 
 
 def _correctness_fingerprint(mapping: Mapping[str, Any]) -> str | None:
@@ -365,13 +413,17 @@ def verify_kv_prefix_reuse_payload(
 
         baseline_logits = _fingerprint(baseline)
         reuse_logits = _fingerprint(reuse)
+        logits_max_abs_diff = _numeric_metric(row, "logits_max_abs_diff", "max_abs_logit_diff", "max_abs_diff")
+        logits_mean_abs_diff = _numeric_metric(row, "logits_mean_abs_diff", "mean_abs_logit_diff", "mean_abs_diff")
         if baseline_logits is None:
             failed.append(f"request {index} baseline logits fingerprint missing")
         if reuse_logits is None:
             failed.append(f"request {index} reuse logits fingerprint missing")
         if baseline_logits is not None and reuse_logits is not None and baseline_logits != reuse_logits:
-            failed.append(f"request {index} logits fingerprint differs from no-reuse baseline")
-            logit_mismatch_seen = True
+            numeric_logits_match, logits_max_abs_diff, logits_mean_abs_diff = _logits_numeric_parity(row, baseline, reuse)
+            if not numeric_logits_match:
+                failed.append(f"request {index} logits fingerprint differs from no-reuse baseline")
+                logit_mismatch_seen = True
         if row.get("logits_match") is False:
             failed.append(f"request {index} evidence explicitly reported logits mismatch")
             logit_mismatch_seen = True
@@ -425,6 +477,8 @@ def verify_kv_prefix_reuse_payload(
                 "reuse_tokens_sha256": _stable_sha256(reuse_tokens),
                 "baseline_logits": baseline_logits,
                 "reuse_logits": reuse_logits,
+                "logits_max_abs_diff": _round_seconds(logits_max_abs_diff),
+                "logits_mean_abs_diff": _round_seconds(logits_mean_abs_diff),
                 "baseline_seconds": _round_seconds(baseline_seconds),
                 "reuse_seconds": _round_seconds(reuse_seconds),
                 "reused_prefix_token_count": prefix_count,

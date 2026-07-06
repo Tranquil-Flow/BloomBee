@@ -433,6 +433,9 @@ def test_live_generate_records_kv_prefix_metadata_for_same_prefix_batch(monkeypa
     assert report["claim_boundary"] == "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
     assert report["opt_in_flag"] == "BLOOMBEE_ENABLE_KV_PREFIX_REUSE"
     assert report["event_count"] == 1
+    pending_batch = model.transformer.h.pending_live_batches_seen[0]
+    assert pending_batch["kv_prefix_reuse"]["claim_boundary"] == "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse"
+    assert pending_batch["kv_prefix_reuse"]["event_count"] == 1
     assert report["runtime_prefill_metadata_proven"] is True
     assert report["live_kv_cache_reuse_proven"] is False
     assert report["speedup_proven"] is False

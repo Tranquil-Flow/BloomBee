@@ -155,6 +155,13 @@ def _extract_kv_prefix_reuse_metadata(metadata: dict[str, Any]) -> Optional[dict
     if os.environ.get(KV_PREFIX_REUSE_ENV_FLAG, "0") != "1":
         return None
     payload = metadata.get("kv_prefix_reuse") if isinstance(metadata, dict) else None
+    if not isinstance(payload, dict) and isinstance(metadata, dict):
+        live_payload = metadata.get("live_continuous_batching")
+        if isinstance(live_payload, dict):
+            for raw_batch in live_payload.get("tick_batches", []):
+                if isinstance(raw_batch, dict) and isinstance(raw_batch.get("kv_prefix_reuse"), dict):
+                    payload = raw_batch["kv_prefix_reuse"]
+                    break
     if not isinstance(payload, dict):
         return None
     if payload.get("claim_boundary") != KV_PREFIX_REUSE_CLAIM_BOUNDARY:
@@ -361,8 +368,25 @@ def _maybe_record_kv_prefix_reuse_handoff(
     """Copy a shared-prefix KV slice between live batch slots and record proof metadata.
 
     This is fail-closed: if metadata, handles, tensor shape, or copy primitive are
-    missing, it returns ``None`` and does not promote server proof status.
+    missing, it returns ``None`` and does not promote server proof status. When
+    client metadata is present but promotion is blocked, a diagnostic is recorded
+    so live proof runs can distinguish metadata-loss from cache-copy blockers.
     """
+
+    def _diagnose(reason: str, **extra: Any) -> None:
+        diagnostic = {
+            "source": "bloombee.server.handler",
+            "claim_boundary": "kv_prefix_reuse_server_handoff_diagnostic_no_proof",
+            "reason": reason,
+            "server_observed_kv_cache_reuse": False,
+            "live_kv_cache_reuse_proven": False,
+            "speedup_proven": False,
+            "can_update_demo_status": False,
+            "batch_size": int(batch_size),
+            "step_prefix_length": int(step_metadata.get("_prefix_length", 0) or 0) if isinstance(step_metadata, Mapping) else 0,
+        }
+        diagnostic.update(extra)
+        metadata["kv_prefix_reuse_server_handoff_diagnostic"] = diagnostic
 
     if os.environ.get(KV_PREFIX_REUSE_ENV_FLAG, "0") != "1":
         return None
@@ -380,21 +404,29 @@ def _maybe_record_kv_prefix_reuse_handoff(
     prefix_length = step_prefix_length if step_prefix_length > 0 else common_prefix_count
     if common_prefix_count > 0:
         prefix_length = min(prefix_length, common_prefix_count) if prefix_length > 0 else common_prefix_count
-    if prefix_length <= 0 or int(batch_size) < 2:
+    if prefix_length <= 0:
+        _diagnose("missing_positive_prefix_length", common_prefix_token_count=common_prefix_count)
+        return None
+    if int(batch_size) < 2:
+        _diagnose("batch_size_below_two", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length)
         return None
     handle = _first_cache_handle(cache_handles)
     if handle is None:
+        _diagnose("missing_cache_handle", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length)
         return None
     shape = _cache_tensor_shape_for_handle(cache_manager, handle)
     if shape is None:
+        _diagnose("missing_cache_tensor_shape", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length, cache_read_source_handle_id=handle)
         return None
     row_bh_width = _row_bh_width_from_cache_shape(shape, int(batch_size))
     if row_bh_width is None or row_bh_width <= 0:
+        _diagnose("unsupported_cache_tensor_shape", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length, cache_read_source_handle_id=handle, cache_tensor_shape=list(shape))
         return None
     source_slice = (0, row_bh_width)
     destination_slice = (row_bh_width, row_bh_width * 2)
     copy_fn = getattr(cache_manager, "copy_prefix_from_handle", None)
     if not callable(copy_fn):
+        _diagnose("missing_copy_prefix_from_handle", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length, cache_read_source_handle_id=handle, cache_tensor_shape=list(shape))
         return None
     try:
         handoff = copy_fn(
@@ -406,12 +438,15 @@ def _maybe_record_kv_prefix_reuse_handoff(
         )
     except Exception as exc:
         metadata["kv_prefix_reuse_server_handoff_error"] = f"{type(exc).__name__}: {exc}"
+        _diagnose("copy_prefix_from_handle_failed", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length, cache_read_source_handle_id=handle, cache_tensor_shape=list(shape), error=f"{type(exc).__name__}: {exc}")
         return None
     if not isinstance(handoff, dict) or handoff.get("server_handle_handoff_observed") is not True:
+        _diagnose("copy_prefix_from_handle_not_observed", common_prefix_token_count=common_prefix_count, prefix_length=prefix_length, cache_read_source_handle_id=handle, cache_tensor_shape=list(shape))
         return None
     handoff.setdefault("client_claimed_prefix_token_count", common_prefix_count)
     handoff.setdefault("source", "bloombee.server.handler")
     metadata["kv_prefix_reuse_server_handoff"] = dict(handoff)
+    metadata.pop("kv_prefix_reuse_server_handoff_diagnostic", None)
     return dict(handoff)
 
 
@@ -518,6 +553,10 @@ def _build_rpc_inference_response_metadata(
     )
     if kv_observed is not None:
         response_metadata["kv_prefix_reuse_server_observed"] = kv_observed
+    else:
+        diagnostic = metadata.get("kv_prefix_reuse_server_handoff_diagnostic")
+        if isinstance(diagnostic, Mapping):
+            response_metadata["kv_prefix_reuse_server_diagnostic"] = dict(diagnostic)
     return response_metadata
 
 
@@ -986,6 +1025,10 @@ class TransformerConnectionHandler(ConnectionHandler):
                 if observed_live_continuous_batching is not None:
                     metadata["live_continuous_batching_server_observed"] = observed_live_continuous_batching
                     logger.info(_format_live_continuous_batching_observation(observed_live_continuous_batching))
+                if observed_kv_prefix_reuse is not None or observed_live_continuous_batching is not None:
+                    # _iterate_inference_steps() re-reads per-step metadata from the request.
+                    # Persist server-observed opt-in fields so backend/runtime metadata sees them.
+                    request.metadata = MSGPackSerializer.dumps(metadata)
                 end_msg_serial_time = perf_counter()
                 # print_time_now('')
                 
@@ -1320,13 +1363,21 @@ class TransformerConnectionHandler(ConnectionHandler):
                         # print('current step push outputs task prepare time ', start_ExpertResponse_time-can_push_case_time) ###
                         # print_time_now('')
                         if isinstance(step_metadata, dict) and requested_backends:
-                            _maybe_record_kv_prefix_reuse_handoff(
-                                metadata,
-                                step_metadata,
-                                cache_handles=cache_handles,
-                                cache_manager=requested_backends[0].cache_manager,
-                                batch_size=batch_size,
-                            )
+                            runtime_handoff = step_metadata.get("kv_prefix_reuse_server_handoff")
+                            runtime_diagnostic = step_metadata.get("kv_prefix_reuse_server_handoff_diagnostic")
+                            if isinstance(runtime_handoff, Mapping) and runtime_handoff.get("server_handle_handoff_observed") is True:
+                                metadata["kv_prefix_reuse_server_handoff"] = dict(runtime_handoff)
+                                metadata.pop("kv_prefix_reuse_server_handoff_diagnostic", None)
+                            elif isinstance(runtime_diagnostic, Mapping):
+                                metadata["kv_prefix_reuse_server_handoff_diagnostic"] = dict(runtime_diagnostic)
+                            else:
+                                _maybe_record_kv_prefix_reuse_handoff(
+                                    metadata,
+                                    step_metadata,
+                                    cache_handles=cache_handles,
+                                    cache_manager=requested_backends[0].cache_manager,
+                                    batch_size=batch_size,
+                                )
                         response_metadata = _build_rpc_inference_response_metadata(
                             metadata,
                             step_metadata if isinstance(step_metadata, dict) else {},
@@ -1572,6 +1623,13 @@ class TransformerConnectionHandler(ConnectionHandler):
                         skip_mb_item = False
 
                         # If this step was already processed through full-batch path, ignore late micro-batch pushes.
+                        observed_kv_prefix_reuse = _extract_kv_prefix_reuse_metadata(mb_metadata)
+                        if observed_kv_prefix_reuse is not None:
+                            mb_metadata["kv_prefix_reuse_server_observed"] = observed_kv_prefix_reuse
+                        observed_live_continuous_batching = _extract_live_continuous_batching_metadata(mb_metadata)
+                        if observed_live_continuous_batching is not None:
+                            mb_metadata["live_continuous_batching_server_observed"] = observed_live_continuous_batching
+
                         if mb_step_id is not None and mb_step_id in processed_step_ids and mb_step_id not in microbatch_step_ids:
                             logger.info(
                                 f"{MBPIPE_LOG_PREFIX} iterate_steps: skipping late micro-batch "
@@ -1621,6 +1679,12 @@ class TransformerConnectionHandler(ConnectionHandler):
                         # Original full-batch request path
                         start_meta_time = perf_counter()
                         metadata = MSGPackSerializer.loads(request.metadata) if request.metadata else {}
+                        observed_kv_prefix_reuse = _extract_kv_prefix_reuse_metadata(metadata)
+                        if observed_kv_prefix_reuse is not None:
+                            metadata["kv_prefix_reuse_server_observed"] = observed_kv_prefix_reuse
+                        observed_live_continuous_batching = _extract_live_continuous_batching_metadata(metadata)
+                        if observed_live_continuous_batching is not None:
+                            metadata["live_continuous_batching_server_observed"] = observed_live_continuous_batching
                         step_id = metadata.get("step_id")
                         pushed = metadata.get("pushed")
                         skip_direct_request = False

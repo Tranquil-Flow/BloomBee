@@ -539,6 +539,20 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 raise RuntimeError("InferenceSession cannot stage and record live continuous batching rows")
 
             request_ids = [f"generate-{batch_idx}" for batch_idx in range(batch_size)]
+            try:
+                from bloombee.client.kv_prefix_reuse import is_kv_prefix_reuse_enabled
+            except Exception:
+                is_kv_prefix_reuse_enabled = lambda: False  # type: ignore[assignment]
+            if batch_size >= 2 and is_kv_prefix_reuse_enabled():
+                kv_recorder = getattr(live_session, "record_kv_prefix_reuse_prefill", None)
+                if callable(kv_recorder):
+                    try:
+                        kv_recorder(input_ids, request_ids=request_ids)
+                    except ValueError:
+                        # Late-arrival one-token rows often do not have a
+                        # same-prefix/varied-suffix prefill shape. Keep live
+                        # continuous batching claim-bounded and omit KV metadata.
+                        pass
             while any(len(tokens) < max_new_tokens for tokens in generated_by_row):
                 while pending and int(arrival_ticks[pending[0]]) <= tick:
                     row_idx = pending.popleft()

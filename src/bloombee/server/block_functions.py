@@ -132,7 +132,68 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _fullbatch_metadata_kwargs(step_metadata: Optional[Dict[str, Any]], batch_size: int) -> Dict[str, int]:
+def _kv_prefix_reuse_metadata_kwargs(step_metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    metadata = step_metadata if isinstance(step_metadata, dict) else {}
+    observed = metadata.get("kv_prefix_reuse_server_observed")
+    if not isinstance(observed, dict):
+        return {}
+    try:
+        common_prefix_count = int(observed.get("common_prefix_token_count", 0) or 0)
+    except Exception:
+        common_prefix_count = 0
+    if common_prefix_count <= 0:
+        tokens = observed.get("common_prefix_token_ids")
+        if isinstance(tokens, (list, tuple)):
+            common_prefix_count = len(tokens)
+    if common_prefix_count <= 0:
+        events = observed.get("events")
+        if isinstance(events, list):
+            event_counts: list[int] = []
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                try:
+                    event_count = int(event.get("common_prefix_token_count", 0) or 0)
+                except Exception:
+                    event_count = 0
+                if event_count <= 0:
+                    event_tokens = event.get("common_prefix_token_ids")
+                    if isinstance(event_tokens, (list, tuple)):
+                        event_count = len(event_tokens)
+                if event_count > 0:
+                    event_counts.append(event_count)
+            common_prefix_count = max(event_counts) if event_counts else 0
+    try:
+        request_count = int(observed.get("request_count", 0) or 0)
+    except Exception:
+        request_count = 0
+    if request_count < 2:
+        events = observed.get("events")
+        if isinstance(events, list):
+            event_request_counts: list[int] = []
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                try:
+                    event_request_count = int(event.get("request_count", 0) or 0)
+                except Exception:
+                    event_request_count = 0
+                requests = event.get("requests")
+                if event_request_count < 2 and isinstance(requests, list):
+                    event_request_count = len(requests)
+                if event_request_count > 0:
+                    event_request_counts.append(event_request_count)
+            request_count = max(event_request_counts) if event_request_counts else request_count
+    if common_prefix_count <= 0 or request_count < 2:
+        return {}
+    return {
+        "kv_prefix_reuse_enabled": True,
+        "kv_prefix_reuse_common_prefix_token_count": common_prefix_count,
+        "kv_prefix_reuse_request_count": request_count,
+    }
+
+
+def _fullbatch_metadata_kwargs(step_metadata: Optional[Dict[str, Any]], batch_size: int) -> Dict[str, Any]:
     """Return KV-cache batch metadata for non-microbatch rpc_inference paths.
 
     The client sends ``full_batch_size``/``micro_batch_size`` on every
@@ -163,11 +224,13 @@ def _fullbatch_metadata_kwargs(step_metadata: Optional[Dict[str, Any]], batch_si
     if micro_batch_size <= 0:
         micro_batch_size = default_micro_batch
 
-    return {
+    result = {
         "batch_offset": batch_offset,
         "full_batch_size": full_batch_size,
         "micro_batch_size": micro_batch_size,
     }
+    result.update(_kv_prefix_reuse_metadata_kwargs(metadata))
+    return result
 
 
 def _live_active_mask_from_step_metadata(step_metadata: Optional[Dict[str, Any]], batch_size: int) -> Optional[torch.Tensor]:
@@ -282,8 +345,8 @@ def _unpack_inference_submit_result(result: Any) -> Tuple[torch.Tensor, Any, Opt
 
 
 def _accumulate_runtime_timing(
-    total: Dict[str, float],
-    sample: Optional[Dict[str, float]],
+    total: Dict[str, Any],
+    sample: Optional[Dict[str, Any]],
 ) -> None:
     if not isinstance(sample, dict):
         return
@@ -292,6 +355,10 @@ def _accumulate_runtime_timing(
             total[key] = float(total.get(key, 0.0)) + float(sample.get(key, 0.0))
         except Exception:
             continue
+    for key in ("kv_prefix_reuse_server_handoff", "kv_prefix_reuse_server_handoff_diagnostic"):
+        value = sample.get(key)
+        if isinstance(value, dict) and key not in total:
+            total[key] = dict(value)
 
 
 def _block_span_from_uids(requested_uids: Sequence[Union[ExpertUID, str]]) -> str:
@@ -1086,6 +1153,7 @@ async def iterate_rpc_inference(
                         need_pruning=need_pruning,
                         is_spec_dec=is_spec_dec,
                         active_mask=_live_active_mask_from_step_metadata(step_metadata, full_batch_size),
+                        **_kv_prefix_reuse_metadata_kwargs(step_metadata),
                         batch_offset=mb_offset,
                         full_batch_size=full_batch_size,
                         micro_batch_size=mb_size,
@@ -1140,6 +1208,7 @@ async def iterate_rpc_inference(
                             need_pruning=need_pruning,
                             is_spec_dec=is_spec_dec,
                             active_mask=_live_active_mask_from_step_metadata(step_metadata, full_batch_size),
+                            **_kv_prefix_reuse_metadata_kwargs(step_metadata),
                             batch_offset=mb_offset,
                             full_batch_size=full_batch_size,
                             micro_batch_size=mb_size,
@@ -1933,6 +2002,7 @@ async def iterate_rpc_inference(
                             need_pruning=need_pruning,
                             is_spec_dec=is_spec_dec,
                             active_mask=mb_inputs.active_mask,
+                            **_kv_prefix_reuse_metadata_kwargs(step_metadata),
                             batch_offset=cache_batch_offset,
                             full_batch_size=cache_full_batch_size,
                             micro_batch_size=mb_size,
@@ -2323,6 +2393,9 @@ async def iterate_rpc_inference(
                                 need_pruning=need_pruning,
                                 is_spec_dec=is_spec_dec,
                                 active_mask=mb_inputs.active_mask,
+                                kv_prefix_reuse_enabled=bool(_kv_prefix_reuse_metadata_kwargs(step_metadata).get("kv_prefix_reuse_enabled", False)),
+                                kv_prefix_reuse_common_prefix_token_count=int(_kv_prefix_reuse_metadata_kwargs(step_metadata).get("kv_prefix_reuse_common_prefix_token_count", 0) or 0),
+                                kv_prefix_reuse_request_count=int(_kv_prefix_reuse_metadata_kwargs(step_metadata).get("kv_prefix_reuse_request_count", 0) or 0),
                                 batch_offset=mb_inputs.batch_offset,
                                 full_batch_size=mb_inputs.full_batch_size,
                                 micro_batch_size=mb_size,
@@ -2753,6 +2826,10 @@ async def iterate_rpc_inference(
             step_metadata["_data_bytes"] = int(
                 sum(len(t.buffer) for t in output_tensors) if output_tensors is not None else 0
             )
+            for key in ("kv_prefix_reuse_server_handoff", "kv_prefix_reuse_server_handoff_diagnostic"):
+                value = runtime_timing_total.get(key)
+                if isinstance(value, dict):
+                    step_metadata[key] = dict(value)
         
         yield output_tensors, can_push, step_metadata
         # print('output_tensors ',output_tensors)

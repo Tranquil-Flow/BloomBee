@@ -149,6 +149,27 @@ def test_kv_prefix_reuse_proof_accepts_same_prefix_varied_suffix_parity_and_timi
     assert len(result["evidence_summary"]["correctness_sha256"]) == 64
 
 
+def test_kv_prefix_reuse_proof_accepts_numeric_logit_parity_when_hashes_differ(tmp_path: Path):
+    from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
+
+    payload = _valid_kv_prefix_reuse_evidence()
+    for row in cast(list[dict[str, Any]], payload["requests"]):
+        row["reuse"]["logits_sha256"] = "d" * 64
+        row["logits_max_abs_diff"] = 0.00002
+        row["logits_mean_abs_diff"] = 0.000002
+    evidence_path = tmp_path / "kv-prefix-reuse-numeric-logits.json"
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = verify_kv_prefix_reuse_evidence(
+        evidence_path=evidence_path,
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+
+    assert result["status"] == "passed"
+    assert result["logit_parity_proven"] is True
+    assert result["evidence_summary"]["request_summaries"][0]["logits_max_abs_diff"] == 0.00002
+
+
 def test_kv_prefix_reuse_proof_rejects_missing_server_observed_cache_reuse(tmp_path: Path):
     from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
 

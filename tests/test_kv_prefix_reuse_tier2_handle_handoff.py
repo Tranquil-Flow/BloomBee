@@ -8,6 +8,8 @@ pytest.importorskip("hivemind")
 
 import torch
 
+from bloombee.data_structures import InferenceMetadata
+from bloombee.server.backend import TransformerBackend
 from bloombee.server.memory_cache_manager import KVCacheManager
 from bloombee.server.prefix_index import KVPrefixIndex, prefix_tokens_sha256
 
@@ -127,3 +129,38 @@ def test_kv_cache_manager_copy_prefix_allows_same_handle_non_overlapping_bh_slic
     assert report["cache_write_destination_handle_id"] == 101
     assert report["cache_read_source_bh_slice"] == [0, 2]
     assert report["cache_write_destination_bh_slice"] == [2, 4]
+
+
+def test_transformer_backend_runtime_kv_prefix_handoff_uses_runtime_cache_slabs():
+    manager = _manager_with_slabs()
+    kv = _kv_pair(s_total=8, bh=4, d=3)
+    src_k, src_v = kv
+    src_k.data.copy_(torch.arange(src_k.data.numel(), dtype=torch.float32).reshape_as(src_k.data))
+    src_v.data.copy_(src_k.data + 10_000.0)
+    manager.cache._allocated_tensors[101] = kv
+
+    backend = TransformerBackend.__new__(TransformerBackend)
+    backend.cache_manager = manager
+    inference_info = InferenceMetadata(
+        "prefix.block.0",
+        0,
+        (101,),
+        None,
+        kv_prefix_reuse_enabled=True,
+        kv_prefix_reuse_common_prefix_token_count=3,
+        kv_prefix_reuse_request_count=2,
+        full_batch_size=2,
+        micro_batch_size=2,
+    )
+
+    result = backend._maybe_record_runtime_kv_prefix_reuse_handoff(inference_info, batch_size=2)
+    report = result["kv_prefix_reuse_server_handoff"]
+
+    torch.testing.assert_close(src_k.data[:3, 2:4], src_k.data[:3, 0:2])
+    torch.testing.assert_close(src_v.data[:3, 2:4], src_v.data[:3, 0:2])
+    assert report["server_handle_handoff_observed"] is True
+    assert report["cache_read_source_handle_id"] == 101
+    assert report["cache_write_destination_handle_id"] == 101
+    assert report["cache_read_source_bh_slice"] == [0, 2]
+    assert report["cache_write_destination_bh_slice"] == [2, 4]
+    assert report["source"] == "bloombee.server.backend"

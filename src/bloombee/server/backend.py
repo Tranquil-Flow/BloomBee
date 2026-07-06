@@ -171,6 +171,47 @@ def _slice_kv_rows(new_kvs: Any, row_start: int, row_end: int, heads_per_row: in
     return sliced
 
 
+def _cache_tensor_shape_for_allocated_pair(pair: Any) -> tuple[int, ...] | None:
+    if not isinstance(pair, Sequence) or not pair:
+        return None
+    tensor = pair[0]
+    data = getattr(tensor, "data", tensor)
+    shape = getattr(data, "shape", getattr(tensor, "shape", None))
+    if shape is None:
+        return None
+    try:
+        return tuple(int(dim) for dim in shape)
+    except Exception:
+        return None
+
+
+def _row_bh_width_from_cache_shape(shape: Sequence[int], batch_size: int) -> int | None:
+    if batch_size < 2:
+        return None
+    if len(shape) >= 4 and int(shape[0]) >= batch_size:
+        return int(shape[1])
+    if len(shape) >= 3 and int(shape[1]) >= batch_size and int(shape[1]) % batch_size == 0:
+        return int(shape[1]) // batch_size
+    return None
+
+
+def _kv_handoff_diagnostic(reason: str, *, inference_info: InferenceMetadata, batch_size: int, **extra: Any) -> dict[str, Any]:
+    diagnostic = {
+        "source": "bloombee.server.backend",
+        "claim_boundary": "kv_prefix_reuse_server_handoff_diagnostic_no_proof",
+        "reason": reason,
+        "server_observed_kv_cache_reuse": False,
+        "live_kv_cache_reuse_proven": False,
+        "speedup_proven": False,
+        "can_update_demo_status": False,
+        "batch_size": int(batch_size),
+        "common_prefix_token_count": int(getattr(inference_info, "kv_prefix_reuse_common_prefix_token_count", 0) or 0),
+        "prefix_length": int(getattr(inference_info, "kv_prefix_reuse_common_prefix_token_count", 0) or 0),
+    }
+    diagnostic.update(extra)
+    return diagnostic
+
+
 _STEP_PROFILE_ENABLED = os.environ.get("BLOOMBEE_STEP_PROFILE", "0") == "1"
 _STEP_PROFILE_INTERVAL = int(os.environ.get("BLOOMBEE_STEP_PROFILE_INTERVAL", "32"))
 
@@ -574,10 +615,103 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
             micro_batch_size=inference_info.micro_batch_size,
         )
 
+    def _maybe_record_runtime_kv_prefix_reuse_handoff(
+        self,
+        inference_info: InferenceMetadata,
+        *,
+        batch_size: int,
+    ) -> dict[str, Any]:
+        """Runtime-side KV prefix handoff; runs where MemoryCache slabs exist."""
+
+        if not bool(getattr(inference_info, "kv_prefix_reuse_enabled", False)):
+            if os.environ.get("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "0") == "1" and int(batch_size) >= 2:
+                return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                    "runtime_kv_prefix_metadata_not_armed",
+                    inference_info=inference_info,
+                    batch_size=batch_size,
+                    kv_prefix_reuse_enabled=False,
+                    kv_prefix_reuse_request_count=int(getattr(inference_info, "kv_prefix_reuse_request_count", 0) or 0),
+                )}
+            return {}
+        request_count = int(getattr(inference_info, "kv_prefix_reuse_request_count", 0) or 0)
+        common_prefix_count = int(getattr(inference_info, "kv_prefix_reuse_common_prefix_token_count", 0) or 0)
+        if request_count < 2 or int(batch_size) < 2:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "batch_size_below_two", inference_info=inference_info, batch_size=batch_size
+            )}
+        if common_prefix_count <= 0:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "missing_positive_prefix_length", inference_info=inference_info, batch_size=batch_size
+            )}
+        if not inference_info.cache_handles:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "missing_cache_handle", inference_info=inference_info, batch_size=batch_size
+            )}
+        handle = inference_info.cache_handles[0]
+        allocated = getattr(getattr(self.cache_manager, "cache", None), "_allocated_tensors", {})
+        pair = allocated.get(handle) if isinstance(allocated, dict) else None
+        shape = _cache_tensor_shape_for_allocated_pair(pair)
+        if shape is None:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "missing_cache_tensor_shape",
+                inference_info=inference_info,
+                batch_size=batch_size,
+                cache_read_source_handle_id=handle,
+            )}
+        full_batch_size = int(inference_info.full_batch_size or batch_size)
+        row_bh_width = _row_bh_width_from_cache_shape(shape, full_batch_size)
+        if row_bh_width is None or row_bh_width <= 0:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "unsupported_cache_tensor_shape",
+                inference_info=inference_info,
+                batch_size=batch_size,
+                cache_read_source_handle_id=handle,
+                cache_tensor_shape=list(shape),
+            )}
+        copy_fn = getattr(self.cache_manager, "copy_prefix_from_handle", None)
+        if not callable(copy_fn):
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "missing_copy_prefix_from_handle",
+                inference_info=inference_info,
+                batch_size=batch_size,
+                cache_read_source_handle_id=handle,
+                cache_tensor_shape=list(shape),
+            )}
+        source_slice = (0, row_bh_width)
+        destination_slice = (row_bh_width, row_bh_width * 2)
+        try:
+            handoff = copy_fn(
+                source_handle=handle,
+                destination_handle=handle,
+                prefix_length=common_prefix_count,
+                source_bh_slice=source_slice,
+                destination_bh_slice=destination_slice,
+            )
+        except Exception as exc:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "copy_prefix_from_handle_failed",
+                inference_info=inference_info,
+                batch_size=batch_size,
+                cache_read_source_handle_id=handle,
+                cache_tensor_shape=list(shape),
+                error=f"{type(exc).__name__}: {exc}",
+            )}
+        if not isinstance(handoff, dict) or handoff.get("server_handle_handoff_observed") is not True:
+            return {"kv_prefix_reuse_server_handoff_diagnostic": _kv_handoff_diagnostic(
+                "copy_prefix_from_handle_not_observed",
+                inference_info=inference_info,
+                batch_size=batch_size,
+                cache_read_source_handle_id=handle,
+                cache_tensor_shape=list(shape),
+            )}
+        handoff.setdefault("source", "bloombee.server.backend")
+        handoff.setdefault("client_claimed_prefix_token_count", common_prefix_count)
+        return {"kv_prefix_reuse_server_handoff": dict(handoff)}
+
     def prune_draft_tree(
-        self, 
-        norm_hidden_states: torch.Tensor, 
-        draft_tokens: torch.Tensor, 
+        self,
+        norm_hidden_states: torch.Tensor,
+        draft_tokens: torch.Tensor,
         tree_attention_mask: torch.Tensor
     ):
         results = self.pruner_manager.prune_speculation_tree(
@@ -943,6 +1077,10 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                     kv_cache_position_ids=kv_cache_position_ids,
                     cache_tensors=cache_tensors,
                 )
+                runtime_metadata = self._maybe_record_runtime_kv_prefix_reuse_handoff(
+                    inference_info,
+                    batch_size=batch_size,
+                )
                 if self._step_profile_enabled:
                     if torch.cuda.is_available():
                         torch.cuda.synchronize()
@@ -1002,7 +1140,7 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                     output_hidden_states = valid_hidden_states.unsqueeze(0)
                     
                 self._last_keep_indices = keep_indices + cache_len
-                return (output_hidden_states, keep_indices) # Return output hidden states
+                return (output_hidden_states, keep_indices, runtime_metadata) # Return output hidden states
                 
         except Exception as e:
             logger.exception(
@@ -1613,16 +1751,25 @@ class _MergedInferenceStep:
             mbpipe_log_path_entry(logger, "backend._MergedInferenceStep", batch_size=batch_size)
         
         kv_timing_before = self._snapshot_kv_timing()
+        runtime_metadata: Dict[str, Any] = {}
 
         # Process all blocks for this micro-batch
         for inference_info, optional_prompt in zip(inference_infos, optional_prompts):
             if optional_prompt is not None:
                 hidden_states[:, : optional_prompt.shape[1]] += optional_prompt
-            (hidden_states, keep_indices) = self.backends[inference_info.uid].inference_step(
+            step_result = self.backends[inference_info.uid].inference_step(
                 hidden_states, hypo_ids, inference_info
             )
+            if not isinstance(step_result, (tuple, list)) or len(step_result) < 2:
+                raise RuntimeError(f"Unexpected inference_step result: {step_result!r}")
+            hidden_states, keep_indices = step_result[0], step_result[1]
+            if len(step_result) >= 3 and isinstance(step_result[2], dict):
+                for key, value in step_result[2].items():
+                    if isinstance(value, dict) and key not in runtime_metadata:
+                        runtime_metadata[key] = dict(value)
 
         kv_timing_after = self._snapshot_kv_timing()
         kv_timing_delta = self._compute_kv_timing_delta(kv_timing_before, kv_timing_after)
+        kv_timing_delta.update(runtime_metadata)
 
         return (hidden_states, keep_indices, kv_timing_delta)

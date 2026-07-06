@@ -1,0 +1,193 @@
+{
+  "baseline_reuse_enabled": false,
+  "cache_reuse_enabled": true,
+  "can_update_demo_status": false,
+  "claim_boundary": "strict_kv_prefix_reuse_v32_live_server_handoff_no_speedup_claim",
+  "common_prefix_token_ids": [
+    29871
+  ],
+  "live_kv_cache_reuse_proven": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "no_reuse_baseline": true,
+  "prefix_reuse_enabled": true,
+  "proof_gate": "kv_prefix_reuse",
+  "requests": [
+    {
+      "baseline": {
+        "generated_token_ids": [
+          5405,
+          773
+        ],
+        "logits_sha256": "6b9a5550f2b36060ff7f0acda6e9ee2313798eec70979627921565d87662c16a",
+        "seconds": 14.285188913345337
+      },
+      "logits_max_abs_diff": 1.9073486328125e-05,
+      "logits_mean_abs_diff": 1.7426801059627906e-06,
+      "prefix_token_ids": [
+        29871
+      ],
+      "request_id": "suffix-a",
+      "reuse": {
+        "generated_token_ids": [
+          5405,
+          773
+        ],
+        "logits_sha256": "abd29b9b5eba649af4ba178453236bcd99433c1b874331698ad95a6f6aafd8cd",
+        "reused_prefix_token_count": 1,
+        "seconds": 0.17208647727966309
+      },
+      "suffix_token_ids": [
+        319
+      ]
+    },
+    {
+      "baseline": {
+        "generated_token_ids": [
+          29889,
+          29871
+        ],
+        "logits_sha256": "1f8666e75cb1b770560760a30169ec26fcdfa0c3b9535d0b1105e6534de9d4e0",
+        "seconds": 0.2781088352203369
+      },
+      "logits_max_abs_diff": 2.002716064453125e-05,
+      "logits_mean_abs_diff": 1.5708253922639415e-06,
+      "prefix_token_ids": [
+        29871
+      ],
+      "request_id": "suffix-b",
+      "reuse": {
+        "generated_token_ids": [
+          29889,
+          29871
+        ],
+        "logits_sha256": "1801c2b5e4faceb91c31bcfdea97fbd09dc13bfb383283c9163d3291b5645609",
+        "reused_prefix_token_count": 1,
+        "seconds": 0.17208647727966309
+      },
+      "suffix_token_ids": [
+        350
+      ]
+    }
+  ],
+  "server_observations": [
+    {
+      "cache_handle_count": 22,
+      "cache_handle_group_count": 22,
+      "cache_read_source_bh_slice": [
+        0,
+        32
+      ],
+      "cache_read_source_handle_id": 88,
+      "cache_write_destination_bh_slice": [
+        32,
+        64
+      ],
+      "cache_write_destination_handle_id": 88,
+      "can_update_demo_status": false,
+      "claim_boundary": "kv_prefix_reuse_server_cache_read_observed_no_speedup",
+      "common_prefix_token_count": 1,
+      "kv_prefix_byte_checksum_sha256": "65933ccfac4da90b1dd96b3f8c63c715e9c41ee5081e5ad576d31b875a083180",
+      "live_kv_cache_reuse_proven": true,
+      "opt_in_enabled": true,
+      "opt_in_flag": "BLOOMBEE_ENABLE_KV_PREFIX_REUSE",
+      "prefix_length": 1,
+      "requested_block_count": 22,
+      "requested_uids": [
+        "TinyLlama-1-1B-Chat-v1-0-hf.0",
+        "TinyLlama-1-1B-Chat-v1-0-hf.1",
+        "TinyLlama-1-1B-Chat-v1-0-hf.2",
+        "TinyLlama-1-1B-Chat-v1-0-hf.3",
+        "TinyLlama-1-1B-Chat-v1-0-hf.4",
+        "TinyLlama-1-1B-Chat-v1-0-hf.5",
+        "TinyLlama-1-1B-Chat-v1-0-hf.6",
+        "TinyLlama-1-1B-Chat-v1-0-hf.7",
+        "TinyLlama-1-1B-Chat-v1-0-hf.8",
+        "TinyLlama-1-1B-Chat-v1-0-hf.9",
+        "TinyLlama-1-1B-Chat-v1-0-hf.10",
+        "TinyLlama-1-1B-Chat-v1-0-hf.11",
+        "TinyLlama-1-1B-Chat-v1-0-hf.12",
+        "TinyLlama-1-1B-Chat-v1-0-hf.13",
+        "TinyLlama-1-1B-Chat-v1-0-hf.14",
+        "TinyLlama-1-1B-Chat-v1-0-hf.15",
+        "TinyLlama-1-1B-Chat-v1-0-hf.16",
+        "TinyLlama-1-1B-Chat-v1-0-hf.17",
+        "TinyLlama-1-1B-Chat-v1-0-hf.18",
+        "TinyLlama-1-1B-Chat-v1-0-hf.19",
+        "TinyLlama-1-1B-Chat-v1-0-hf.20",
+        "TinyLlama-1-1B-Chat-v1-0-hf.21"
+      ],
+      "reused_prefix_token_count": 1,
+      "server_handle_handoff_observed": true,
+      "server_observed_kv_cache_reuse": true,
+      "server_observed_metadata": true,
+      "server_recovered_prefix_token_count": 1,
+      "source": "bloombee.server.handler",
+      "speedup_proven": false,
+      "step_id": "885edc5e-fda0-4c5c-913d-c3ed683a1f1d"
+    },
+    {
+      "cache_handle_count": 22,
+      "cache_handle_group_count": 22,
+      "cache_read_source_bh_slice": [
+        0,
+        32
+      ],
+      "cache_read_source_handle_id": 110,
+      "cache_write_destination_bh_slice": [
+        32,
+        64
+      ],
+      "cache_write_destination_handle_id": 110,
+      "can_update_demo_status": false,
+      "claim_boundary": "kv_prefix_reuse_server_cache_read_observed_no_speedup",
+      "common_prefix_token_count": 1,
+      "kv_prefix_byte_checksum_sha256": "65933ccfac4da90b1dd96b3f8c63c715e9c41ee5081e5ad576d31b875a083180",
+      "live_kv_cache_reuse_proven": true,
+      "opt_in_enabled": true,
+      "opt_in_flag": "BLOOMBEE_ENABLE_KV_PREFIX_REUSE",
+      "prefix_length": 1,
+      "requested_block_count": 22,
+      "requested_uids": [
+        "TinyLlama-1-1B-Chat-v1-0-hf.0",
+        "TinyLlama-1-1B-Chat-v1-0-hf.1",
+        "TinyLlama-1-1B-Chat-v1-0-hf.2",
+        "TinyLlama-1-1B-Chat-v1-0-hf.3",
+        "TinyLlama-1-1B-Chat-v1-0-hf.4",
+        "TinyLlama-1-1B-Chat-v1-0-hf.5",
+        "TinyLlama-1-1B-Chat-v1-0-hf.6",
+        "TinyLlama-1-1B-Chat-v1-0-hf.7",
+        "TinyLlama-1-1B-Chat-v1-0-hf.8",
+        "TinyLlama-1-1B-Chat-v1-0-hf.9",
+        "TinyLlama-1-1B-Chat-v1-0-hf.10",
+        "TinyLlama-1-1B-Chat-v1-0-hf.11",
+        "TinyLlama-1-1B-Chat-v1-0-hf.12",
+        "TinyLlama-1-1B-Chat-v1-0-hf.13",
+        "TinyLlama-1-1B-Chat-v1-0-hf.14",
+        "TinyLlama-1-1B-Chat-v1-0-hf.15",
+        "TinyLlama-1-1B-Chat-v1-0-hf.16",
+        "TinyLlama-1-1B-Chat-v1-0-hf.17",
+        "TinyLlama-1-1B-Chat-v1-0-hf.18",
+        "TinyLlama-1-1B-Chat-v1-0-hf.19",
+        "TinyLlama-1-1B-Chat-v1-0-hf.20",
+        "TinyLlama-1-1B-Chat-v1-0-hf.21"
+      ],
+      "reused_prefix_token_count": 1,
+      "server_handle_handoff_observed": true,
+      "server_observed_kv_cache_reuse": true,
+      "server_observed_metadata": true,
+      "server_recovered_prefix_token_count": 1,
+      "source": "bloombee.server.handler",
+      "speedup_proven": false,
+      "step_id": "46952498-a2a3-475c-8611-864f54b6c95f"
+    }
+  ],
+  "server_observed_kv_cache_reuse": true,
+  "source": "strict_kv_prefix_reuse_runner_v32.py",
+  "speedup_proven": false,
+  "telemetry_tags": [
+    "kv_prefix_reuse",
+    "no_reuse_baseline",
+    "same_prefix_varied_suffix",
+    "live_server_capture"
+  ]
+}
