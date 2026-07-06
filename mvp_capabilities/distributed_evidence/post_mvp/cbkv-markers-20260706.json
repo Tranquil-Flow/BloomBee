@@ -1,0 +1,32 @@
+{
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "timestamp": "2026-07-06T11:37:00",
+  "blocks": 22,
+  "results": {
+    "from_pretrained_works": true,
+    "load_time_s": 1.6,
+    "coherent_output": "You are a helpful assistant. Answer concisely. What is 2+2?",
+    "batch_size_2_works": true
+  },
+  "continuous_batching": {
+    "server_marker_fired": true,
+    "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+    "live_server_proven": true,
+    "method": "from_pretrained + model.generate() with low_cpu_mem_usage=False"
+  },
+  "kv_prefix_reuse": {
+    "server_marker_fired": "in_response_not_log",
+    "note": "server handler stores KV observation in response metadata (no logger.info), CB-only is logged",
+    "metadata_flows": true,
+    "triggers_on_batch_size_gte_2": true
+  },
+  "mps_issue": {
+    "error": "Placeholder storage has not been allocated on MPS device",
+    "impact": "each step retries once, adds ~12s per token",
+    "workaround": "RemoteSequential direct connect avoids this (0.6s vs 62s)"
+  },
+  "connect_methods": {
+    "from_pretrained": "works with initial_peers (no dht=), low_cpu_mem_usage=False",
+    "remote_sequential_direct": "works, 100x faster, no CB/KV markers"
+  }
+}
