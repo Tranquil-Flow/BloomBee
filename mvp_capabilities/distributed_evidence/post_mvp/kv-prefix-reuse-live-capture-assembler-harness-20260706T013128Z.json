@@ -1,0 +1,24 @@
+{
+  "assemble_command": "python -m mvp_capabilities.kv_prefix_reuse_live_capture assemble --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --common-prefix-token-ids '<COMMON_PREFIX_IDS>' --server-report .local/kv-prefix-reuse-server-report.json --request suffix-a:<SUFFIX_A_IDS>:.local/kv-prefix-baseline-suffix-a.json:.local/kv-prefix-reuse-suffix-a.json --request suffix-b:<SUFFIX_B_IDS>:.local/kv-prefix-baseline-suffix-b.json:.local/kv-prefix-reuse-suffix-b.json --out .local/kv-prefix-reuse-live-capture.json",
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "kv_prefix_reuse_live_capture_assembler_harness_no_live_cache_reuse_proof",
+  "evidence_path": ".local/kv-prefix-reuse-live-capture.json",
+  "live_kv_cache_reuse_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": [
+    "Planning output is not proof.",
+    "The assembler refuses to infer KV tensor reuse from client-only rows or metadata-only reports.",
+    "Promotion still requires kv_prefix_reuse_proof.py to pass on real live-server cache-reuse evidence and measured memory/wall-clock impact."
+  ],
+  "operator_commands": [
+    "Start the target server with BLOOMBEE_ENABLE_KV_PREFIX_REUSE=1 and a KV-cache reuse implementation enabled.",
+    "Capture no-reuse baseline JSON rows and reuse-path JSON rows for at least two same-prefix varied-suffix requests.",
+    "Capture a server report that explicitly states server_observed_kv_cache_reuse=true and live_kv_cache_reuse_proven=true.",
+    "python -m mvp_capabilities.kv_prefix_reuse_live_capture assemble --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --common-prefix-token-ids '<COMMON_PREFIX_IDS>' --server-report .local/kv-prefix-reuse-server-report.json --request suffix-a:<SUFFIX_A_IDS>:.local/kv-prefix-baseline-suffix-a.json:.local/kv-prefix-reuse-suffix-a.json --request suffix-b:<SUFFIX_B_IDS>:.local/kv-prefix-baseline-suffix-b.json:.local/kv-prefix-reuse-suffix-b.json --out .local/kv-prefix-reuse-live-capture.json",
+    "python -m mvp_capabilities.kv_prefix_reuse_proof verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/kv-prefix-reuse-live-capture.json"
+  ],
+  "proof_gate": "kv_prefix_reuse",
+  "speedup_proven": false,
+  "verify_command": "python -m mvp_capabilities.kv_prefix_reuse_proof verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/kv-prefix-reuse-live-capture.json"
+}
