@@ -582,46 +582,75 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                         )
                     )
 
-                staged_batch = {
-                    "tick": tick,
-                    "request_ids": [row.request_id for row in rows],
-                    "positions": [row.position for row in rows],
-                    "input_token_ids": [row.input_token_id for row in rows],
-                    "active_mask": active_mask,
-                    "batch_offset": 0,
-                    "full_batch_size": batch_size,
-                    "micro_batch_size": batch_size,
-                }
-                if callable(batch_stager):
-                    batch_stager(staged_batch)
-                else:
-                    assert callable(row_stager)
-                    row_stager(rows)
-                step_ids = torch.tensor(input_tokens, dtype=input_ids.dtype, device=input_ids.device).unsqueeze(1)
-                hidden = embed(step_ids)
-                row_prefill_lengths = torch.tensor(
-                    [len(generated_by_row[row_idx]) for row_idx in range(batch_size)],
-                    dtype=torch.long,
-                    device=hidden.device,
-                )
-                hidden = layers(hidden, prefill_length=row_prefill_lengths)
-                if hidden.shape[0] < batch_size:
-                    raise RuntimeError(
-                        "live continuous batching server returned fewer rows than the logical slot batch"
+                compute_groups: list[list[int]] = []
+                for row_idx in row_indices:
+                    position = len(generated_by_row[row_idx])
+                    if (
+                        not compute_groups
+                        or row_idx != compute_groups[-1][-1] + 1
+                        or position != len(generated_by_row[compute_groups[-1][0]])
+                    ):
+                        compute_groups.append([row_idx])
+                    else:
+                        compute_groups[-1].append(row_idx)
+
+                full_logits = None
+                output_tokens = list(input_tokens)
+                for compute_row_indices in compute_groups:
+                    compute_batch_size = len(compute_row_indices)
+                    group_active_mask = [row_idx in compute_row_indices for row_idx in range(batch_size)]
+                    staged_batch = {
+                        "tick": tick,
+                        "request_ids": [row.request_id for row in rows],
+                        "positions": [row.position for row in rows],
+                        "input_token_ids": [row.input_token_id for row in rows],
+                        "active_mask": group_active_mask,
+                        "batch_offset": compute_row_indices[0],
+                        "full_batch_size": batch_size,
+                        "micro_batch_size": compute_batch_size,
+                    }
+                    if callable(batch_stager):
+                        batch_stager(staged_batch)
+                    else:
+                        assert callable(row_stager)
+                        row_stager([rows[row_idx] for row_idx in compute_row_indices])
+                    step_ids = torch.tensor(
+                        [input_tokens[row_idx] for row_idx in compute_row_indices],
+                        dtype=input_ids.dtype,
+                        device=input_ids.device,
+                    ).unsqueeze(1)
+                    hidden = embed(step_ids)
+                    row_prefill_lengths = torch.tensor(
+                        [len(generated_by_row[row_idx]) for row_idx in compute_row_indices],
+                        dtype=torch.long,
+                        device=hidden.device,
                     )
-                if hidden.shape[0] > batch_size:
-                    hidden = hidden[:batch_size]
-                hidden = ln_f(hidden)
-                logits = lm_head(hidden[:, -1:, :])
-                next_id = logits.argmax(dim=-1)
-                output_tokens = [int(token.detach().cpu().item()) for token in next_id[:, 0]]
+                    hidden = layers(hidden, prefill_length=row_prefill_lengths)
+                    if hidden.shape[0] < compute_batch_size:
+                        raise RuntimeError(
+                            "live continuous batching server returned fewer rows than the active compute batch"
+                        )
+                    if hidden.shape[0] > compute_batch_size:
+                        hidden = hidden[:compute_batch_size]
+                    hidden = ln_f(hidden)
+                    logits = lm_head(hidden[:, -1:, :])
+                    next_id = logits.argmax(dim=-1)
+
+                    if full_logits is None:
+                        full_logits = logits.new_zeros((batch_size, *logits.shape[1:]))
+                    for compute_idx, row_idx in enumerate(compute_row_indices):
+                        full_logits[row_idx] = logits[compute_idx]
+                        output_tokens[row_idx] = int(next_id[compute_idx, 0].detach().cpu().item())
+
+                if full_logits is None:
+                    raise RuntimeError("live continuous batching tick had no active compute rows")
                 recorder(
                     rows,
                     active_mask=active_mask,
                     output_token_ids=output_tokens,
-                    output_logits_sha256=_logits_sha256_per_row(logits),
-                    output_logits_summary=_logits_summary_per_row(logits),
-                    output_logits_values=_logits_values_per_row_if_enabled(logits),
+                    output_logits_sha256=_logits_sha256_per_row(full_logits),
+                    output_logits_summary=_logits_summary_per_row(full_logits),
+                    output_logits_values=_logits_values_per_row_if_enabled(full_logits),
                 )
 
                 for row_idx in row_indices:

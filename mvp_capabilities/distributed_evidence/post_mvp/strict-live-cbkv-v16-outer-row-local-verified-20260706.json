@@ -1,0 +1,40 @@
+{
+  "batched_tick_count": 1,
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "verified_live_continuous_batching_server_concurrent_arrival_parity",
+  "evidence_path": "mvp_capabilities/distributed_evidence/post_mvp/strict-live-cbkv-v16-outer-row-local-verifier-input-20260706.json",
+  "failed_checks": [],
+  "late_arrival_observed": true,
+  "live_server_late_arrival_parity_proven": true,
+  "live_server_proven": true,
+  "logits_fingerprint_parity_proven": true,
+  "logits_numeric_parity_proven": false,
+  "logits_parity_proven": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "continuous_batching",
+  "proof_status_update": {},
+  "request_count": 2,
+  "requests": [
+    {
+      "arrival_tick": 0,
+      "generated_token_count": 2,
+      "logits_fingerprint_match": true,
+      "logits_numeric_match": false,
+      "request_id": "generate-0",
+      "tokens_match": true
+    },
+    {
+      "arrival_tick": 1,
+      "generated_token_count": 2,
+      "logits_fingerprint_match": true,
+      "logits_numeric_match": false,
+      "request_id": "generate-1",
+      "tokens_match": true
+    }
+  ],
+  "speedup_proven": false,
+  "status": "passed",
+  "token_parity_proven": true,
+  "wallclock_speedup_proven": false
+}

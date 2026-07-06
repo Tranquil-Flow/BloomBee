@@ -316,13 +316,15 @@ def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch)
 
     assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
     assert model.fallback_calls == []
-    # Late arrivals now freeze the wire batch to the logical slot count on
-    # every tick. Inactive slots are explicit in active_mask rather than
-    # changing the server-visible batch shape mid-session.
+    # Late arrivals preserve full logical tick metadata, but compact inactive
+    # rows out of the wire/compute batch. If active rows have different cache
+    # positions, compute is split into position-homogeneous slices so one row's
+    # past cannot perturb another row's logits.
     assert [call.squeeze(-1).to(dtype=torch.long).tolist() for call in model.transformer.h.hidden_calls] == [
-        [[101], [201]],
-        [[10], [201]],
-        [[11], [20]],
+        [[101]],
+        [[10]],
+        [[201]],
+        [[20]],
     ]
     assert len(model.transformer.h.sessions) == 1
     assert [
@@ -335,14 +337,16 @@ def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch)
         }
         for batch in model.transformer.h.pending_live_batches_seen
     ] == [
-        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, False], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
-        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, True], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
-        {"request_ids": ["generate-0", "generate-1"], "active_mask": [False, True], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, False], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 1},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, False], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 1},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [False, True], "batch_offset": 1, "full_batch_size": 2, "micro_batch_size": 1},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [False, True], "batch_offset": 1, "full_batch_size": 2, "micro_batch_size": 1},
     ]
     assert [kwargs["prefill_length"].detach().cpu().tolist() for kwargs in model.transformer.h.hidden_kwargs] == [
-        [0, 0],
-        [1, 0],
-        [2, 1],
+        [0],
+        [1],
+        [0],
+        [1],
     ]
     report = model.transformer.h.sessions[0].live_continuous_batching_report()
     assert getattr(model.transformer.h.sessions[0], "_live_continuous_full_batch_size") == 2
@@ -358,7 +362,7 @@ def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch)
             "active_mask": [True, False],
             "positions": [0, 0],
             "input_token_ids": [101, 201],
-            "output_token_ids": [10, 20],
+            "output_token_ids": [10, 201],
         },
         {
             "tick": 1,
@@ -374,7 +378,7 @@ def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch)
             "active_mask": [False, True],
             "positions": [2, 1],
             "input_token_ids": [11, 20],
-            "output_token_ids": [0, 21],
+            "output_token_ids": [11, 21],
         },
     ]
     assert report["live_server_proven"] is False
@@ -535,6 +539,232 @@ def test_live_continuous_tick_rows_are_sent_in_rpc_inference_metadata(monkeypatc
     )
     stale_metadata = MSGPackSerializer.loads(captured_requests[1].metadata)
     assert "live_continuous_batching" not in stale_metadata
+
+
+def test_server_session_preserves_live_metadata_after_failed_rpc_attempt(monkeypatch):
+    import asyncio
+
+    from hivemind.proto import runtime_pb2
+    from hivemind.utils.tensor_descr import BatchTensorDescriptor
+
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+    from bloombee.utils.hivemind_compat import MSGPackSerializer
+    from bloombee.utils.lossless_transport import serialize_torch_tensor
+    from bloombee.utils.misc import DUMMY, DUMMY_INT64
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    inputs = torch.zeros((1, 1, 4), dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(inputs, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=3,
+        live_continuous_full_batch_size=2,
+    )
+    batch = {
+        "tick": 1,
+        "request_ids": ["generate-0", "generate-1"],
+        "positions": [1, 0],
+        "input_token_ids": [29889, 350],
+        "active_mask": [True, False],
+        "batch_offset": 0,
+        "full_batch_size": 2,
+        "micro_batch_size": 1,
+    }
+    session.stage_live_continuous_tick_batch(batch)
+    captured_metadata = []
+    calls = 0
+
+    async def flaky_step(request):
+        nonlocal calls
+        calls += 1
+        captured_metadata.append(MSGPackSerializer.loads(request.metadata))
+        if calls == 1:
+            raise RuntimeError("transient mps placeholder")
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(inputs, runtime_pb2.CompressionType.NONE)]
+        )
+
+    session._step = flaky_step
+
+    with pytest.raises(RuntimeError, match="transient mps placeholder"):
+        session.step(
+            inputs,
+            DUMMY,
+            DUMMY_INT64,
+            prefill_length=torch.tensor([1], dtype=torch.long),
+            step_id="failed",
+        )
+
+    assert session._pending_live_continuous_tick_batch == batch
+
+    session.step(
+        inputs,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.tensor([1], dtype=torch.long),
+        step_id="retry",
+    )
+
+    assert captured_metadata[0]["live_continuous_batching"]["tick_batches"][0]["active_mask"] == [True, False]
+    assert captured_metadata[1]["live_continuous_batching"]["tick_batches"][0]["active_mask"] == [True, False]
+    assert session._pending_live_continuous_tick_batch is None
+
+
+def test_live_compact_replacement_session_sends_row_local_history(monkeypatch):
+    import asyncio
+
+    from hivemind.proto import runtime_pb2
+    from hivemind.utils.tensor_descr import BatchTensorDescriptor
+
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+    from bloombee.utils.hivemind_compat import MSGPackSerializer
+    from bloombee.utils.lossless_transport import deserialize_torch_tensor, serialize_torch_tensor
+    from bloombee.utils.misc import DUMMY, DUMMY_INT64
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    current = torch.full((1, 1, 4), 2.0, dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(current, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=3,
+        live_continuous_full_batch_size=2,
+    )
+    session.history = torch.zeros((2, 2, 4), dtype=torch.float32)
+    session.history[0, 0, :] = 1.0
+    session.stage_live_continuous_tick_batch(
+        {
+            "tick": 1,
+            "request_ids": ["generate-0", "generate-1"],
+            "positions": [1, 0],
+            "input_token_ids": [29889, 350],
+            "active_mask": [True, False],
+            "batch_offset": 0,
+            "full_batch_size": 2,
+            "micro_batch_size": 1,
+        }
+    )
+    captured_inputs = []
+    captured_metadata = []
+
+    async def fake_step(request):
+        captured_inputs.append(deserialize_torch_tensor(request.tensors[0]))
+        captured_metadata.append(MSGPackSerializer.loads(request.metadata))
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(captured_inputs[-1], runtime_pb2.CompressionType.NONE)]
+        )
+
+    session._step = fake_step
+
+    session.step(
+        current,
+        DUMMY,
+        DUMMY_INT64,
+        prefill_length=torch.tensor([1], dtype=torch.long),
+        step_id="retry-history",
+    )
+
+    assert captured_metadata[0]["start_from_position"] == 0
+    assert captured_inputs[0].shape == (1, 2, 4)
+    assert torch.equal(captured_inputs[0][0, 0, :], torch.ones(4))
+    assert torch.equal(captured_inputs[0][0, 1, :], torch.full((4,), 2.0))
+
+
+def test_live_compact_microbatch_slices_use_row_local_position_for_retries(monkeypatch):
+    import asyncio
+
+    from hivemind.proto import runtime_pb2
+    from hivemind.utils.tensor_descr import BatchTensorDescriptor
+
+    from bloombee.client import inference_session as inference_session_mod
+    from bloombee.client.inference_session import _ServerInferenceSession
+    from bloombee.utils.hivemind_compat import MSGPackSerializer
+    from bloombee.utils.lossless_transport import serialize_torch_tensor
+    from bloombee.utils.misc import DUMMY, DUMMY_INT64
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
+    monkeypatch.setattr(
+        inference_session_mod.RemoteExpertWorker,
+        "run_coroutine",
+        staticmethod(lambda coro: asyncio.run(coro)),
+    )
+
+    inputs = torch.zeros((1, 1, 4), dtype=torch.float32)
+    schema = (BatchTensorDescriptor.from_tensor(inputs, runtime_pb2.CompressionType.NONE),)
+    session = _ServerInferenceSession(
+        SimpleNamespace(use_server_to_server=False, request_timeout=1.0),
+        SimpleNamespace(start=0, end=1, peer_id="peer-1"),
+        "block.0",
+        {"inference_schema": (schema, {})},
+        asyncio.Queue(),
+        None,
+        max_length=3,
+        live_continuous_full_batch_size=2,
+    )
+    captured_metadata = []
+
+    async def fake_step(request):
+        captured_metadata.append(MSGPackSerializer.loads(request.metadata))
+        session.stepped = True
+        return runtime_pb2.ExpertResponse(
+            tensors=[serialize_torch_tensor(inputs, runtime_pb2.CompressionType.NONE)]
+        )
+
+    session._step = fake_step
+    slices = [
+        (0, 0, [True, False], "s0"),
+        (0, 1, [True, False], "s1"),
+        (1, 0, [False, True], "s2"),
+        (1, 1, [False, True], "s3"),
+    ]
+
+    for batch_offset, row_position, active_mask, step_id in slices:
+        session.stage_live_continuous_tick_batch(
+            {
+                "tick": int(row_position),
+                "request_ids": ["generate-0", "generate-1"],
+                "positions": [row_position, row_position],
+                "input_token_ids": [101, 201],
+                "active_mask": active_mask,
+                "batch_offset": batch_offset,
+                "full_batch_size": 2,
+                "micro_batch_size": 1,
+            }
+        )
+        session.step(
+            inputs,
+            DUMMY,
+            DUMMY_INT64,
+            prefill_length=torch.tensor([row_position], dtype=torch.long),
+            step_id=step_id,
+        )
+
+    assert [metadata["start_from_position"] for metadata in captured_metadata] == [0, 1, 0, 1]
+    assert session.position == 2
+    assert session.history.shape == (2, 2, 4)
 
 
 def test_server_observes_live_continuous_batching_metadata_only_with_opt_in(monkeypatch):

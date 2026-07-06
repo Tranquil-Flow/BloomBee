@@ -65,6 +65,112 @@ def _flag_to_bool(value) -> bool:
     return bool(value)
 
 
+def _active_mask_list(value: Any, expected_batch: int) -> Optional[list[bool]]:
+    if value is None or expected_batch <= 0:
+        return None
+    if torch.is_tensor(value):
+        if value.numel() == 0:
+            return None
+        mask = [bool(item) for item in value.detach().to(device="cpu", dtype=torch.bool).flatten().tolist()]
+    else:
+        try:
+            mask = [bool(item) for item in value]
+        except TypeError:
+            return None
+    if len(mask) != expected_batch:
+        return None
+    return mask
+
+
+def _row_position_list(value: Any, expected_batch: int) -> Optional[list[int]]:
+    if value is None or expected_batch <= 0:
+        return None
+    if torch.is_tensor(value):
+        if value.numel() == 0:
+            return None
+        raw = value.detach().to(device="cpu", dtype=torch.long).flatten().tolist()
+    else:
+        try:
+            raw = list(value)
+        except TypeError:
+            return None
+    if len(raw) != expected_batch:
+        return None
+    positions: list[int] = []
+    for item in raw:
+        if isinstance(item, bool):
+            return None
+        pos = int(item)
+        if pos < 0:
+            return None
+        positions.append(pos)
+    return positions
+
+
+def _active_position_row_runs(mask: Sequence[bool], row_positions: Sequence[int]) -> list[tuple[int, int, int]]:
+    runs: list[tuple[int, int, int]] = []
+    start: Optional[int] = None
+    start_position: Optional[int] = None
+    for index, active in enumerate(mask):
+        position = int(row_positions[index])
+        if active and start is None:
+            start = index
+            start_position = position
+        elif active and start is not None and position != start_position:
+            runs.append((start, index, int(start_position)))
+            start = index
+            start_position = position
+        elif not active and start is not None:
+            runs.append((start, index, int(start_position)))
+            start = None
+            start_position = None
+    if start is not None:
+        runs.append((start, len(mask), int(start_position)))
+    return runs
+
+
+def _live_decode_attention_mask_for_row_positions(
+    *,
+    cache_len: int,
+    row_positions: Sequence[int],
+    device: torch.device,
+) -> torch.Tensor:
+    mask = torch.zeros((len(row_positions), 1, cache_len + 1), dtype=torch.bool, device=device)
+    if cache_len < 0:
+        return mask
+    for row, position in enumerate(row_positions):
+        valid_past = min(max(int(position), 0), cache_len)
+        if valid_past > 0:
+            mask[row, 0, :valid_past] = True
+        mask[row, 0, cache_len] = True
+    return mask
+
+
+def _live_decode_position_ids_for_row_positions(
+    *,
+    row_positions: Sequence[int],
+    chunk_length: int,
+    offset: int,
+    device: torch.device,
+) -> torch.Tensor:
+    base = torch.arange(offset, offset + chunk_length, device=device, dtype=torch.long)
+    positions = torch.tensor([int(pos) for pos in row_positions], device=device, dtype=torch.long)
+    return positions.unsqueeze(1) + base.unsqueeze(0)
+
+
+def _slice_kv_rows(new_kvs: Any, row_start: int, row_end: int, heads_per_row: int) -> Any:
+    bh_start = row_start * heads_per_row
+    bh_end = row_end * heads_per_row
+    kvs = new_kvs.kvs if hasattr(new_kvs, "kvs") else new_kvs
+    sliced = tuple(
+        tensor[bh_start:bh_end].contiguous() if torch.is_tensor(tensor) else tensor
+        for tensor in kvs
+    )
+    if hasattr(new_kvs, "kvs") and hasattr(new_kvs, "device"):
+        return type(new_kvs)(sliced, new_kvs.device)
+    return sliced
+
+
 _STEP_PROFILE_ENABLED = os.environ.get("BLOOMBEE_STEP_PROFILE", "0") == "1"
 _STEP_PROFILE_INTERVAL = int(os.environ.get("BLOOMBEE_STEP_PROFILE_INTERVAL", "32"))
 
@@ -435,6 +541,31 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                 inference_info.micro_batch_size,
                 type(new_kvs).__name__ if new_kvs is not None else "None",
             )
+        expected_batch = int(inference_info.micro_batch_size or inference_info.full_batch_size or 0)
+        active_mask = _active_mask_list(getattr(inference_info, "active_mask", None), expected_batch)
+        row_positions = (
+            _row_position_list(getattr(inference_info, "prefill_length", None), expected_batch)
+            if active_mask is not None
+            else None
+        )
+        if active_mask is not None:
+            kvs = new_kvs.kvs if hasattr(new_kvs, "kvs") else new_kvs
+            key = kvs[0] if kvs else None
+            bh = int(key.shape[0]) if torch.is_tensor(key) and key.ndim >= 1 else 0
+            if bh > 0 and expected_batch > 0 and bh % expected_batch == 0:
+                heads_per_row = bh // expected_batch
+                full_batch_size = int(inference_info.full_batch_size or expected_batch)
+                active_rows = active_mask if active_mask is not None else [True] * expected_batch
+                positions = row_positions if row_positions is not None else [int(cache_len)] * expected_batch
+                for row_start, row_end, start_position in _active_position_row_runs(active_rows, positions):
+                    self.cache_manager.update_cache(
+                        _slice_kv_rows(new_kvs, row_start, row_end, heads_per_row),
+                        start_position,
+                        batch_offset=int(inference_info.batch_offset) + row_start,
+                        full_batch_size=full_batch_size,
+                        micro_batch_size=row_end - row_start,
+                    )
+                return
         self.cache_manager.update_cache(
             new_kvs,
             cache_len,
@@ -584,6 +715,17 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                 # Centralized select: aggregate + reorder + slice
                 # [MERGED] Speculative decoding flow with micro-batch support
                 kv_cache_position_ids = inference_info.kv_cache_position_ids
+                live_row_positions = None
+                if not requested_spec_decoding and seq_len == 1:
+                    expected_batch = int(inference_info.micro_batch_size or batch_size)
+                    active_mask = _active_mask_list(getattr(inference_info, "active_mask", None), expected_batch)
+                    candidate_positions = (
+                        _row_position_list(inference_info.prefill_length, expected_batch)
+                        if active_mask is not None
+                        else None
+                    )
+                    if candidate_positions is not None and len(candidate_positions) == batch_size:
+                        live_row_positions = candidate_positions
                 
                 logger.debug(f"[MB_DEBUG] backend.inference_step: uid={inference_info.uid}, "
                             f"batch_offset={inference_info.batch_offset}, "
@@ -619,8 +761,13 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                 else:
                     # [Standard path] Direct cache selection with micro-batch support
                     # [MBPIPE] Pass batch_offset, full_batch_size and micro_batch_size
+                    select_prefix_length = (
+                        max(live_row_positions)
+                        if live_row_positions is not None
+                        else inference_info.prefix_length
+                    )
                     k_pkv, v_pkv, _ = self.cache_manager.select_cache(
-                        prefix_length=inference_info.prefix_length,
+                        prefix_length=select_prefix_length,
                         hypo_ids=hypo_ids,
                         kv_cache_position_ids=None,
                         batch_offset=inference_info.batch_offset,
@@ -701,7 +848,14 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                     # (B, 1, cache_len+1). Cache it per (B, src_len, device)
                     # so the common decode loop avoids a per-step alloc of
                     # both the bool mask and the -inf scores tensor.
-                    if seq_len == 1 and cache_len >= 0 and not self._is_spec_decoding:
+                    if seq_len == 1 and cache_len >= 0 and not self._is_spec_decoding and live_row_positions is not None:
+                        full_mask = _live_decode_attention_mask_for_row_positions(
+                            cache_len=cache_len,
+                            row_positions=live_row_positions,
+                            device=hidden_states.device,
+                        )
+                        attention_mask = self.convert_mask_to_scores(full_mask)
+                    elif seq_len == 1 and cache_len >= 0 and not self._is_spec_decoding:
                         src_len = cache_len + 1
                         cache_key = (batch_size, src_len, hidden_states.device)
                         attention_mask = self._decode_mask_scores_cache.get(cache_key)
@@ -733,8 +887,16 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                         base_ids = torch.arange(0, chunk_length, device=hidden_states.device, dtype=torch.long)
                         self._position_ids_cache[cache_key] = base_ids.unsqueeze(0).expand(batch_size, -1)
                     
-                    # Add offset to cached base tensor (avoids creating new tensor)
-                    position_ids = self._position_ids_cache[cache_key] + (cache_len + offset)
+                    if live_row_positions is not None:
+                        position_ids = _live_decode_position_ids_for_row_positions(
+                            row_positions=live_row_positions,
+                            chunk_length=chunk_length,
+                            offset=offset,
+                            device=hidden_states.device,
+                        )
+                    else:
+                        # Add offset to cached base tensor (avoids creating new tensor)
+                        position_ids = self._position_ids_cache[cache_key] + (cache_len + offset)
                     if self._is_spec_decoding:
                         rotary_position_ids = self._create_tree_position_ids_with_invalid_cache(
                             width=1,

@@ -1,9 +1,5 @@
 {
   "blocked_reasons": [
-    "continuous_batching:verifier_status_not_passed",
-    "continuous_batching:late_arrival_parity_not_proven",
-    "continuous_batching:logits_parity_not_proven",
-    "continuous_batching:request generate-1 logits numeric max_abs_diff exceeds tolerance",
     "kv_prefix_reuse:verifier_status_not_passed",
     "kv_prefix_reuse:same_prefix_varied_suffix_not_proven",
     "kv_prefix_reuse:token_parity_not_proven",
@@ -29,13 +25,13 @@
     "batched_tick_count": 1,
     "claim_boundary": "verified_live_continuous_batching_server_concurrent_arrival_parity",
     "late_arrival_observed": true,
-    "live_server_late_arrival_parity_proven": false,
-    "logits_fingerprint_parity_proven": false,
+    "live_server_late_arrival_parity_proven": true,
+    "logits_fingerprint_parity_proven": true,
     "logits_numeric_parity_proven": false,
-    "logits_parity_proven": false,
-    "status": "failed"
+    "logits_parity_proven": true,
+    "status": "passed"
   },
-  "continuous_batching_ready": false,
+  "continuous_batching_ready": true,
   "joint_batch_kv_ready": false,
   "kv_prefix_reuse": {
     "claim_boundary": "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing",

@@ -315,7 +315,6 @@ class _ServerInferenceSession:
         )
 
         batch = dict(self._pending_live_continuous_tick_batch)
-        self._pending_live_continuous_tick_batch = None
         return {
             "source": "bloombee.client.inference_session",
             "claim_boundary": INFERENCE_SESSION_TICK_ROWS_CLAIM_BOUNDARY,
@@ -380,15 +379,28 @@ class _ServerInferenceSession:
             n_input_tokens = 0 if kv_cache_position_ids is None else kv_cache_position_ids[0].numel()
         else:
             n_input_tokens = inputs.shape[1]
+        def _live_row_local_position(value) -> int:
+            if value is None or is_dummy(value):
+                return int(self._position)
+            if torch.is_tensor(value):
+                if value.numel() == 0:
+                    return int(self._position)
+                return int(value.reshape(-1)[0].detach().cpu().item())
+            if isinstance(value, (list, tuple)):
+                if not value:
+                    return int(self._position)
+                return int(value[0])
+            return int(value)
         # print('client step() n_input_tokens', n_input_tokens)
         live_microbatch_active = (
             live_full_batch_size > 0
             and inputs.ndim >= 2
             and (live_full_batch_size > inputs.shape[0] or live_batch_offset > 0)
         )
+        live_position = _live_row_local_position(prefill_length) if live_microbatch_active else int(self._position)
         if live_microbatch_active:
             required_batch = max(live_full_batch_size, live_batch_offset + int(inputs.shape[0]))
-            required_len = self._position + n_input_tokens
+            required_len = live_position + n_input_tokens
             if self.history is None:
                 self.history = inputs.new_zeros((required_batch, required_len, inputs.shape[2]))
             else:
@@ -405,7 +417,7 @@ class _ServerInferenceSession:
                     self.history = expanded
             self.history[
                 live_batch_offset : live_batch_offset + inputs.shape[0],
-                self._position : self._position + n_input_tokens,
+                live_position : live_position + n_input_tokens,
                 :,
             ] = inputs[:, -n_input_tokens:, :]
         elif self.history is None: # if the history log is empty
@@ -418,8 +430,22 @@ class _ServerInferenceSession:
         #     f"position={self._position} n_input_tokens={n_input_tokens}"
         # )
 
-        if not self.stepped and not live_microbatch_active: # if not exe step yet
-            inputs = self.history  # Pass full inputs including prefix
+        if not self.stepped:
+            if live_microbatch_active and live_position > 0 and self.history is not None:
+                inputs = self.history[
+                    live_batch_offset : live_batch_offset + inputs.shape[0],
+                    : live_position + n_input_tokens,
+                    :,
+                ].contiguous()
+                if torch.is_tensor(prefill_length):
+                    prefill_length = torch.zeros_like(prefill_length)
+                else:
+                    prefill_length = 0
+                live_position = 0
+            elif not live_microbatch_active: # if not exe step yet
+                inputs = self.history  # Pass full inputs including prefix
+            else:
+                inputs = inputs
         else:
             inputs = inputs  # No need to pass prefix further
         tokens_to_advance = _server_session_tokens_to_advance(inputs, n_input_tokens, is_spec_dec)
@@ -472,6 +498,7 @@ class _ServerInferenceSession:
 
         total_send_bytes = 0
         serialize_time_ms = 0.0
+        live_continuous_metadata_attached = False
 
         with transport_profile_scope() as transport_profile:
             if not push_only_decode:
@@ -547,6 +574,8 @@ class _ServerInferenceSession:
                 )
                 if is_spec_dec:
                     request_metadata["start_from_position"] = self._position + n_input_tokens
+                elif live_microbatch_active:
+                    request_metadata["start_from_position"] = live_position
                 elif self._position is not None:
                     request_metadata["start_from_position"] = self._position
                 # Enable server-to-server communication to trigger CROSS_GPU_TRANSFER
@@ -557,6 +586,7 @@ class _ServerInferenceSession:
                         request_metadata["next_servers"] = next_servers
 
                 live_continuous_metadata = self._consume_live_continuous_batching_metadata()
+                live_continuous_metadata_attached = live_continuous_metadata is not None
                 if live_continuous_metadata is not None:
                     request_metadata["live_continuous_batching"] = live_continuous_metadata
                     live_batches = live_continuous_metadata.get("tick_batches", [])
@@ -647,6 +677,8 @@ class _ServerInferenceSession:
                     )
                 )
             self._record_response_metadata(outputs_serialized)
+            if live_continuous_metadata_attached:
+                self._pending_live_continuous_tick_batch = None
 
             network_end = time.perf_counter()
             network_rtt_ms = (network_end - network_start) * 1000
@@ -691,7 +723,10 @@ class _ServerInferenceSession:
         #     outputs[0].shape == inputs.shape
         # ), f"output activation shape is different from input shape: {outputs[0].shape} != {inputs.shape}"
 
-        self._position += tokens_to_advance
+        if live_microbatch_active:
+            self._position = max(int(self._position), live_position + tokens_to_advance)
+        else:
+            self._position += tokens_to_advance
         if client_inference_logs_enabled:
             logger.info(f"server inference session self._position: {self._position}")
         return outputs
@@ -1118,9 +1153,33 @@ class InferenceSession:
             mbpipe_log_path_entry(logger, "client.InferenceSession.step", batch_size=batch_size)
 
         n_input_tokens = inputs.shape[1] if kv_cache_position_ids is None else kv_cache_position_ids[0].numel()
-        if self._position + n_input_tokens > self._max_length:
+
+        def _pending_live_row_position(value) -> int:
+            if value is None or is_dummy(value):
+                return int(self._position)
+            if torch.is_tensor(value):
+                if value.numel() == 0:
+                    return int(self._position)
+                return int(value.reshape(-1)[0].detach().cpu().item())
+            if isinstance(value, (list, tuple)):
+                if not value:
+                    return int(self._position)
+                return int(value[0])
+            return int(value)
+
+        pending_live_batch = self._pending_live_continuous_tick_batch if isinstance(self._pending_live_continuous_tick_batch, dict) else {}
+        pending_live_full_batch_size = int(pending_live_batch.get("full_batch_size", getattr(self, "_live_continuous_full_batch_size", 0)) or 0)
+        pending_live_batch_offset = int(pending_live_batch.get("batch_offset", 0) or 0)
+        pending_live_microbatch_active = (
+            pending_live_full_batch_size > 0
+            and inputs.ndim >= 2
+            and (pending_live_full_batch_size > inputs.shape[0] or pending_live_batch_offset > 0)
+        )
+        pending_live_position = _pending_live_row_position(prefill_length) if pending_live_microbatch_active else int(self._position)
+        position_for_limit = pending_live_position if pending_live_microbatch_active else int(self._position)
+        if position_for_limit + n_input_tokens > self._max_length:
             raise ValueError(
-                f"Maximum length exceeded: prefix {self._position} + current {n_input_tokens} exceeds pre-allocated maximum {self._max_length}"
+                f"Maximum length exceeded: prefix {position_for_limit} + current {n_input_tokens} exceeds pre-allocated maximum {self._max_length}"
             )
 
         server_idx = 0
@@ -1162,9 +1221,10 @@ class InferenceSession:
                         downstream_position=server_session.position,
                         is_spec_dec=is_spec_dec,
                     )
+                    staged_live_batch_for_attempt = None
                     if server_idx == 0 and self._pending_live_continuous_tick_batch is not None:
-                        server_session.stage_live_continuous_tick_batch(self._pending_live_continuous_tick_batch)
-                        self._pending_live_continuous_tick_batch = None
+                        staged_live_batch_for_attempt = dict(self._pending_live_continuous_tick_batch)
+                        server_session.stage_live_continuous_tick_batch(staged_live_batch_for_attempt)
                     inputs, keep_indices, *_ = server_session.step(
                         server_inputs,
                         prompts[server_session.span.start : server_session.span.end],
@@ -1180,6 +1240,8 @@ class InferenceSession:
                     )
                     for response_metadata in server_session.consume_server_response_metadata_events():
                         self.record_server_response_metadata(response_metadata)
+                    if staged_live_batch_for_attempt is not None:
+                        self._pending_live_continuous_tick_batch = None
                     if is_spec_dec and need_pruning:
                         self.keep_indices = keep_indices
                     
@@ -1217,7 +1279,10 @@ class InferenceSession:
                     maybe_log_traceback(e)
                     time.sleep(delay) 
 
-        self._position += n_input_tokens
+        if pending_live_microbatch_active:
+            self._position = max(int(self._position), pending_live_position + n_input_tokens)
+        else:
+            self._position += n_input_tokens
         # logger.info(f"keep_indices: {keep_indices}")
         # logger.info(f"before _recover_hidden_states: {inputs}")
         # t0 = time.perf_counter()
