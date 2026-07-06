@@ -9,11 +9,11 @@
   ],
   "external_runtime_pathway": {
     "best_peer": {
-      "free_gb": 33.753,
+      "free_gb": 33.5,
       "hostname": "m4pro",
       "total_gb": 48.0
     },
-    "best_peer_shortfall_gb": 46.2,
+    "best_peer_shortfall_gb": 46.5,
     "can_pool_peer_memory_now": false,
     "framework": "llama.cpp/GGUF",
     "quant_or_format": "unknown_until_exact_quant_selected",
@@ -24,29 +24,28 @@
   "live_run_attempted": false,
   "main_bloombee_pathway": {
     "blocked_reasons": [
-      "exact_hf_config_not_scanned_in_repo",
-      "missing_native_bloombee_wrapper:unknown_or_unverified"
+      "missing_native_bloombee_wrapper:qwen3_5_moe_text"
     ],
     "can_pool_peer_memory_after_adapter": true,
     "can_pool_peer_memory_now": false,
-    "config_scan_required": true,
+    "config_scan_required": false,
     "desired_end_state": true,
-    "hf_model_type": null,
+    "hf_model_type": "qwen3_5_moe",
     "implementation": "BloomBee block-parallel DHT/RPC with peers owning contiguous transformer block ranges",
     "native_wrapper_proven": false,
     "one_block_proven": false,
     "required_adapter_steps": [
-      "scan the exact HF config/model_type for Qwen3.6-35B-A3B or the user's exact Qwen36A row",
-      "map the config to an existing BloomBee family only if the wrapper/state-cache contract matches",
-      "if no wrapper matches, add wrapper tests before any server proof",
-      "if using only a GGUF, prove llama.cpp RPC/distributed backend separately before pooling RAM claims"
+      "exact config scan passed at distributed_evidence/qwen36a/qwen36a-config-scan-20260706.json",
+      "map qwen3_5_moe/qwen3_5_moe_text to the native backend state-cache contract before runtime serving",
+      "prove one-block server forward/backward or forward-only direct RPC for the exact Qwen36A row",
+      "then prove multi-block split, full/cache generation, and load gates before route/demo promotion"
     ],
     "usable_now": false
   },
   "memory_summary": {
-    "combined_free_gb": 41.8,
+    "combined_free_gb": 41.5,
     "combined_total_gb": 64.0,
-    "largest_single_host_free_gb": 33.8,
+    "largest_single_host_free_gb": 33.5,
     "largest_single_host_total_gb": 48.0
   },
   "model_id": "Qwen/Qwen3.6-35B-A3B",
@@ -61,14 +60,14 @@
     {
       "hostname": "m4pro",
       "memory": {
-        "free_gb": 33.753,
+        "free_gb": 33.5,
         "total_gb": 48.0
       }
     }
   ],
   "proof_status_update": {},
   "recommendation": {
-    "next_engineering_lane": "config_scan_then_native_bloombee_adapter_or_external_rpc",
+    "next_engineering_lane": "native_bloombee_adapter_before_route_promotion",
     "summary": "Use the main BloomBee pathway only after the exact model has a native wrapper/state-cache contract and at least a one-block proof. Until then, external GGUF smoke is useful but is a single-host gate."
   },
   "target_key": "qwen3_6_35b_a3b"

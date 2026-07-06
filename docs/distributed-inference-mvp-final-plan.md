@@ -310,7 +310,7 @@ candidate **only after** its proof gate passes for the selected risk mode.
 | Core dream | `Qwen/Qwen3-30B-A3B-Instruct-2507` | exact Qwen3-30B verifier output | best practical blend of quality, Apache license, MoE efficiency, and laptop-swarm fit | same family as proven Qwen3-MoE block; checkpoint proof needed |
 | Existing MoE fallback | `Qwen/Qwen3-30B-A3B` | exact Qwen3-30B verifier output | two-server multi-block `0:2` live proof now passed | full generation/cache/load proof needed |
 | Reasoning stretch | `Qwen/Qwen3-30B-A3B-Thinking-2507` | exact Thinking-2507 verifier output | stronger reasoning but longer/slower outputs | proof needed; cap thinking budget |
-| Qwen35B branch | `Qwen/Qwen-AgentWorld-35B-A3B` | exact Qwen3.5-35B verifier output only after wrapper proof | near-term 35B-A3B text-generation candidate; ~65GiB weights, ~80GB recommended free memory, 40 text layers, 256 experts / 8 active | blocked today: HF `model_type=qwen3_5_moe` / text tower `qwen3_5_moe_text`; BloomBee only has `qwen3_moe` wrapper |
+| Qwen35B/Qwen36A branch | `Qwen/Qwen-AgentWorld-35B-A3B`, `Qwen/Qwen3.6-35B-A3B` | exact Qwen3.5/3.6-35B verifier output only after native one-block proof | near-term 35B-A3B text-generation candidates; Qwen36A exact scan confirms qwen3_5_moe/qwen3_5_moe_text, 40 text layers, 30 linear-attention + 10 full-attention, 256 experts / 8 active; state-cache mapping descriptor contract is green; m4pro one-block preflight is memory-blocked | blocked today: exact one-block proof for `qwen3_5_moe_text` on a host with >=80GB free; no route/demo claim yet |
 | High-compute exact | `Qwen/Qwen3-235B-A22B-Instruct-2507` | exact Qwen3-235B verifier output | strongest same-family Qwen3-MoE upgrade if huge memory appears | last-stage only; full proof ladder required |
 | Frontier backend experiment | `zai-org/GLM-5.2` / FP8 / quantized variants | exact GLM-5.2 only if GLM-5.2 is verifier | frontier open-weight coding/agentic target | post-core LayerExecutor/quantized-backend path; no native BloomBee wrapper yet |
 | Frontier backend experiment | `deepseek-ai/DeepSeek-V4-Flash` | exact V4 Flash only if V4 Flash is verifier | more plausible DeepSeek V4 target than Pro due to smaller total weights | post-core quantized backend path |
@@ -335,9 +335,12 @@ before demo day.
 4. Qwen3-30B-A3B — extend from multi-block proof to full-generation parity.
 5. Qwen3-30B-A3B-Instruct-2507 — prescan and one-block proof; promote only if it
    passes the same gates.
-6. Qwen-AgentWorld-35B-A3B — candidate branch only. It fits a 10×20GB-free
-   swarm on memory math, but cannot be attempted in native BloomBee until a
-   `qwen3_5_moe` block wrapper exists and passes the proof ladder.
+6. Qwen-AgentWorld-35B-A3B / Qwen3.6-35B-A3B — native candidate branch only.
+   AgentWorld fits a 10×20GB-free swarm on memory math; Qwen36A exact scan,
+   state-cache descriptor mapping, and m4pro memory-blocked one-block preflight
+   now confirm the same qwen3_5_moe/qwen3_5_moe_text family. Neither can be
+   promoted in native BloomBee until one-block proof and the rest of the proof
+   ladder pass.
 
 ### Last-stage high-compute shelf
 

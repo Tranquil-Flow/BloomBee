@@ -606,6 +606,8 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "native BloomBee minimax_m2 wrapper" in tasks["minimax_m3_candidate"]["next_step"]
     assert "external-runtime smoke, or run the M3" not in tasks["minimax_m3_candidate"]["next_step"]
     assert "minimax-reap-family-comparison-current-20260706.json" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "minimax-m27-reap-memory-watch-final-20260706T193704Z.json" in tasks["minimax_m3_candidate"]["evidence"]
+    assert "shortfall 7.637 GiB" in tasks["minimax_m3_candidate"]["evidence"]
     assert "M3 as likely stronger but not easier" in tasks["minimax_m3_candidate"]["evidence"]
     assert "M4+M4Pro memory is not additive" in tasks["minimax_m3_candidate"]["evidence"]
     assert tasks["qwen3_8b_proof"]["status"] == "complete"
@@ -677,8 +679,16 @@ def test_mvp_status_report_has_weighted_progress_bar():
     assert "Qwen35B/Qwen36A" in tasks["qwen35b_candidate"]["label"]
     assert "Qwen/Qwen3.6-35B-A3B" in tasks["qwen35b_candidate"]["evidence"]
     assert "frontier-distributed-pathway-qwen36a-current-20260706.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "qwen36a-config-scan-20260706.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "qwen36a-state-cache-mapping-20260706.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "qwen36a-oneblock-host-preflight-20260706.json" in tasks["qwen35b_candidate"]["evidence"]
+    assert "model_type=qwen3_5_moe" in tasks["qwen35b_candidate"]["evidence"]
+    assert "30 linear_attention layers" in tasks["qwen35b_candidate"]["evidence"]
+    assert "linear raw conv/recurrent descriptors" in tasks["qwen35b_candidate"]["evidence"]
+    assert "blocked-by-host-memory" in tasks["qwen35b_candidate"]["evidence"]
     assert "main native BloomBee distributed path" in tasks["qwen35b_candidate"]["evidence"]
-    assert "Qwen36A exact config scan" in tasks["qwen35b_candidate"]["next_step"]
+    assert "Qwen36A exact config scan first" not in tasks["qwen35b_candidate"]["next_step"]
+    assert "at least 80GB free memory" in tasks["qwen35b_candidate"]["next_step"]
     assert "qwen-agentworld-35b-text-wrapper-gate-20260704.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "qwen35b-oneblock-host-preflight-20260705T214226Z.json" in tasks["qwen35b_candidate"]["evidence"]
     assert "blocked-by-host-memory" in tasks["qwen35b_candidate"]["evidence"]
@@ -2259,6 +2269,53 @@ def test_registry_includes_qwen35b_candidate_branch_but_blocks_showcase_until_wr
     assert showcase["selector_allowed"] is False
     assert "no one-block server proof" in showcase["selector_blocked_reason"]
     assert showcase["proof_status"]["one_block_server"] == "pending"
+
+
+def test_registry_includes_qwen36a_candidate_branch_after_exact_scan_but_blocks_showcase_until_oneblock():
+    from mvp_capabilities.model_compat_scan import load_proof_status
+    from mvp_capabilities.route_picker import choose_best_route, load_registry, synthetic_m4_laptops
+
+    registry = load_registry(REGISTRY_PATH)
+    by_id = {model["model_id"]: model for model in registry}
+    model = by_id["Qwen/Qwen3.6-35B-A3B"]
+
+    assert model["candidate_branch"] == "qwen36a"
+    assert model["hf_model_type"] == "qwen3_5_moe"
+    assert model["hf_text_model_type"] == "qwen3_5_moe_text"
+    assert model["num_layers"] == 40
+    assert model["hidden_size"] == 2048
+    assert model["linear_attention_layers"] == 30
+    assert model["full_attention_layers"] == 10
+    assert model["num_experts"] == 256
+    assert model["num_experts_per_tok"] == 8
+    assert model["architecture_supported"] is False
+    assert model["config_scan_artifact"] == "mvp_capabilities/distributed_evidence/qwen36a/qwen36a-config-scan-20260706.json"
+    assert model["state_cache_mapping_artifact"] == "mvp_capabilities/distributed_evidence/qwen36a/qwen36a-state-cache-mapping-20260706.json"
+    assert any("one-block server proof" in reason for reason in model["blocked_reasons"])
+
+    peers = synthetic_m4_laptops(count=10, total_gb=24, free_gb=20)
+    proof = load_proof_status(PROJECT_ROOT / "mvp_capabilities" / "PROOF_STATUS.yaml")
+    planning = choose_best_route(
+        peers,
+        registry,
+        requested_model="Qwen/Qwen3.6-35B-A3B",
+        proof_status=proof,
+        selector_mode="planning",
+    )
+    assert planning["memory_fit"] is True
+    assert planning["runtime_supported"] is False
+    assert planning["claim_level"] == "blocked"
+    assert planning["selector_allowed"] is True
+
+    showcase = choose_best_route(
+        peers,
+        registry,
+        requested_model="Qwen/Qwen3.6-35B-A3B",
+        proof_status=proof,
+        selector_mode="showcase-attempt",
+    )
+    assert showcase["selector_allowed"] is False
+    assert "one-block server proof" in showcase["selector_blocked_reason"]
 
 
 def test_registry_tracks_minimax_m3_as_high_compute_blocked_candidate():

@@ -273,6 +273,38 @@ models:
       - Outer qwen3_5_moe multimodal/conditional-generation wrapper remains unserved; native route/demo promotion is blocked until exact text-tower proof ladder passes
     hf_config_url: https://huggingface.co/Qwen/Qwen-AgentWorld-35B-A3B/blob/main/config.json
 
+  - model_id: Qwen/Qwen3.6-35B-A3B
+    params_b: 35.0
+    active_params_b: 3.0
+    hf_model_type: qwen3_5_moe
+    hf_text_model_type: qwen3_5_moe_text
+    candidate_branch: qwen36a
+    hidden_size: 2048
+    num_layers: 40
+    num_heads: 16
+    num_kv_heads: 2
+    head_dim: 256
+    context_length: 262144
+    dtype_bytes: 2
+    min_total_mem_gb: 72.0
+    recommended_min_free_mem_gb: 80
+    supports_gqa: true
+    supports_moe: true
+    language_model_only: false
+    has_vision_config: true
+    num_experts: 256
+    num_experts_per_tok: 8
+    moe_intermediate_size: 512
+    linear_attention_layers: 30
+    full_attention_layers: 10
+    architecture_supported: false
+    config_scan_artifact: mvp_capabilities/distributed_evidence/qwen36a/qwen36a-config-scan-20260706.json
+    state_cache_mapping_artifact: mvp_capabilities/distributed_evidence/qwen36a/qwen36a-state-cache-mapping-20260706.json
+    blocked_reasons:
+      - Qwen36A exact config scan and qwen3_5_moe_text state-cache descriptor mapping are green, but no one-block server proof has run for the exact Qwen3.6-35B-A3B row
+      - Outer qwen3_5_moe multimodal/conditional-generation wrapper remains unserved; native route/demo promotion is blocked until exact text-tower proof ladder passes
+    hf_config_url: https://huggingface.co/Qwen/Qwen3.6-35B-A3B/blob/main/config.json
+
   - model_id: Qwen/Qwen3-235B-A22B
     params_b: 235.0
     active_params_b: 22.0

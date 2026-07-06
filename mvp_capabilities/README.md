@@ -471,8 +471,14 @@ As of the current implementation slice:
   10×20GB-free swarm (~80GB recommended) and has green text-tower/backend
   state-cache groundwork, but remains blocked for showcase/safe-demo until
   one-block, multi-block, and generation proof pass. Qwen36A/Qwen3.6 is tracked
-  in `frontier-distributed-pathway-qwen36a-current-20260706.json` and must pass
-  exact config scan + wrapper/state-cache mapping before any route/demo claim.
+  in `frontier-distributed-pathway-qwen36a-current-20260706.json`; exact config scan
+  `qwen36a-config-scan-20260706.json` records qwen3_5_moe/qwen3_5_moe_text with
+  40 layers, 30 linear-attention + 10 full-attention layers, 256 experts, and
+  top-k 8; exact state-cache mapping `qwen36a-state-cache-mapping-20260706.json`
+  maps those layers to linear raw conv/recurrent descriptors plus full-attention
+  KV descriptors; host preflight `qwen36a-oneblock-host-preflight-20260706.json`
+  records m4pro blocked by 48GB/~33.2GB free vs 80GB required. It must still
+  pass one-block proof before any route/demo claim.
 - MiniMax M2.7 REAP/M3 work is tracked as a native BloomBee distributed-path lane,
   with GGUF/llama.cpp smoke kept as optional side diagnostics only. M2.7 REAP is
   blocked on a native `minimax_m2` wrapper plus MiniMax MoE/sparse-attention
