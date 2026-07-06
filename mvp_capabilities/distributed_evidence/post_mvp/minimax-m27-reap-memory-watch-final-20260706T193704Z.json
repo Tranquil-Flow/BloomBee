@@ -1,0 +1,18 @@
+{
+  "attempt": 45,
+  "attempts": 45,
+  "background_process_exit_code": 2,
+  "background_process_id": "proc_42484b825002",
+  "claim_boundary": "minimax_m27_reap_memory_watch_no_inference_proof",
+  "external_runtime_smoke_proven": false,
+  "freeable_gib": 33.163,
+  "launch_ready": false,
+  "model_exists": true,
+  "model_size_bytes": 36719971456,
+  "native_bloombee_support_proven": false,
+  "proof_status_update": {},
+  "required_free_gb_gate": 40.8,
+  "shortfall_gib": 7.637,
+  "source": "remote m4pro /tmp/m27_reap_memory_watch.py final current.json plus Hermes background exit notification",
+  "timestamp_utc": "2026-07-06T19:37:04.080087+00:00"
+}

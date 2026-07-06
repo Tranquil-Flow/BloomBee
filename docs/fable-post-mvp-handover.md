@@ -146,7 +146,7 @@ Review questions:
 
 - Is the recommendation right to treat M2.7 REAP and Qwen36A as main native BloomBee distributed-path targets, while keeping GGUF/external-runtime smoke as side evidence only?
 - For MiniMax M2.7 REAP, is the first native adapter slice the `minimax_m2` wrapper/state-cache contract, or should a smaller config-only MiniMax-M2 fixture prove router/cache semantics first?
-- For Qwen36A/Qwen3.6, should the next slice be exact config scan + wrapper mapping, or should it reuse the AgentWorld-35B `qwen3_5_moe_text` backend state-cache harness first?
+- For Qwen36A/Qwen3.6, should the next slice attempt exact one-block proof from the scanned qwen3_5_moe_text descriptor mapping, or first add a loader/unwrapper fixture that isolates the outer multimodal `qwen3_5_moe` config from the text tower?
 
 ### `src/bloombee/client/live_continuous_batching.py` and `src/bloombee/client/remote_generation.py`
 
@@ -301,7 +301,7 @@ Post-MVP workstreams to review and possibly reorder:
 | KV prefix reuse | complete for functional proof | cache reuse can silently change outputs | v32 proved server-observed KV tensor reuse plus token/logit parity; keep wall-clock/demo promotion separate until timing evidence exists. |
 | Phone draft-provider speedup | partial / wrapped | current phone evidence does not prove net speedup | `speculative-phone-worker-wrapup-current-20260706.json` records Android ready, iOS missing, one ready phone, and no integrated speedup. Keep correctness-first; only claim speedup when integrated non-sequential accepted-token wall-clock improves. |
 | Android/Termux capability fidelity | partial / wrapped | phone memory/storage facts may mislead planner | Pixel/Termux context-token and wall-clock correctness groundwork exists; keep mobile block-serving disabled unless separately proven. |
-| qwen3_5_moe / AgentWorld-35B / Qwen36A | native candidate partial | one-block proof and exact Qwen36A config mapping remain missing | AgentWorld import/config, full_attention KV, local linear-state, and backend state-cache contracts are green. Next Qwen36A exact config scan, then one-block server proof before route/demo promotion. |
+| qwen3_5_moe / AgentWorld-35B / Qwen36A | native candidate partial | one-block proof remains missing / host-memory-blocked | AgentWorld import/config, full_attention KV, local linear-state, and backend state-cache contracts are green. Qwen36A exact config scan (`qwen36a-config-scan-20260706.json`) confirms qwen3_5_moe/qwen3_5_moe_text with 30 linear-attention + 10 full-attention layers, `qwen36a-state-cache-mapping-20260706.json` maps the exact scanned text config to linear raw conv/recurrent descriptors plus full-attention KV descriptors, and `qwen36a-oneblock-host-preflight-20260706.json` records m4pro blocked by 48GB/~33.2GB free vs 80GB required. Next exact one-block server proof on suitable hardware before route/demo promotion. |
 | MiniMax M2.7 REAP / M3 | blocked native frontier lane | missing MiniMax native wrapper/state-cache contract | M2.7 REAP is explicitly a main native BloomBee distributed-path target, not only GGUF. Build `minimax_m2` wrapper/cache-state contract and one-block proof first; GGUF smoke remains side diagnostics. M3 remains blocked by wrapper/sparse-attention and huge memory. |
 
 ---

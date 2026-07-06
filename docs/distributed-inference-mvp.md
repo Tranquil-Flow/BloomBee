@@ -57,11 +57,8 @@ Last-stage stretch targets are tracked in the final plan and come **after** the
 core live demo works. The near-term native candidate branch is
 **Qwen/Qwen-AgentWorld-35B-A3B** plus the user-requested **Qwen36A/Qwen3.6**
 lane: AgentWorld fits the synthetic 10-laptop memory budget (~80GB recommended)
-and now has green text-tower/backend state-cache groundwork, while Qwen36A is
-tracked at `mvp_capabilities/distributed_evidence/stretch/frontier-distributed-pathway-qwen36a-current-20260706.json`
-as a desired main native BloomBee distributed-path target. AgentWorld still needs
-one-block server proof, and Qwen36A still needs exact config scan plus wrapper
-or state-cache mapping before any route/demo claim. The original AgentWorld scout
+and now has green text-tower/backend state-cache groundwork, while Qwen36A exact config scan is tracked at `mvp_capabilities/distributed_evidence/qwen36a/qwen36a-config-scan-20260706.json` and confirms qwen3_5_moe/qwen3_5_moe_text with 40 layers, 30 linear-attention layers, 10 full-attention layers, hidden size 2048, 256 experts, and top-k 8. Qwen36A state-cache mapping evidence at `mvp_capabilities/distributed_evidence/qwen36a/qwen36a-state-cache-mapping-20260706.json` maps the exact scanned text config to linear raw conv/recurrent descriptors and full-attention KV descriptors; m4pro host preflight `mvp_capabilities/distributed_evidence/qwen36a/qwen36a-oneblock-host-preflight-20260706.json` is blocked by 48GB/~33.2GB free vs 80GB required. Qwen36A remains a desired main native BloomBee distributed-path target, with planning evidence at `mvp_capabilities/distributed_evidence/stretch/frontier-distributed-pathway-qwen36a-current-20260706.json`. AgentWorld still needs
+one-block server proof, and Qwen36A still needs exact one-block server proof before any route/demo claim. The original AgentWorld scout
 is committed at `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`:
 the text tower alternates `linear_attention` and `full_attention` layers with
 mRoPE/linear-attention head fields, so blindly copying the existing

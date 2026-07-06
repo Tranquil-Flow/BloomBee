@@ -1,0 +1,75 @@
+{
+  "blocked_reasons": [
+    "No BloomBee block wrapper registered for model_type=qwen3_5_moe",
+    "qwen3_5_moe_text linear_attention layers require BloomBee backend linear-state cache descriptors/materialization/select/update before one-block proof",
+    "exact Qwen36A one-block server proof has not been run",
+    "full/cache generation and multi-request load gates have not been run"
+  ],
+  "cache_generation_proven": false,
+  "can_update_demo_status": false,
+  "can_update_mvp_status": false,
+  "can_update_route_status": false,
+  "claim_boundary": "post_mvp_qwen36a_exact_config_scan_no_runtime_proof_no_demo_promotion",
+  "config_scan": {
+    "architecture_supported": false,
+    "architectures": [
+      "Qwen3_5MoeForConditionalGeneration"
+    ],
+    "block_prefix": null,
+    "blocked_reasons": [
+      "No BloomBee block wrapper registered for model_type=qwen3_5_moe"
+    ],
+    "bloombee_family": null,
+    "claim_level": "blocked",
+    "experts_per_token": 8,
+    "hf_model_type": "qwen3_5_moe",
+    "hf_text_model_type": "qwen3_5_moe_text",
+    "hidden_size": 2048,
+    "max_position_embeddings": 262144,
+    "model_id": "Qwen/Qwen3.6-35B-A3B",
+    "num_attention_heads": 16,
+    "num_experts": 256,
+    "num_key_value_heads": 2,
+    "num_layers": 40,
+    "proof_status": {
+      "cache_generation": "pending",
+      "full_generation": "pending",
+      "multi_block": "pending",
+      "multi_request_load": "pending",
+      "one_block_server": "pending",
+      "prescan": "passed"
+    },
+    "quantization_method": null,
+    "quantization_supported": null,
+    "requires_trust_remote_code": false,
+    "text_architectures": [],
+    "uses_sparse_attention": false
+  },
+  "config_sha256": "7f7f7b4525f05536602c3fa9fe87a6482ddd8a62d069206c2fe76ed25554aaf5",
+  "config_source_kind": "exact_hf_config_json_snapshot",
+  "config_source_url": "https://huggingface.co/Qwen/Qwen3.6-35B-A3B/raw/main/config.json",
+  "exact_config_scan": "passed",
+  "full_attention_interval": 4,
+  "full_generation_proven": false,
+  "layer_type_counts": {
+    "full_attention": 10,
+    "linear_attention": 30
+  },
+  "linear_attention_state_contract": {
+    "linear_conv_kernel_dim": 4,
+    "linear_key_head_dim": 128,
+    "linear_num_key_heads": 16,
+    "linear_num_value_heads": 32,
+    "linear_value_head_dim": 128,
+    "requires_conv_state": true,
+    "requires_recurrent_state": true
+  },
+  "model_id": "Qwen/Qwen3.6-35B-A3B",
+  "multi_block_proven": false,
+  "multi_request_load_proven": false,
+  "native_bloombee_distributed_path_target": true,
+  "one_block_server_proven": false,
+  "qwen35b_family_match": "qwen3_5_moe_text_linear_attention_family",
+  "recommended_next_step": "map_qwen36a_to_qwen3_5_moe_text_backend_state_cache_then_one_block_proof",
+  "wrapper_code_written_for_exact_model": false
+}

@@ -83,6 +83,12 @@ def build_qwen35b_oneblock_preflight(
 ) -> dict[str, Any]:
     registry = registry if registry is not None else load_registry(DEFAULT_REGISTRY)
     model = _find_model(model_id, registry)
+    candidate_branch = str(model.get("candidate_branch") or "qwen35b").replace("-", "_")
+    claim_boundary = (
+        CLAIM_BOUNDARY
+        if candidate_branch == "qwen35b"
+        else f"{candidate_branch}_one_block_host_preflight_no_live_inference"
+    )
     required_free_gb = float(model.get("recommended_min_free_mem_gb") or 0.0)
     total_mem_gb = detect_total_mem_gb() if host_total_mem_gb is None else float(host_total_mem_gb)
     free_mem_gb = detect_free_mem_gb() if host_free_mem_gb is None else float(host_free_mem_gb)
@@ -95,11 +101,11 @@ def build_qwen35b_oneblock_preflight(
     if total_mem_gb is None:
         remaining_blockers.append("host_total_memory_unknown")
     elif required_free_gb > 0 and total_mem_gb < required_free_gb:
-        remaining_blockers.append("insufficient_host_memory_for_qwen35b_one_block")
+        remaining_blockers.append(f"insufficient_host_memory_for_{candidate_branch}_one_block")
     elif free_mem_gb is None:
         remaining_blockers.append("host_free_memory_unknown")
     elif required_free_gb > 0 and free_mem_gb < required_free_gb:
-        remaining_blockers.append("insufficient_free_memory_for_qwen35b_one_block")
+        remaining_blockers.append(f"insufficient_free_memory_for_{candidate_branch}_one_block")
 
     ready = not remaining_blockers
     status = "ready-to-attempt" if ready else "blocked-by-host-memory"
@@ -115,7 +121,7 @@ def build_qwen35b_oneblock_preflight(
 
     return {
         "model_id": model_id,
-        "claim_boundary": CLAIM_BOUNDARY,
+        "claim_boundary": claim_boundary,
         "generated_at_utc": generated_at_utc,
         "host_label": host_label,
         "host_platform": {
