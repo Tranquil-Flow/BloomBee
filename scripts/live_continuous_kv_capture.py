@@ -126,7 +126,6 @@ def wait_for_dht(host: str = "127.0.0.1", port: int = DHT_PORT, timeout: float =
     return False
 
 
-
 def wait_for_server_blocks(timeout: float = 240, *, server_proc=None, poll_interval: float = 3.0) -> bool:
     """Wait for the BloomBee server to announce blocks, failing fast if it exits."""
     deadline = time.time() + timeout
@@ -148,13 +147,19 @@ def wait_for_server_blocks(timeout: float = 240, *, server_proc=None, poll_inter
         time.sleep(poll_interval)
     return False
 
+
 def run_inference_via_remote_sequential(
     prompt: str,
     *,
     max_new_tokens: int = 4,
     env_flags: dict | None = None,
+    client_p2pd_socket: str | None = None,
 ) -> dict:
-    """Run a real inference through BloomBee using direct RemoteSequential + LocalMLPHead."""
+    """Run a real inference through BloomBee.
+
+    If client_p2pd_socket is provided, connect to the running p2pd via unix
+    socket (no daemon startup needed in the subprocess).
+    """
     env = dict(os.environ)
     if env_flags:
         env.update(env_flags)
@@ -171,6 +176,7 @@ def run_inference_via_remote_sequential(
     env["BLOOMBEE_PROMPT"] = prompt
     env["BLOOMBEE_MAX_NEW_TOKENS"] = str(max_new_tokens)
     env["BLOOMBEE_DHT_PREFIX"] = "mycelium-capture-v1"
+    env["BLOOMBEE_CLIENT_P2PD_SOCKET"] = client_p2pd_socket or ""
 
     # Use BloomBee's Pipeline class for full inference (handles LM head locally)
     script = r'''
@@ -188,14 +194,30 @@ except Exception as e:
     sys.exit(1)
 
 initial_peer = os.environ["BLOOMBEE_INITIAL_PEER"]
+client_p2pd_socket = os.environ.get("BLOOMBEE_CLIENT_P2PD_SOCKET", "")
 try:
     from bloombee.client.config import ClientConfig
     from hivemind import DHT
-    # Just pass initial_peers directly to from_pretrained — let bloombee create its own DHT internally
+    # Connect to existing p2pd via unix socket if available
+    if client_p2pd_socket:
+        print(f"using external p2pd socket={client_p2pd_socket}", flush=True)
+        from hivemind.utils.multiaddr.multiaddr import Multiaddr
+        host_maddr = Multiaddr(f"/unix{client_p2pd_socket}")
+        client_dht = DHT(start=False, host_maddrs=[host_maddr])
+        # Trigger connection without spawning daemon
+        client_dht.get_visible_maddrs()
+        print(f"client_dht ready via unix sock, maddrs={client_dht.get_visible_maddrs()}", flush=True)
+    else:
+        client_dht = DHT(initial_peers=[initial_peer], start=True, use_auto_relay=True)
+        try:
+            client_dht.wait_until_ready(timeout=30)
+            print(f"client_dht ready, maddrs={client_dht.get_visible_maddrs()}", flush=True)
+        except Exception as e:
+            print("client_dht wait_until_ready failed:", e, flush=True)
     print(f"using initial_peer={initial_peer}", flush=True)
     model = AutoDistributedModelForCausalLM.from_pretrained(
         os.environ["BLOOMBEE_MODEL_ID"],
-        initial_peers=[initial_peer],
+        dht=client_dht,
         torch_dtype="float32",
         request_timeout=90,
         max_retries=3,
@@ -277,24 +299,26 @@ print(json.dumps({
 
 # ----------------------------- Phases ----------------------------- #
 
-def phase_a_continuous_batching() -> dict:
+def phase_a_continuous_batching(client_p2pd_socket: str | None = None) -> dict:
     log.info("=== Phase A: Continuous batching ===")
     log.info("Baseline run (no opt-in)...")
-    baseline_a = run_inference_via_remote_sequential("The capital of France is", max_new_tokens=3)
+    baseline_a = run_inference_via_remote_sequential("The capital of France is", max_new_tokens=3, client_p2pd_socket=client_p2pd_socket)
     time.sleep(2)
-    baseline_b = run_inference_via_remote_sequential("The capital of Japan is", max_new_tokens=3)
+    baseline_b = run_inference_via_remote_sequential("The capital of Japan is", max_new_tokens=3, client_p2pd_socket=client_p2pd_socket)
 
     log.info("Continuous-batching run (opt-in ON)...")
     continuous_a = run_inference_via_remote_sequential(
         "The capital of France is",
         max_new_tokens=3,
         env_flags={"BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING": "1"},
+        client_p2pd_socket=client_p2pd_socket,
     )
     time.sleep(2)
     continuous_b = run_inference_via_remote_sequential(
         "The capital of Japan is",
         max_new_tokens=3,
         env_flags={"BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING": "1"},
+        client_p2pd_socket=client_p2pd_socket,
     )
 
     return {
@@ -304,28 +328,30 @@ def phase_a_continuous_batching() -> dict:
     }
 
 
-def phase_b_kv_prefix_reuse() -> dict:
+def phase_b_kv_prefix_reuse(client_p2pd_socket: str | None = None) -> dict:
     log.info("=== Phase B: KV prefix reuse ===")
     shared_prefix = "You are a helpful assistant. Please answer the following question concisely."
     suffix_a = " What is 2+2?"
     suffix_b = " What is 3+3?"
 
     log.info("Baseline (no opt-in)...")
-    baseline_a = run_inference_via_remote_sequential(shared_prefix + suffix_a, max_new_tokens=3)
+    baseline_a = run_inference_via_remote_sequential(shared_prefix + suffix_a, max_new_tokens=3, client_p2pd_socket=client_p2pd_socket)
     time.sleep(2)
-    baseline_b = run_inference_via_remote_sequential(shared_prefix + suffix_b, max_new_tokens=3)
+    baseline_b = run_inference_via_remote_sequential(shared_prefix + suffix_b, max_new_tokens=3, client_p2pd_socket=client_p2pd_socket)
 
     log.info("KV-prefix-reuse run (opt-in ON)...")
     reuse_a = run_inference_via_remote_sequential(
         shared_prefix + suffix_a,
         max_new_tokens=3,
         env_flags={"BLOOMBEE_ENABLE_KV_PREFIX_REUSE": "1"},
+        client_p2pd_socket=client_p2pd_socket,
     )
     time.sleep(2)
     reuse_b = run_inference_via_remote_sequential(
         shared_prefix + suffix_b,
         max_new_tokens=3,
         env_flags={"BLOOMBEE_ENABLE_KV_PREFIX_REUSE": "1"},
+        client_p2pd_socket=client_p2pd_socket,
     )
 
     return {
@@ -393,29 +419,67 @@ while True:
     return dht_proc
 
 
+def start_client_p2pd(initial_peer: str, sock_path: str) -> subprocess.Popen:
+    """Start a SEPARATE p2pd for the client that bootstraps to our DHT.
+
+    This is the proven-working path (verified in debug_p2pd_bootstrap.py).
+    Returns a subprocess.Popen; read its stderr to confirm readiness.
+    """
+    import os as _os
+    try:
+        _os.remove(sock_path)
+    except FileNotFoundError:
+        pass
+    p2pd_path = str(PROJECT_ROOT / ".venv/lib/python3.11/site-packages/hivemind/hivemind_cli/p2pd")
+    proc = subprocess.Popen(
+        [
+            p2pd_path,
+            f"-listen=/unix{sock_path}",
+            "-bootstrapPeers", initial_peer,
+            "-dhtServer=1",
+            "-autoRelay=1",
+            "-relay=1",
+            "-natPortMap=1",
+            "-tls=1",
+        ],
+        stdout=open(SERVER_LOG, "a"),
+        stderr=subprocess.STDOUT,
+        cwd=str(PROJECT_ROOT),
+    )
+    return proc
+
+
+def wait_for_p2pd_ready(sock_path: str, timeout: float = 30) -> bool:
+    """Wait until the p2pd unix socket exists."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.path.exists(sock_path):
+            time.sleep(2)  # Give it a beat to fully come up
+            return True
+        time.sleep(0.5)
+    return False
+
 
 def start_bloombee_server(env_overrides: dict | None = None):
-    """Start BloomBee server (TinyLlama) against the private capture DHT."""
+    """Start BloomBee server (TinyLlama)."""
     env = dict(os.environ)
     env["BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"] = "1"
     env["BLOOMBEE_ENABLE_KV_PREFIX_REUSE"] = "1"
     if env_overrides:
         env.update(env_overrides)
 
-    peer_file = EVIDENCE_DIR / "dht_peer.txt"
-    if not peer_file.exists() or not peer_file.read_text().strip():
-        raise RuntimeError("DHT peer ID not yet discovered")
-    initial_peer = f"/ip4/127.0.0.1/tcp/{DHT_PORT}/p2p/{peer_file.read_text().strip()}"
-    command = build_server_command(
-        model_id=MODEL_ID,
-        initial_peer=initial_peer,
-        num_blocks=4,
-        port=SERVER_PORT,
-        batch_size=2,
-        device="mps",
-    )
     server_proc = subprocess.Popen(
-        command,
+        [
+            sys.executable, "-m", "bloombee.cli.run_server",
+            MODEL_ID,
+            "--num_blocks", "4",
+            "--port", str(SERVER_PORT),
+            "--device", "mps",
+            "--batch_size", "2",
+            # Use a stable DHT prefix for ourselves (avoid connecting to global swarm)
+            "--dht_prefix", "mycelium-capture-v1",
+            "--no_auto_relay",
+        ],
         stdout=open(SERVER_LOG, "a"),
         stderr=subprocess.STDOUT,
         cwd=str(PROJECT_ROOT),
@@ -423,8 +487,11 @@ def start_bloombee_server(env_overrides: dict | None = None):
     )
     return server_proc
 
+
 def main():
-    reset_capture_workspace()
+    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+    if SERVER_LOG.exists():
+        SERVER_LOG.unlink()
 
     # ---- Start DHT ----
     log.info(f"Starting DHT on port {DHT_PORT}...")
@@ -432,9 +499,7 @@ def main():
     log.info(f"DHT PID: {dht_proc.pid}")
 
     if not wait_for_dht():
-        detail = f"DHT did not listen on 127.0.0.1:{DHT_PORT}"
-        log.error(detail)
-        write_blocked_live_capture_evidence(reason="dht_not_listening", detail=detail)
+        log.error("DHT did not listen")
         dht_proc.kill()
         return 1
 
@@ -454,35 +519,60 @@ def main():
     server_proc = start_bloombee_server()
     log.info(f"Server PID: {server_proc.pid}")
 
-    if not wait_for_server_blocks(timeout=240, server_proc=server_proc):
+    if not wait_for_server_blocks(timeout=240):
         log.error("Server failed to announce. Last 60 log lines:")
         if SERVER_LOG.exists():
             for line in SERVER_LOG.read_text(errors="replace").splitlines()[-60:]:
                 log.error(f"  {line}")
-        write_blocked_live_capture_evidence(reason="server_not_ready", detail="server failed to announce blocks")
         dht_proc.kill()
         server_proc.kill()
         return 1
 
-    log.info("Server ready. Running capture phases...")
+    # ---- Start client p2pd (separate, bootstrapped to our DHT) ----
+    peer_id = (EVIDENCE_DIR / "dht_peer.txt").read_text().strip()
+    initial_peer = f"/ip4/127.0.0.1/tcp/{DHT_PORT}/p2p/{peer_id}"
+    client_p2pd_socket = "/tmp/bloombee-client-p2pd.sock"
+    log.info(f"Starting client p2pd with bootstrap={initial_peer}")
+    client_p2pd_proc = start_client_p2pd(initial_peer, client_p2pd_socket)
+
+    if not wait_for_p2pd_ready(client_p2pd_socket, timeout=30):
+        log.error(f"Client p2pd did not listen at {client_p2pd_socket}")
+        log.info("Last 30 log lines:")
+        if SERVER_LOG.exists():
+            for line in SERVER_LOG.read_text(errors="replace").splitlines()[-30:]:
+                log.info(f"  {line}")
+        server_proc.kill()
+        dht_proc.kill()
+        client_p2pd_proc.kill()
+        return 1
+    log.info(f"Client p2pd ready at {client_p2pd_socket}")
+
+    log.info("Running capture phases...")
 
     # ---- Phases ----
     try:
-        phase_a = phase_a_continuous_batching()
-        phase_b = phase_b_kv_prefix_reuse()
+        phase_a = phase_a_continuous_batching(client_p2pd_socket)
+        phase_b = phase_b_kv_prefix_reuse(client_p2pd_socket)
         obs = parse_server_log()
     except Exception as e:
         log.error(f"Phase error: {e}")
         traceback.print_exc()
         phase_a = phase_b = obs = {"phase_error": str(e)}
     finally:
-        # Capture final log size before shutdown
-        log_size_before = SERVER_LOG.stat().st_size if SERVER_LOG.exists() else 0
-
-        log.info("Shutting down server and DHT...")
-        server_proc.kill()
+        log.info("Shutting down server, client p2pd, DHT...")
+        try:
+            client_p2pd_proc.kill()
+        except Exception:
+            pass
+        try:
+            server_proc.kill()
+        except Exception:
+            pass
         time.sleep(2)
-        dht_proc.kill()
+        try:
+            dht_proc.kill()
+        except Exception:
+            pass
 
     evidence = {
         "model": MODEL_ID,
