@@ -527,6 +527,9 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert any(row["model_id"] == doc["real_route"]["picked"]["model_id"] for row in doc["model_fit_matrix"]["rows"])
     assert "evinova" in html
     assert "m4pro" in html
+    assert "Best decode" in html
+    assert "bench models" in html
+    assert "17.66 tok/s" in html
     assert "Qwen/Qwen3-30B-A3B" in html
     assert "Best available" in html
     assert "Route override" in html
