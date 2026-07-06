@@ -292,6 +292,112 @@ def _cache_handle_count(cache_handles: Sequence[Sequence[Handle]] | None) -> int
     return int(total)
 
 
+def _first_cache_handle(cache_handles: Sequence[Sequence[Handle]] | None) -> Handle | None:
+    if not cache_handles:
+        return None
+    for group in cache_handles:
+        if isinstance(group, Sequence) and not isinstance(group, (str, bytes)):
+            if group:
+                return group[0]
+        elif group is not None:
+            return group  # type: ignore[return-value]
+    return None
+
+
+def _cache_tensor_shape_for_handle(cache_manager: Any, handle: Handle) -> tuple[int, ...] | None:
+    cache = getattr(cache_manager, "cache", None)
+    allocated = getattr(cache, "_allocated_tensors", None)
+    if not isinstance(allocated, Mapping):
+        return None
+    tensors = allocated.get(handle)
+    if not isinstance(tensors, Sequence) or not tensors:
+        return None
+    tensor = tensors[0]
+    data = getattr(tensor, "data", tensor)
+    shape = getattr(data, "shape", getattr(tensor, "shape", None))
+    if shape is None:
+        return None
+    try:
+        return tuple(int(dim) for dim in shape)
+    except Exception:
+        return None
+
+
+def _row_bh_width_from_cache_shape(shape: Sequence[int], batch_size: int) -> int | None:
+    if batch_size < 2:
+        return None
+    if len(shape) >= 4 and int(shape[0]) >= batch_size:
+        return int(shape[1])
+    if len(shape) >= 3 and int(shape[1]) >= batch_size and int(shape[1]) % batch_size == 0:
+        return int(shape[1]) // batch_size
+    return None
+
+
+def _maybe_record_kv_prefix_reuse_handoff(
+    metadata: dict[str, Any],
+    step_metadata: Mapping[str, Any],
+    *,
+    cache_handles: Sequence[Sequence[Handle]],
+    cache_manager: Any,
+    batch_size: int,
+) -> Optional[dict[str, Any]]:
+    """Copy a shared-prefix KV slice between live batch slots and record proof metadata.
+
+    This is fail-closed: if metadata, handles, tensor shape, or copy primitive are
+    missing, it returns ``None`` and does not promote server proof status.
+    """
+
+    if os.environ.get(KV_PREFIX_REUSE_ENV_FLAG, "0") != "1":
+        return None
+    existing = metadata.get("kv_prefix_reuse_server_handoff")
+    if isinstance(existing, dict) and existing.get("server_handle_handoff_observed") is True:
+        return dict(existing)
+    observed_metadata = metadata.get("kv_prefix_reuse_server_observed")
+    if not isinstance(observed_metadata, Mapping):
+        return None
+    try:
+        step_prefix_length = int(step_metadata.get("_prefix_length", 0) or 0)
+    except Exception:
+        step_prefix_length = 0
+    common_prefix_count = _common_prefix_token_count_from_kv_metadata(observed_metadata)
+    prefix_length = step_prefix_length if step_prefix_length > 0 else common_prefix_count
+    if common_prefix_count > 0:
+        prefix_length = min(prefix_length, common_prefix_count) if prefix_length > 0 else common_prefix_count
+    if prefix_length <= 0 or int(batch_size) < 2:
+        return None
+    handle = _first_cache_handle(cache_handles)
+    if handle is None:
+        return None
+    shape = _cache_tensor_shape_for_handle(cache_manager, handle)
+    if shape is None:
+        return None
+    row_bh_width = _row_bh_width_from_cache_shape(shape, int(batch_size))
+    if row_bh_width is None or row_bh_width <= 0:
+        return None
+    source_slice = (0, row_bh_width)
+    destination_slice = (row_bh_width, row_bh_width * 2)
+    copy_fn = getattr(cache_manager, "copy_prefix_from_handle", None)
+    if not callable(copy_fn):
+        return None
+    try:
+        handoff = copy_fn(
+            source_handle=handle,
+            destination_handle=handle,
+            prefix_length=prefix_length,
+            source_bh_slice=source_slice,
+            destination_bh_slice=destination_slice,
+        )
+    except Exception as exc:
+        metadata["kv_prefix_reuse_server_handoff_error"] = f"{type(exc).__name__}: {exc}"
+        return None
+    if not isinstance(handoff, dict) or handoff.get("server_handle_handoff_observed") is not True:
+        return None
+    handoff.setdefault("client_claimed_prefix_token_count", common_prefix_count)
+    handoff.setdefault("source", "bloombee.server.handler")
+    metadata["kv_prefix_reuse_server_handoff"] = dict(handoff)
+    return dict(handoff)
+
+
 def _build_kv_cache_reuse_observation(
     metadata: Mapping[str, Any],
     step_metadata: Mapping[str, Any],
@@ -1185,6 +1291,14 @@ class TransformerConnectionHandler(ConnectionHandler):
                         push_time.append(push_schedule_ms) ###
                         # print('current step push outputs task prepare time ', start_ExpertResponse_time-can_push_case_time) ###
                         # print_time_now('')
+                        if isinstance(step_metadata, dict) and requested_backends:
+                            _maybe_record_kv_prefix_reuse_handoff(
+                                metadata,
+                                step_metadata,
+                                cache_handles=cache_handles,
+                                cache_manager=requested_backends[0].cache_manager,
+                                batch_size=batch_size,
+                            )
                         response_metadata = _build_rpc_inference_response_metadata(
                             metadata,
                             step_metadata if isinstance(step_metadata, dict) else {},

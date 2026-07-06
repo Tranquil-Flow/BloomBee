@@ -166,6 +166,59 @@ def test_server_observes_kv_prefix_reuse_metadata_only_with_opt_in(monkeypatch):
     assert _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": "not-a-dict"}) is None
 
 
+def test_server_records_real_kv_prefix_handoff_from_allocated_cache_slices(monkeypatch):
+    from bloombee.server.handler import _extract_kv_prefix_reuse_metadata, _maybe_record_kv_prefix_reuse_handoff
+
+    class FakeTensor:
+        shape = (2, 4, 3, 8)  # batch, heads, head_dim, max_length
+
+    class FakeCache:
+        _allocated_tensors = {11: (FakeTensor(), FakeTensor())}
+
+    class FakeCacheManager:
+        cache = FakeCache()
+
+        def __init__(self):
+            self.calls = []
+
+        def copy_prefix_from_handle(self, **kwargs):
+            self.calls.append(kwargs)
+            return {
+                "server_handle_handoff_observed": True,
+                "cache_read_source_handle_id": kwargs["source_handle"],
+                "cache_write_destination_handle_id": kwargs["destination_handle"],
+                "cache_read_source_bh_slice": list(kwargs["source_bh_slice"]),
+                "cache_write_destination_bh_slice": list(kwargs["destination_bh_slice"]),
+                "server_recovered_prefix_token_count": kwargs["prefix_length"],
+                "prefix_length": kwargs["prefix_length"],
+                "kv_prefix_byte_checksum_sha256": "b" * 64,
+            }
+
+    monkeypatch.setenv("BLOOMBEE_ENABLE_KV_PREFIX_REUSE", "1")
+    manager = FakeCacheManager()
+    metadata = {"kv_prefix_reuse_server_observed": _extract_kv_prefix_reuse_metadata({"kv_prefix_reuse": _kv_prefix_report()})}
+
+    handoff = _maybe_record_kv_prefix_reuse_handoff(
+        metadata,
+        {"step_id": "warm", "_prefix_length": 2},
+        cache_handles=((11,),),
+        cache_manager=manager,
+        batch_size=2,
+    )
+
+    assert handoff["server_handle_handoff_observed"] is True
+    assert metadata["kv_prefix_reuse_server_handoff"] == handoff
+    assert manager.calls == [
+        {
+            "source_handle": 11,
+            "destination_handle": 11,
+            "prefix_length": 2,
+            "source_bh_slice": (0, 4),
+            "destination_bh_slice": (4, 8),
+        }
+    ]
+
+
 def test_server_response_metadata_reports_kv_cache_reuse_only_after_real_handle_handoff(monkeypatch):
     from bloombee.server.handler import _build_rpc_inference_response_metadata, _extract_kv_prefix_reuse_metadata
 
