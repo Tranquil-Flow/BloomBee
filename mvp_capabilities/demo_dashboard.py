@@ -472,6 +472,123 @@ def build_layers_map(
     return {"groups": groups, "group_count": len(groups)}
 
 
+def _detect_layer_gaps(groups: list[dict[str, Any]]) -> dict[str, Any]:
+    """Find uncovered layer ranges across all group segments."""
+    ranges: list[tuple[int, int, str]] = []  # (start, end, status)
+    for group in groups:
+        for seg in group.get("segments") or []:
+            start = int(seg.get("start_layer") or 0)
+            end = int(seg.get("end_layer") or 0)
+            status = str(seg.get("status") or "unknown")
+            if end > start:
+                ranges.append((start, end, status))
+    if not ranges:
+        return {"gap_count": 0, "gaps": [], "coverage_percent": 0.0}
+    ranges.sort(key=lambda x: x[0])
+    total = ranges[-1][1]
+    if total == 0:
+        return {"gap_count": 0, "gaps": [], "coverage_percent": 0.0}
+    gaps: list[dict[str, Any]] = []
+    gap_start = 0
+    proven_count = 0
+    for start, end, status in ranges:
+        if start > gap_start:
+            gaps.append({"start_layer": gap_start, "end_layer": start, "layer_count": start - gap_start, "status": "uncovered"})
+        gap_start = max(gap_start, end)
+        if status in ("proof_evidence", "healthy", "ready"):
+            proven_count += end - start
+    if gap_start < total:
+        gaps.append({"start_layer": gap_start, "end_layer": total, "layer_count": total - gap_start, "status": "uncovered"})
+    coverage = round(proven_count / total * 100, 1) if total > 0 else 0.0
+    return {
+        "gap_count": len(gaps),
+        "gaps": gaps,
+        "total_layers": total,
+        "proven_layer_count": proven_count,
+        "coverage_percent": coverage,
+        "all_covered": len(gaps) == 0,
+        "status": "fully_covered" if len(gaps) == 0 else "gaps_present",
+    }
+
+
+def _demo_readiness_panel(document: dict[str, Any]) -> str:
+    """Emit a compact checklist of what the operator needs for a live demo."""
+    items: list[dict[str, str]] = []
+    roster = document.get("roster") or {}
+    peers = roster.get("peers") or []
+    evidence = document.get("evidence") or []
+    token_stream = document.get("token_stream") or {}
+    layers_map = document.get("layers_map") or {}
+    route = document.get("real_route") or {}
+    picked = route.get("picked") or route.get("serving") or {}
+    gaps = layers_map.get("gaps") or {}
+
+    # Peer count check
+    peer_count = len(peers)
+    items.append({
+        "check": "Connected peers ≥ 2",
+        "status": "ready" if peer_count >= 2 else "needed",
+        "detail": f"{peer_count} peer{'s' if peer_count != 1 else ''} found",
+    })
+    # Free memory
+    summary = roster.get("summary") or {}
+    free_gb = summary.get("free_memory_gb") or 0.0
+    items.append({
+        "check": f"Swarm free memory ≥ 10 GB",
+        "status": "ready" if free_gb >= 10 else "needed",
+        "detail": f"{free_gb:.1f} GB free",
+    })
+    # Route picked
+    items.append({
+        "check": "Route selected a model",
+        "status": "ready" if picked.get("model_id") else "needed",
+        "detail": picked.get("model_id") or "no model fits",
+    })
+    # Layer coverage
+    coverage_pct = gaps.get("coverage_percent") or 0.0
+    items.append({
+        "check": f"Layer map coverage ≥ 50%",
+        "status": "ready" if coverage_pct >= 50 else ("partial" if coverage_pct > 0 else "needed"),
+        "detail": f"{coverage_pct:.0f}% covered, {gaps.get('gap_count', 0)} gap{'s' if gaps.get('gap_count', 0) != 1 else ''}",
+    })
+    # Evidence
+    evidence_ok = sum(1 for e in evidence if e.get("ok"))
+    items.append({
+        "check": "Proof evidence ≥ 1 passing",
+        "status": "ready" if evidence_ok >= 1 else "needed",
+        "detail": f"{evidence_ok}/{len(evidence)} evidence rows ok",
+    })
+    # Token stream
+    items.append({
+        "check": "Live token stream active",
+        "status": "ready" if token_stream.get("live_tokens_seen") else "needed",
+        "detail": f"{token_stream.get('token_count', 0)} tokens seen" if token_stream.get("live_tokens_seen") else "no token stream data",
+    })
+
+    rows = []
+    for item in items:
+        icon = {"ready": "✓", "needed": "✗", "partial": "~"}.get(item["status"], "?")
+        color_class = {"ready": "ready", "needed": "needed", "partial": "partial"}.get(item["status"], "")
+        rows.append(
+            f"<tr class=\"{color_class}\">"
+            f"<td><span class=\"icon\">{icon}</span></td>"
+            f"<td>{_esc(item['check'])}</td>"
+            f"<td class=\"muted\">{_esc(item['detail'])}</td>"
+            "</tr>"
+        )
+    ready_count = sum(1 for item in items if item["status"] == "ready")
+    return f"""
+      <section class=\"card wide\">
+        <h2>Demo readiness checklist</h2>
+        <p class=\"muted\">{ready_count}/{len(items)} checks ready — this is planning visibility, not a live proof gate.</p>
+        <table>
+          <thead><tr><th></th><th>Check</th><th>Status</th></tr></thead>
+          <tbody>{''.join(rows)}</tbody>
+        </table>
+      </section>
+    """
+
+
 def build_model_fit_matrix(route: dict[str, Any], *, limit: int = 24) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for candidate in route.get("candidates") or []:
@@ -570,6 +687,7 @@ def build_dashboard_document(
         multi_block_diagnostics=multi_block_diagnostics,
         chain_schedule=chain_schedule,
     )
+    layers_map["gaps"] = _detect_layer_gaps(layers_map.get("groups") or [])
     model_fit_matrix = build_model_fit_matrix(real_route)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
@@ -852,6 +970,7 @@ def _token_stream_panel(report: dict[str, Any]) -> str:
 
 def _layers_map_panel(layers_map: dict[str, Any]) -> str:
     groups = layers_map.get("groups") or []
+    gaps_data = layers_map.get("gaps") or {}
     if not groups:
         return """
       <section class="card wide layers-map">
@@ -898,11 +1017,28 @@ def _layers_map_panel(layers_map: dict[str, Any]) -> str:
             </div>
             """
         )
+    gap_summary = ""
+    gap_count = int(gaps_data.get("gap_count") or 0)
+    if gap_count > 0:
+        coverage = gaps_data.get("coverage_percent") or 0.0
+        gap_items = []
+        for gap in gaps_data.get("gaps") or []:
+            gap_items.append(
+                f'<li>layers {gap.get("start_layer")}:{gap.get("end_layer")} — {gap.get("layer_count")} layers uncovered</li>'
+            )
+        gap_summary = f"""
+        <div class="layer-map-group layer-gap-warning">
+          <h3>⚠ Coverage gaps</h3>
+          <p class="muted">{coverage:.0f}% proven/healthy coverage · {gap_count} uncovered range{'s' if gap_count != 1 else ''}</p>
+          <ul>{''.join(gap_items)}</ul>
+        </div>
+        """
     return f"""
       <section class="card wide layers-map">
         <h2>Layers map</h2>
         <p class="muted">Visual route map from joined peers, committed proof placements, and multi-block diagnostics. This map observes routing; proof gates remain fail-closed.</p>
         {''.join(rendered_groups)}
+        {gap_summary}
       </section>
     """
 
@@ -1568,6 +1704,15 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     .status-proof_evidence {{ background:linear-gradient(135deg, #c4b5fd, #93c5fd); }}
     .status-unhealthy, .status-failed {{ background:linear-gradient(135deg, #ff9f9f, #f7c948); }}
     ul {{ margin:0; padding-left:20px; }}
+    .demo-readiness tr.needed {{ background:rgba(255,159,159,.12); }}
+    .demo-readiness tr.partial {{ background:rgba(247,201,72,.10); }}
+    .demo-readiness tr.ready {{ background:rgba(114,243,178,.08); }}
+    .demo-readiness .icon {{ font-size:18px; font-weight:700; display:inline-block; width:24px; text-align:center; }}
+    .demo-readiness .needed .icon {{ color:#ff9f9f; }}
+    .demo-readiness .partial .icon {{ color:#f7c948; }}
+    .demo-readiness .ready .icon {{ color:#72f3b2; }}
+    .layer-gap-warning {{ border:1px solid rgba(247,201,72,.35); border-radius:12px; padding:12px 18px; background:rgba(247,201,72,.06); }}
+    .layer-gap-warning h3 {{ color:#f7c948; margin:0 0 8px; }}
     footer {{ padding:0 36px 36px; color:var(--muted); }}
     @media (max-width: 900px) {{ main, .two {{ grid-template-columns:1fr; }} .wide {{ grid-column:auto; }} }}
   </style>
@@ -1584,6 +1729,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
   </header>
   <main>
     {_status_panel(document.get('mvp_status') or {})}
+    {_demo_readiness_panel(document)}
     {_proof_state_panel(document.get('proof_state'))}
     {_joined_layer_plan_panel(document.get('joined_layer_plan'))}
     {_chain_schedule_panel(document.get('chain_schedule'))}
