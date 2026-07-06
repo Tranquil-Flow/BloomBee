@@ -1,0 +1,58 @@
+{
+  "blocked_reasons": [
+    "continuous_batching:verifier_status_not_passed",
+    "continuous_batching:late_arrival_parity_not_proven",
+    "continuous_batching:late_arrival_not_observed",
+    "continuous_batching:no_batched_tick_observed",
+    "continuous_batching:token_parity_not_proven",
+    "continuous_batching:logits_parity_not_proven",
+    "continuous_batching:live continuous batching opt-in was not enabled",
+    "continuous_batching:live server did not report continuous batching observation",
+    "continuous_batching:requests must be a list",
+    "continuous_batching:expected at least 2 requests",
+    "continuous_batching:no late-arrival request observed",
+    "continuous_batching:live_continuous_report.tick_batches must be a list",
+    "continuous_batching:no batched live-continuous tick observed",
+    "kv_prefix_reuse:proof_gate_mismatch",
+    "kv_prefix_reuse:verifier_status_not_passed",
+    "kv_prefix_reuse:same_prefix_varied_suffix_not_proven",
+    "kv_prefix_reuse:token_parity_not_proven",
+    "kv_prefix_reuse:logit_parity_not_proven",
+    "kv_prefix_reuse:timing_not_measured",
+    "kv_prefix_reuse:live_server_kv_tensor_reuse_not_proven"
+  ],
+  "can_update_demo_status": false,
+  "can_update_mvp_status": false,
+  "can_update_post_mvp_gate_status": false,
+  "claim_boundary": "continuous_kv_joint_readiness_gate_no_demo_or_wallclock_speedup_claim",
+  "claim_limitations": [
+    "Joint verifier only; it does not itself execute live traffic.",
+    "KV prefix reuse must be server-observed tensor/cache reuse; metadata-only reports fail closed.",
+    "Wall-clock speedup and demo-safety promotion remain separate gates."
+  ],
+  "continuous_batching": {
+    "batched_tick_count": 0,
+    "claim_boundary": "verified_live_continuous_batching_server_concurrent_arrival_parity",
+    "late_arrival_observed": false,
+    "live_server_late_arrival_parity_proven": false,
+    "status": "failed"
+  },
+  "continuous_batching_ready": false,
+  "joint_batch_kv_ready": false,
+  "kv_prefix_reuse": {
+    "claim_boundary": "kv_prefix_reuse_live_generate_metadata_no_cache_reuse_or_speedup",
+    "live_kv_cache_reuse_proven": false,
+    "same_prefix_varied_suffix_proven": null,
+    "server_observed_kv_cache_reuse": false,
+    "speedup_proven": false,
+    "status": null,
+    "timing_measured": null
+  },
+  "kv_prefix_reuse_ready": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_status_update": {},
+  "source": "continuous_kv_joint_readiness.py",
+  "speedup_proven": false,
+  "verification_status": "failed",
+  "wallclock_speedup_proven": false
+}

@@ -32,6 +32,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("live-capture")
 
+
 BLOCKED_CLAIM_BOUNDARY = "live_continuous_kv_capture_blocked_no_live_server_proof"
 
 
@@ -222,6 +223,7 @@ try:
         request_timeout=90,
         max_retries=3,
         dht_prefix=os.environ["BLOOMBEE_DHT_PREFIX"],
+        low_cpu_mem_usage=False,
     )
     print("MODEL_LOADED:" + str(int(time.time() - start)), flush=True)
 except Exception as e:
@@ -489,9 +491,7 @@ def start_bloombee_server(env_overrides: dict | None = None):
 
 
 def main():
-    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    if SERVER_LOG.exists():
-        SERVER_LOG.unlink()
+    reset_capture_workspace()
 
     # ---- Start DHT ----
     log.info(f"Starting DHT on port {DHT_PORT}...")
@@ -519,7 +519,7 @@ def main():
     server_proc = start_bloombee_server()
     log.info(f"Server PID: {server_proc.pid}")
 
-    if not wait_for_server_blocks(timeout=240):
+    if not wait_for_server_blocks(timeout=240, server_proc=server_proc):
         log.error("Server failed to announce. Last 60 log lines:")
         if SERVER_LOG.exists():
             for line in SERVER_LOG.read_text(errors="replace").splitlines()[-60:]:

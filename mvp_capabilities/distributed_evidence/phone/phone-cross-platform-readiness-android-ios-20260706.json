@@ -1,0 +1,61 @@
+{
+  "android_ready": true,
+  "blocked_reasons": [
+    "missing_required_platform:ios"
+  ],
+  "bloombee_block_serving_proven": false,
+  "can_update_demo_status": false,
+  "can_update_phone_worker_status": false,
+  "can_update_speculative_speedup_status": false,
+  "claim_boundary": "phone_cross_platform_readiness_no_speedup_or_block_worker_claim",
+  "cross_platform_ready": false,
+  "ios_ready": false,
+  "model_sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+  "model_sha256_values": [
+    "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a"
+  ],
+  "phone_count": 1,
+  "phones": [
+    {
+      "accepted_external_token_count": 8,
+      "blocked_reasons": [],
+      "context_token_ingestion_proven": true,
+      "model_sha256": "61b50d457809a5194818fd22e6724b456cd7bb9a6264c52c8110684c53f3704a",
+      "phone_id": "pixel8pro-live-adb",
+      "phone_model": "Pixel 8 Pro",
+      "platform": "android",
+      "ready_for_cross_platform_trial": true,
+      "runtime": "Termux llama.cpp",
+      "speedup_claimed_by_artifact": false,
+      "transport_path": "m4pro_usb_adb_pull_termux_json_then_local_forced_batch_verifier",
+      "wallclock_correctness_proven": true
+    }
+  ],
+  "platform_runbook": {
+    "android": [
+      "Use Termux + llama.cpp on Android; prefer ADB/SSH bridge so the operator does not type long commands.",
+      "Emit rendered-prompt and rendered-prompt+draft context token IDs, then verify with phone_llama_cpp_binding_verifier.py.",
+      "Run phone_speculative_wallclock_gate.py and keep speedup flags false until integrated non-sequential timing passes."
+    ],
+    "ios": [
+      "Use an iOS Shortcuts/local-network JSON bridge, iSH/a-Shell, or a small Swift/TestFlight wrapper to emit the same context-token artifact schema.",
+      "Pull the iOS artifact to the verifier host and run the same phone_llama_cpp_binding_verifier.py path against the exact GGUF hash.",
+      "Do not claim iOS phone-worker readiness until the iOS artifact has context-token ingestion and wall-clock correctness gates."
+    ]
+  },
+  "platforms_present": [
+    "android"
+  ],
+  "ready_phone_count": 1,
+  "ready_platforms": [
+    "android"
+  ],
+  "required_platforms": [
+    "android",
+    "ios"
+  ],
+  "source": "phone_cross_platform_readiness.py",
+  "speedup_proven": false,
+  "verification_status": "failed",
+  "wallclock_speedup_proven": false
+}

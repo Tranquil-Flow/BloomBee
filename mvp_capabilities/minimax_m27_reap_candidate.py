@@ -35,6 +35,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 MODEL_ID = "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B"
+GGUF_REPO_ID = "mradermacher/m51Lab-MiniMax-M2.7-REAP-139B-A10B-i1-GGUF"
 TOTAL_PARAMS_B = 139.0
 ACTIVE_PARAMS_B = 10.0  # MoE active per token
 
@@ -136,12 +137,14 @@ def build_minimax_m27_reap_candidate_report(
         operator_commands.extend([
             f"# On {best['hostname']} — install llama.cpp release (supports REAP/MoE GGUF as of 2026-Q1):",
             "brew install llama.cpp  # or: git clone https://github.com/ggml-org/llama.cpp && cmake -B build && cmake --build build --config Release",
-            "# Download the {selected} GGUF from a community mirror (Hugging Face):",
-            "huggingface-cli download --local-dir ./MiniMax-M2.7-REAP-iq2 --include '*IQ2_XXS*' {model}".format(
-                selected=selected_quant["name"], model=MODEL_ID,
+            "# Download the selected GGUF from the i1/imatrix community mirror (Hugging Face):",
+            "huggingface-cli download --local-dir ./MiniMax-M2.7-REAP-i1 --include '*{selected}*' {repo}".format(
+                selected=selected_quant["name"], repo=GGUF_REPO_ID,
             ),
             "# Serve via OpenAI-compatible llama-server; do NOT route through BloomBee:",
-            "./llama-server -m ./MiniMax-M2.7-REAP-iq2/{safetensors_index}.gguf -ngl 99 --port 8080 --host 127.0.0.1",
+            "./llama-server -m ./MiniMax-M2.7-REAP-i1/<downloaded-{selected}.gguf> -ngl 99 --ctx-size 4096 --port 8080 --host 127.0.0.1".format(
+                selected=selected_quant["name"],
+            ),
             "# Smoke a single curl to confirm token streaming works:",
             "curl -s http://127.0.0.1:8080/v1/chat/completions -d '{\"model\":\"any\",\"messages\":[{\"role\":\"user\",\"content\":\"2+2?\"}]}'",
         ])

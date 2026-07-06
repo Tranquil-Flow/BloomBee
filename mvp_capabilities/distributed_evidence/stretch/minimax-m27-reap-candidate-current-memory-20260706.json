@@ -1,0 +1,53 @@
+{
+  "claim_boundary": "minimax_m27_reap_candidate_preflight_no_bloombee_or_live_inference_claim",
+  "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
+  "params_b": 139.0,
+  "active_params_b": 10.0,
+  "architecture_supported": false,
+  "native_bloombee_support_proven": false,
+  "route_picker_eligible": false,
+  "can_update_proof_status": false,
+  "can_update_demo_status": false,
+  "live_run_attempted": false,
+  "bloombee_blocked_reasons": [
+    "No BloomBee block wrapper registered for model_type=minimax_m2",
+    "MiniMax-M2.7-REAP community prune \u2014 BloomBee block family covers upstream MiniMax but not pruned/REAPed variants"
+  ],
+  "gguf_external_runtime": {
+    "framework": "llama.cpp",
+    "attemptable_on_best_peer": false,
+    "best_peer": {
+      "hostname": "m4pro",
+      "total_gb": 48.0,
+      "free_gb": 27.9
+    },
+    "selected_quant": null,
+    "all_quants_attempted": [
+      {
+        "name": "i1-IQ2_XXS",
+        "size_gb": 36.8,
+        "quality_note": "low_quality_but_first_m4pro_plausible_smoke"
+      },
+      {
+        "name": "i1-IQ2_XS",
+        "size_gb": 40.8,
+        "quality_note": "low_quality"
+      },
+      {
+        "name": "Q4_K_M",
+        "size_gb": 89.5,
+        "quality_note": "decent_quality_but_too_large_for_m4_pro_solo"
+      }
+    ],
+    "overhead_multiplier": 1.15,
+    "required_free_headroom": 0.1
+  },
+  "blocked_reasons": [
+    "quant_i1-IQ2_XXS_size_36.8gb_exceeds_required_25.1gb",
+    "quant_i1-IQ2_XS_size_40.8gb_exceeds_required_25.1gb",
+    "quant_Q4_K_M_size_89.5gb_exceeds_required_25.1gb",
+    "no_peer_has_free_memory_for_i1-IQ2_XXS_plus_margin"
+  ],
+  "operator_commands": [],
+  "suggested_proof_gate": "minimax_m2_7_reap_external_runtime"
+}
