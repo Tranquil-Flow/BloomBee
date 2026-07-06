@@ -382,7 +382,7 @@ models:
     native_contract_artifact: mvp_capabilities/distributed_evidence/post_mvp/minimax-m27-reap-native-contract-scan-20260706.json
     blocked_reasons:
       - BloomBee minimax_m2 block wrapper contract exists, but exact MiniMax-M2.7 REAP real-weight one-block server proof is missing
-      - MiniMax-M2.7 REAP MTP modules remain fail-closed until an explicit proof-time guard/contract exists
+      - MiniMax-M2.7 REAP MTP base-decoder guard exists; full MTP module proof remains fail-closed until real-weight proof covers it
       - GGUF/llama.cpp external runtime is not a BloomBee block-parallel route proof
     hf_config_url: https://huggingface.co/dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B/blob/main/config.json
 

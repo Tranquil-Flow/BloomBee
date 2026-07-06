@@ -22,6 +22,7 @@
   "max_position_embeddings": 196608,
   "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
   "model_type": "minimax_m2",
+  "mtp_base_decoder_guard_available": true,
   "mtp_transformer_layers": 1,
   "native_bloombee_support_proven": false,
   "native_bloombee_target": true,
@@ -36,7 +37,7 @@
   "qk_norm_type": "per_layer",
   "remaining_blockers": [
     "minimax_m2_moe_router_real_weight_proof_missing",
-    "minimax_m2_mtp_contract_unimplemented",
+    "minimax_m2_mtp_real_weight_or_full_module_proof_missing",
     "one_block_server_proof_missing"
   ],
   "required_native_components": [
@@ -57,6 +58,7 @@
     "local_experts": 154,
     "moe_router_kind": "sigmoid_top_k_with_optional_routing_bias",
     "moe_router_top_k": 8,
+    "mtp_base_decoder_guard_available": true,
     "mtp_requires_explicit_contract": true,
     "sparse_attention_requires_explicit_contract": false
   },

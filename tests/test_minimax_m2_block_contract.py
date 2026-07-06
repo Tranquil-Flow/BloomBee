@@ -98,3 +98,25 @@ def test_minimax_m2_config_wires_block_class_and_model_type():
     assert cfg.model_type == "minimax_m2"
     assert cfg.block_class is WrappedMiniMaxM2Block
     assert cfg.block_prefix == "model.layers"
+
+
+def test_minimax_m2_mtp_enabled_requires_explicit_base_decoder_guard():
+    cfg = _make_config()
+    cfg.use_mtp = True
+    cfg.num_mtp_modules = 3
+
+    with pytest.raises(ValueError, match="MTP.*base_decoder_only"):
+        WrappedMiniMaxM2Block(cfg, layer_idx=0)
+
+
+def test_minimax_m2_mtp_base_decoder_guard_allows_block_and_records_contract():
+    cfg = _make_config()
+    cfg.use_mtp = True
+    cfg.num_mtp_modules = 3
+    cfg.bloombee_minimax_m2_proof_scope = "base_decoder_only"
+
+    block = _make_stable_block(cfg, layer_idx=0)
+
+    assert block.mtp_contract["guard_mode"] == "base_decoder_only"
+    assert block.mtp_contract["mtp_modules_supported"] is False
+    assert block.mtp_contract["num_mtp_modules"] == 3
