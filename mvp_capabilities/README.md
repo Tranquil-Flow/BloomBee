@@ -480,9 +480,12 @@ As of the current implementation slice:
   records m4pro blocked by 48GB/~33.2GB free vs 80GB required. It must still
   pass one-block proof before any route/demo claim.
 - MiniMax M2.7 REAP/M3 work is tracked as a native BloomBee distributed-path lane,
-  with GGUF/llama.cpp smoke kept as optional side diagnostics only. M2.7 REAP is
-  blocked on a native `minimax_m2` wrapper plus MiniMax MoE/sparse-attention
-  cache-state contract and one-block proof. MiniMax M3 is still a high-compute
+  with GGUF/llama.cpp smoke kept as optional side diagnostics only. M2.7 REAP has
+  exact native-contract scan evidence at `minimax-m27-reap-native-contract-scan-20260706.json`
+  (MiniMaxM2ForCausalLM/minimax_m2, 62 layers, hidden 3072, 154 experts, top-k 8,
+  MTP enabled, all attention type entries=1, no exact sparse-attention flag) but
+  remains blocked on a native `minimax_m2` wrapper plus MoE router/MTP contract
+  and one-block proof. MiniMax M3 is still a high-compute
   blocked candidate: bf16 weights are ~809GiB indexed, recommended runtime
   memory is ~900GB, and native BloomBee lacks both `minimax_m3_vl` wrapper
   support and MiniMax Sparse Attention state/kernels. MXFP8/NVFP4/GGUF variants
