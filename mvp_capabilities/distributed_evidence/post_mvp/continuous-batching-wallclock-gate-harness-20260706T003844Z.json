@@ -1,0 +1,30 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "live_continuous_batching_wallclock_gate_harness_no_measurement",
+  "evidence_path": ".local/continuous-batching-wallclock-evidence.json",
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "notes": [
+    "Planning output is not measurement proof.",
+    "Positive timing is rejected unless the live-server parity verifier passed first.",
+    "Demo promotion remains false; review the exact live-run artifact before changing user-facing status."
+  ],
+  "operator_commands": [
+    "python mvp_capabilities/continuous_batching_live_server_proof.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/live-continuous-batching-capture.json --out .local/continuous-parity.verify.json",
+    "capture serial-baseline total_seconds/request_count/generated_token_count for the exact same live requests",
+    "capture opt-in live-continuous total_seconds/request_count/generated_token_count without hand-editing outputs",
+    "assemble .local/continuous-batching-wallclock-evidence.json with claim_boundary=live_continuous_batching_wallclock_capture_candidate, the parity_verification JSON, baseline, continuous, and telemetry_tags",
+    "python mvp_capabilities/continuous_batching_wallclock_gate.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/continuous-batching-wallclock-evidence.json"
+  ],
+  "parity_report_path": ".local/continuous-parity.verify.json",
+  "parity_required": true,
+  "proof_gate": "continuous_batching",
+  "required_telemetry_tags": [
+    "continuous_batching",
+    "live_server_late_arrival_parity",
+    "wallclock_throughput"
+  ],
+  "speedup_proven": false,
+  "verify_command": "python mvp_capabilities/continuous_batching_wallclock_gate.py verify --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --evidence .local/continuous-batching-wallclock-evidence.json",
+  "wallclock_speedup_proven": false
+}
