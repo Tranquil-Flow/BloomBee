@@ -1,0 +1,75 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "frontier_distributed_pathway_plan_no_live_inference_claim",
+  "do_not_claim": [
+    "no live inference was attempted by this planner",
+    "no wall-clock speedup proof",
+    "no demo/status promotion from planner output alone"
+  ],
+  "external_runtime_pathway": {
+    "best_peer": {
+      "free_gb": 33.753,
+      "hostname": "m4pro",
+      "total_gb": 48.0
+    },
+    "best_peer_shortfall_gb": 7.0,
+    "can_pool_peer_memory_now": false,
+    "framework": "llama.cpp",
+    "quant_or_format": "i1-IQ2_XXS",
+    "single_host_gate_pass": false,
+    "single_host_required_free_gb": 40.8,
+    "why_not_additive": "A GGUF external runtime maps/loads the model inside one process on one host unless a separate distributed backend is proven."
+  },
+  "live_run_attempted": false,
+  "main_bloombee_pathway": {
+    "blocked_reasons": [
+      "missing_native_bloombee_wrapper:minimax_m2"
+    ],
+    "can_pool_peer_memory_after_adapter": true,
+    "can_pool_peer_memory_now": false,
+    "config_scan_required": false,
+    "desired_end_state": true,
+    "hf_model_type": "minimax_m2",
+    "implementation": "BloomBee block-parallel DHT/RPC with peers owning contiguous transformer block ranges",
+    "native_wrapper_proven": false,
+    "one_block_proven": false,
+    "required_adapter_steps": [
+      "add/verify a BloomBee minimax_m2 block wrapper for the exact REAP architecture",
+      "model sparse/MoE router state and MiniMax attention/cache semantics inside a block",
+      "prove one-block server forward/backward or forward-only direct RPC on a clean host",
+      "prove multi-block split across two peers before any route/demo promotion",
+      "then run full/cache generation and load gates for the exact model row"
+    ],
+    "usable_now": false
+  },
+  "memory_summary": {
+    "combined_free_gb": 41.8,
+    "combined_total_gb": 64.0,
+    "largest_single_host_free_gb": 33.8,
+    "largest_single_host_total_gb": 48.0
+  },
+  "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
+  "peers": [
+    {
+      "hostname": "local-m4",
+      "memory": {
+        "free_gb": 8.0,
+        "total_gb": 16.0
+      }
+    },
+    {
+      "hostname": "m4pro",
+      "memory": {
+        "free_gb": 33.753,
+        "total_gb": 48.0
+      }
+    }
+  ],
+  "proof_status_update": {},
+  "recommendation": {
+    "next_engineering_lane": "native_bloombee_adapter_before_route_promotion",
+    "summary": "Use the main BloomBee pathway only after the exact model has a native wrapper/state-cache contract and at least a one-block proof. Until then, external GGUF smoke is useful but is a single-host gate."
+  },
+  "target_key": "minimax_m27_reap"
+}
