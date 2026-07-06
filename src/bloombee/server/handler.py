@@ -333,6 +333,23 @@ def _row_bh_width_from_cache_shape(shape: Sequence[int], batch_size: int) -> int
     return None
 
 
+def _normalize_handoff_bh_slice(value: Any) -> tuple[int, int] | None:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) != 2:
+        return None
+    try:
+        start = int(value[0])
+        end = int(value[1])
+    except Exception:
+        return None
+    if start < 0 or end <= start:
+        return None
+    return start, end
+
+
+def _handoff_slices_non_overlapping(source_slice: tuple[int, int], destination_slice: tuple[int, int]) -> bool:
+    return source_slice[1] <= destination_slice[0] or destination_slice[1] <= source_slice[0]
+
+
 def _maybe_record_kv_prefix_reuse_handoff(
     metadata: dict[str, Any],
     step_metadata: Mapping[str, Any],
@@ -428,8 +445,14 @@ def _build_kv_cache_reuse_observation(
     ):
         if required_key not in handoff:
             return None
-    if handoff.get("cache_read_source_handle_id") == handoff.get("cache_write_destination_handle_id"):
-        return None
+    same_handle = handoff.get("cache_read_source_handle_id") == handoff.get("cache_write_destination_handle_id")
+    source_slice = _normalize_handoff_bh_slice(handoff.get("cache_read_source_bh_slice"))
+    destination_slice = _normalize_handoff_bh_slice(handoff.get("cache_write_destination_bh_slice"))
+    if same_handle:
+        if source_slice is None or destination_slice is None:
+            return None
+        if not _handoff_slices_non_overlapping(source_slice, destination_slice):
+            return None
     try:
         prefix_length = int(handoff.get("prefix_length", step_metadata.get("_prefix_length", 0)) or 0)
     except Exception:
@@ -445,7 +468,7 @@ def _build_kv_cache_reuse_observation(
     reused_prefix_token_count = recovered_prefix_count if recovered_prefix_count > 0 else (
         min(prefix_length, common_prefix_count) if common_prefix_count else prefix_length
     )
-    return {
+    observation = {
         "source": "bloombee.server.handler",
         "claim_boundary": KV_PREFIX_REUSE_SERVER_CLAIM_BOUNDARY,
         "opt_in_flag": KV_PREFIX_REUSE_ENV_FLAG,
@@ -469,6 +492,11 @@ def _build_kv_cache_reuse_observation(
         "requested_uids": [str(uid) for uid in requested_uids],
         "step_id": str(step_metadata.get("step_id", "unknown")),
     }
+    if source_slice is not None:
+        observation["cache_read_source_bh_slice"] = [source_slice[0], source_slice[1]]
+    if destination_slice is not None:
+        observation["cache_write_destination_bh_slice"] = [destination_slice[0], destination_slice[1]]
+    return observation
 
 
 def _build_rpc_inference_response_metadata(
