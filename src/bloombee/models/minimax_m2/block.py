@@ -19,9 +19,39 @@ from transformers.models.minimax_m2.modeling_minimax_m2 import (
 from bloombee.utils.cache_compat import make_empty_kv_cache, make_past_kv_cache, read_kv_from_cache
 
 
+def build_mtp_contract(config: _BaseBlockConfig) -> dict[str, object]:
+    use_mtp = bool(getattr(config, "use_mtp", False))
+    guard_mode = getattr(config, "bloombee_minimax_m2_proof_scope", None)
+    if not use_mtp:
+        guard_mode = "not_required"
+    return {
+        "use_mtp": use_mtp,
+        "num_mtp_modules": int(getattr(config, "num_mtp_modules", 0) or 0),
+        "mtp_transformer_layers": int(getattr(config, "mtp_transformer_layers", 0) or 0),
+        "guard_mode": guard_mode,
+        "base_decoder_supported": True,
+        "mtp_modules_supported": False,
+        "requires_explicit_guard": use_mtp,
+    }
+
+
+def validate_mtp_contract(config: _BaseBlockConfig) -> dict[str, object]:
+    contract = build_mtp_contract(config)
+    if contract["requires_explicit_guard"] and contract["guard_mode"] != "base_decoder_only":
+        raise ValueError(
+            "MiniMax-M2 MTP use_mtp=True requires explicit base_decoder_only proof scope; "
+            "BloomBee supports only the base decoder block contract here. Set "
+            "bloombee_minimax_m2_proof_scope='base_decoder_only' "
+            "for proof harnesses that intentionally exclude MTP modules."
+        )
+    return contract
+
+
 class WrappedMiniMaxM2Block(_BaseDecoderLayer):
     def __init__(self, config: _BaseBlockConfig, layer_idx: int):
+        mtp_contract = validate_mtp_contract(config)
         super().__init__(config, layer_idx)
+        self.mtp_contract = mtp_contract
         self._attn_implementation = config._attn_implementation
         self.sliding_window = getattr(config, "sliding_window", None)
         self.layer_idx = layer_idx

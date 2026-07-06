@@ -37,6 +37,14 @@ def _wrapper_package_present() -> bool:
     return (PROJECT_ROOT / "src/bloombee/models/minimax_m2").exists()
 
 
+def _mtp_base_decoder_guard_available() -> bool:
+    block_path = PROJECT_ROOT / "src/bloombee/models/minimax_m2/block.py"
+    if not block_path.exists():
+        return False
+    text = block_path.read_text(encoding="utf-8")
+    return "validate_mtp_contract" in text and "base_decoder_only" in text
+
+
 def _has_sparse_attention_flag(config: dict[str, Any], attn_counts: dict[str, int]) -> bool:
     sparse_keys = (
         "supports_sparse_attention",
@@ -71,6 +79,7 @@ def build_minimax_m27_native_contract_report(
     use_routing_bias = bool(config.get("use_routing_bias"))
     sparse_flag = _has_sparse_attention_flag(config, attn_counts)
     wrapper_present = _wrapper_package_present()
+    mtp_guard_available = _mtp_base_decoder_guard_available()
 
     remaining_blockers = []
     if not wrapper_present:
@@ -79,7 +88,9 @@ def build_minimax_m27_native_contract_report(
         remaining_blockers.append("minimax_m2_moe_router_contract_unimplemented")
     elif num_local_experts and top_k:
         remaining_blockers.append("minimax_m2_moe_router_real_weight_proof_missing")
-    if use_mtp:
+    if use_mtp and mtp_guard_available:
+        remaining_blockers.append("minimax_m2_mtp_real_weight_or_full_module_proof_missing")
+    elif use_mtp:
         remaining_blockers.append("minimax_m2_mtp_contract_unimplemented")
     remaining_blockers.append("one_block_server_proof_missing")
 
@@ -111,6 +122,7 @@ def build_minimax_m27_native_contract_report(
         "router_jitter_noise": config.get("router_jitter_noise"),
         "native_wrapper_package_present": wrapper_present,
         "wrapper_block_contract_available": wrapper_present,
+        "mtp_base_decoder_guard_available": mtp_guard_available,
         "state_cache_contract": {
             "attention_cache_kind": "dynamic_kv_per_layer",
             "kv_layers": num_layers,
@@ -120,6 +132,7 @@ def build_minimax_m27_native_contract_report(
             "moe_router_top_k": top_k,
             "local_experts": num_local_experts,
             "mtp_requires_explicit_contract": use_mtp,
+            "mtp_base_decoder_guard_available": mtp_guard_available,
             "sparse_attention_requires_explicit_contract": sparse_flag,
         },
         "required_native_components": [

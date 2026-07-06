@@ -34,6 +34,7 @@ def test_minimax_m27_reap_exact_config_native_contract_scan_fails_closed():
     assert report["use_routing_bias"] is True
     assert report["scoring_func"] == "sigmoid"
     assert report["native_wrapper_package_present"] is True
+    assert report["mtp_base_decoder_guard_available"] is True
     assert report["state_cache_contract"]["attention_cache_kind"] == "dynamic_kv_per_layer"
     assert report["state_cache_contract"]["kv_layers"] == 62
     assert report["state_cache_contract"]["moe_router_top_k"] == 8
@@ -43,7 +44,8 @@ def test_minimax_m27_reap_exact_config_native_contract_scan_fails_closed():
     assert report["can_update_proof_status"] is False
     assert "bloombee_minimax_m2_wrapper_missing" not in report["remaining_blockers"]
     assert "minimax_m2_moe_router_real_weight_proof_missing" in report["remaining_blockers"]
-    assert "minimax_m2_mtp_contract_unimplemented" in report["remaining_blockers"]
+    assert "minimax_m2_mtp_contract_unimplemented" not in report["remaining_blockers"]
+    assert "minimax_m2_mtp_real_weight_or_full_module_proof_missing" in report["remaining_blockers"]
 
 
 def test_minimax_m27_native_contract_scan_cli_writes_json(tmp_path: Path):

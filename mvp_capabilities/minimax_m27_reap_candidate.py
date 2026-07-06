@@ -175,7 +175,7 @@ def build_minimax_m27_reap_candidate_report(
         "live_run_attempted": False,
         "bloombee_blocked_reasons": [
             f"BloomBee block wrapper registered for model_type={REAP_HF_MODEL_TYPE}, but no MiniMax-M2.7 REAP real-weight one-block server proof exists",
-            "MiniMax-M2.7-REAP MTP modules remain fail-closed until an explicit proof-time guard/contract exists",
+            "MiniMax-M2.7-REAP MTP base-decoder guard exists; full MTP module proof remains fail-closed until real-weight proof covers it",
             "GGUF/llama.cpp external runtime is side diagnostics only and does not prove native BloomBee block-parallel routing",
         ],
         "gguf_external_runtime": {
