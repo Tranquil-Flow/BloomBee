@@ -41,6 +41,20 @@ def test_remaining_work_checklist_json_is_machine_readable_and_claim_bounded():
     assert "M3 as likely stronger but not easier" in minimax_evidence
     assert all(item["done"] is False for item in payload["items"])
     assert payload["by_status"] == {"partial": 3, "blocked": 1}
+    assert payload["all_remaining_require_human_or_hardware"] is True
+    assert payload["by_blocker_category"] == {
+        "hardware_memory": 1,
+        "hardware_memory_or_real_model_proof": 1,
+        "human_operator_devices": 2,
+    }
+    assert all(item["requires_human_or_hardware"] is True for item in payload["items"])
+    assert by_id["qwen35b_candidate"]["blocker_category"] == "hardware_memory"
+    assert "requires_at_least_80gb_free_memory" in by_id["qwen35b_candidate"]["blocker_reasons"]
+    assert by_id["minimax_m3_candidate"]["blocker_category"] == "hardware_memory_or_real_model_proof"
+    assert "requires_suitable_memory_for_real_weight_oneblock" in by_id["minimax_m3_candidate"]["blocker_reasons"]
+    assert by_id["speculative_decode"]["blocker_category"] == "human_operator_devices"
+    assert "requires_ios_artifact" in by_id["speculative_decode"]["blocker_reasons"]
+    assert "requires_three_or_more_ready_phones" in by_id["phone_worker"]["blocker_reasons"]
 
 
 def test_remaining_work_checklist_markdown_lists_next_steps_without_overclaiming():
@@ -60,4 +74,5 @@ def test_remaining_work_checklist_markdown_lists_next_steps_without_overclaiming
     assert "one-block server proof" in text
     assert "- [ ] `minimax_m3_candidate`" in text
     assert "No new proof is created by this checklist" in text
+    assert "All remaining items require human/operator hardware or suitable-memory proof gates" in text
     assert "speedup proven" not in text.lower()
