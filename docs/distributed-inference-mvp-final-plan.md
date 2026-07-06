@@ -223,9 +223,10 @@ Already proven:
   missing the Python stack needed for `one_block_proof.py verify`.
   Coordinator `/speculative`, `/handoff`, and the dashboard expose the plan/report without
   claiming generation or speedup proof. `demo_dashboard.py --chain-schedule ...
-  --request-log ... --speculative-plan ... --draft-report ...` renders planned
-  waves, live request telemetry, draft-provider plans, and accepted/rejected
-  counters without claiming load or speculative speedup proof.
+  --request-log ... --token-stream-log ... --speculative-plan ... --draft-report ...`
+  renders planned waves, live request telemetry, draft-provider plans,
+  accepted/rejected counters, live token rows, model/device fit, and the layers
+  map without claiming load or speculative speedup proof.
 - Simulation harness exists: synthetic/live rosters can be rehearsed with failed
   hosts, route selection, and layer placement while staying simulation-only.
 

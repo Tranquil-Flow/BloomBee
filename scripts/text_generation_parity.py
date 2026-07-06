@@ -93,6 +93,37 @@ def parse_server_placements(
     return placements
 
 
+def _placement_hosts_and_ranges(server_placements: list[dict[str, Any]]) -> tuple[list[str], list[str]]:
+    hosts: list[str] = []
+    ranges: list[str] = []
+    for placement in server_placements:
+        host = placement.get("host")
+        layers = placement.get("layers") or []
+        if host:
+            hosts.append(str(host))
+        if isinstance(layers, list) and len(layers) == 2:
+            ranges.append(f"{int(layers[0])}:{int(layers[1])}")
+    return hosts, ranges
+
+
+def append_token_stream_event(path: str | Path | None, payload: dict[str, Any]) -> None:
+    """Append a dashboard-compatible generation token event as JSONL.
+
+    The dashboard treats this stream as observability only. It never promotes a
+    proof gate; parity still comes from the final RESULT evidence.
+    """
+    if path is None:
+        return
+    out = Path(path).expanduser()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    event = dict(payload)
+    event.setdefault("event", "token")
+    event.setdefault("timestamp", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    with out.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, sort_keys=True) + "\n")
+        handle.flush()
+
+
 def _prepare_sandbox_hivemind_runtime() -> None:
     """Apply client-only hivemind fallbacks needed in sandboxed shells.
 
@@ -147,6 +178,9 @@ def _greedy_forward_loop(
     *,
     max_new_tokens: int,
     device: str = "cpu",
+    tokenizer=None,
+    token_stream_log: str | Path | None = None,
+    token_stream_base: dict[str, Any] | None = None,
 ) -> tuple[torch.Tensor, list[dict[str, Any]]]:
     """Greedy decode by recomputing the full prefix through forward()."""
     output_cpu = input_ids_cpu.detach().cpu().clone()
@@ -156,14 +190,30 @@ def _greedy_forward_loop(
         logits = model(output_cpu.to(device)).logits[:, -1, :].detach().float().cpu()
         next_id = logits.argmax(dim=-1, keepdim=True).to(torch.long)
         output_cpu = torch.cat([output_cpu, next_id.cpu()], dim=1)
+        elapsed = time.time() - t0
+        next_token_id = int(next_id[0, 0])
         steps.append(
             {
                 "step": step,
-                "seconds": time.time() - t0,
-                "next_token_id": int(next_id[0, 0]),
+                "seconds": elapsed,
+                "next_token_id": next_token_id,
                 "top5": _topk(logits, 5),
             }
         )
+        if token_stream_log:
+            token_text = tokenizer.decode([next_token_id], skip_special_tokens=False) if tokenizer is not None else ""
+            append_token_stream_event(
+                token_stream_log,
+                {
+                    **(token_stream_base or {}),
+                    "event": "token",
+                    "step": step,
+                    "token_id": next_token_id,
+                    "token_text": token_text,
+                    "elapsed_seconds": round(elapsed, 6),
+                    "generated_token_count": step + 1,
+                },
+            )
     return output_cpu, steps
 
 
@@ -196,6 +246,10 @@ def main() -> int:
               "generate-api exercises cached RemoteGenerationMixin.generate"),
     )
     p.add_argument("--out", default=None, help="Optional JSON evidence path")
+    p.add_argument("--token-stream-log", default=None,
+                   help="Optional JSONL path for dashboard live token stream rows. Forward-loop mode emits one row per generated distributed token.")
+    p.add_argument("--request-id", default=None,
+                   help="Stable request id for --token-stream-log; defaults to parity-<epoch>.")
     p.add_argument("--no-server-to-server", action="store_true",
                    help="Disable direct server-to-server rpc_push; client orchestrates every stage")
     p.add_argument("--allow-mismatch", action="store_true",
@@ -243,6 +297,28 @@ def main() -> int:
     encoded = tokenizer(args.prompt, return_tensors="pt")
     input_ids_cpu = encoded["input_ids"]
     print(f"[parity] input_ids={_ids(input_ids_cpu)}")
+    token_stream_base: dict[str, Any] = {}
+    if args.token_stream_log:
+        hosts, layer_ranges = _placement_hosts_and_ranges(server_placements)
+        token_stream_base = {
+            "request_id": args.request_id or f"parity-{int(time.time())}",
+            "model": args.model,
+            "checkpoint_model": checkpoint_model,
+            "prompt": args.prompt,
+            "hosts": hosts,
+            "layer_ranges": layer_ranges,
+            "server_to_server": not args.no_server_to_server,
+            "mode": args.mode,
+        }
+        append_token_stream_event(
+            args.token_stream_log,
+            {
+                **token_stream_base,
+                "event": "generation_start",
+                "input_token_count": int(input_ids_cpu.shape[1]),
+                "max_new_tokens": args.max_new_tokens,
+            },
+        )
 
     if args.reference_mode == "full-model":
         print("[parity] loading full local HF reference model...")
@@ -366,6 +442,9 @@ def main() -> int:
                 input_ids_cpu,
                 max_new_tokens=args.max_new_tokens,
                 device="cpu",
+                tokenizer=tokenizer,
+                token_stream_log=args.token_stream_log,
+                token_stream_base=token_stream_base,
             )
     dist_seconds = time.time() - t0
     evidence.update(

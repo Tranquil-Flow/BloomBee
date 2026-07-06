@@ -46,6 +46,7 @@ except ModuleNotFoundError:  # direct script execution: python mvp_capabilities/
 DEFAULT_EVIDENCE_DIR = Path(__file__).with_name("distributed_evidence")
 DEFAULT_OUT = Path(".local/demo-dashboard.html")
 _TELEMETRY_MARKERS = ("[RECOVERY_EVENT]", "[S2S_PUSH_EVENT]")
+TOKEN_STREAM_CLAIM_BOUNDARY = "token_stream_observability_only_no_generation_proof"
 _TOKEN_RE = re.compile(r"(?P<key>[A-Za-z_][A-Za-z0-9_]*)=(?P<value>[^\s]+)")
 
 
@@ -201,6 +202,313 @@ def parse_telemetry_logs(paths: Iterable[str | Path] | None = None) -> dict[str,
     }
 
 
+def _parse_token_stream_line(line: str) -> dict[str, Any] | None:
+    stripped = line.strip()
+    if not stripped:
+        return None
+    if stripped.startswith("[TOKEN_STREAM]"):
+        stripped = stripped[len("[TOKEN_STREAM]") :].strip()
+        if not stripped:
+            return None
+        if stripped.startswith("{"):
+            try:
+                return json.loads(stripped)
+            except json.JSONDecodeError:
+                return None
+        return _parse_keyvals(stripped)
+    if stripped.startswith("{"):
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            return None
+        event = payload.get("event") or payload.get("type")
+        if event in {"generation_start", "token", "generation_end", "token_stream"}:
+            return payload
+    return None
+
+
+def _elapsed_seconds(payload: dict[str, Any]) -> float | None:
+    if payload.get("elapsed_seconds") is not None:
+        return _as_float(payload.get("elapsed_seconds"), 0.0)
+    if payload.get("elapsed_s") is not None:
+        return _as_float(payload.get("elapsed_s"), 0.0)
+    if payload.get("elapsed_ms") is not None:
+        return _as_float(payload.get("elapsed_ms"), 0.0) / 1000.0
+    return None
+
+
+def parse_token_stream_logs(paths: Iterable[str | Path] | None = None) -> dict[str, Any]:
+    """Parse optional live token JSONL/marker logs for dashboard display.
+
+    This is observability only. Token rows help the operator watch generation
+    progress while the proof harness runs, but do not prove generation parity or
+    update any proof-status gates.
+    """
+    scanned: list[str] = []
+    by_request: dict[str, dict[str, Any]] = {}
+    errors: list[dict[str, str]] = []
+
+    for raw in paths or []:
+        path = Path(raw).expanduser()
+        if not path.exists():
+            continue
+        scanned.append(str(path))
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            errors.append({"log": str(path), "message": str(exc)})
+            continue
+        for line in lines:
+            payload = _parse_token_stream_line(line)
+            if not payload:
+                continue
+            event = payload.get("event") or payload.get("type") or "token"
+            request_id = str(payload.get("request_id") or payload.get("request") or "default")
+            row = by_request.setdefault(
+                request_id,
+                {
+                    "request_id": request_id,
+                    "model": payload.get("model"),
+                    "prompt": payload.get("prompt"),
+                    "tokens": [],
+                    "generated_text": "",
+                    "hosts": [],
+                    "layer_ranges": [],
+                    "started_at": payload.get("timestamp"),
+                    "updated_at": payload.get("timestamp"),
+                },
+            )
+            if payload.get("model") and not row.get("model"):
+                row["model"] = payload.get("model")
+            if payload.get("prompt") and not row.get("prompt"):
+                row["prompt"] = payload.get("prompt")
+            if payload.get("timestamp"):
+                row["updated_at"] = payload.get("timestamp")
+            if event == "generation_start":
+                continue
+            if event not in {"token", "token_stream"}:
+                continue
+            token_text = str(payload.get("token_text") if payload.get("token_text") is not None else payload.get("text") or "")
+            token = {
+                "step": payload.get("step"),
+                "token_id": payload.get("token_id"),
+                "token_text": token_text,
+                "elapsed_seconds": _elapsed_seconds(payload),
+                "host": payload.get("host") or payload.get("hostname"),
+                "layers": payload.get("layers") or payload.get("block_range"),
+            }
+            row["tokens"].append(token)
+            row["generated_text"] += token_text
+            raw_hosts = payload.get("hosts")
+            raw_layer_ranges = payload.get("layer_ranges")
+            hosts_payload = raw_hosts if isinstance(raw_hosts, list) else []
+            layer_ranges_payload = raw_layer_ranges if isinstance(raw_layer_ranges, list) else []
+            for host in hosts_payload:
+                if host not in row["hosts"]:
+                    row["hosts"].append(host)
+            for layer_range in layer_ranges_payload:
+                if layer_range not in row["layer_ranges"]:
+                    row["layer_ranges"].append(layer_range)
+            if token.get("host") and token["host"] not in row["hosts"]:
+                row["hosts"].append(token["host"])
+            if token.get("layers") and token["layers"] not in row["layer_ranges"]:
+                row["layer_ranges"].append(token["layers"])
+
+    requests: list[dict[str, Any]] = []
+    for row in by_request.values():
+        tokens = row.get("tokens") or []
+        elapsed = [float(token["elapsed_seconds"]) for token in tokens if token.get("elapsed_seconds")]
+        last = tokens[-1] if tokens else {}
+        duration = max(elapsed) if elapsed else None
+        tokens_per_second = round(len(tokens) / duration, 3) if duration and duration > 0 else None
+        requests.append(
+            {
+                **row,
+                "token_count": len(tokens),
+                "latest_token_id": last.get("token_id"),
+                "latest_token_text": last.get("token_text"),
+                "elapsed_seconds": duration,
+                "tokens_per_second": tokens_per_second,
+            }
+        )
+    requests.sort(key=lambda item: str(item.get("request_id") or ""))
+    token_count = sum(int(item.get("token_count") or 0) for item in requests)
+    return {
+        "claim_boundary": TOKEN_STREAM_CLAIM_BOUNDARY,
+        "scanned_logs": scanned,
+        "live_tokens_seen": token_count > 0,
+        "request_count": len(requests),
+        "token_count": token_count,
+        "requests": requests,
+        "errors": errors,
+        "next_step": "Pass --token-stream-log from a live generation harness and run dashboard watch mode for near-real-time token display.",
+    }
+
+
+def _parse_block_range(value: Any) -> tuple[int, int] | None:
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            start, end = int(value[0]), int(value[1])
+        except (TypeError, ValueError):
+            return None
+        return (start, end) if end > start else None
+    if isinstance(value, str) and ":" in value:
+        left, right = value.split(":", 1)
+        try:
+            start, end = int(left), int(right)
+        except ValueError:
+            return None
+        return (start, end) if end > start else None
+    return None
+
+
+def build_layers_map(
+    *,
+    joined_layer_plan: dict[str, Any] | None,
+    layer_placements: list[dict[str, Any]],
+    multi_block_diagnostics: dict[str, Any] | None,
+    chain_schedule: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build visual layer-map groups from plan, proof, and diagnostics artifacts."""
+    groups: list[dict[str, Any]] = []
+    if joined_layer_plan:
+        placement = joined_layer_plan.get("placement") or {}
+        health = (chain_schedule or {}).get("peer_health") or {}
+        segments: list[dict[str, Any]] = []
+        for item in placement.get("assignments") or []:
+            parsed = _parse_block_range(item.get("block_range")) or _parse_block_range([item.get("start_layer"), item.get("end_layer")])
+            if not parsed:
+                continue
+            start, end = parsed
+            hostname = item.get("hostname") or "unknown"
+            peer_health = health.get(hostname) or {}
+            segments.append(
+                {
+                    "hostname": hostname,
+                    "start_layer": start,
+                    "end_layer": end,
+                    "block_range": f"{start}:{end}",
+                    "layer_count": end - start,
+                    "status": peer_health.get("health_status") or "planned",
+                    "utilization_fraction": peer_health.get("utilization_fraction"),
+                    "source": "joined_layer_plan",
+                }
+            )
+        if segments:
+            groups.append(
+                {
+                    "source": "joined_layer_plan",
+                    "title": "Joined-peer planned layers",
+                    "model": joined_layer_plan.get("model_id"),
+                    "claim_boundary": joined_layer_plan.get("claim_boundary"),
+                    "total_layers": placement.get("num_layers") or max(seg["end_layer"] for seg in segments),
+                    "segments": segments,
+                }
+            )
+
+    if layer_placements:
+        segments = []
+        for item in layer_placements:
+            parsed = _parse_block_range(item.get("layers"))
+            if not parsed:
+                continue
+            start, end = parsed
+            segments.append(
+                {
+                    "hostname": item.get("host") or "unknown",
+                    "start_layer": start,
+                    "end_layer": end,
+                    "block_range": f"{start}:{end}",
+                    "layer_count": end - start,
+                    "status": "proof_evidence",
+                    "evidence_file": item.get("evidence_file"),
+                    "source": "proof_evidence",
+                }
+            )
+        if segments:
+            groups.append(
+                {
+                    "source": "proof_evidence",
+                    "title": "Proof evidence layers",
+                    "model": layer_placements[0].get("model"),
+                    "claim_boundary": "layer_map_from_committed_proof_metadata",
+                    "total_layers": max(seg["end_layer"] for seg in segments),
+                    "segments": segments,
+                }
+            )
+
+    if multi_block_diagnostics:
+        coverage = multi_block_diagnostics.get("coverage") or {}
+        segments = []
+        for item in multi_block_diagnostics.get("servers") or []:
+            parsed = _parse_block_range(item.get("block_range"))
+            if not parsed:
+                continue
+            start, end = parsed
+            segments.append(
+                {
+                    "hostname": f"server-{item.get('server_index')}",
+                    "start_layer": start,
+                    "end_layer": end,
+                    "block_range": f"{start}:{end}",
+                    "layer_count": end - start,
+                    "status": item.get("health") or "diagnostic",
+                    "started": item.get("started"),
+                    "has_rpc_evidence": item.get("has_rpc_evidence"),
+                    "source": "multi_block_diagnostics",
+                }
+            )
+        if segments:
+            groups.append(
+                {
+                    "source": "multi_block_diagnostics",
+                    "title": "Live/diagnostic server layers",
+                    "model": multi_block_diagnostics.get("model_id"),
+                    "claim_boundary": multi_block_diagnostics.get("claim_boundary"),
+                    "total_layers": coverage.get("total_layers") or max(seg["end_layer"] for seg in segments),
+                    "segments": segments,
+                }
+            )
+    return {"groups": groups, "group_count": len(groups)}
+
+
+def build_model_fit_matrix(route: dict[str, Any], *, limit: int = 24) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for candidate in route.get("candidates") or []:
+        rows.append(
+            {
+                "model_id": candidate.get("model_id"),
+                "can_run_now": bool(candidate.get("memory_fit") and candidate.get("architecture_supported")),
+                "memory_fit": bool(candidate.get("memory_fit")),
+                "architecture_supported": bool(candidate.get("architecture_supported")),
+                "runtime_supported": bool(candidate.get("runtime_supported")),
+                "selector_allowed": bool(candidate.get("selector_allowed")),
+                "claim_level": candidate.get("claim_level"),
+                "placement": candidate.get("placement"),
+                "required_free_gb": candidate.get("required_free_gb"),
+                "swarm_free_gb": candidate.get("swarm_free_gb"),
+                "solo_hosts": candidate.get("solo_hosts") or [],
+                "measured_decode_tok_per_s": candidate.get("measured_decode_tok_per_s"),
+                "reason": candidate.get("selector_blocked_reason") or candidate.get("reason"),
+            }
+        )
+    rows.sort(
+        key=lambda item: (
+            not item["can_run_now"],
+            str(item.get("claim_level") != "demo_safe"),
+            -_as_float(item.get("measured_decode_tok_per_s"), 0.0),
+            _as_float(item.get("required_free_gb"), 0.0),
+            str(item.get("model_id") or ""),
+        )
+    )
+    return {
+        "claim_boundary": "model_fit_matrix_planning_only_no_serving_proof",
+        "candidate_count": len(rows),
+        "rows": rows[:limit],
+        "truncated": len(rows) > limit,
+    }
+
+
 def build_dashboard_document(
     *,
     cap_dirs: Iterable[str | Path] | None = None,
@@ -218,6 +526,7 @@ def build_dashboard_document(
     multi_block_diagnostics_path: str | Path | None = None,
     request_logs: Iterable[str | Path] | None = None,
     telemetry_logs: Iterable[str | Path] | None = None,
+    token_stream_logs: Iterable[str | Path] | None = None,
     synthetic_m4_laptops: int = 0,
     synthetic_total_gb: float = 24.0,
     synthetic_free_gb: float = 20.0,
@@ -254,6 +563,14 @@ def build_dashboard_document(
     draft_report = _read_json(draft_report_path, None)
     multi_block_diagnostics = _read_json(multi_block_diagnostics_path, None)
     layer_placements = collect_layer_placements(evidence)
+    token_stream = parse_token_stream_logs(token_stream_logs)
+    layers_map = build_layers_map(
+        joined_layer_plan=joined_layer_plan,
+        layer_placements=layer_placements,
+        multi_block_diagnostics=multi_block_diagnostics,
+        chain_schedule=chain_schedule,
+    )
+    model_fit_matrix = build_model_fit_matrix(real_route)
     passed_evidence = sum(1 for row in evidence if row.get("ok") is True)
     claim_boundaries = [
         "TinyLlama distributed generation parity is proven by committed evidence.",
@@ -280,6 +597,9 @@ def build_dashboard_document(
         "draft_report": draft_report,
         "multi_block_diagnostics": multi_block_diagnostics,
         "request_telemetry": build_request_telemetry(request_logs),
+        "token_stream": token_stream,
+        "layers_map": layers_map,
+        "model_fit_matrix": model_fit_matrix,
         "layer_placements": layer_placements,
         "evidence_summary": {"passed": passed_evidence, "total": len(evidence)},
         "telemetry": parse_telemetry_logs(telemetry_logs),
@@ -461,6 +781,132 @@ def _request_telemetry_panel(report: dict[str, Any]) -> str:
           <tbody>{error_rows or '<tr><td colspan="2">No request errors observed</td></tr>'}</tbody>
         </table>
         <p class="muted">{_esc(report.get('next_step') or 'Request telemetry is observability only.')}</p>
+      </section>
+    """
+
+
+def _token_stream_panel(report: dict[str, Any]) -> str:
+    requests = report.get("requests") or []
+    rows = []
+    for item in requests:
+        host_path = " → ".join(str(host) for host in item.get("hosts") or []) or "—"
+        layer_path = " → ".join(str(layer) for layer in item.get("layer_ranges") or []) or "—"
+        generated = str(item.get("generated_text") or "")[-240:]
+        rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('request_id'))}</td>"
+            f"<td>{_esc(item.get('model') or '—')}</td>"
+            f"<td>{_esc(item.get('token_count') or 0)}</td>"
+            f"<td>{_esc(item.get('latest_token_text') or '—')}</td>"
+            f"<td>{_fmt_num(item.get('tokens_per_second'), 3)}</td>"
+            f"<td>{_esc(host_path)}</td>"
+            f"<td>{_esc(layer_path)}</td>"
+            f"<td><code>{_esc(generated or '—')}</code></td>"
+            "</tr>"
+        )
+    live_copy = "live tokens seen" if report.get("live_tokens_seen") else "waiting for token stream"
+    return f"""
+      <section class="card wide token-stream">
+        <h2>Live token stream</h2>
+        <div class="grid two">
+          <div><span class="label">Status</span><strong>{_esc(live_copy)}</strong></div>
+          <div><span class="label">Requests / tokens</span><strong>{_esc(report.get('request_count') or 0)} / {_esc(report.get('token_count') or 0)}</strong></div>
+          <div><span class="label">Token log files</span><strong>{_esc(len(report.get('scanned_logs') or []))}</strong></div>
+          <div><span class="label">Claim boundary</span><code>{_esc(report.get('claim_boundary'))}</code></div>
+        </div>
+        <table>
+          <thead><tr><th>Request</th><th>Model</th><th>Tokens</th><th>Latest token</th><th>Tok/s</th><th>Device path</th><th>Layer path</th><th>Generated text tail</th></tr></thead>
+          <tbody>{''.join(rows) or '<tr><td colspan="8">No token stream rows yet. Pass --token-stream-log and run with --watch-seconds during inference.</td></tr>'}</tbody>
+        </table>
+        <p class="muted">{_esc(report.get('next_step') or 'Token stream is observability only and does not prove generation correctness.')}</p>
+      </section>
+    """
+
+
+def _layers_map_panel(layers_map: dict[str, Any]) -> str:
+    groups = layers_map.get("groups") or []
+    if not groups:
+        return """
+      <section class="card wide layers-map">
+        <h2>Layers map</h2>
+        <p class="muted">No layer placement, joined plan, or multi-block diagnostics supplied yet.</p>
+      </section>
+    """
+    rendered_groups: list[str] = []
+    for group in groups:
+        total_layers = max(1, int(group.get("total_layers") or 1))
+        segments_html = []
+        legend_rows = []
+        for segment in group.get("segments") or []:
+            start = int(segment.get("start_layer") or 0)
+            end = int(segment.get("end_layer") or start)
+            width = max(2.0, (end - start) / total_layers * 100.0)
+            status = str(segment.get("status") or "unknown").lower().replace(" ", "-")
+            label = f"{segment.get('hostname')} {segment.get('block_range')}"
+            segments_html.append(
+                f'<div class="layer-segment status-{_esc(status)}" style="width:{width:.3f}%" title="{_esc(label)}">'
+                f'<strong>{_esc(segment.get("hostname"))}</strong><span>{_esc(segment.get("block_range"))}</span></div>'
+            )
+            util = segment.get("utilization_fraction")
+            util_copy = f"{float(util) * 100:.0f}%" if isinstance(util, (float, int)) else "—"
+            legend_rows.append(
+                "<tr>"
+                f"<td>{_esc(segment.get('hostname'))}</td>"
+                f"<td>{_esc(segment.get('block_range'))}</td>"
+                f"<td>{_esc(segment.get('layer_count'))}</td>"
+                f"<td>{_esc(segment.get('status'))}</td>"
+                f"<td>{_esc(util_copy)}</td>"
+                "</tr>"
+            )
+        rendered_groups.append(
+            f"""
+            <div class="layer-map-group">
+              <h3>{_esc(group.get('title') or group.get('source'))}</h3>
+              <p class="muted">Model {_esc(group.get('model') or '—')} · total layers {_esc(total_layers)} · boundary <code>{_esc(group.get('claim_boundary'))}</code></p>
+              <div class="layer-map-track">{''.join(segments_html)}</div>
+              <table>
+                <thead><tr><th>Device</th><th>Layers</th><th>Count</th><th>Status</th><th>Utilization</th></tr></thead>
+                <tbody>{''.join(legend_rows)}</tbody>
+              </table>
+            </div>
+            """
+        )
+    return f"""
+      <section class="card wide layers-map">
+        <h2>Layers map</h2>
+        <p class="muted">Visual route map from joined peers, committed proof placements, and multi-block diagnostics. This map observes routing; proof gates remain fail-closed.</p>
+        {''.join(rendered_groups)}
+      </section>
+    """
+
+
+def _model_fit_matrix_panel(matrix: dict[str, Any]) -> str:
+    rows = []
+    for item in matrix.get("rows") or []:
+        hosts = ", ".join(str(host) for host in item.get("solo_hosts") or []) or "—"
+        rows.append(
+            "<tr>"
+            f"<td>{_esc(item.get('model_id'))}</td>"
+            f"<td>{_bool_badge(item.get('can_run_now'))}</td>"
+            f"<td>{_esc(item.get('claim_level') or '—')}</td>"
+            f"<td>{_esc(item.get('placement') or '—')}</td>"
+            f"<td>{_fmt_num(item.get('required_free_gb'), 1)}</td>"
+            f"<td>{_fmt_num(item.get('swarm_free_gb'), 1)}</td>"
+            f"<td>{_esc(hosts)}</td>"
+            f"<td>{_fmt_measured_rate(item.get('measured_decode_tok_per_s'))}</td>"
+            f"<td>{_esc(item.get('reason') or '—')}</td>"
+            "</tr>"
+        )
+    truncated = "; truncated to top rows" if matrix.get("truncated") else ""
+    return f"""
+      <section class="card wide model-fit-matrix">
+        <h2>Model capability matrix</h2>
+        <p class="muted">Which models could fit the currently connected devices by memory/architecture. Planning only; demo-safe still requires proof gates. Candidates: {_esc(matrix.get('candidate_count') or 0)}{_esc(truncated)}.</p>
+        <table>
+          <thead><tr><th>Model</th><th>Can run now</th><th>Claim level</th><th>Placement</th><th>Need GB</th><th>Swarm free GB</th><th>Solo hosts</th><th>Measured decode</th><th>Reason / blocker</th></tr></thead>
+          <tbody>{''.join(rows) or '<tr><td colspan="9">No route candidates loaded</td></tr>'}</tbody>
+        </table>
+        <p class="muted"><code>{_esc(matrix.get('claim_boundary'))}</code></p>
       </section>
     """
 
@@ -1085,6 +1531,15 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     .fail {{ background:rgba(255,107,107,.16); color:var(--fail); }}
     .warn {{ color:var(--warn); }}
     .muted.badge {{ background:rgba(149,172,200,.14); color:var(--muted); }}
+    .layer-map-group {{ margin-top:18px; }}
+    .layer-map-track {{ display:flex; min-height:74px; border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#07111f; box-shadow: inset 0 0 24px rgba(185,204,255,.08); }}
+    .layer-segment {{ display:flex; flex-direction:column; justify-content:center; gap:4px; min-width:90px; padding:10px; border-right:1px solid rgba(7,17,31,.78); color:#06111f; overflow:hidden; }}
+    .layer-segment strong, .layer-segment span {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+    .layer-segment strong {{ font-size:13px; }}
+    .layer-segment span {{ font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }}
+    .status-planned, .status-ready, .status-healthy {{ background:linear-gradient(135deg, #72f3b2, #87d8ff); }}
+    .status-proof_evidence {{ background:linear-gradient(135deg, #c4b5fd, #93c5fd); }}
+    .status-unhealthy, .status-failed {{ background:linear-gradient(135deg, #ff9f9f, #f7c948); }}
     ul {{ margin:0; padding-left:20px; }}
     footer {{ padding:0 36px 36px; color:var(--muted); }}
     @media (max-width: 900px) {{ main, .two {{ grid-template-columns:1fr; }} .wide {{ grid-column:auto; }} }}
@@ -1111,6 +1566,9 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_speculative_plan_panel(document.get('speculative_plan'))}
     {_draft_report_panel(document.get('draft_report'))}
     {_multi_block_diagnostics_panel(document.get('multi_block_diagnostics'))}
+    {_layers_map_panel(document.get('layers_map') or {})}
+    {_token_stream_panel(document.get('token_stream') or {})}
+    {_model_fit_matrix_panel(document.get('model_fit_matrix') or {})}
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
@@ -1155,6 +1613,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--draft-report", default=None, help="Optional JSON from draft_provider.py")
     parser.add_argument("--multi-block-diagnostics", default=None, help="Optional JSON from multi_block_diagnostics.py")
     parser.add_argument("--request-log", action="append", default=None, help="Direct-client request log with [direct] RESULT lines; may be repeated")
+    parser.add_argument("--token-stream-log", action="append", default=None, help="Live generation JSONL or [TOKEN_STREAM] log; may be repeated")
     parser.add_argument("--telemetry-log", action="append", default=None, help="Server/client log file with [RECOVERY_EVENT]/[S2S_PUSH_EVENT] lines; may be repeated")
     parser.add_argument("--synthetic-m4-laptops", type=int, default=0, help="Opt-in planning view: append N synthetic M4 laptop peers. Default 0 for real-demo dashboards.")
     parser.add_argument("--synthetic-total-gb", type=float, default=24.0)
@@ -1182,6 +1641,7 @@ def main(argv: list[str] | None = None) -> int:
             multi_block_diagnostics_path=args.multi_block_diagnostics,
             request_logs=args.request_log,
             telemetry_logs=args.telemetry_log,
+            token_stream_logs=args.token_stream_log,
             synthetic_m4_laptops=args.synthetic_m4_laptops,
             synthetic_total_gb=args.synthetic_total_gb,
             synthetic_free_gb=args.synthetic_free_gb,

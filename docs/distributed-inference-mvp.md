@@ -161,7 +161,8 @@ tracked in `docs/mvp-finish-plan.md`, and the post-MVP task scope is tracked in
   remaining percentage, next gate, proof-prep state, joined-peer layer-plan
   runbooks, coordinator handoff bundles with fresh-device bootstrap scripts,
   proof orchestration checklists, speculative decode plans, multi-block
-  diagnostics, and chain-scheduler rehearsals beside route/evidence/telemetry
+  diagnostics, a visual layers map, live token-stream rows, model/device fit
+  matrix, and chain-scheduler rehearsals beside route/evidence/telemetry
   panels.
 - `mvp_capabilities/join_handoff.py` fetches `/handoff` or redacts a saved raw
   bundle into `.local/handoff-bundle.json` for the dashboard; tokens are stripped

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -56,3 +57,31 @@ def test_parse_server_placements_rejects_bad_layer_range():
         assert "start:end" in str(exc)
     else:  # pragma: no cover - assertion guard
         raise AssertionError("expected ValueError")
+
+
+def test_append_token_stream_event_writes_dashboard_jsonl(tmp_path: Path):
+    parity = _load_parity_module()
+    out = tmp_path / "tokens.jsonl"
+
+    parity.append_token_stream_event(
+        out,
+        {
+            "request_id": "req-1",
+            "model": "Qwen/Qwen3-8B",
+            "event": "token",
+            "step": 0,
+            "token_id": 42,
+            "token_text": " moon",
+            "elapsed_seconds": 0.12,
+            "hosts": ["m4pro-seed", "m4pro-tail"],
+            "layer_ranges": ["0:8", "8:22"],
+        },
+    )
+
+    row = json.loads(out.read_text(encoding="utf-8").strip())
+    assert row["event"] == "token"
+    assert row["request_id"] == "req-1"
+    assert row["token_id"] == 42
+    assert row["token_text"] == " moon"
+    assert row["hosts"] == ["m4pro-seed", "m4pro-tail"]
+    assert row["layer_ranges"] == ["0:8", "8:22"]

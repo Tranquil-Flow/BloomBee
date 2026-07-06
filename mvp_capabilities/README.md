@@ -316,7 +316,10 @@ python mvp_capabilities/demo_dashboard.py \
   --proof-orchestration .local/proof-orchestration.json \
   --speculative-plan .local/speculative-plan.json \
   --draft-report .local/draft-report.json \
+  --multi-block-diagnostics .local/multi-block-diagnostics.json \
   --request-log .local/direct-client.log \
+  --token-stream-log .local/token-stream.jsonl \
+  --telemetry-log .local/server.log \
   --out .local/demo-dashboard.html \
   --refresh-seconds 10 \
   --watch-seconds 2
@@ -535,7 +538,8 @@ As of the current implementation slice:
 - Demo dashboard (`demo_dashboard.py`) surfaces `mvp_status.py` progress, next
   gate, remaining percentage, proof-prep state, joined-peer layer plans,
   coordinator handoff bundles, proof orchestration checklists, speculative decode
-  plans, chain-scheduler rehearsals, request telemetry, and milestone table beside routes/evidence.
+  plans, chain-scheduler rehearsals, request telemetry, live token-stream JSONL,
+  a visual layers map, model/device fit matrix, and milestone table beside routes/evidence.
 - Proof-state observability (`proof_state.py`) parses retained status/log/cache
   facts from long-running proof prep, distinguishes complete snapshots from stale
   `.incomplete` leftovers, emits ETA fields, and feeds the dashboard without
@@ -559,9 +563,11 @@ As of the current implementation slice:
   dark HTML dashboard with connected devices, real-swarm route cards, measured
   throughput, inference evidence, real layer-placement metadata, joined layer
   plans, coordinator handoff/runbook bundles, proof orchestration checklists,
-  speculative decode plans, chain-scheduler waves/peer health, live telemetry
-  counters, and claim boundaries. Synthetic 10-laptop planning is hidden by
-  default and appears only with `--synthetic-m4-laptops`.
+  speculative decode plans, chain-scheduler waves/peer health, live request
+  telemetry, live token-stream rows from `--token-stream-log`, a visual layers
+  map, a model/device fit matrix, telemetry counters, and claim boundaries.
+  Synthetic 10-laptop planning is hidden by default and appears only with
+  `--synthetic-m4-laptops`.
 - Real layer-placement proof (2026-07-03): three live BloomBee server processes
   on `m4pro` served TinyLlama layers `0:8`, `8:15`, and `15:22`; a direct client
   call over all `0:22` layers returned finite outputs and gradients

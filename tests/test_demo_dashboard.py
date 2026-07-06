@@ -342,6 +342,41 @@ def _write_request_log(path: Path) -> None:
     )
 
 
+def _write_token_stream_log(path: Path) -> None:
+    rows = [
+        {
+            "event": "generation_start",
+            "request_id": "demo-req-1",
+            "model": "Qwen/Qwen3-8B",
+            "prompt": "The moonlit swarm says",
+            "timestamp": "2026-07-06T20:00:00Z",
+        },
+        {
+            "event": "token",
+            "request_id": "demo-req-1",
+            "model": "Qwen/Qwen3-8B",
+            "step": 0,
+            "token_id": 9906,
+            "token_text": " hello",
+            "elapsed_seconds": 0.22,
+            "host": "joined-peer-a",
+            "layers": "0:18",
+        },
+        {
+            "event": "token",
+            "request_id": "demo-req-1",
+            "model": "Qwen/Qwen3-8B",
+            "step": 1,
+            "token_id": 11715,
+            "token_text": " moon",
+            "elapsed_seconds": 0.44,
+            "host": "joined-peer-b",
+            "layers": "18:36",
+        },
+    ]
+    path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in rows), encoding="utf-8")
+
+
 def _write_multi_block_diagnostics(path: Path) -> None:
     path.write_text(
         json.dumps(
@@ -411,6 +446,8 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     _write_multi_block_diagnostics(multi_block_diagnostics)
     request_log = tmp_path / "direct-client.log"
     _write_request_log(request_log)
+    token_log = tmp_path / "tokens.jsonl"
+    _write_token_stream_log(token_log)
 
     doc = build_dashboard_document(
         cap_dirs=[cap_dir],
@@ -424,6 +461,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
         draft_report_path=draft_report,
         multi_block_diagnostics_path=multi_block_diagnostics,
         request_logs=[request_log],
+        token_stream_logs=[token_log],
         synthetic_m4_laptops=10,
         synthetic_total_gb=24,
         synthetic_free_gb=20,
@@ -478,6 +516,15 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["multi_block_diagnostics"]["coverage"]["missing_layers"] == 18
     assert doc["request_telemetry"]["request_counts"] == {"total": 2, "succeeded": 1, "failed": 1}
     assert doc["request_telemetry"]["latency_seconds"]["forward"]["avg"] == 0.08
+    assert doc["token_stream"]["live_tokens_seen"] is True
+    assert doc["token_stream"]["token_count"] == 2
+    assert doc["token_stream"]["requests"][0]["generated_text"] == " hello moon"
+    assert doc["token_stream"]["requests"][0]["latest_token_text"] == " moon"
+    assert doc["layers_map"]["groups"][0]["source"] == "joined_layer_plan"
+    assert doc["layers_map"]["groups"][0]["segments"][0]["hostname"] == "joined-peer-a"
+    assert doc["layers_map"]["groups"][0]["segments"][0]["block_range"] == "0:18"
+    assert doc["model_fit_matrix"]["candidate_count"] >= 1
+    assert any(row["model_id"] == doc["real_route"]["picked"]["model_id"] for row in doc["model_fit_matrix"]["rows"])
     assert "evinova" in html
     assert "m4pro" in html
     assert "Qwen/Qwen3-30B-A3B" in html
@@ -564,6 +611,20 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "succeeded 1 / failed 1" in html
     assert "forward avg 0.08s" in html
     assert "DHT bootstrap failed before RPC" in html
+    assert "Live token stream" in html
+    assert "token_stream_observability_only_no_generation_proof" in html
+    assert "demo-req-1" in html
+    assert "hello moon" in html
+    assert "latest token" in html.lower()
+    assert "Layers map" in html
+    assert "layer-segment" in html
+    assert "joined-peer-a" in html
+    assert "joined-peer-b" in html
+    assert "0:18" in html
+    assert "18:36" in html
+    assert "Model capability matrix" in html
+    assert "Can run now" in html
+    assert "Claim level" in html
     assert "[S2S_PUSH_EVENT]" in html
     assert "TEXT_GEN_PARITY_GENERATE_API_3PEER_S2S_DEFAULT_TINYLLAMA.json" in html
 
