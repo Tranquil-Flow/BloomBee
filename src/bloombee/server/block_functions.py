@@ -170,6 +170,33 @@ def _fullbatch_metadata_kwargs(step_metadata: Optional[Dict[str, Any]], batch_si
     }
 
 
+def _live_active_mask_from_step_metadata(step_metadata: Optional[Dict[str, Any]], batch_size: int) -> Optional[torch.Tensor]:
+    if not isinstance(step_metadata, dict) or batch_size <= 0:
+        return None
+    live_metadata = step_metadata.get("live_continuous_batching")
+    if not isinstance(live_metadata, dict):
+        return None
+    tick_batches = live_metadata.get("tick_batches")
+    if not isinstance(tick_batches, list) or not tick_batches:
+        return None
+    tick_batch = tick_batches[0]
+    if not isinstance(tick_batch, dict):
+        return None
+    raw_mask = tick_batch.get("active_mask")
+    if not isinstance(raw_mask, (list, tuple)):
+        return None
+    if len(raw_mask) == batch_size:
+        return torch.tensor([bool(item) for item in raw_mask], dtype=torch.bool)
+    batch_offset = _to_int(step_metadata.get("batch_offset", 0), 0)
+    micro_batch_size = _to_int(step_metadata.get("micro_batch_size", batch_size), batch_size)
+    if batch_offset < 0 or micro_batch_size != batch_size:
+        return None
+    end = batch_offset + batch_size
+    if end > len(raw_mask):
+        return None
+    return torch.tensor([bool(item) for item in raw_mask[batch_offset:end]], dtype=torch.bool)
+
+
 def _bytes_to_mb(value: Any) -> float:
     return _to_float(value) / (1024.0 * 1024.0)
 
@@ -1058,6 +1085,7 @@ async def iterate_rpc_inference(
                         keep_indices=keep_indices,
                         need_pruning=need_pruning,
                         is_spec_dec=is_spec_dec,
+                        active_mask=_live_active_mask_from_step_metadata(step_metadata, full_batch_size),
                         batch_offset=mb_offset,
                         full_batch_size=full_batch_size,
                         micro_batch_size=mb_size,
@@ -1111,6 +1139,7 @@ async def iterate_rpc_inference(
                             keep_indices=keep_indices,
                             need_pruning=need_pruning,
                             is_spec_dec=is_spec_dec,
+                            active_mask=_live_active_mask_from_step_metadata(step_metadata, full_batch_size),
                             batch_offset=mb_offset,
                             full_batch_size=full_batch_size,
                             micro_batch_size=mb_size,
@@ -1705,6 +1734,7 @@ async def iterate_rpc_inference(
             hidden_states = restore_hidden_states(hidden_states, keep_indices, draft_tokens.shape[-1])
             
         batch_size, length_increment, _ = hidden_states.shape
+        live_active_mask = _live_active_mask_from_step_metadata(step_metadata, batch_size)
                 
         token_increment = _effective_token_increment(hidden_states, kv_cache_position_ids, is_spec_dec)
         
@@ -1838,6 +1868,7 @@ async def iterate_rpc_inference(
                             draft_tokens,
                             prefill_length,
                             keep_indices,
+                            live_active_mask,
                             mb_start=mb_start,
                             mb_end=mb_end,
                             full_batch_size=batch_size,
@@ -1901,6 +1932,7 @@ async def iterate_rpc_inference(
                             keep_indices=mb_inputs.keep_indices,
                             need_pruning=need_pruning,
                             is_spec_dec=is_spec_dec,
+                            active_mask=mb_inputs.active_mask,
                             batch_offset=cache_batch_offset,
                             full_batch_size=cache_full_batch_size,
                             micro_batch_size=mb_size,
@@ -2208,6 +2240,7 @@ async def iterate_rpc_inference(
                         keep_indices=keep_indices,
                         need_pruning=need_pruning,
                         is_spec_dec=is_spec_dec,
+                        active_mask=live_active_mask,
                         **_fullbatch_metadata_kwargs(step_metadata, batch_size),
                     )
                     submit_result = await requested_backends[0].inference_pool.submit_task(
@@ -2265,6 +2298,7 @@ async def iterate_rpc_inference(
                             draft_tokens,
                             prefill_length,
                             keep_indices,
+                            live_active_mask,
                             mb_start=mb_start,
                             mb_end=mb_end,
                             full_batch_size=batch_size,
@@ -2288,6 +2322,7 @@ async def iterate_rpc_inference(
                                 keep_indices=mb_keep_idx,
                                 need_pruning=need_pruning,
                                 is_spec_dec=is_spec_dec,
+                                active_mask=mb_inputs.active_mask,
                                 batch_offset=mb_inputs.batch_offset,
                                 full_batch_size=mb_inputs.full_batch_size,
                                 micro_batch_size=mb_size,

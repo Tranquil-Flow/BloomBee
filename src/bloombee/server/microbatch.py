@@ -19,6 +19,7 @@ class MicrobatchInputs:
     draft_tokens: Any
     prefill_length: Any
     keep_indices: Any
+    active_mask: Any
     batch_offset: int
     full_batch_size: int
     micro_batch_size: int
@@ -68,6 +69,7 @@ def slice_microbatch_inputs(
     draft_tokens: Any,
     prefill_length: Any,
     keep_indices: Any,
+    active_mask: Any = None,
     *,
     mb_start: int,
     mb_end: int,
@@ -94,6 +96,7 @@ def slice_microbatch_inputs(
         draft_tokens=slice_batch_aligned(draft_tokens, mb_start, mb_end, full_batch_size),
         prefill_length=slice_batch_aligned(prefill_length, mb_start, mb_end, full_batch_size),
         keep_indices=slice_keep_indices(keep_indices, mb_start, mb_end, full_batch_size),
+        active_mask=slice_batch_aligned(active_mask, mb_start, mb_end, full_batch_size),
         batch_offset=mb_start,
         full_batch_size=full_batch_size,
         micro_batch_size=mb_size,
@@ -113,6 +116,7 @@ def build_inference_metadata(
     keep_indices: Any = None,
     need_pruning: Any = None,
     is_spec_dec: Any = None,
+    active_mask: Any = None,
     batch_offset: int = 0,
     full_batch_size: int = 0,
     micro_batch_size: int = 0,
@@ -129,6 +133,7 @@ def build_inference_metadata(
         keep_indices=keep_indices,
         need_pruning=need_pruning,
         is_spec_dec=is_spec_dec,
+        active_mask=active_mask,
         batch_offset=batch_offset,
         full_batch_size=full_batch_size,
         micro_batch_size=micro_batch_size,
