@@ -77,6 +77,31 @@ def test_server_log_report_keeps_synthetic_harness_from_live_server_proof():
     assert report["can_update_demo_status"] is False
 
 
+def test_server_log_report_parses_actual_merged_batch_stats_without_proof_promotion():
+    from mvp_capabilities.continuous_batching_server_log_report import (
+        build_live_continuous_batching_server_log_report,
+    )
+
+    report = build_live_continuous_batching_server_log_report(
+        "Jul 06 08:13:29.224 [INFO] merged_inference: 2 batches (2.64 batches/s), "
+        "4 examples (5.28 examples/s), avg batch size 2.00",
+        source="m4pro-live-tinyllama-server-batch2.log",
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+
+    assert report["model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    assert report["event_count"] == 0
+    assert report["merged_inference_stats"] == [
+        {"batches": 2, "examples": 4, "avg_batch_size": 2.0}
+    ]
+    assert report["server_observed_actual_multi_request_batch"] is True
+    assert report["server_observed_live_continuous_batches"] is False
+    assert report["live_server_proven"] is False
+    assert report["speedup_proven"] is False
+    assert report["wallclock_speedup_proven"] is False
+    assert report["can_update_demo_status"] is False
+
+
 def test_server_log_report_cli_writes_live_report_json(tmp_path: Path):
     log_path = tmp_path / "server.log"
     out_path = tmp_path / "live-report.json"

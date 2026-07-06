@@ -1,0 +1,29 @@
+{
+  "batched_tick_count": 0,
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "verified_live_continuous_batching_server_concurrent_arrival_parity",
+  "evidence_path": "mvp_capabilities/distributed_evidence/post_mvp/continuous-batching-server-merge-report-live-20260706T0812.json",
+  "failed_checks": [
+    "live continuous batching opt-in was not enabled",
+    "live server did not report continuous batching observation",
+    "requests must be a list",
+    "expected at least 2 requests",
+    "no late-arrival request observed",
+    "live_continuous_report.tick_batches must be a list",
+    "no batched live-continuous tick observed"
+  ],
+  "late_arrival_observed": false,
+  "live_server_late_arrival_parity_proven": false,
+  "live_server_proven": false,
+  "logits_fingerprint_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "continuous_batching",
+  "proof_status_update": {},
+  "request_count": 0,
+  "requests": [],
+  "speedup_proven": false,
+  "status": "failed",
+  "token_parity_proven": false,
+  "wallclock_speedup_proven": false
+}

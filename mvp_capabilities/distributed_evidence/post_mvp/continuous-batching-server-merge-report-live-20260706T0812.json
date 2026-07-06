@@ -1,0 +1,32 @@
+{
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "live_continuous_batching_server_log_report_no_parity_or_speedup",
+  "claim_limitations": [
+    "Server log report only: this does not prove token/logit parity.",
+    "Merged-inference stats prove only that the server batched examples; they do not prove client request identity, late-arrival timing, parity, or speedup.",
+    "Late-arrival parity must still pass continuous_batching_live_server_proof.py.",
+    "Wall-clock speedup must still pass continuous_batching_wallclock_gate.py."
+  ],
+  "event_count": 0,
+  "events": [],
+  "live_server_proven": false,
+  "merged_inference_stats": [
+    {
+      "avg_batch_size": 2.0,
+      "batches": 2,
+      "examples": 4
+    }
+  ],
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "opt_in_enabled": false,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "server_observed_actual_multi_request_batch": true,
+  "server_observed_live_continuous_batches": false,
+  "source": "mvp_capabilities.continuous_batching_server_log_report",
+  "source_log": ".local/m4pro-live-logs/live-tinyllama-server-batch2-20260706T0812.log",
+  "speedup_proven": false,
+  "synthetic_fixture": false,
+  "tick_batches": [],
+  "wallclock_speedup_proven": false
+}

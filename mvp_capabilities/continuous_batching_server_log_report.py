@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,12 @@ LOG_PREFIX = "[LIVE_CONTINUOUS_BATCHING]"
 OPT_IN_FLAG = "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING"
 CLAIM_BOUNDARY = "live_continuous_batching_server_log_report_no_parity_or_speedup"
 SERVER_EVENT_CLAIM_BOUNDARY = "live_continuous_batching_server_metadata_observed_no_parity_or_speedup"
+MERGED_INFERENCE_RE = re.compile(
+    r"\bmerged_inference:\s+"
+    r"(?P<batches>\d+)\s+batches\s+\([^)]*\),\s+"
+    r"(?P<examples>\d+)\s+examples\s+\([^)]*\),\s+"
+    r"avg batch size\s+(?P<avg_batch_size>\d+(?:\.\d+)?)"
+)
 
 
 def _normalize_tick_batch(raw: Any) -> dict[str, Any] | None:
@@ -78,14 +85,36 @@ def _parse_observation_line(line: str) -> dict[str, Any] | None:
     return event
 
 
-def build_live_continuous_batching_server_log_report(log_text: str, *, source: str | None = None) -> dict[str, Any]:
+def _parse_merged_inference_line(line: str) -> dict[str, Any] | None:
+    match = MERGED_INFERENCE_RE.search(line)
+    if match is None:
+        return None
+    return {
+        "batches": int(match.group("batches")),
+        "examples": int(match.group("examples")),
+        "avg_batch_size": float(match.group("avg_batch_size")),
+    }
+
+
+def build_live_continuous_batching_server_log_report(
+    log_text: str,
+    *,
+    source: str | None = None,
+    model_id: str | None = None,
+) -> dict[str, Any]:
     """Return a fail-closed server-observation report from log text."""
 
     events = [event for event in (_parse_observation_line(line) for line in log_text.splitlines()) if event is not None]
-    synthetic_fixture = any(
-        "synthetic" in str(event.get("input_note", "")).lower()
+    merged_inference_stats = [
+        stat for stat in (_parse_merged_inference_line(line) for line in log_text.splitlines()) if stat is not None
+    ]
+    synthetic_fixture = (
+        any(
+            "synthetic" in str(event.get("input_note", "")).lower()
+            for event in events
+        )
         or "synthetic" in str(source or "").lower()
-        for event in events
+        or "synthetic harness" in log_text.lower()
     )
     if synthetic_fixture:
         for event in events:
@@ -97,16 +126,23 @@ def build_live_continuous_batching_server_log_report(log_text: str, *, source: s
         tick_batches.extend(dict(batch) for batch in event.get("tick_batches", []))
 
     batched_tick_seen = any(len(batch.get("request_ids", [])) > 1 for batch in tick_batches)
+    actual_multi_request_batch_seen = (not synthetic_fixture) and any(
+        stat["examples"] > stat["batches"] or stat["avg_batch_size"] > 1.0
+        for stat in merged_inference_stats
+    )
     server_observed = (not synthetic_fixture) and bool(events) and (
         batched_tick_seen or any(event.get("server_observed_live_continuous_batches") is True for event in events)
     )
     return {
         "source": "mvp_capabilities.continuous_batching_server_log_report",
         "source_log": source,
+        "model_id": model_id,
         "claim_boundary": CLAIM_BOUNDARY,
         "opt_in_flag": OPT_IN_FLAG,
         "opt_in_enabled": bool(events),
         "event_count": len(events),
+        "merged_inference_stats": merged_inference_stats,
+        "server_observed_actual_multi_request_batch": actual_multi_request_batch_seen,
         "synthetic_fixture": synthetic_fixture,
         "server_observed_live_continuous_batches": server_observed,
         "live_server_proven": server_observed,
@@ -118,6 +154,7 @@ def build_live_continuous_batching_server_log_report(log_text: str, *, source: s
         "can_update_proof_status": False,
         "claim_limitations": [
             "Server log report only: this does not prove token/logit parity.",
+            "Merged-inference stats prove only that the server batched examples; they do not prove client request identity, late-arrival timing, parity, or speedup.",
             "Late-arrival parity must still pass continuous_batching_live_server_proof.py.",
             "Wall-clock speedup must still pass continuous_batching_wallclock_gate.py.",
         ],
@@ -127,6 +164,7 @@ def build_live_continuous_batching_server_log_report(log_text: str, *, source: s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--log", required=True, help="BloomBee server log containing [LIVE_CONTINUOUS_BATCHING] JSON lines")
+    parser.add_argument("--model", default=None, help="Optional model/proof row ID to carry into the claim-bounded report")
     parser.add_argument("--out", default=None, help="Optional path to write the report JSON")
     args = parser.parse_args(argv)
 
@@ -134,6 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     payload = build_live_continuous_batching_server_log_report(
         log_path.read_text(encoding="utf-8", errors="replace"),
         source=str(log_path),
+        model_id=args.model,
     )
     text = json.dumps(payload, indent=2, sort_keys=True)
     if args.out:
