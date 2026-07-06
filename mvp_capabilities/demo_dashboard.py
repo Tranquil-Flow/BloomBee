@@ -644,13 +644,37 @@ def _route_card(title: str, route: dict[str, Any]) -> str:
     """
 
 
-def _devices_table(roster: dict[str, Any]) -> str:
+def _bench_summary_for_host(benchmarks: dict[str, Any], host: str | None) -> dict[str, Any]:
+    models = ((benchmarks or {}).get(host or "") or {}).get("models") or {}
+    best_decode = 0.0
+    best_prefill = 0.0
+    best_model = None
+    for model, record in models.items():
+        decode = _as_float(record.get("decode_tok_per_s"), 0.0) if isinstance(record, dict) else 0.0
+        prefill = _as_float(record.get("prefill_tok_per_s"), 0.0) if isinstance(record, dict) else 0.0
+        if decode > best_decode:
+            best_decode = decode
+            best_model = model
+        best_prefill = max(best_prefill, prefill)
+    return {
+        "model_count": len(models),
+        "best_decode_tok_per_s": best_decode,
+        "best_prefill_tok_per_s": best_prefill,
+        "best_model": best_model,
+    }
+
+
+def _devices_table(roster: dict[str, Any], benchmarks: dict[str, Any] | None = None) -> str:
     peers = roster.get("peers") or []
     rows = []
     for peer in peers:
         mem = peer.get("memory") or {}
         accel = peer.get("accelerator") or {}
         mobile = peer.get("mobile") or {}
+        bench = _bench_summary_for_host(benchmarks or {}, peer.get("hostname"))
+        bench_count = f"{bench['model_count']} bench models" if bench["model_count"] else "no bench"
+        best_decode = f"{_fmt_num(bench.get('best_decode_tok_per_s'), 2)} tok/s" if bench["model_count"] else "—"
+        best_prefill = f"{_fmt_num(bench.get('best_prefill_tok_per_s'), 1)} tok/s" if bench["model_count"] else "—"
         rows.append(
             "<tr>"
             f"<td>{_esc(peer.get('hostname'))}</td>"
@@ -658,19 +682,22 @@ def _devices_table(roster: dict[str, Any]) -> str:
             f"<td>{_fmt_num(mem.get('free_gb'), 1)} / {_fmt_num(mem.get('total_gb'), 1)}</td>"
             f"<td>{_esc((peer.get('network') or {}).get('tailscale_ip') or '—')}</td>"
             f"<td>{_bool_badge(mobile.get('is_mobile'))}</td>"
+            f"<td>{_esc(bench_count)}</td>"
+            f"<td>{_esc(best_decode)}</td>"
+            f"<td>{_esc(best_prefill)}</td>"
             "</tr>"
         )
     return """
       <section class="card wide">
         <h2>Connected devices</h2>
         <table>
-          <thead><tr><th>Host</th><th>Device</th><th>Free / total GB</th><th>Tailscale</th><th>Mobile</th></tr></thead>
+          <thead><tr><th>Host</th><th>Device</th><th>Free / total GB</th><th>Tailscale</th><th>Mobile</th><th>Bench coverage</th><th>Best decode</th><th>Best prefill</th></tr></thead>
           <tbody>
             {rows}
           </tbody>
         </table>
       </section>
-    """.format(rows="\n".join(rows) or '<tr><td colspan="5">No peers found</td></tr>')
+    """.format(rows="\n".join(rows) or '<tr><td colspan="8">No peers found</td></tr>')
 
 
 def _bench_table(benchmarks: dict[str, Any]) -> str:
@@ -1572,7 +1599,7 @@ def render_dashboard_html(document: dict[str, Any], *, refresh_seconds: int | No
     {_request_telemetry_panel(document.get('request_telemetry') or {})}
     {_route_card('Current real-swarm route', document.get('real_route') or {})}
     {synthetic_panel}
-    {_devices_table(document.get('roster') or {})}
+    {_devices_table(document.get('roster') or {}, document.get('benchmarks') or {})}
     {_layer_placement_table(document.get('layer_placements') or [])}
     {_bench_table(document.get('benchmarks') or {})}
     {_evidence_table(document.get('evidence') or [])}
