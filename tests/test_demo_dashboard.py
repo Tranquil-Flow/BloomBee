@@ -501,7 +501,7 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert "All-task summary: 13 complete, 3 partial, 0 pending, 1 blocked" in html
     assert "TinyLlama distributed fallback generation proof" in html
     assert "Physical/self-serve N-laptop showcase" in html
-    assert "Qwen35B candidate branch" in html
+    assert "Qwen35B/Qwen36A native candidate branch" in html
     assert "Live proof-prep state" in html
     assert "Snapshot" in html
     assert "stale partials 4" in html

@@ -103,10 +103,10 @@ These do **not** block MVP 100%, but they remain tracked:
 
 | Item | Status | Fix path |
 |---|---:|---|
-| `qwen35b_candidate` | blocked after scout | Config-only scout complete at `mvp_capabilities/distributed_evidence/qwen35b/qwen-agentworld-35b-wrapper-scout-20260704.json`; write/import-dispatch tests for `qwen3_5_moe` / `qwen3_5_moe_text` before wrapper code or selection. |
-| `minimax_m3_candidate` | blocked after spike | LayerExecutor/quantized feasibility spike complete; still needs runnable backend proof or native `minimax_m3_vl` + sparse-attention wrapper/kernels. |
-| `continuous_batching` | partial | Deterministic scheduler/planner proof exists; wire into live request loop behind opt-in flag, then prove parity and throughput. |
-| `kv_prefix_reuse` | partial | Deterministic prefix planner proof exists; wire into real prefill/session cache metadata, then prove parity and timing. |
+| `qwen35b_candidate` | partial native lane | AgentWorld-35B text-tower wrapper contract partial: `qwen-agentworld-35b-wrapper-scout-20260704.json` plus wrapper/backend state contracts are green but still need one-block server proof; user-requested Qwen36A/Qwen3.6 lane is now explicit main-native-path planning evidence at `frontier-distributed-pathway-qwen36a-current-20260706.json` and needs exact config scan before wrapper/proof work. |
+| `minimax_m3_candidate` | blocked native lane | MiniMax M2.7 REAP is now explicitly targeted for the main native BloomBee distributed path, not only GGUF; `frontier-distributed-pathway-minimax-m27-current-20260706.json` records it blocked by missing `minimax_m2` wrapper/one-block proof. M3 remains blocked by `minimax_m3_vl` + sparse-attention wrapper/kernels and huge memory. |
+| `continuous_batching` | complete for functional proof | Late-arrival live-server token/logit parity passed; wall-clock/demo promotion remains a separate timing gate. |
+| `kv_prefix_reuse` | complete for functional proof | v32 proved server-observed KV tensor reuse with token/logit parity; wall-clock/demo promotion remains separate. |
 
 Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 
@@ -115,12 +115,12 @@ Current committed post-MVP scope is in `docs/post-mvp-scope.md`.
 | Qwen3-30B-A3B proof ladder | 100% for base + Instruct int8 gates | base @int8 and Instruct-2507@int8 are demo-safe under current full/cache/load/token-parity gates; optional next work is broader prompt-set parity or Thinking-2507 only if needed. |
 | Qwen3-30B-A3B Instruct-2507 | int8 load + full/cache parity passed | Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); `Instruct-2507@int8` full 0:48 multi-request load, streamed-reference full-generation parity, and streamed-reference cache/generate-api parity passed. |
 | Live chain scheduler | scoped / pending | live request artifact with `verified_chain_scheduler_live_request_evidence`. |
-| Continuous batching | partial | live-loop unit seam artifact exists; next real live request artifact with correctness + throughput telemetry behind opt-in integration. |
-| KV prefix reuse | partial | exact-token/logit parity plus timing delta against no-reuse baseline. |
-| Phone draft-provider wall-clock | partial | live phone token transport into verifier plus faster-than-baseline wall-clock gate. |
-| Android/Termux capability fidelity | partial | richer peer scan memory/storage reporting without block-serving overclaim. |
-| qwen3_5_moe / AgentWorld-35B | text-tower wrapper contract partial | `qwen-agentworld-35b-text-wrapper-gate-20260704.json` now covers import/config dispatch, full_attention KV tuples, and local linear_attention conv/recurrent state round-trip; backend linear-state cache descriptors/read/write remain before one-block proof. |
-| LayerExecutor / quantized frontier backends | bounded feasibility spike complete | `layerexecutor-feasibility-20260704.json`; all scanned targets remain blocked for native route/demo until wrapper/backend proof exists. |
+| Continuous batching | complete for functional proof | late-arrival live-server token/logit parity passed; next separate gate is wall-clock/demo promotion timing. |
+| KV prefix reuse | complete for functional proof | v32 server-observed KV tensor reuse, token parity, and numeric logit parity passed; next separate gate is wall-clock/demo promotion timing. |
+| Phone draft-provider wall-clock | partial / wrapped | `speculative-phone-worker-wrapup-current-20260706.json` consolidates current gates: Android ready, iOS missing, only one ready phone, integrated non-sequential speedup not measured. |
+| Android/Termux capability fidelity | partial / wrapped | Pixel/Termux context-token + wall-clock correctness groundwork exists; no BloomBee block-serving or speedup claim. |
+| qwen3_5_moe / AgentWorld-35B / Qwen36A | native candidate partial | `qwen-agentworld-35b-text-wrapper-gate-20260704.json` covers import/config dispatch, full_attention KV tuples, local linear_attention conv/recurrent state round-trip, and backend state-cache contracts; AgentWorld still needs one-block proof, Qwen36A needs exact config scan first. |
+| LayerExecutor / quantized frontier backends | bounded feasibility spike complete | `layerexecutor-feasibility-20260704.json`; all scanned targets remain blocked for native route/demo until wrapper/backend proof exists, and no runnable backend proof is claimed by the spike. |
 | Dashboard/status separation | post-MVP panel shipped | status JSON and dashboard show post-MVP/stretch milestones without moving MVP-core percent. |
 
 ---

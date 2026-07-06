@@ -63,15 +63,14 @@ Use the JSON output as current state, but verify anything important with tools b
 
 ## Remaining items and proof fences
 
-The checklist currently has six items: `qwen35b_candidate`, `minimax_m3_candidate`, `speculative_decode`, `phone_worker`, `continuous_batching`, `kv_prefix_reuse`.
+The checklist currently has four items: `qwen35b_candidate`, `minimax_m3_candidate`, `speculative_decode`, `phone_worker`.
 
 Keep these fences:
 
-- Qwen35B: no one-block/full/cache/demo promotion without actual one-block server evidence on suitable memory. This 16GB M4 host is already blocked by preflight against 80GB requirement.
-- MiniMax M3: no native/demo promotion without approved NVIDIA-class external runtime evidence; this host has no NVIDIA.
-- Phones/speculative: no speedup claim until 3-4 phone readiness plus integrated non-sequential verifier wall-clock beats verifier-only. If fewer than 3 ADB phones are present, fail closed.
-- Continuous batching: no speedup/demo promotion until real live-server concurrent/late-arrival parity artifact passes `continuous_batching_live_server_proof.py`, then wall-clock throughput proof.
-- KV prefix reuse: metadata/control-plane is not KV tensor reuse. No demo/speedup promotion until actual server KV tensor reuse + token/logit parity + memory/wall-clock evidence.
+- Qwen35B/Qwen36A: both are native BloomBee distributed-path targets. No one-block/full/cache/demo promotion without exact config/wrapper compatibility and actual one-block server evidence on suitable memory. This 16GB M4 host is already blocked by preflight against the 80GB AgentWorld requirement; Qwen36A needs exact config scan first.
+- MiniMax M2.7/M3: M2.7 REAP is now explicitly a native BloomBee distributed-path target, not just GGUF. No route/demo promotion until `minimax_m2` wrapper/state-cache contract and one-block proof pass. GGUF/llama.cpp smoke is side evidence only; peer RAM is not additive there. M3 remains blocked by native wrapper/sparse-attention and huge memory.
+- Phones/speculative: no speedup claim until Android+iOS readiness, 3-4 phone readiness, and integrated non-sequential verifier wall-clock beat verifier-only. If fewer than 3 ADB phones are present, fail closed.
+- Continuous batching/KV prefix reuse: functional proof gates are complete, but no wall-clock/demo promotion until separate timing artifact proves throughput/speedup without parity regression.
 
 ## Stop condition
 

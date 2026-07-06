@@ -144,9 +144,9 @@ Grounded by config-only scans of `MiniMaxAI/MiniMax-M3`, `zai-org/GLM-5.2`, `dee
 
 Review questions:
 
-- Is the recommendation right to keep base Qwen3-30B full/cache/load ahead of any frontier backend lane?
-- If a frontier backend lane starts, should it choose GLM-5.2 (`glm_moe_dsa`) or DeepSeek-V4-Flash (`deepseek_v4` fp8) as the first external-runtime smoke?
-- Is `LayerExecutor` the right adapter boundary, or should this stay outside BloomBee until an external runtime exposes layer-state APIs?
+- Is the recommendation right to treat M2.7 REAP and Qwen36A as main native BloomBee distributed-path targets, while keeping GGUF/external-runtime smoke as side evidence only?
+- For MiniMax M2.7 REAP, is the first native adapter slice the `minimax_m2` wrapper/state-cache contract, or should a smaller config-only MiniMax-M2 fixture prove router/cache semantics first?
+- For Qwen36A/Qwen3.6, should the next slice be exact config scan + wrapper mapping, or should it reuse the AgentWorld-35B `qwen3_5_moe_text` backend state-cache harness first?
 
 ### `src/bloombee/client/live_continuous_batching.py` and `src/bloombee/client/remote_generation.py`
 
@@ -288,7 +288,7 @@ partial: 6
 pending: 0
 blocked: 1
 total: 17
-post_mvp: complete 1, partial 6, pending 0, blocked 1, total 8
+post_mvp: complete 4, partial 3, pending 0, blocked 1, total 8
 ```
 
 Post-MVP workstreams to review and possibly reorder:
@@ -297,12 +297,12 @@ Post-MVP workstreams to review and possibly reorder:
 |---|---:|---|---|
 | Qwen3-30B-A3B@int8 / Instruct-2507@int8 full/cache/load | both exact @int8 rows demo-safe | proof rows can be accidentally inherited across exact model IDs | Base 30B int8 and Instruct-2507 int8 both have full/cache/load/token-parity gates passed. Keep fp16, @int8, base, Instruct, and Thinking rows separate; optional next work is broader prompt-set parity or Thinking-2507 only if needed. |
 | Qwen3-30B-A3B Instruct-2507 | int8 load + full/cache parity passed | overclaiming these @int8 proofs as fp16 or Thinking evidence | Exact-model Seagate-backed prescan, one-block, and multi-block artifacts are committed (`instruct2507-seagate-multiblock-proof-20260705T064511Z.json`); full 16-shard cache is downloaded; `Instruct-2507@int8` full `0:48` multi-request load, streamed-reference full-generation, and streamed-reference cache/generate-api evidence are committed. |
-| Continuous batching | partial | throughput claims can hide correctness regressions | Deterministic scheduler/planner proof, replayable live-adapter plan, injected live-loop unit seam, and `InferenceSession` tick-row recording behind `BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING` exist. Next prove concurrent-arrival parity through real server traffic, then measure wall-clock throughput. |
-| KV prefix reuse | partial | cache reuse can silently change outputs | `kv_prefix_reuse_proof.py` verifies same-prefix/varied-suffix evidence with exact token/logit parity and timing delta fail-closed. Next wire runtime prefill/session cache metadata and capture real TinyLlama/Qwen3-8B evidence. |
-| Phone draft-provider speedup | partial | current phone evidence does not prove net speedup | Keep correctness-first; only claim speedup when accepted-token wall-clock improves. |
-| Android/Termux capability fidelity | partial | phone memory/storage facts may mislead planner | Improve peer scan, but keep mobile block-serving disabled unless proven. |
-| qwen3_5_moe / AgentWorld-35B | text-tower wrapper contract partial | import/config dispatch, full_attention KV tuple contract, and local linear_attention conv/recurrent state round-trip are green; backend server cache manager still assumes attention KV tensors | Add RED backend descriptor/read/write tests for linear-state cache before one-block server proof or route/demo promotion. |
-| MiniMax/GLM/DeepSeek/Kimi LayerExecutor | research spike complete | no runnable backend proof; all scanned targets blocked by missing wrappers and/or quantized/sparse-attention runtime needs | Keep as separate backend lane; do not touch route/demo status. If continued, pick one target and start with external-runtime smoke, not native BloomBee claims. |
+| Continuous batching | complete for functional proof | throughput claims still need timing proof | Late-arrival live-server token/logit parity passed; keep wall-clock/demo promotion separate until a real timing artifact proves throughput without parity regression. |
+| KV prefix reuse | complete for functional proof | cache reuse can silently change outputs | v32 proved server-observed KV tensor reuse plus token/logit parity; keep wall-clock/demo promotion separate until timing evidence exists. |
+| Phone draft-provider speedup | partial / wrapped | current phone evidence does not prove net speedup | `speculative-phone-worker-wrapup-current-20260706.json` records Android ready, iOS missing, one ready phone, and no integrated speedup. Keep correctness-first; only claim speedup when integrated non-sequential accepted-token wall-clock improves. |
+| Android/Termux capability fidelity | partial / wrapped | phone memory/storage facts may mislead planner | Pixel/Termux context-token and wall-clock correctness groundwork exists; keep mobile block-serving disabled unless separately proven. |
+| qwen3_5_moe / AgentWorld-35B / Qwen36A | native candidate partial | one-block proof and exact Qwen36A config mapping remain missing | AgentWorld import/config, full_attention KV, local linear-state, and backend state-cache contracts are green. Next Qwen36A exact config scan, then one-block server proof before route/demo promotion. |
+| MiniMax M2.7 REAP / M3 | blocked native frontier lane | missing MiniMax native wrapper/state-cache contract | M2.7 REAP is explicitly a main native BloomBee distributed-path target, not only GGUF. Build `minimax_m2` wrapper/cache-state contract and one-block proof first; GGUF smoke remains side diagnostics. M3 remains blocked by wrapper/sparse-attention and huge memory. |
 
 ---
 

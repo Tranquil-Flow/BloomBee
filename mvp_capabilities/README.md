@@ -466,14 +466,21 @@ As of the current implementation slice:
 - Prepared Qwen3-30B-A3B 2507 variants (`Instruct-2507`, `Thinking-2507`)
   are registered as Qwen3-MoE candidates with pending proof; `safe-demo` will
   not auto-select them until `full_generation` passes.
-- Qwen35B candidate branch is registered as `Qwen/Qwen-AgentWorld-35B-A3B`:
-  memory-fit for the synthetic 10×20GB-free swarm (~80GB recommended), but
-  blocked for showcase/safe-demo until a native `qwen3_5_moe` / `qwen3_5_moe_text`
-  BloomBee wrapper exists and passes one-block, multi-block, and generation proof.
-- MiniMax M3 is catalogued as a high-compute blocked candidate: bf16 weights are
-  ~809GiB indexed, recommended runtime memory is ~900GB, and native BloomBee lacks
-  both `minimax_m3_vl` wrapper support and MiniMax Sparse Attention state/kernels.
-  MXFP8/NVFP4/GGUF variants are not a shortcut for the current BloomBee path.
+- Qwen35B/Qwen36A candidate work is tracked as a native BloomBee distributed-path
+  lane. `Qwen/Qwen-AgentWorld-35B-A3B` is memory-fit for the synthetic
+  10×20GB-free swarm (~80GB recommended) and has green text-tower/backend
+  state-cache groundwork, but remains blocked for showcase/safe-demo until
+  one-block, multi-block, and generation proof pass. Qwen36A/Qwen3.6 is tracked
+  in `frontier-distributed-pathway-qwen36a-current-20260706.json` and must pass
+  exact config scan + wrapper/state-cache mapping before any route/demo claim.
+- MiniMax M2.7 REAP/M3 work is tracked as a native BloomBee distributed-path lane,
+  with GGUF/llama.cpp smoke kept as optional side diagnostics only. M2.7 REAP is
+  blocked on a native `minimax_m2` wrapper plus MiniMax MoE/sparse-attention
+  cache-state contract and one-block proof. MiniMax M3 is still a high-compute
+  blocked candidate: bf16 weights are ~809GiB indexed, recommended runtime
+  memory is ~900GB, and native BloomBee lacks both `minimax_m3_vl` wrapper
+  support and MiniMax Sparse Attention state/kernels. MXFP8/NVFP4/GGUF variants
+  are not a shortcut for the current BloomBee path.
 - Proof ladder audit (`proof_ladder.py`) exists. Qwen3-8B and Qwen3-14B have
   passed config-only prescan as `qwen3` dense models, and Qwen3-8B one-block
   server proof and minimal multi-block direct RPC proof are passed. Full-generation,
