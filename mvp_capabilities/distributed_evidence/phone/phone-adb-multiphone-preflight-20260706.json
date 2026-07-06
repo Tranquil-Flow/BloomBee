@@ -1,0 +1,41 @@
+{
+  "adb_command_succeeded": false,
+  "adb_connected_phone_count": 0,
+  "adb_daemon_available": false,
+  "adb_devices": [],
+  "adb_exit_code": 1,
+  "adb_non_ready_device_count": 0,
+  "adb_stderr_excerpt": "* daemon not running; starting now at tcp:5037\nADB server didn't ACK\nFull server startup log: /var/folders/34/my028t191zs7c95pg0zy7cf40000gn/T//adb.501.log\nServer had pid: 87224\n--- adb starting (pid 87224) ---\n07-06 05:14:32.231 87224 3243937 I adb     : main.cpp:66 Android Debug Bridge version 1.0.41\n07-06 05:14:32.231 87224 3243937 I adb     : main.cpp:66 Version 36.0.2-14143358\n07-06 05:14:32.231 87224 3243937 I adb     : main.cpp:66 Installed as /Users/evinova/Library/Android/sdk/platform-tools/adb\n07-06 05:14:32.231 87224 3243937 I adb     : main.cpp:66 Running on Darwin 24.6.0 (arm64)\n07-06 05:14:32.231 87224 3243937 I adb     : main.cpp:66 \n07-06 05:14:32.957 87224 3243937 F adb     : main.cpp:165 could not install *smartsocket* listener: Operation not permitted\n\n* failed to start daemon\nadb: failed to check server version: cannot connect to daemon",
+  "adb_stderr_sha256": "8f13d7dc9accc5cdbf8e2ccdd766ccf7138ace94311b6eb8e7e33b181ace7a8e",
+  "adb_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "blocked_reasons": [
+    "adb_command_failed",
+    "adb_daemon_unavailable",
+    "phone_count_below_min:0<3"
+  ],
+  "bloombee_block_serving_proven": false,
+  "can_update_phone_worker_status": false,
+  "can_update_speculative_speedup_status": false,
+  "claim_boundary": "phone_adb_multiphone_preflight_no_speedup_claim",
+  "claim_limitations": [
+    "ADB hardware visibility is not phone context-token readiness.",
+    "This preflight does not prove integrated speculative speedup or BloomBee phone block serving.",
+    "Device serials are hashed; raw ADB output is represented only by SHA-256 digests and a stderr excerpt."
+  ],
+  "generated_at_utc": "2026-07-06T03:14:32.961972+00:00",
+  "max_phone_count": 4,
+  "min_phone_count": 3,
+  "operator_next_steps": [
+    "connect 3-4 authorized Android phones over ADB",
+    "run per-phone Termux context-token and wall-clock correctness artifacts",
+    "feed those per-phone artifacts into multi_phone_speculative_readiness.py",
+    "run phone_speculative_integrated_trial_gate.py only after multi-phone readiness passes"
+  ],
+  "ready_for_multiphone_artifact_collection": false,
+  "ready_for_multiphone_speculative_readiness_manifest": false,
+  "source": "phone_adb_readiness_preflight.py",
+  "speedup_proven": false,
+  "trial_ready": false,
+  "verification_status": "failed",
+  "wallclock_speedup_proven": false
+}
