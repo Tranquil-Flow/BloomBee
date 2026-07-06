@@ -171,6 +171,40 @@ def _server_observed_kv_reuse(payload: Mapping[str, Any], observations: Sequence
     )
 
 
+def _validate_server_handle_handoff(observations: Sequence[Mapping[str, Any]]) -> tuple[bool, list[str]]:
+    handoff_observations = [
+        observation
+        for observation in observations
+        if observation.get("server_handle_handoff_observed") is True
+    ]
+    if not handoff_observations:
+        return False, ["server did not report handle-to-handle KV cache tensor reuse"]
+
+    for observation in handoff_observations:
+        source_handle = observation.get("cache_read_source_handle_id")
+        destination_handle = observation.get("cache_write_destination_handle_id")
+        checksum = observation.get("kv_prefix_byte_checksum_sha256")
+        if source_handle is None or destination_handle is None:
+            continue
+        if str(source_handle) == str(destination_handle):
+            return False, ["server KV cache handoff source and destination handles were not distinct"]
+        if not isinstance(checksum, str) or len(checksum) != 64:
+            continue
+        client_count = observation.get("client_claimed_prefix_token_count")
+        server_count = observation.get("server_recovered_prefix_token_count")
+        if (
+            isinstance(client_count, int)
+            and not isinstance(client_count, bool)
+            and isinstance(server_count, int)
+            and not isinstance(server_count, bool)
+            and client_count != server_count
+        ):
+            return False, ["server recovered prefix token count did not match client claim"]
+        return True, []
+
+    return False, ["server did not report handle-to-handle KV cache tensor reuse"]
+
+
 def verify_kv_prefix_reuse_payload(
     payload: Mapping[str, Any],
     *,
@@ -215,9 +249,14 @@ def verify_kv_prefix_reuse_payload(
         failed.append("missing telemetry tags: " + ", ".join(missing_tags))
 
     server_observations = _server_observation_list(payload)
-    server_observed_kv_cache_reuse = _server_observed_kv_reuse(payload, server_observations)
-    if not server_observed_kv_cache_reuse:
+    server_reported_kv_cache_reuse = _server_observed_kv_reuse(payload, server_observations)
+    server_handoff_observed = False
+    if not server_reported_kv_cache_reuse:
         failed.append("server did not report KV cache tensor reuse")
+    else:
+        server_handoff_observed, handoff_failures = _validate_server_handle_handoff(server_observations)
+        failed.extend(handoff_failures)
+    server_observed_kv_cache_reuse = bool(server_reported_kv_cache_reuse and server_handoff_observed)
 
     request_rows = payload.get("requests") or payload.get("request_results")
     if not isinstance(request_rows, list):

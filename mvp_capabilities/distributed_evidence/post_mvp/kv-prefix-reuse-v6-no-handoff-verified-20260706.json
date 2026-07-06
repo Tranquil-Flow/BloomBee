@@ -1,0 +1,56 @@
+{
+  "can_update_mvp_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "verified_kv_prefix_reuse_same_prefix_varied_suffix_parity_timing",
+  "claim_limitations": [
+    "Verifier only; runtime evidence must carry server response metadata from a prefix-cache read.",
+    "Passing evidence proves the supplied same-prefix/varied-suffix artifact, not broad production coverage.",
+    "MVP-core status remains unchanged."
+  ],
+  "evidence_path": "mvp_capabilities/distributed_evidence/post_mvp/kv-prefix-reuse-v6-no-handoff-verifier-input-20260706.json",
+  "evidence_summary": {
+    "baseline_total_seconds": null,
+    "correctness_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "distinct_suffix_count": 0,
+    "min_requests": 2,
+    "observed_telemetry_tags": [
+      "kv_prefix_reuse",
+      "no_reuse_baseline",
+      "same_prefix_varied_suffix"
+    ],
+    "prefix_sha256": null,
+    "prefix_token_count": 0,
+    "request_count": 0,
+    "request_summaries": [],
+    "required_telemetry_tags": [
+      "kv_prefix_reuse",
+      "no_reuse_baseline",
+      "same_prefix_varied_suffix"
+    ],
+    "reuse_event_count": 0,
+    "reuse_total_seconds": null,
+    "server_observation_count": 0,
+    "server_observation_sha256": null,
+    "speedup_ratio": null,
+    "suffix_sha256s": [],
+    "timing_delta_seconds": null
+  },
+  "failed_checks": [
+    "server did not report KV cache tensor reuse",
+    "requests must be a list",
+    "expected at least 2 same-prefix requests",
+    "requests did not share exactly one identical prefix",
+    "expected at least 2 distinct suffixes sharing the same prefix"
+  ],
+  "live_kv_cache_reuse_proven": false,
+  "logit_parity_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "proof_gate": "kv_prefix_reuse",
+  "proof_status_update": {},
+  "same_prefix_varied_suffix_proven": false,
+  "server_observed_kv_cache_reuse": false,
+  "speedup_proven": false,
+  "status": "failed",
+  "timing_measured": false,
+  "token_parity_proven": false
+}

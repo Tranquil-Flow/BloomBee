@@ -209,9 +209,19 @@ def verify_live_server_continuous_batching_payload(
                 failed.append(f"live_continuous_report tick batch {index} tick missing")
                 continue
             request_ids = tick["request_ids"]
-            if len(request_ids) > 1:
+            active_mask_raw = tick.get("active_mask")
+            if isinstance(active_mask_raw, list) and len(active_mask_raw) == len(request_ids):
+                active_mask = [bool(value) for value in active_mask_raw]
+            else:
+                active_mask = [True] * len(request_ids)
+            active_request_ids = [
+                request_id
+                for request_id, is_active in zip(request_ids, active_mask)
+                if is_active
+            ]
+            if len(active_request_ids) > 1:
                 batched_tick_count += 1
-            for raw_request_id in request_ids:
+            for raw_request_id in active_request_ids:
                 if not isinstance(raw_request_id, str) or not raw_request_id:
                     failed.append(f"live_continuous_report tick batch {index} has invalid request_id")
                     continue
@@ -232,8 +242,13 @@ def verify_live_server_continuous_batching_payload(
             failed.append(f"server observed request {request_id} before declared arrival tick")
 
     status = "passed" if not failed else "failed"
-    token_parity = status == "passed" and not token_mismatch
-    logits_parity = status == "passed" and not logits_missing_or_mismatch
+    token_parity = bool(rows) and not token_mismatch and not any(
+        "generated token IDs" in check or "token mismatch" in check
+        for check in failed
+    )
+    logits_parity = bool(rows) and not logits_missing_or_mismatch and not any(
+        "logits" in check for check in failed
+    )
     return {
         "model_id": evidence_model,
         "claim_boundary": VERIFY_CLAIM_BOUNDARY,

@@ -69,6 +69,7 @@ class _FakeLiveRemoteLayers:
     def __init__(self, *, pad_to_batch_size: int | None = None):
         self._active_session = None
         self.hidden_calls = []
+        self.hidden_kwargs = []
         self.sessions = []
         self.pending_live_batches_seen = []
         self.pad_to_batch_size = pad_to_batch_size
@@ -95,10 +96,11 @@ class _FakeLiveRemoteLayers:
         with session, self.use_session(session):
             yield session
 
-    def __call__(self, hidden_states):
+    def __call__(self, hidden_states, **kwargs):
         assert self._active_session is not None
         pending = getattr(self._active_session, "_pending_live_continuous_tick_batch", None)
         self.pending_live_batches_seen.append(dict(pending) if isinstance(pending, dict) else None)
+        self.hidden_kwargs.append(dict(kwargs))
         self.hidden_calls.append(hidden_states.detach().clone())
         if self.pad_to_batch_size is not None and hidden_states.shape[0] < self.pad_to_batch_size:
             pad_rows = self.pad_to_batch_size - hidden_states.shape[0]
@@ -283,48 +285,72 @@ def test_remote_generation_base_live_impl_batches_same_arrival_rows(monkeypatch)
 def test_remote_generation_base_live_impl_batches_late_arrival_rows(monkeypatch):
     monkeypatch.setenv("BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING", "1")
     model = _RemoteGenerationLiveImplStub()
-    model.lm_head = _GreedyNextTokenHead({101: 10, 201: 20, 10: 11, 20: 21})
+    model.lm_head = _GreedyNextTokenHead({101: 10, 201: 20, 10: 11, 20: 21, 11: 0})
     inputs = torch.tensor([[101], [201]], dtype=torch.long)
 
     result = model.generate(inputs, max_new_tokens=2, live_arrival_ticks=[0, 1])
 
     assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
     assert model.fallback_calls == []
+    # Late arrivals now freeze the wire batch to the logical slot count on
+    # every tick. Inactive slots are explicit in active_mask rather than
+    # changing the server-visible batch shape mid-session.
     assert [call.squeeze(-1).to(dtype=torch.long).tolist() for call in model.transformer.h.hidden_calls] == [
-        [[101]],
+        [[101], [201]],
         [[10], [201]],
-        [[20]],
+        [[11], [20]],
+    ]
+    assert len(model.transformer.h.sessions) == 1
+    assert [
+        {
+            "request_ids": batch["request_ids"],
+            "active_mask": batch.get("active_mask"),
+            "batch_offset": batch.get("batch_offset"),
+            "full_batch_size": batch.get("full_batch_size"),
+            "micro_batch_size": batch.get("micro_batch_size"),
+        }
+        for batch in model.transformer.h.pending_live_batches_seen
+    ] == [
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, False], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [True, True], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
+        {"request_ids": ["generate-0", "generate-1"], "active_mask": [False, True], "batch_offset": 0, "full_batch_size": 2, "micro_batch_size": 2},
+    ]
+    assert [kwargs["prefill_length"].detach().cpu().tolist() for kwargs in model.transformer.h.hidden_kwargs] == [
+        [0, 0],
+        [1, 0],
+        [2, 1],
     ]
     report = model.transformer.h.sessions[0].live_continuous_batching_report()
     assert getattr(model.transformer.h.sessions[0], "_live_continuous_full_batch_size") == 2
     assert report["request_count"] == 2
     assert report["total_decode_batches"] == 3
     tick_batches = report["tick_batches"]
-    assert [len(value) for value in tick_batches[0]["output_logits_sha256"]] == [64]
-    assert [len(value) for value in tick_batches[1]["output_logits_sha256"]] == [64, 64]
-    assert [len(value) for value in tick_batches[2]["output_logits_sha256"]] == [64]
+    assert [len(batch["output_logits_sha256"]) for batch in tick_batches] == [2, 2, 2]
     assert tick_batches[1]["output_logits_sha256"][0] != tick_batches[1]["output_logits_sha256"][1]
     assert [{k: v for k, v in batch.items() if k != "output_logits_sha256"} for batch in tick_batches] == [
         {
             "tick": 0,
-            "request_ids": ["generate-0"],
-            "positions": [0],
-            "input_token_ids": [101],
-            "output_token_ids": [10],
+            "request_ids": ["generate-0", "generate-1"],
+            "active_mask": [True, False],
+            "positions": [0, 0],
+            "input_token_ids": [101, 201],
+            "output_token_ids": [10, 20],
         },
         {
             "tick": 1,
             "request_ids": ["generate-0", "generate-1"],
+            "active_mask": [True, True],
             "positions": [1, 0],
             "input_token_ids": [10, 201],
             "output_token_ids": [11, 20],
         },
         {
             "tick": 2,
-            "request_ids": ["generate-1"],
-            "positions": [1],
-            "input_token_ids": [20],
-            "output_token_ids": [21],
+            "request_ids": ["generate-0", "generate-1"],
+            "active_mask": [False, True],
+            "positions": [2, 1],
+            "input_token_ids": [11, 20],
+            "output_token_ids": [0, 21],
         },
     ]
     assert report["live_server_proven"] is False
@@ -336,16 +362,17 @@ def test_remote_generation_late_arrival_trims_full_batch_padded_hidden_states(mo
     monkeypatch.setenv("BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE", "2")
     model = _RemoteGenerationLiveImplStub()
     model.transformer.h = _FakeLiveRemoteLayers(pad_to_batch_size=2)
-    model.lm_head = _GreedyNextTokenHead({101: 10, 10: 11, 201: 20, 20: 21})
+    model.lm_head = _GreedyNextTokenHead({101: 10, 10: 11, 201: 20, 20: 21, 11: 0})
     inputs = torch.tensor([[101], [201]], dtype=torch.long)
 
     result = model.generate(inputs, max_new_tokens=2, live_arrival_ticks=[0, 1])
 
     assert result.tolist() == [[101, 10, 11], [201, 20, 21]]
     report = model.transformer.h.sessions[0].live_continuous_batching_report()
-    assert [len(batch["request_ids"]) for batch in report["tick_batches"]] == [1, 2, 1]
-    assert [len(batch["output_token_ids"]) for batch in report["tick_batches"]] == [1, 2, 1]
-    assert [len(batch["output_logits_sha256"]) for batch in report["tick_batches"]] == [1, 2, 1]
+    assert [len(batch["request_ids"]) for batch in report["tick_batches"]] == [2, 2, 2]
+    assert [batch["active_mask"] for batch in report["tick_batches"]] == [[True, False], [True, True], [False, True]]
+    assert [len(batch["output_token_ids"]) for batch in report["tick_batches"]] == [2, 2, 2]
+    assert [len(batch["output_logits_sha256"]) for batch in report["tick_batches"]] == [2, 2, 2]
 
 
 def test_remote_generation_base_live_impl_allows_explicit_session_for_evidence_reports(monkeypatch):
@@ -500,6 +527,7 @@ def test_server_observes_live_continuous_batching_metadata_only_with_opt_in(monk
                 "request_ids": ["generate-0", "generate-1"],
                 "positions": [0, 0],
                 "input_token_ids": [101, 201],
+                "active_mask": [True, False],
             }
         ],
         "live_server_proven": False,
@@ -521,6 +549,7 @@ def test_server_observes_live_continuous_batching_metadata_only_with_opt_in(monk
     assert observed["wallclock_speedup_proven"] is False
     assert observed["can_update_demo_status"] is False
     assert observed["tick_batches"][0]["request_ids"] == ["generate-0", "generate-1"]
+    assert observed["tick_batches"][0]["active_mask"] == [True, False]
 
     assert _extract_live_continuous_batching_metadata({"live_continuous_batching": "not-a-dict"}) is None
 

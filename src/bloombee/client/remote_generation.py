@@ -493,8 +493,9 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         with context_manager as live_session:
             setattr(live_session, "_live_continuous_full_batch_size", batch_size)
             recorder = getattr(live_session, "record_live_continuous_tick_rows", None)
-            stager = getattr(live_session, "stage_live_continuous_tick_rows", None)
-            if not callable(recorder) or not callable(stager):
+            row_stager = getattr(live_session, "stage_live_continuous_tick_rows", None)
+            batch_stager = getattr(live_session, "stage_live_continuous_tick_batch", None)
+            if not callable(recorder) or (not callable(row_stager) and not callable(batch_stager)):
                 raise RuntimeError("InferenceSession cannot stage and record live continuous batching rows")
 
             request_ids = [f"generate-{batch_idx}" for batch_idx in range(batch_size)]
@@ -511,14 +512,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                     break
 
                 row_indices: list[int] = []
-                max_batch_raw = os.environ.get("BLOOMBEE_LIVE_CONTINUOUS_MAX_BATCH_SIZE")
-                max_batch = batch_size
-                if max_batch_raw:
-                    try:
-                        max_batch = max(1, min(batch_size, int(max_batch_raw)))
-                    except ValueError:
-                        max_batch = batch_size
-                for _ in range(max_batch):
+                for _ in range(batch_size):
                     if not active:
                         break
                     row_idx = active.popleft()
@@ -528,13 +522,17 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                 if not row_indices:
                     tick += 1
                     continue
+                row_indices = sorted(row_indices)
+                row_index_set = set(row_indices)
 
                 input_tokens = []
                 rows = []
-                for row_idx in row_indices:
+                active_mask = []
+                for row_idx in range(batch_size):
                     position = len(generated_by_row[row_idx])
                     token_id = int(input_ids[row_idx, -1].detach().cpu().item()) if position == 0 else generated_by_row[row_idx][-1]
                     input_tokens.append(token_id)
+                    active_mask.append(row_idx in row_index_set)
                     rows.append(
                         LiveDecodeRow(
                             request_id=request_ids[row_idx],
@@ -544,28 +542,49 @@ class RemoteGenerationMixin(_SkipTokensMixin):
                         )
                     )
 
-                stager(rows)
+                staged_batch = {
+                    "tick": tick,
+                    "request_ids": [row.request_id for row in rows],
+                    "positions": [row.position for row in rows],
+                    "input_token_ids": [row.input_token_id for row in rows],
+                    "active_mask": active_mask,
+                    "batch_offset": 0,
+                    "full_batch_size": batch_size,
+                    "micro_batch_size": batch_size,
+                }
+                if callable(batch_stager):
+                    batch_stager(staged_batch)
+                else:
+                    assert callable(row_stager)
+                    row_stager(rows)
                 step_ids = torch.tensor(input_tokens, dtype=input_ids.dtype, device=input_ids.device).unsqueeze(1)
                 hidden = embed(step_ids)
-                hidden = layers(hidden)
-                if hidden.shape[0] < len(row_indices):
+                row_prefill_lengths = torch.tensor(
+                    [len(generated_by_row[row_idx]) for row_idx in range(batch_size)],
+                    dtype=torch.long,
+                    device=hidden.device,
+                )
+                hidden = layers(hidden, prefill_length=row_prefill_lengths)
+                if hidden.shape[0] < batch_size:
                     raise RuntimeError(
-                        "live continuous batching server returned fewer rows than the active tick batch"
+                        "live continuous batching server returned fewer rows than the logical slot batch"
                     )
-                if hidden.shape[0] > len(row_indices):
-                    hidden = hidden[: len(row_indices)]
+                if hidden.shape[0] > batch_size:
+                    hidden = hidden[:batch_size]
                 hidden = ln_f(hidden)
                 logits = lm_head(hidden[:, -1:, :])
                 next_id = logits.argmax(dim=-1)
                 output_tokens = [int(token.detach().cpu().item()) for token in next_id[:, 0]]
                 recorder(
                     rows,
+                    active_mask=active_mask,
                     output_token_ids=output_tokens,
                     output_logits_sha256=_logits_sha256_per_row(logits),
                 )
 
-                for row_idx, token_id in zip(row_indices, output_tokens):
-                    generated_by_row[row_idx].append(int(token_id))
+                for row_idx in row_indices:
+                    token_id = int(output_tokens[row_idx])
+                    generated_by_row[row_idx].append(token_id)
                     if eos_set and token_id in eos_set:
                         done[row_idx] = True
                     if not done[row_idx] and len(generated_by_row[row_idx]) < max_new_tokens:

@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import contextlib
 import asyncio
+import hashlib
 import torch
 import os
 import threading
@@ -977,6 +978,81 @@ class KVCacheManager:
 
 
     
+    def copy_prefix_from_handle(
+        self,
+        *,
+        source_handle: Handle,
+        destination_handle: Handle,
+        prefix_length: int,
+        bh_slice: tuple[int, int] | None = None,
+    ) -> dict:
+        """Copy KV prefix tensor bytes from one cache handle into another.
+
+        This is the Tier-2 primitive needed for real KV prefix reuse: a later
+        session can materialize a shared prefix in its own cache slab before
+        decoding the suffix. The method performs no allocation, so cache token
+        accounting must remain unchanged.
+        """
+
+        if source_handle == destination_handle:
+            raise ValueError("source_handle and destination_handle must be distinct")
+        prefix_length = int(prefix_length)
+        if prefix_length <= 0:
+            raise ValueError("prefix_length must be positive")
+        try:
+            src_k, src_v = self.cache._allocated_tensors[source_handle]
+            dst_k, dst_v = self.cache._allocated_tensors[destination_handle]
+        except KeyError as exc:
+            raise KeyError("source or destination cache handle is not allocated") from exc
+
+        def _tensor(value):
+            tensor = getattr(value, "data", value)
+            if not torch.is_tensor(tensor):
+                raise TypeError("KV prefix handoff currently requires tensor-backed cache slabs")
+            return tensor
+
+        src_k_t = _tensor(src_k)
+        src_v_t = _tensor(src_v)
+        dst_k_t = _tensor(dst_k)
+        dst_v_t = _tensor(dst_v)
+        if src_k_t.ndim != 3 or src_v_t.ndim != 3 or dst_k_t.ndim != 3 or dst_v_t.ndim != 3:
+            raise ValueError("KV prefix handoff requires (S, BH, D) cache slabs")
+        if src_k_t.shape != src_v_t.shape or dst_k_t.shape != dst_v_t.shape:
+            raise ValueError("key/value cache slab shapes must match per handle")
+        if src_k_t.shape[2] != dst_k_t.shape[2]:
+            raise ValueError("source and destination KV head dimensions differ")
+        if prefix_length > src_k_t.shape[0] or prefix_length > dst_k_t.shape[0]:
+            raise ValueError("prefix_length exceeds source or destination cache capacity")
+
+        if bh_slice is None:
+            bh_start = 0
+            bh_end = min(int(src_k_t.shape[1]), int(dst_k_t.shape[1]))
+        else:
+            bh_start, bh_end = int(bh_slice[0]), int(bh_slice[1])
+        if bh_start < 0 or bh_end <= bh_start:
+            raise ValueError("bh_slice must be a non-empty positive range")
+        if bh_end > src_k_t.shape[1] or bh_end > dst_k_t.shape[1]:
+            raise ValueError("bh_slice exceeds source or destination BH capacity")
+
+        src_k_prefix = src_k_t[:prefix_length, bh_start:bh_end].detach()
+        src_v_prefix = src_v_t[:prefix_length, bh_start:bh_end].detach()
+        dst_k_t[:prefix_length, bh_start:bh_end].copy_(src_k_prefix.to(dst_k_t.device), non_blocking=False)
+        dst_v_t[:prefix_length, bh_start:bh_end].copy_(src_v_prefix.to(dst_v_t.device), non_blocking=False)
+
+        checksum = hashlib.sha256()
+        checksum.update(src_k_prefix.to("cpu").contiguous().numpy().tobytes())
+        checksum.update(src_v_prefix.to("cpu").contiguous().numpy().tobytes())
+        return {
+            "server_handle_handoff_observed": True,
+            "cache_read_source_handle_id": source_handle,
+            "cache_write_destination_handle_id": destination_handle,
+            "server_recovered_prefix_token_count": prefix_length,
+            "prefix_length": prefix_length,
+            "bh_slice": [bh_start, bh_end],
+            "kv_prefix_byte_checksum_sha256": checksum.hexdigest(),
+        }
+
+
     @contextlib.contextmanager
     def use_cache(self, *handles: Handle) -> Sequence[torch.Tensor]:
         with self.cache.use_cache(*handles) as cache_tensors:

@@ -102,6 +102,19 @@ def test_live_server_continuous_batching_verifier_rejects_same_arrival_server_ti
     assert result["live_server_late_arrival_parity_proven"] is False
 
 
+    # Full-slot late-arrival batches may include inactive logical slots. The
+    # active_mask must prevent an inactive row from being counted as an early
+    # server observation.
+    full_slot_late_arrival = _valid_capture()
+    full_slot_late_arrival["live_continuous_report"]["tick_batches"] = [
+        {"tick": 0, "request_ids": ["req-a", "req-b"], "active_mask": [True, False], "output_token_ids": [10, 20]},
+        {"tick": 1, "request_ids": ["req-a", "req-b"], "active_mask": [True, True], "output_token_ids": [11, 20]},
+    ]
+    result = verify_live_server_continuous_batching_payload(full_slot_late_arrival, model_id=MODEL_ID)
+    assert result["status"] == "passed"
+    assert result["batched_tick_count"] == 1
+
+
 def test_live_server_continuous_batching_plan_and_cli_verify(tmp_path: Path):
     from mvp_capabilities.continuous_batching_live_server_proof import build_live_server_continuous_batching_plan
 

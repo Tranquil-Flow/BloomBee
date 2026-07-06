@@ -34,6 +34,12 @@ def _server_report(*, live_reuse: bool) -> dict[str, object]:
         "opt_in_enabled": True,
         "server_observed_kv_cache_reuse": live_reuse,
         "live_kv_cache_reuse_proven": live_reuse,
+        "server_handle_handoff_observed": live_reuse,
+        "cache_read_source_handle_id": 101,
+        "cache_write_destination_handle_id": 202,
+        "client_claimed_prefix_token_count": len(COMMON_PREFIX),
+        "server_recovered_prefix_token_count": len(COMMON_PREFIX),
+        "kv_prefix_byte_checksum_sha256": "c" * 64,
         "requests": {
             "suffix-a": {"reused_prefix_token_count": len(COMMON_PREFIX), "cache_event_id": "cache-a"},
             "suffix-b": {"reused_prefix_token_count": len(COMMON_PREFIX), "cache_event_id": "cache-b"},

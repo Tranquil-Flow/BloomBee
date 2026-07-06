@@ -68,6 +68,12 @@ def _valid_kv_prefix_reuse_evidence() -> dict[str, object]:
                 "live_kv_cache_reuse_proven": True,
                 "prefix_length": 4,
                 "cache_handle_count": 2,
+                "server_handle_handoff_observed": True,
+                "cache_read_source_handle_id": 101,
+                "cache_write_destination_handle_id": 202,
+                "client_claimed_prefix_token_count": 4,
+                "server_recovered_prefix_token_count": 4,
+                "kv_prefix_byte_checksum_sha256": "c" * 64,
             }
         ],
         "requests": [
@@ -162,6 +168,52 @@ def test_kv_prefix_reuse_proof_rejects_missing_server_observed_cache_reuse(tmp_p
     assert result["server_observed_kv_cache_reuse"] is False
     assert result["live_kv_cache_reuse_proven"] is False
     assert "server did not report KV cache tensor reuse" in result["failed_checks"]
+
+
+def test_kv_prefix_reuse_proof_rejects_metadata_without_handle_handoff(tmp_path: Path):
+    from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
+
+    payload = _valid_kv_prefix_reuse_evidence()
+    observation = payload["server_observations"][0]
+    for key in (
+        "server_handle_handoff_observed",
+        "cache_read_source_handle_id",
+        "cache_write_destination_handle_id",
+        "kv_prefix_byte_checksum_sha256",
+    ):
+        observation.pop(key, None)
+    evidence_path = tmp_path / "kv-prefix-reuse-metadata-only.json"
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = verify_kv_prefix_reuse_evidence(
+        evidence_path=evidence_path,
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+
+    assert result["status"] == "failed"
+    assert result["server_observed_kv_cache_reuse"] is False
+    assert result["live_kv_cache_reuse_proven"] is False
+    assert "server did not report handle-to-handle KV cache tensor reuse" in result["failed_checks"]
+
+
+def test_kv_prefix_reuse_proof_requires_distinct_handoff_handles(tmp_path: Path):
+    from mvp_capabilities.kv_prefix_reuse_proof import verify_kv_prefix_reuse_evidence
+
+    payload = _valid_kv_prefix_reuse_evidence()
+    observation = payload["server_observations"][0]
+    observation["cache_write_destination_handle_id"] = observation["cache_read_source_handle_id"]
+    evidence_path = tmp_path / "kv-prefix-reuse-same-handle.json"
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = verify_kv_prefix_reuse_evidence(
+        evidence_path=evidence_path,
+        model_id="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    )
+
+    assert result["status"] == "failed"
+    assert result["server_observed_kv_cache_reuse"] is False
+    assert result["live_kv_cache_reuse_proven"] is False
+    assert "server KV cache handoff source and destination handles were not distinct" in result["failed_checks"]
 
 
 def test_kv_prefix_reuse_proof_rejects_token_mismatch_fail_closed(tmp_path: Path):

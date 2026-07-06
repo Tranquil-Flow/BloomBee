@@ -1,0 +1,367 @@
+{
+  "baseline": [
+    {
+      "output_ids": [
+        319,
+        29889,
+        13
+      ],
+      "report": {
+        "can_update_demo_status": false,
+        "claim_boundary": "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup",
+        "live_server_proven": true,
+        "opt_in_enabled": true,
+        "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+        "request_count": 1,
+        "server_observations": [
+          {
+            "can_update_demo_status": false,
+            "can_update_proof_status": false,
+            "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+            "live_server_proven": true,
+            "opt_in_enabled": true,
+            "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+            "request_count": 1,
+            "server_observed_live_continuous_batches": false,
+            "source": "bloombee.server.handler",
+            "speedup_proven": false,
+            "tick_batches": [
+              {
+                "input_token_ids": [
+                  319
+                ],
+                "positions": [
+                  0
+                ],
+                "request_ids": [
+                  "generate-0"
+                ],
+                "tick": 0
+              }
+            ],
+            "wallclock_speedup_proven": false
+          }
+        ],
+        "server_observed_live_continuous_batches": false,
+        "source": "bloombee.client.inference_session",
+        "speedup_proven": false,
+        "tick_batches": [
+          {
+            "input_token_ids": [
+              319
+            ],
+            "output_logits_sha256": [
+              "b99a0bf1d24cdebc13b7149955735d9816fdfb276ed21e08f88673868bf45629"
+            ],
+            "output_token_ids": [
+              29889
+            ],
+            "positions": [
+              0
+            ],
+            "request_ids": [
+              "generate-0"
+            ],
+            "tick": 0
+          },
+          {
+            "input_token_ids": [
+              29889
+            ],
+            "output_logits_sha256": [
+              "d5e0e4aff490981c5392b9bd7e1a473a209171eafb3825d2fb81254e6c7834c4"
+            ],
+            "output_token_ids": [
+              13
+            ],
+            "positions": [
+              1
+            ],
+            "request_ids": [
+              "generate-0"
+            ],
+            "tick": 1
+          }
+        ],
+        "total_decode_batches": 2
+      },
+      "row": 0
+    },
+    {
+      "output_ids": [
+        350,
+        29889,
+        29907
+      ],
+      "report": {
+        "can_update_demo_status": false,
+        "claim_boundary": "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup",
+        "live_server_proven": true,
+        "opt_in_enabled": true,
+        "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+        "request_count": 1,
+        "server_observations": [
+          {
+            "can_update_demo_status": false,
+            "can_update_proof_status": false,
+            "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+            "live_server_proven": true,
+            "opt_in_enabled": true,
+            "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+            "request_count": 1,
+            "server_observed_live_continuous_batches": false,
+            "source": "bloombee.server.handler",
+            "speedup_proven": false,
+            "tick_batches": [
+              {
+                "input_token_ids": [
+                  350
+                ],
+                "positions": [
+                  0
+                ],
+                "request_ids": [
+                  "generate-0"
+                ],
+                "tick": 0
+              }
+            ],
+            "wallclock_speedup_proven": false
+          }
+        ],
+        "server_observed_live_continuous_batches": false,
+        "source": "bloombee.client.inference_session",
+        "speedup_proven": false,
+        "tick_batches": [
+          {
+            "input_token_ids": [
+              350
+            ],
+            "output_logits_sha256": [
+              "ec16ef6d443e05125b27d9bc29ad439d1881feb4308f06bc789757ea95a3ef98"
+            ],
+            "output_token_ids": [
+              29889
+            ],
+            "positions": [
+              0
+            ],
+            "request_ids": [
+              "generate-0"
+            ],
+            "tick": 0
+          },
+          {
+            "input_token_ids": [
+              29889
+            ],
+            "output_logits_sha256": [
+              "ef06d19a45bf50deb485848c42099fb6c88be26ce2cbd825cc0877d2232ade88"
+            ],
+            "output_token_ids": [
+              29907
+            ],
+            "positions": [
+              1
+            ],
+            "request_ids": [
+              "generate-0"
+            ],
+            "tick": 1
+          }
+        ],
+        "total_decode_batches": 2
+      },
+      "row": 1
+    }
+  ],
+  "can_update_demo_status": false,
+  "claim_boundary": "strict_live_cbkv_v2_functional_gate_no_speedup_claim",
+  "client_load_seconds": 1.499,
+  "kv_prefix_reuse_report": {
+    "can_update_demo_status": false,
+    "claim_boundary": "kv_prefix_reuse_prefill_metadata_no_live_cache_reuse",
+    "event_count": 0,
+    "events": [],
+    "live_kv_cache_reuse_proven": false,
+    "opt_in_enabled": true,
+    "opt_in_flag": "BLOOMBEE_ENABLE_KV_PREFIX_REUSE",
+    "runtime_prefill_metadata_proven": false,
+    "server_observations": [],
+    "server_observed_kv_cache_reuse": false,
+    "source": "bloombee.client.inference_session",
+    "speedup_proven": false
+  },
+  "late_arrival_observed": true,
+  "live_continuous_report": {
+    "can_update_demo_status": false,
+    "claim_boundary": "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup",
+    "live_server_proven": true,
+    "opt_in_enabled": true,
+    "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+    "request_count": 2,
+    "server_observations": [
+      {
+        "can_update_demo_status": false,
+        "can_update_proof_status": false,
+        "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+        "live_server_proven": true,
+        "opt_in_enabled": true,
+        "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+        "request_count": 2,
+        "server_observed_live_continuous_batches": true,
+        "source": "bloombee.server.handler",
+        "speedup_proven": false,
+        "tick_batches": [
+          {
+            "active_mask": [
+              true,
+              false
+            ],
+            "input_token_ids": [
+              319,
+              350
+            ],
+            "positions": [
+              0,
+              0
+            ],
+            "request_ids": [
+              "generate-0",
+              "generate-1"
+            ],
+            "tick": 0
+          }
+        ],
+        "wallclock_speedup_proven": false
+      }
+    ],
+    "server_observed_live_continuous_batches": true,
+    "source": "bloombee.client.inference_session",
+    "speedup_proven": false,
+    "tick_batches": [
+      {
+        "active_mask": [
+          true,
+          false
+        ],
+        "input_token_ids": [
+          319,
+          350
+        ],
+        "output_logits_sha256": [
+          "eb8b663c2bef3494dfedfda379af5b09d9d41bd79202856395491489c18db880",
+          "0d61a5b5bc4ce3c0e10488d2eab1887a4c69f2d9e37b801cc526b46d80a1f044"
+        ],
+        "output_token_ids": [
+          29889,
+          29889
+        ],
+        "positions": [
+          0,
+          0
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 0
+      },
+      {
+        "active_mask": [
+          true,
+          true
+        ],
+        "input_token_ids": [
+          29889,
+          350
+        ],
+        "output_logits_sha256": [
+          "55266c05d8fe7b82ed021eda32c72ba53370154b69a3e55f37f3c074746dbf4e",
+          "0d61a5b5bc4ce3c0e10488d2eab1887a4c69f2d9e37b801cc526b46d80a1f044"
+        ],
+        "output_token_ids": [
+          13,
+          29889
+        ],
+        "positions": [
+          1,
+          0
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 1
+      },
+      {
+        "active_mask": [
+          false,
+          true
+        ],
+        "input_token_ids": [
+          13,
+          29889
+        ],
+        "output_logits_sha256": [
+          "30ae90cecb73584aea9eebf28695c54fcd3df7f5bfdf781eb1780e844c89266f",
+          "6ccc166b3b9bc4347d4b024cf7cef4699111c1f94adfb0b5d7bcb51ad9ceeb78"
+        ],
+        "output_token_ids": [
+          13,
+          29907
+        ],
+        "positions": [
+          2,
+          1
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 2
+      }
+    ],
+    "total_decode_batches": 3
+  },
+  "live_output_ids": [
+    [
+      319,
+      29889,
+      13
+    ],
+    [
+      350,
+      29889,
+      29907
+    ]
+  ],
+  "logits_fingerprint_rows_present": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "server_cmd": [
+    "/Users/evinova-self/Projects/distributed-inference-mvp/.venv/bin/python",
+    "-m",
+    "bloombee.cli.run_server",
+    "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "--new_swarm",
+    "--num_blocks",
+    "22",
+    "--port",
+    "31365",
+    "--batch_size",
+    "2",
+    "--throughput",
+    "2",
+    "--device",
+    "mps",
+    "--torch_dtype",
+    "float16"
+  ],
+  "server_log_tail": "                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/moe/server/runtime.py\", line 110, in process_batch\n    outputs = pool.process_func(*batch)\n              ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/torch/utils/_contextlib.py\", line 124, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/server/backend.py\", line 1459, in __call__\n    (hidden_states, keep_indices) = self.backends[inference_info.uid].inference_step(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/torch/utils/_contextlib.py\", line 124, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/server/backend.py\", line 751, in inference_step\n    step_result = self._run_block_forward(\n                  ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/server/backend.py\", line 375, in _run_block_forward\n    forward_result = self.module.forward(\n                     ^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/utils/convert_block.py\", line 264, in forward\n    return self._module.forward(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/models/llama/block.py\", line 940, in forward\n    outputs = super().forward(\n              ^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/models/llama/block.py\", line 682, in forward\n    layer_output = self.compute_layer(i, j, k, position_ids=position_ids, generated_tokens_num=generated_tokens_num, rotary_position_ids=rotary_position_ids)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/models/llama/block.py\", line 866, in compute_layer\n    self.layers[j].forward(hidden_states=self.hidden[0][j][k],\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/models/llama/block.py\", line 147, in forward\n    self.temp_hidden_states.val = super(OptimizedLlamaAttention, self).forward(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/models/llama/flex_llama.py\", line 480, in forward\n    h, new_k_cache, new_v_cache = self.compute.mha_gen_llama(\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/flexgen_utils/pytorch_backend.py\", line 892, in mha_gen_llama\n    value = self._attention_value(q, k, v, attention_mask.data,\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/flexgen_utils/pytorch_backend.py\", line 957, in _attention_value\n    attn_weights = self._attention_weights(q, k, mask, b, src_s, tgt_s, n_head, head_dim)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/flexgen_utils/pytorch_backend.py\", line 946, in _attention_weights\n    attn_scores = torch.bmm(q, k) / math.sqrt(head_dim)\n                  ^^^^^^^^^^^^^^^\nRuntimeError: Placeholder storage has not been allocated on MPS device!\nJul 06 13:36:09.447 [INFO] rpc_inference.close(blocks=0:22, remote_peer=...3qNSsp)\nJul 06 13:36:09.448 [INFO] [TIMING_SUMMARY] blocks=0:22 steps=1 (excl 1 warmup)\n  nic2cpu : mean=0.37ms  median=0.37ms  p95=0.37ms  max=0.37ms\n  cpu2gpu : mean=0.00ms  median=0.00ms  p95=0.00ms  max=0.00ms\n  compute : mean=63.8ms  median=63.8ms  p95=63.8ms  min=63.8ms  max=63.8ms\n  gpu2cpu : mean=0.36ms  median=0.36ms  p95=0.36ms  max=0.36ms\n  step_total: mean=64.7ms  median=64.7ms  p95=64.7ms  min=64.7ms  max=64.7ms\n  queue_wait: mean=0.0ms  median=0.0ms  p95=0.0ms  max=0.0ms\n  summary: inference_latency=64.65ms  throughput=61.87tok/s  comm_volume=16.0KB  net_latency=0.00ms  net_bw=0.0MB/s\n  ratio: compute=98.7%  host_io=1.1%  gpu2cpu=0.6%  avg_bw(gpu2cpu)=0.05GB/s  data_per_step=16.0KB\n  s2s_comm : no downstream push samples\nJul 06 13:36:09.448 [INFO] [TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=0.36ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.37ms T_CPU->GPU=0.00ms InferenceLatency=64.65ms Throughput=61.87tok/s CommunicateVolume=16.0KB T_GPU_Compute=63.82ms NetLatency=0.00ms NetBandwidth=0.00MB/s\n[TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=0.36ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.37ms T_CPU->GPU=0.00ms InferenceLatency=64.65ms Throughput=61.87tok/s CommunicateVolume=16.0KB T_GPU_Compute=63.82ms NetLatency=0.00ms NetBandwidth=0.00MB/s\nJul 06 13:36:09.449 [INFO] [PAPER_TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=0.36ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.37ms T_CPU->GPU=0.00ms InferenceLatency=64.65ms Throughput=61.87tok/s CommunicationVolume=16.0KB T_GPU_Compute=63.82ms NetworkLatency=0.00ms NetworkBandwidth=0.00Mbps\n[PAPER_TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=0.36ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.37ms T_CPU->GPU=0.00ms InferenceLatency=64.65ms Throughput=61.87tok/s CommunicationVolume=16.0KB T_GPU_Compute=63.82ms NetworkLatency=0.00ms NetworkBandwidth=0.00Mbps\nJul 06 13:36:09.449 [INFO] [PIPELINE_COMPONENT_VIEW] blocks=0:22 steps=1 sender_T_GPU->CPU_RAW=0.36ms sender_T_CPU->NIC_RAW=0.00ms link_T_NIC->NIC_RAW=0.00ms receiver_T_NIC->CPU_RAW=0.37ms receiver_T_CPU->GPU_RAW=0.00ms pipeline_overlap_affects_component_visibility=1\n[PIPELINE_COMPONENT_VIEW] blocks=0:22 steps=1 sender_T_GPU->CPU_RAW=0.36ms sender_T_CPU->NIC_RAW=0.00ms link_T_NIC->NIC_RAW=0.00ms receiver_T_NIC->CPU_RAW=0.37ms receiver_T_CPU->GPU_RAW=0.00ms pipeline_overlap_affects_component_visibility=1\nJul 06 13:36:09.449 [INFO] [PIPELINE_EXPOSED_VIEW] blocks=0:22 steps=1 EndToEndCriticalPathExposed=64.65ms sender_T_GPU->CPU_EXPOSED=0.36ms sender_T_CPU->NIC_EXPOSED=0.00ms link_T_NIC->NIC_EXPOSED=0.00ms receiver_T_NIC->CPU_EXPOSED=0.37ms receiver_T_CPU->GPU_EXPOSED=0.00ms sender_post_compute_gap_EXPOSED=0.00ms receiver_dispatch_EXPOSED=0.00ms overlap_breakdown_coverage=1/1\n[PIPELINE_EXPOSED_VIEW] blocks=0:22 steps=1 EndToEndCriticalPathExposed=64.65ms sender_T_GPU->CPU_EXPOSED=0.36ms sender_T_CPU->NIC_EXPOSED=0.00ms link_T_NIC->NIC_EXPOSED=0.00ms receiver_T_NIC->CPU_EXPOSED=0.37ms receiver_T_CPU->GPU_EXPOSED=0.00ms sender_post_compute_gap_EXPOSED=0.00ms receiver_dispatch_EXPOSED=0.00ms overlap_breakdown_coverage=1/1\nJul 06 13:36:09.449 [INFO] [PIPELINE_GPU2GPU] blocks=0:22 steps=1 T_GPU->GPU_PIPE=0.00ms BW_GPU->GPU_PIPE=0.00Mbps T_GPU->GPU_PURE=0.00ms BW_GPU->GPU_PURE=0.00Mbps T_GPU_LOCAL_STAGING=0.36ms T_GPU_PURE_COMPUTE=63.82ms T_CPU_SERIALIZE=0.39ms samples=0\n[PIPELINE_GPU2GPU] blocks=0:22 steps=1 T_GPU->GPU_PIPE=0.00ms BW_GPU->GPU_PIPE=0.00Mbps T_GPU->GPU_PURE=0.00ms BW_GPU->GPU_PURE=0.00Mbps T_GPU_LOCAL_STAGING=0.36ms T_GPU_PURE_COMPUTE=63.82ms T_CPU_SERIALIZE=0.39ms samples=0\nJul 06 13:36:09.449 [INFO] [TIMING_NOTE] blocks=0:22 T_GPU->GPU_PIPE=sender(T_GPU->CPU+T_CPU->NIC+wire)+receiver(T_NIC->CPU+T_CPU->GPU); PAPER_TIMING_TABLE prefers upstream sender+wire fields on downstream stages when available; T_GPU->GPU_PURE is same-host cuda->cuda transfer time collected inside task_pool .to(device); T_GPU->CPU happens on sender after compute; T_CPU->NIC happens on sender before rpc_push; T_NIC->NIC is one-hop wire time; T_NIC->CPU happens on receiver during deserialize/unpack; T_CPU->GPU happens on receiver when runtime moves tensors to cuda; component fields are raw local segment durations and may be overlapped by pipeline; they are not additive to end-to-end latency; PIPELINE_EXPOSED_VIEW reports the downstream critical-path-visible portion of each segment; with full-batch PP (no micro-batching), EXPOSED is reported from observed per-step segments and coverage should be n/n; with micro-batch PP, EXPOSED uses overlap attribution when available and otherwise falls back to RAW means; T_NIC->CPU includes deserialize/unpack; T_CPU->NIC includes request packing and pre-send prep; InferenceLatency/Throughput are stage-local means; CommunicationVolume is mean payload per decode step in KB; NetworkLatency=push_e2e(send->ack), while T_NIC->NIC subtracts receiver processing; NetworkBandwidth=payload_bits/T_NIC->NIC in Mbps.\n[TIMING_NOTE] blocks=0:22 T_GPU->GPU_PIPE=sender(T_GPU->CPU+T_CPU->NIC+wire)+receiver(T_NIC->CPU+T_CPU->GPU); PAPER_TIMING_TABLE prefers upstream sender+wire fields on downstream stages when available; T_GPU->GPU_PURE is same-host cuda->cuda transfer time collected inside task_pool .to(device); T_GPU->CPU happens on sender after compute; T_CPU->NIC happens on sender before rpc_push; T_NIC->NIC is one-hop wire time; T_NIC->CPU happens on receiver during deserialize/unpack; T_CPU->GPU happens on receiver when runtime moves tensors to cuda; component fields are raw local segment durations and may be overlapped by pipeline; they are not additive to end-to-end latency; PIPELINE_EXPOSED_VIEW reports the downstream critical-path-visible portion of each segment; with full-batch PP (no micro-batching), EXPOSED is reported from observed per-step segments and coverage should be n/n; with micro-batch PP, EXPOSED uses overlap attribution when available and otherwise falls back to RAW means; T_NIC->CPU includes deserialize/unpack; T_CPU->NIC includes request packing and pre-send prep; InferenceLatency/Throughput are stage-local means; CommunicationVolume is mean payload per decode step in KB; NetworkLatency=push_e2e(send->ack), while T_NIC->NIC subtracts receiver processing; NetworkBandwidth=payload_bits/T_NIC->NIC in Mbps.\nJul 06 13:36:09.449 [WARN] [hivemind.p2p.p2p_daemon._process_stream:456] Handler failed with the exception:\nTraceback (most recent call last):\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/p2p/p2p_daemon.py\", line 447, in _process_stream\n    async for response in handler(_read_stream(), context):\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/p2p/p2p_daemon.py\", line 545, in _stream_handler\n    async for item in output:\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/server/handler.py\", line 1090, in rpc_inference\n    async for output_tensors, can_push, step_metadata in iterate_rpc_inference(\n  File \"/private/tmp/bloombee-strict-cbkv-v6-20260706-133536/src/bloombee/server/block_functions.py\", line 2213, in iterate_rpc_inference\n    submit_result = await requested_backends[0].inference_pool.submit_task(\n                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/Projects/distributed-inference-mvp/.venv/lib/python3.11/site-packages/hivemind/utils/mpfuture.py\", line 290, in __await__\n    return super().result()\n           ^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/concurrent/futures/_base.py\", line 449, in result\n    return self.__get_result()\n           ^^^^^^^^^^^^^^^^^^^\n  File \"/Users/evinova-self/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/concurrent/futures/_base.py\", line 401, in __get_result\n    raise self._exception\nRuntimeError: Placeholder storage has not been allocated on MPS device!\nJul 06 13:36:09.457 [INFO] rpc_inference.open(blocks=0:22, remote_peer=...3qNSsp)\nJul 06 13:36:09.458 [INFO] OFFLOAD: requesting KV allocation for 22 blocks, alloc_batch=2, request_batch=2, logical_batch=2, max_length=3\nJul 06 13:36:09.459 [INFO] OFFLOAD: allocation completed; entering use_cache region\nJul 06 13:36:09.593 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:09.743 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:10.397 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:10.532 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:10.679 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:10.820 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:10.994 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.134 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.289 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.417 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.561 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.697 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.852 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:11.988 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.132 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.265 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.406 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.540 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.691 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:12.838 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.008 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.149 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.305 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.447 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.610 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.771 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:13.947 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.078 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.228 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.392 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.536 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.669 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.830 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:14.976 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.127 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.296 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.533 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.675 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.826 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:15.976 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:16.125 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:16.323 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:16.460 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:16.597 [INFO] HTTP Request: HEAD https://huggingface.co/huggyllama/TinyLlama-1.1B-Chat-v1.0/resolve/main/config.json \"HTTP/1.1 404 Not Found\"\nJul 06 13:36:16.619 [INFO] [STEP_TIMING_BREAKDOWN] step_id=596126c0-fff6-49a8-a4fa-54037654e370 mode=merged_fullbatch queue_wait=0.00ms queue_source=initial t_nic2cpu=0.43ms t_cpu2gpu=0.00ms t_gpu2gpu=0.00ms compute=7155.98ms t_gpu2cpu=2.53ms serialize_cpu=2.35ms residual=-2.43ms step_total=7158.87ms total_with_queue=7158.87ms compute_pct=100.0% mem_copy_pct=0.0% data_bytes=24576 bw_gpu2cpu=0.01GB/s bw_gpu2gpu=0.00GB/s cross_gpu_window=7158.35ms decompress=0.00ms deserialize_unwrap=0.00ms deserialize_core=0.00ms compress=0.00ms serialize_wrap=0.00ms serialize_core=0.00ms batch=2 seq_inc=3 raw_seq=3 is_spec_dec=0\nJul 06 13:36:16.740 [INFO] rpc_inference.close(blocks=0:22, remote_peer=...3qNSsp)\nJul 06 13:36:16.742 [INFO] [TIMING_SUMMARY] blocks=0:22 steps=1 (excl 1 warmup)\n  nic2cpu : mean=0.43ms  median=0.43ms  p95=0.43ms  max=0.43ms\n  cpu2gpu : mean=0.00ms  median=0.00ms  p95=0.00ms  max=0.00ms\n  compute : mean=7156.0ms  median=7156.0ms  p95=7156.0ms  min=7156.0ms  max=7156.0ms\n  gpu2cpu : mean=2.53ms  median=2.53ms  p95=2.53ms  max=2.53ms\n  step_total: mean=7158.9ms  median=7158.9ms  p95=7158.9ms  min=7158.9ms  max=7158.9ms\n  queue_wait: mean=0.0ms  median=0.0ms  p95=0.0ms  max=0.0ms\n  summary: inference_latency=7158.87ms  throughput=0.84tok/s  comm_volume=24.0KB  net_latency=0.00ms  net_bw=0.0MB/s\n  ratio: compute=100.0%  host_io=0.0%  gpu2cpu=0.0%  avg_bw(gpu2cpu)=0.01GB/s  data_per_step=24.0KB\n  s2s_comm : no downstream push samples\nJul 06 13:36:16.742 [INFO] [TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=2.53ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.43ms T_CPU->GPU=0.00ms InferenceLatency=7158.87ms Throughput=0.84tok/s CommunicateVolume=24.0KB T_GPU_Compute=7155.98ms NetLatency=0.00ms NetBandwidth=0.00MB/s\n[TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=2.53ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.43ms T_CPU->GPU=0.00ms InferenceLatency=7158.87ms Throughput=0.84tok/s CommunicateVolume=24.0KB T_GPU_Compute=7155.98ms NetLatency=0.00ms NetBandwidth=0.00MB/s\nJul 06 13:36:16.742 [INFO] [PAPER_TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=2.53ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.43ms T_CPU->GPU=0.00ms InferenceLatency=7158.87ms Throughput=0.84tok/s CommunicationVolume=24.0KB T_GPU_Compute=7155.98ms NetworkLatency=0.00ms NetworkBandwidth=0.00Mbps\n[PAPER_TIMING_TABLE] blocks=0:22 steps=1 T_GPU->CPU=2.53ms T_CPU->NIC=0.00ms T_NIC->NIC=0.00ms T_NIC->CPU=0.43ms T_CPU->GPU=0.00ms InferenceLatency=7158.87ms Throughput=0.84tok/s CommunicationVolume=24.0KB T_GPU_Compute=7155.98ms NetworkLatency=0.00ms NetworkBandwidth=0.00Mbps\nJul 06 13:36:16.742 [INFO] [PIPELINE_COMPONENT_VIEW] blocks=0:22 steps=1 sender_T_GPU->CPU_RAW=2.53ms sender_T_CPU->NIC_RAW=0.00ms link_T_NIC->NIC_RAW=0.00ms receiver_T_NIC->CPU_RAW=0.43ms receiver_T_CPU->GPU_RAW=0.00ms pipeline_overlap_affects_component_visibility=1\n[PIPELINE_COMPONENT_VIEW] blocks=0:22 steps=1 sender_T_GPU->CPU_RAW=2.53ms sender_T_CPU->NIC_RAW=0.00ms link_T_NIC->NIC_RAW=0.00ms receiver_T_NIC->CPU_RAW=0.43ms receiver_T_CPU->GPU_RAW=0.00ms pipeline_overlap_affects_component_visibility=1\nJul 06 13:36:16.742 [INFO] [PIPELINE_EXPOSED_VIEW] blocks=0:22 steps=1 EndToEndCriticalPathExposed=7158.87ms sender_T_GPU->CPU_EXPOSED=2.53ms sender_T_CPU->NIC_EXPOSED=0.00ms link_T_NIC->NIC_EXPOSED=0.00ms receiver_T_NIC->CPU_EXPOSED=0.43ms receiver_T_CPU->GPU_EXPOSED=0.00ms sender_post_compute_gap_EXPOSED=0.00ms receiver_dispatch_EXPOSED=0.00ms overlap_breakdown_coverage=1/1\n[PIPELINE_EXPOSED_VIEW] blocks=0:22 steps=1 EndToEndCriticalPathExposed=7158.87ms sender_T_GPU->CPU_EXPOSED=2.53ms sender_T_CPU->NIC_EXPOSED=0.00ms link_T_NIC->NIC_EXPOSED=0.00ms receiver_T_NIC->CPU_EXPOSED=0.43ms receiver_T_CPU->GPU_EXPOSED=0.00ms sender_post_compute_gap_EXPOSED=0.00ms receiver_dispatch_EXPOSED=0.00ms overlap_breakdown_coverage=1/1\nJul 06 13:36:16.742 [INFO] [PIPELINE_GPU2GPU] blocks=0:22 steps=1 T_GPU->GPU_PIPE=0.00ms BW_GPU->GPU_PIPE=0.00Mbps T_GPU->GPU_PURE=0.00ms BW_GPU->GPU_PURE=0.00Mbps T_GPU_LOCAL_STAGING=2.53ms T_GPU_PURE_COMPUTE=7155.98ms T_CPU_SERIALIZE=2.35ms samples=0\n[PIPELINE_GPU2GPU] blocks=0:22 steps=1 T_GPU->GPU_PIPE=0.00ms BW_GPU->GPU_PIPE=0.00Mbps T_GPU->GPU_PURE=0.00ms BW_GPU->GPU_PURE=0.00Mbps T_GPU_LOCAL_STAGING=2.53ms T_GPU_PURE_COMPUTE=7155.98ms T_CPU_SERIALIZE=2.35ms samples=0\nJul 06 13:36:16.742 [INFO] [TIMING_NOTE] blocks=0:22 T_GPU->GPU_PIPE=sender(T_GPU->CPU+T_CPU->NIC+wire)+receiver(T_NIC->CPU+T_CPU->GPU); PAPER_TIMING_TABLE prefers upstream sender+wire fields on downstream stages when available; T_GPU->GPU_PURE is same-host cuda->cuda transfer time collected inside task_pool .to(device); T_GPU->CPU happens on sender after compute; T_CPU->NIC happens on sender before rpc_push; T_NIC->NIC is one-hop wire time; T_NIC->CPU happens on receiver during deserialize/unpack; T_CPU->GPU happens on receiver when runtime moves tensors to cuda; component fields are raw local segment durations and may be overlapped by pipeline; they are not additive to end-to-end latency; PIPELINE_EXPOSED_VIEW reports the downstream critical-path-visible portion of each segment; with full-batch PP (no micro-batching), EXPOSED is reported from observed per-step segments and coverage should be n/n; with micro-batch PP, EXPOSED uses overlap attribution when available and otherwise falls back to RAW means; T_NIC->CPU includes deserialize/unpack; T_CPU->NIC includes request packing and pre-send prep; InferenceLatency/Throughput are stage-local means; CommunicationVolume is mean payload per decode step in KB; NetworkLatency=push_e2e(send->ack), while T_NIC->NIC subtracts receiver processing; NetworkBandwidth=payload_bits/T_NIC->NIC in Mbps.\n[TIMING_NOTE] blocks=0:22 T_GPU->GPU_PIPE=sender(T_GPU->CPU+T_CPU->NIC+wire)+receiver(T_NIC->CPU+T_CPU->GPU); PAPER_TIMING_TABLE prefers upstream sender+wire fields on downstream stages when available; T_GPU->GPU_PURE is same-host cuda->cuda transfer time collected inside task_pool .to(device); T_GPU->CPU happens on sender after compute; T_CPU->NIC happens on sender before rpc_push; T_NIC->NIC is one-hop wire time; T_NIC->CPU happens on receiver during deserialize/unpack; T_CPU->GPU happens on receiver when runtime moves tensors to cuda; component fields are raw local segment durations and may be overlapped by pipeline; they are not additive to end-to-end latency; PIPELINE_EXPOSED_VIEW reports the downstream critical-path-visible portion of each segment; with full-batch PP (no micro-batching), EXPOSED is reported from observed per-step segments and coverage should be n/n; with micro-batch PP, EXPOSED uses overlap attribution when available and otherwise falls back to RAW means; T_NIC->CPU includes deserialize/unpack; T_CPU->NIC includes request packing and pre-send prep; InferenceLatency/Throughput are stage-local means; CommunicationVolume is mean payload per decode step in KB; NetworkLatency=push_e2e(send->ack), while T_NIC->NIC subtracts receiver processing; NetworkBandwidth=payload_bits/T_NIC->NIC in Mbps.",
+  "server_maddr": "/ip4/127.0.0.1/tcp/31365/p2p/12D3KooWA4SRWnQVkMGxN7z7j4nJunG31FbgPhE5kFRF6cjKJGRX",
+  "source": "strict_live_cbkv_runner_v2.py",
+  "speedup_proven": false,
+  "started_at": "2026-07-06T11:35:45Z",
+  "status": "passed",
+  "token_parity_proven": true
+}

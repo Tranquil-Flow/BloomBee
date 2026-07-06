@@ -294,6 +294,14 @@ class _ServerInferenceSession:
             "positions": [int(item) for item in batch["positions"]],
             "input_token_ids": [int(item) for item in batch["input_token_ids"]],
         }
+        if "active_mask" in batch and batch["active_mask"] is not None:
+            active_mask = [bool(item) for item in batch["active_mask"]]
+            if len(active_mask) != len(staged["request_ids"]):
+                raise ValueError("active_mask length must match live continuous batching rows")
+            staged["active_mask"] = active_mask
+        for key in ("batch_offset", "full_batch_size", "micro_batch_size"):
+            if key in batch and batch[key] is not None:
+                staged[key] = int(batch[key])
         self._pending_live_continuous_tick_batch = staged
         return dict(staged)
 
@@ -358,12 +366,49 @@ class _ServerInferenceSession:
         """
         if self.closed:
             raise Exception("Session is closed, cannot perform step")
+        live_tick_batch = self._pending_live_continuous_tick_batch if isinstance(self._pending_live_continuous_tick_batch, dict) else {}
+        live_batch_offset = int(live_tick_batch.get("batch_offset", 0) or 0)
+        live_full_batch_size = int(
+            live_tick_batch.get(
+                "full_batch_size",
+                self.session_metadata.get("live_continuous_full_batch_size", 0),
+            )
+            or 0
+        )
+        live_micro_batch_size = int(live_tick_batch.get("micro_batch_size", inputs.shape[0] if inputs.ndim >= 1 else 1) or 1)
         if is_spec_dec:
             n_input_tokens = 0 if kv_cache_position_ids is None else kv_cache_position_ids[0].numel()
         else:
             n_input_tokens = inputs.shape[1]
         # print('client step() n_input_tokens', n_input_tokens)
-        if self.history is None: # if the history log is empty
+        live_microbatch_active = (
+            live_full_batch_size > 0
+            and inputs.ndim >= 2
+            and (live_full_batch_size > inputs.shape[0] or live_batch_offset > 0)
+        )
+        if live_microbatch_active:
+            required_batch = max(live_full_batch_size, live_batch_offset + int(inputs.shape[0]))
+            required_len = self._position + n_input_tokens
+            if self.history is None:
+                self.history = inputs.new_zeros((required_batch, required_len, inputs.shape[2]))
+            else:
+                history = self.history
+                if history.shape[0] < required_batch or history.shape[1] < required_len:
+                    expanded = history.new_zeros(
+                        (
+                            max(history.shape[0], required_batch),
+                            max(history.shape[1], required_len),
+                            history.shape[2],
+                        )
+                    )
+                    expanded[: history.shape[0], : history.shape[1], :] = history
+                    self.history = expanded
+            self.history[
+                live_batch_offset : live_batch_offset + inputs.shape[0],
+                self._position : self._position + n_input_tokens,
+                :,
+            ] = inputs[:, -n_input_tokens:, :]
+        elif self.history is None: # if the history log is empty
             self.history = inputs # assign the current inputs to the history log
         elif self.history.shape[1] == self._position: # if the length of the history equals the current position
             self.history = torch.cat([self.history, inputs[:, -n_input_tokens:]], dim=1) # append the last n_input_tokens of the current input to history
@@ -373,7 +418,7 @@ class _ServerInferenceSession:
         #     f"position={self._position} n_input_tokens={n_input_tokens}"
         # )
 
-        if not self.stepped: # if not exe step yet
+        if not self.stepped and not live_microbatch_active: # if not exe step yet
             inputs = self.history  # Pass full inputs including prefix
         else:
             inputs = inputs  # No need to pass prefix further
@@ -402,6 +447,7 @@ class _ServerInferenceSession:
             _infer_batch_dim(draft_tokens),
             _infer_batch_dim(tree_attention_mask),
             int(self.session_metadata.get("live_continuous_full_batch_size", 0) or 0),
+            live_full_batch_size,
             1,
         )
         push_only_decode = (
@@ -513,6 +559,13 @@ class _ServerInferenceSession:
                 live_continuous_metadata = self._consume_live_continuous_batching_metadata()
                 if live_continuous_metadata is not None:
                     request_metadata["live_continuous_batching"] = live_continuous_metadata
+                    live_batches = live_continuous_metadata.get("tick_batches", [])
+                    live_batch = live_batches[0] if live_batches and isinstance(live_batches[0], dict) else {}
+                    for key in ("batch_offset", "full_batch_size", "micro_batch_size"):
+                        if key in live_batch and live_batch[key] is not None:
+                            request_metadata[key] = int(live_batch[key])
+                    if "full_batch_size" in request_metadata:
+                        request_metadata["live_continuous_full_batch_size"] = int(request_metadata["full_batch_size"])
 
                 # TODO: make possible to use different compression method for different tensors
                 server_side_inference_schema, kwargs_schema = self.rpc_info["inference_schema"]
@@ -728,7 +781,7 @@ class InferenceSession:
     def position(self) -> int:
         return self._position
 
-    def _normalize_live_continuous_tick_rows(self, rows, *, output_token_ids=None, output_logits_sha256=None) -> dict:
+    def _normalize_live_continuous_tick_rows(self, rows, *, active_mask=None, output_token_ids=None, output_logits_sha256=None) -> dict:
         """Normalize opt-in live-continuous decode rows for this session.
 
         This is deliberately telemetry/control-plane only: staged or recorded
@@ -767,6 +820,11 @@ class InferenceSession:
             "positions": [int(row.position) for row in normalized_rows],
             "input_token_ids": [int(row.input_token_id) for row in normalized_rows],
         }
+        if active_mask is not None:
+            normalized_active_mask = [bool(value) for value in active_mask]
+            if len(normalized_active_mask) != len(normalized_rows):
+                raise ValueError("active_mask length must match live continuous batching rows")
+            batch["active_mask"] = normalized_active_mask
         if output_token_ids is not None:
             normalized_outputs = [int(token) for token in output_token_ids]
             if len(normalized_outputs) != len(normalized_rows):
@@ -794,15 +852,35 @@ class InferenceSession:
         self._pending_live_continuous_tick_batch = dict(batch)
         return dict(batch)
 
+    def stage_live_continuous_tick_batch(self, batch: dict) -> dict:
+        staged = {
+            "tick": int(batch["tick"]),
+            "request_ids": [str(item) for item in batch["request_ids"]],
+            "positions": [int(item) for item in batch["positions"]],
+            "input_token_ids": [int(item) for item in batch["input_token_ids"]],
+        }
+        if "active_mask" in batch and batch["active_mask"] is not None:
+            active_mask = [bool(item) for item in batch["active_mask"]]
+            if len(active_mask) != len(staged["request_ids"]):
+                raise ValueError("active_mask length must match live continuous batching rows")
+            staged["active_mask"] = active_mask
+        for key in ("batch_offset", "full_batch_size", "micro_batch_size"):
+            if key in batch and batch[key] is not None:
+                staged[key] = int(batch[key])
+        self._pending_live_continuous_tick_batch = staged
+        return dict(staged)
+
     def record_live_continuous_tick_rows(
         self,
         rows,
         *,
+        active_mask=None,
         output_token_ids=None,
         output_logits_sha256=None,
     ) -> None:
         batch = self._normalize_live_continuous_tick_rows(
             rows,
+            active_mask=active_mask,
             output_token_ids=output_token_ids,
             output_logits_sha256=output_logits_sha256,
         )

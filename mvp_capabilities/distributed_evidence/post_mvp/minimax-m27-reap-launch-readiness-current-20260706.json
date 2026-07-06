@@ -1,0 +1,71 @@
+{
+  "blocked_reasons": [
+    "gguf_file_missing_or_too_small",
+    "download_incomplete_files_present",
+    "freeable_memory_below_required"
+  ],
+  "can_update_demo_status": false,
+  "can_update_proof_status": false,
+  "claim_boundary": "minimax_m27_reap_launch_readiness_no_inference_proof",
+  "download": {
+    "completed": false,
+    "expected_file": "m51Lab-MiniMax-M2.7-REAP-139B-A10B.i1-IQ2_XXS.gguf",
+    "expected_min_bytes": 36000000000,
+    "gguf_path": null,
+    "gguf_size_bytes": 0,
+    "gguf_size_gb": 0.0,
+    "incomplete_files": [
+      "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf/.cache/huggingface/download/pZu32vziP8fKMV09J87b_7Y1B8w=.6e2e04440b3036b231b661731d04dc632633bcce058110e313c6f9abd2b5f8aa.incomplete"
+    ],
+    "model_dir": "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf",
+    "partial_bytes": 901164474,
+    "partial_gb": 0.901
+  },
+  "external_runtime_smoke_proven": false,
+  "gguf_repo_id": "mradermacher/m51Lab-MiniMax-M2.7-REAP-139B-A10B-i1-GGUF",
+  "launch_ready": false,
+  "memory": {
+    "attemptable": false,
+    "definition": "macOS vm_stat free+inactive+speculative+purgeable pages",
+    "freeable_gb": 29.016,
+    "required_free_gb": 40.8
+  },
+  "model_id": "dervig/m51Lab-MiniMax-M2.7-REAP-139B-A10B",
+  "native_bloombee_support_proven": false,
+  "runtime": {
+    "framework": "llama.cpp",
+    "llama_cli_path": "/opt/homebrew/bin/llama-cli",
+    "llama_cli_present": true,
+    "llama_server_path": "/opt/homebrew/bin/llama-server",
+    "llama_server_present": true
+  },
+  "server_command": [
+    "/opt/homebrew/bin/llama-server",
+    "-m",
+    "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf/m51Lab-MiniMax-M2.7-REAP-139B-A10B.i1-IQ2_XXS.gguf",
+    "--ctx-size",
+    "4096",
+    "--port",
+    "18087",
+    "--host",
+    "127.0.0.1"
+  ],
+  "smoke_command": [
+    "/opt/homebrew/bin/llama-cli",
+    "-m",
+    "/Volumes/Seagate Portable Drive/models/minimax-m27-reap-i1-gguf/m51Lab-MiniMax-M2.7-REAP-139B-A10B.i1-IQ2_XXS.gguf",
+    "-p",
+    "You are MiniMax M2.7 REAP. Reply with the single word READY.",
+    "-n",
+    "16",
+    "--ctx-size",
+    "512",
+    "--temp",
+    "0",
+    "--no-display-prompt",
+    "--single-turn",
+    "--simple-io",
+    "--log-disable"
+  ],
+  "source": "minimax_m27_reap_launch_gate.py"
+}

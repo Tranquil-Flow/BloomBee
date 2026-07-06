@@ -184,16 +184,25 @@ def _normalize_live_continuous_tick_batch(raw: Any) -> Optional[dict[str, Any]]:
         normalized_request_ids = [str(item) for item in request_ids]
         normalized_positions = [int(item) for item in positions]
         normalized_input_token_ids = [int(item) for item in input_token_ids]
+        active_mask_raw = raw.get("active_mask")
+        normalized_active_mask = None
+        if active_mask_raw is not None:
+            if not isinstance(active_mask_raw, list) or len(active_mask_raw) != len(request_ids):
+                return None
+            normalized_active_mask = [bool(item) for item in active_mask_raw]
     except Exception:
         return None
     if len(set(normalized_request_ids)) != len(normalized_request_ids):
         return None
-    return {
+    normalized = {
         "tick": tick,
         "request_ids": normalized_request_ids,
         "positions": normalized_positions,
         "input_token_ids": normalized_input_token_ids,
     }
+    if normalized_active_mask is not None:
+        normalized["active_mask"] = normalized_active_mask
+    return normalized
 
 
 def _extract_live_continuous_batching_metadata(metadata: dict[str, Any]) -> Optional[dict[str, Any]]:

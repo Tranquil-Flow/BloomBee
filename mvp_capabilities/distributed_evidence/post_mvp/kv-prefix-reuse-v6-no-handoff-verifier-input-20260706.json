@@ -1,0 +1,19 @@
+{
+  "baseline_reuse_enabled": false,
+  "common_prefix_token_ids": [
+    319
+  ],
+  "live_kv_cache_reuse_proven": false,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "prefix_reuse_enabled": true,
+  "proof_gate": "kv_prefix_reuse",
+  "requests": [],
+  "server_observations": [],
+  "server_observed_kv_cache_reuse": false,
+  "source": "derived_from_strict-live-cbkv-v6-slot-mask-20260706.json",
+  "telemetry_tags": [
+    "kv_prefix_reuse",
+    "no_reuse_baseline",
+    "same_prefix_varied_suffix"
+  ]
+}

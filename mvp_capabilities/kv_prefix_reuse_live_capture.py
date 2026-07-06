@@ -141,6 +141,21 @@ def _metadata_only_report(server_report: Mapping[str, Any]) -> bool:
     ) and server_report.get("live_kv_cache_reuse_proven") is not True
 
 
+def _server_handle_handoff_observed(server_report: Mapping[str, Any]) -> bool:
+    if server_report.get("server_handle_handoff_observed") is not True:
+        return False
+    source_handle = server_report.get("cache_read_source_handle_id")
+    destination_handle = server_report.get("cache_write_destination_handle_id")
+    checksum = server_report.get("kv_prefix_byte_checksum_sha256")
+    return (
+        source_handle is not None
+        and destination_handle is not None
+        and str(source_handle) != str(destination_handle)
+        and isinstance(checksum, str)
+        and len(checksum) == 64
+    )
+
+
 def _live_kv_reuse_proven(server_report: Mapping[str, Any]) -> bool:
     if _metadata_only_report(server_report):
         return False
@@ -148,6 +163,7 @@ def _live_kv_reuse_proven(server_report: Mapping[str, Any]) -> bool:
         server_report.get("opt_in_enabled") is True
         and server_report.get("server_observed_kv_cache_reuse") is True
         and server_report.get("live_kv_cache_reuse_proven") is True
+        and _server_handle_handoff_observed(server_report)
     )
 
 
@@ -227,6 +243,29 @@ def assemble_kv_prefix_reuse_live_capture_evidence(
     live_reuse_proven = _live_kv_reuse_proven(server_report)
     server_requests = _server_request_entries(server_report)
 
+    server_observations: list[dict[str, Any]] = []
+    if live_reuse_proven:
+        server_observations.append(
+            {
+                "source": server_report.get("source") or "bloombee.server.kv_prefix_reuse_capture",
+                "claim_boundary": server_report.get("claim_boundary") or "live_kv_prefix_reuse_server_capture",
+                "server_observed_kv_cache_reuse": True,
+                "live_kv_cache_reuse_proven": True,
+                "server_handle_handoff_observed": True,
+                "cache_read_source_handle_id": server_report.get("cache_read_source_handle_id"),
+                "cache_write_destination_handle_id": server_report.get("cache_write_destination_handle_id"),
+                "client_claimed_prefix_token_count": server_report.get(
+                    "client_claimed_prefix_token_count", len(common_prefix)
+                ),
+                "server_recovered_prefix_token_count": server_report.get(
+                    "server_recovered_prefix_token_count", len(common_prefix)
+                ),
+                "kv_prefix_byte_checksum_sha256": server_report.get("kv_prefix_byte_checksum_sha256"),
+                "prefix_length": server_report.get("prefix_length", len(common_prefix)),
+                "cache_handle_count": server_report.get("cache_handle_count", 2),
+            }
+        )
+
     rows: list[dict[str, Any]] = []
     for request_id in sorted(baseline_ids):
         baseline_capture = baseline_by_request[request_id]
@@ -279,6 +318,7 @@ def assemble_kv_prefix_reuse_live_capture_evidence(
         "requests": rows,
         "server_report_source": server_report.get("source"),
         "server_report_claim_boundary": server_report.get("claim_boundary"),
+        "server_observations": server_observations,
         "server_observed_metadata_only": metadata_only,
         "server_observed_kv_cache_reuse": server_report.get("server_observed_kv_cache_reuse") is True,
         "live_kv_cache_reuse_proven": live_reuse_proven,

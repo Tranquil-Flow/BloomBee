@@ -1,0 +1,180 @@
+{
+  "live_continuous_report": {
+    "can_update_demo_status": false,
+    "claim_boundary": "live_continuous_inference_session_tick_rows_no_server_parity_or_speedup",
+    "live_server_proven": true,
+    "opt_in_enabled": true,
+    "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+    "request_count": 2,
+    "server_observations": [
+      {
+        "can_update_demo_status": false,
+        "can_update_proof_status": false,
+        "claim_boundary": "live_continuous_batching_server_metadata_observed_no_parity_or_speedup",
+        "live_server_proven": true,
+        "opt_in_enabled": true,
+        "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+        "request_count": 2,
+        "server_observed_live_continuous_batches": true,
+        "source": "bloombee.server.handler",
+        "speedup_proven": false,
+        "tick_batches": [
+          {
+            "active_mask": [
+              true,
+              false
+            ],
+            "input_token_ids": [
+              319,
+              350
+            ],
+            "positions": [
+              0,
+              0
+            ],
+            "request_ids": [
+              "generate-0",
+              "generate-1"
+            ],
+            "tick": 0
+          }
+        ],
+        "wallclock_speedup_proven": false
+      }
+    ],
+    "server_observed_live_continuous_batches": true,
+    "source": "bloombee.client.inference_session",
+    "speedup_proven": false,
+    "tick_batches": [
+      {
+        "active_mask": [
+          true,
+          false
+        ],
+        "input_token_ids": [
+          319,
+          350
+        ],
+        "output_logits_sha256": [
+          "eb8b663c2bef3494dfedfda379af5b09d9d41bd79202856395491489c18db880",
+          "0d61a5b5bc4ce3c0e10488d2eab1887a4c69f2d9e37b801cc526b46d80a1f044"
+        ],
+        "output_token_ids": [
+          29889,
+          29889
+        ],
+        "positions": [
+          0,
+          0
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 0
+      },
+      {
+        "active_mask": [
+          true,
+          true
+        ],
+        "input_token_ids": [
+          29889,
+          350
+        ],
+        "output_logits_sha256": [
+          "55266c05d8fe7b82ed021eda32c72ba53370154b69a3e55f37f3c074746dbf4e",
+          "0d61a5b5bc4ce3c0e10488d2eab1887a4c69f2d9e37b801cc526b46d80a1f044"
+        ],
+        "output_token_ids": [
+          13,
+          29889
+        ],
+        "positions": [
+          1,
+          0
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 1
+      },
+      {
+        "active_mask": [
+          false,
+          true
+        ],
+        "input_token_ids": [
+          13,
+          29889
+        ],
+        "output_logits_sha256": [
+          "30ae90cecb73584aea9eebf28695c54fcd3df7f5bfdf781eb1780e844c89266f",
+          "6ccc166b3b9bc4347d4b024cf7cef4699111c1f94adfb0b5d7bcb51ad9ceeb78"
+        ],
+        "output_token_ids": [
+          13,
+          29907
+        ],
+        "positions": [
+          2,
+          1
+        ],
+        "request_ids": [
+          "generate-0",
+          "generate-1"
+        ],
+        "tick": 2
+      }
+    ],
+    "total_decode_batches": 3
+  },
+  "live_server_proven": true,
+  "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "opt_in_enabled": true,
+  "opt_in_flag": "BLOOMBEE_ENABLE_LIVE_CONTINUOUS_BATCHING",
+  "proof_gate": "continuous_batching",
+  "requests": [
+    {
+      "arrival_tick": 0,
+      "baseline": {
+        "generated_token_ids": [
+          29889,
+          13
+        ],
+        "logits_sha256": "b99a0bf1d24cdebc13b7149955735d9816fdfb276ed21e08f88673868bf45629|d5e0e4aff490981c5392b9bd7e1a473a209171eafb3825d2fb81254e6c7834c4"
+      },
+      "continuous": {
+        "generated_token_ids": [
+          29889,
+          13
+        ],
+        "logits_sha256": "eb8b663c2bef3494dfedfda379af5b09d9d41bd79202856395491489c18db880|55266c05d8fe7b82ed021eda32c72ba53370154b69a3e55f37f3c074746dbf4e"
+      },
+      "request_id": "generate-0"
+    },
+    {
+      "arrival_tick": 1,
+      "baseline": {
+        "generated_token_ids": [
+          29889,
+          29907
+        ],
+        "logits_sha256": "ec16ef6d443e05125b27d9bc29ad439d1881feb4308f06bc789757ea95a3ef98|ef06d19a45bf50deb485848c42099fb6c88be26ce2cbd825cc0877d2232ade88"
+      },
+      "continuous": {
+        "generated_token_ids": [
+          29889,
+          29907
+        ],
+        "logits_sha256": "0d61a5b5bc4ce3c0e10488d2eab1887a4c69f2d9e37b801cc526b46d80a1f044|6ccc166b3b9bc4347d4b024cf7cef4699111c1f94adfb0b5d7bcb51ad9ceeb78"
+      },
+      "request_id": "generate-1"
+    }
+  ],
+  "server_observed_live_continuous_batches": true,
+  "source": "derived_from_strict-live-cbkv-v6-slot-mask-20260706.json",
+  "speedup_proven": false,
+  "wallclock_speedup_proven": false
+}
