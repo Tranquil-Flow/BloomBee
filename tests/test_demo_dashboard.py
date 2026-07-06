@@ -523,6 +523,16 @@ def test_dashboard_data_surfaces_devices_routes_benchmarks_and_evidence(tmp_path
     assert doc["layers_map"]["groups"][0]["source"] == "joined_layer_plan"
     assert doc["layers_map"]["groups"][0]["segments"][0]["hostname"] == "joined-peer-a"
     assert doc["layers_map"]["groups"][0]["segments"][0]["block_range"] == "0:18"
+    assert doc["layers_map"]["gaps"]["total_layers"] >= 36
+    assert doc["layers_map"]["gaps"]["coverage_percent"] >= 0.0
+    assert "gaps" in doc["layers_map"]
+    assert "Demo readiness checklist" in html
+    assert "Connected peers ≥ 2" in html
+    assert "Swarm free memory ≥ 10 GB" in html
+    assert "Route selected a model" in html
+    assert "Layer map coverage ≥ 50%" in html
+    assert "Proof evidence ≥ 1 passing" in html
+    assert "Live token stream active" in html
     assert doc["model_fit_matrix"]["candidate_count"] >= 1
     assert any(row["model_id"] == doc["real_route"]["picked"]["model_id"] for row in doc["model_fit_matrix"]["rows"])
     assert "evinova" in html
