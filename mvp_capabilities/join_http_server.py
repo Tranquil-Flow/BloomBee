@@ -1179,7 +1179,8 @@ pre{{background:#050e1a;color:#d7e5ff;border:1px solid var(--line);border-radius
 
 <div class="tabs">
 <button class="active" onclick="showTab('any')">💻 Laptop</button>
-<button onclick="showTab('phone')">📱 Android Phone</button>
+<button onclick="showTab('phone')">📱 Android</button>
+<button onclick="showTab('ios')">🍎 iPhone</button>
 </div>
 
 <div class="tab active" id="tab-any">
@@ -1202,12 +1203,42 @@ The command downloads a self-contained script — no pip, no clone, no setup.
 </div>
 </div>
 
+<div class="tab" id="tab-ios">
+<div class="step">
+<h3>🍎 iPhone joins as a draft peer (speculative decoding)</h3>
+<p style="color:var(--muted);font-size:12px;line-height:1.5;">
+iPhones contribute via <strong>MLX speculative decoding</strong> — they generate draft tokens
+that the main model verifies, making inference 2-4× faster for everyone.
+</p>
+</div>
+<div class="step">
+<h3>1. Install SideStore</h3>
+<p>Get <strong>SideStore</strong> from <a href="https://sidestore.io" style="color:var(--accent);">sidestore.io</a> (free, no Apple Developer account needed).</p>
+</div>
+<div class="step">
+<h3>2. Configure anisette</h3>
+<p>In SideStore settings → Anisette URL, enter: <code>{coord_esc.replace("8787", "6969")}</code></p>
+<p style="color:var(--muted);font-size:10px;margin-top:4px;">(The swarm operator runs the anisette server — they'll provide the exact URL if different.)</p>
+</div>
+<div class="step">
+<h3>3. Install BloomBee</h3>
+<p>Open this link on your iPhone: <a href="https://github.com/tranquil-flow/bloombee-ios-gateway/releases" style="color:var(--accent);">BloomBee.ipa</a> → tap <strong>Install</strong> in SideStore.</p>
+<p style="color:var(--muted);font-size:10px;margin-top:4px;">The operator builds the IPA once — all iPhones use the same file.</p>
+</div>
+<div class="step">
+<h3>4. Connect to the swarm</h3>
+<p>Open BloomBee → enter the coordinator URL: <code>{coord_esc}</code></p>
+<p style="color:var(--muted);font-size:10px;margin-top:4px;">The app sends an install_token and starts generating drafts automatically.</p>
+</div>
+</div>
+
 <div class="note">
 ⚠️ <strong>What this does:</strong> Scans your hardware, registers with the swarm,
 and heartbeats to stay active. No models run yet, no files accessed.
 Press Ctrl+C to disconnect.<br><br>
-<strong>📱 iOS / iPhone:</strong> iPhones cannot join as inference peers (no background Python, no Termux).
-Android devices can join via Termux. iPhones can still view the dashboard.
+<strong>📱 Android:</strong> Full compute peer via Termux — runs model layers directly.<br>
+<strong>🍎 iPhone:</strong> Draft peer via SideStore + BloomBee IPA — generates speculative tokens for faster inference.<br>
+<strong>💻 Laptop (macOS/Linux):</strong> Full compute peer — runs model layers via Python + MLX/CUDA.<br>
 </div>
 
 <div class="step" style="margin-top:18px">
@@ -1299,10 +1330,14 @@ function fallbackCopy(text) {{
 }}
 function showTab(n) {{
   document.querySelectorAll('.tabs button,.tab').forEach(e=>e.classList.remove('active'));
-  document.querySelector(`.tabs button:nth-child(${{n==='any'?1:2}})`).classList.add('active');
+  // Map tab name to button index: any=1, phone=2, ios=3
+  const idx = {{any:1, phone:2, ios:3}}[n] || 1;
+  document.querySelector(`.tabs button:nth-child(${{idx}})`).classList.add('active');
   document.getElementById('tab-'+n).classList.add('active');
 }}
-if(/Android|iPhone|iPad/i.test(navigator.userAgent)) showTab('phone');
+const ua = navigator.userAgent || '';
+if(/iPhone|iPad/i.test(ua)) showTab('ios');
+else if(/Android/i.test(ua)) showTab('phone');
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
@@ -1405,18 +1440,33 @@ def handle_get(
         # 4b: Anisette Docker container
         import subprocess as _sp
         try:
-            out = _sp.check_output(
-                ["docker", "ps", "--filter", "name=anisette", "--format", "{{.Status}}"],
-                timeout=3,
-                text=True,
-            ).strip()
-            if out:
-                result["anisette"] = {"ok": True, "port": 6969, "status": out}
-            else:
+            # Check Docker daemon first — separate error from container check
+            try:
+                _sp.check_output(
+                    ["docker", "info"],
+                    timeout=3,
+                    text=True,
+                    stderr=_sp.DEVNULL,
+                )
+            except (_sp.CalledProcessError, FileNotFoundError):
                 result["anisette"] = {
                     "ok": False,
-                    "reason": "docker container 'anisette' not running",
+                    "reason": "Docker daemon not running — start Docker Desktop first",
                 }
+            else:
+                # Docker is running, check for anisette container
+                out = _sp.check_output(
+                    ["docker", "ps", "--filter", "name=anisette", "--format", "{{.Status}}"],
+                    timeout=3,
+                    text=True,
+                ).strip()
+                if out:
+                    result["anisette"] = {"ok": True, "port": 6969, "status": out}
+                else:
+                    result["anisette"] = {
+                        "ok": False,
+                        "reason": "docker container 'anisette' not running — run Step 4b commands",
+                    }
         except Exception:
             result["anisette"] = {
                 "ok": False,
