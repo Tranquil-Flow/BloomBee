@@ -13,6 +13,7 @@ import json
 import shlex
 import sys
 import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -1368,6 +1369,72 @@ def handle_get(
             body["uptime_seconds"] = round(time.time() - started_at, 1)
             body["started_at"] = started_at
         return 200, body
+    if parsed.path == "/status":
+        # Orchestration health: probes iOS gateway, anisette container, IPA build.
+        # Dashboard uses this to show green/yellow status dots per step.
+        result: dict[str, Any] = {
+            "coordinator": {"ok": True, "port": 8787},
+            "gateway": {"ok": False, "reason": "not checked yet"},
+            "anisette": {"ok": False, "reason": "not checked yet"},
+            "ipa": {"ok": False, "reason": "not checked yet"},
+        }
+        # 4a: iOS gateway at :8432
+        gw_host = parsed.hostname or "127.0.0.1"
+        try:
+            g = urllib.request.urlopen(
+                f"http://{gw_host}:8432/healthz", timeout=0.8
+            )
+            gw_data = json.loads(g.read().decode("utf-8", "replace"))
+            if gw_data.get("service") == "bloombee-ios-gateway":
+                result["gateway"] = {
+                    "ok": True,
+                    "port": 8432,
+                    "version": gw_data.get("version", "?"),
+                }
+            else:
+                result["gateway"] = {
+                    "ok": False,
+                    "reason": f"port 8432 answered but service={gw_data.get('service','?')}",
+                }
+        except Exception:
+            result["gateway"] = {
+                "ok": False,
+                "reason": "iOS gateway not reachable on :8432",
+            }
+        # 4b: Anisette Docker container
+        import subprocess as _sp
+        try:
+            out = _sp.check_output(
+                ["docker", "ps", "--filter", "name=anisette", "--format", "{{.Status}}"],
+                timeout=3,
+                text=True,
+            ).strip()
+            if out:
+                result["anisette"] = {"ok": True, "port": 6969, "status": out}
+            else:
+                result["anisette"] = {
+                    "ok": False,
+                    "reason": "docker container 'anisette' not running",
+                }
+        except Exception:
+            result["anisette"] = {
+                "ok": False,
+                "reason": "docker not available or anisette container not found",
+            }
+        # 4c: IPA file
+        ipa_path = Path.home() / "Projects/bloombee-ios-gateway/build/BloomBee.ipa"
+        if ipa_path.exists():
+            size_mb = round(ipa_path.stat().st_size / 1_048_576, 1)
+            result["ipa"] = {"ok": True, "path": str(ipa_path), "size_mb": size_mb}
+        else:
+            result["ipa"] = {
+                "ok": False,
+                "reason": f"IPA not found at {ipa_path}",
+            }
+        result["all_ok"] = all(
+            result[k]["ok"] for k in ("coordinator", "gateway", "anisette", "ipa")
+        )
+        return 200, result
     if parsed.path == "/offer":
         return 200, create_join_offer(
             coordinator=_first(query, "coordinator", coordinator) or coordinator,

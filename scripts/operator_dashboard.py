@@ -157,6 +157,15 @@ th { color: #bad0f3; background: rgba(7,17,31,.55); font-size: 10px; text-transf
 }
 .pipeline-token .tok-label { color: var(--muted); font-size: 10px; }
 .pipeline-token .tok-value { color: var(--ok); font-size: 14px; font-weight: 700; }
+
+/* Orchestrator status indicators */
+.step-status { display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  margin-right: 4px; vertical-align: middle; }
+.step-status.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.step-status.fail { background: var(--fail); }
+.step-status.pending { background: var(--warn); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.status-text { font-size: 10px; color: var(--muted); margin-left: 4px; }
 """
 
 JS = r"""
@@ -260,6 +269,44 @@ async function refreshAll() {
   loadRoute();
   loadPipeline();
   loadIosPeers();
+  checkOrchestratorStatus();
+}
+
+async function checkOrchestratorStatus() {
+  const steps = {
+    gateway: {el: 'status-4a', txt: 'status-text-4a', label: 'iOS gateway'},
+    anisette: {el: 'status-4b', txt: 'status-text-4b', label: 'Anisette'},
+    ipa: {el: 'status-4c', txt: 'status-text-4c', label: 'IPA build'},
+  };
+  try {
+    const data = await fetchJSON(COORDINATOR + '/status');
+    if (!data) { markAllUnknown(steps); return; }
+    for (const [key, ids] of Object.entries(steps)) {
+      const dot = document.getElementById(ids.el);
+      const txt = document.getElementById(ids.txt);
+      const info = data[key];
+      if (!dot) continue;
+      dot.className = 'step-status';
+      if (info && info.ok) {
+        dot.classList.add('ok');
+        const extra = info.version ? ` v${info.version}` : info.status ? ` ${info.status}` : info.size_mb ? ` ${info.size_mb} MB` : '';
+        if (txt) txt.textContent = `✅ ${ids.label}${extra}`;
+      } else {
+        dot.classList.add('fail');
+        if (txt) txt.textContent = `❌ ${ids.label} — ${(info&&info.reason)||'unreachable'}`;
+      }
+    }
+  } catch(e) {
+    markAllUnknown(steps);
+  }
+}
+function markAllUnknown(steps) {
+  for (const [key, ids] of Object.entries(steps)) {
+    const dot = document.getElementById(ids.el);
+    const txt = document.getElementById(ids.txt);
+    if (dot) { dot.className = 'step-status pending'; }
+    if (txt) txt.textContent = `⏳ ${ids.label} — checking...`;
+  }
 }
 
 async function loadIosPeers() {
@@ -872,6 +919,7 @@ python3 scripts/operator_dashboard.py __BSLASH__
     </p>
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;"><strong>4a. iOS gateway</strong> — bridges iPhone HTTP/JSON drafts to the coordinator</p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4a"></span><span class="status-text" id="status-text-4a">⏳ checking...</span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
 PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
@@ -884,6 +932,7 @@ PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4b. Anisette signing</strong> — lets iPhones install the IPA without Apple's $99/yr fee.
       Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4b"></span><span class="status-text" id="status-text-4b">⏳ checking...</span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway/anisette
 docker build -t bloombee-anisette .
@@ -902,6 +951,7 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
       <code>export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer</code>
       (no <code>sudo</code> needed — <code>DEVELOPER_DIR</code> overrides <code>xcode-select</code> per-session).
     </p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4c"></span><span class="status-text" id="status-text-4c">⏳ checking...</span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
 export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
