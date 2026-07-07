@@ -775,6 +775,9 @@ def _build_html(coordinator: str) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>BloomBee Operator Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>{CSS}</style>
@@ -918,6 +921,20 @@ python3 scripts/operator_dashboard.py \\
     <pre>cd ~/Projects/bloombee-ios-gateway
 pip install aiohttp
 python3 gateway/server.py --host 0.0.0.0 --port 8432</pre>
+  </div>
+  <div class="step">
+    <h4>Operator: self-hosted anisette signing (no fees, your hardware)</h4>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">Anisette lets iPhones install/refresh the IPA without Apple's $99/yr fee.
+    The "official" docs suggest a $5/mo VPS, but you can absolutely run this on your own machine on the same LAN as the iPhones — no cloud required:</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway/anisette
+# Edit Dockerfile: replace placeholder with real anisette-v3 image
+# (see SideStore/SideStore repo for the pinned upstream)
+docker build -t bloombee-anisette .
+docker run -d --name anisette --restart unless-stopped \
+  -p 6969:6969 bloombee-anisette
+# Donors enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
+    <p style="color:var(--muted);font-size:11px;margin-top:6px;">⚠️ <strong>Note</strong>: The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout. Works on a laptop, RPi, or any always-on box on your LAN.</p>
   </div>
   <div class="step">
     <h4>Operator: build + pin the IPA</h4>
