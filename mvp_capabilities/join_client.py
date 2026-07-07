@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,7 @@ REQUEST_CLAIM_BOUNDARY = "join_client_request_only_no_inference_proof"
 DRY_RUN_CLAIM_BOUNDARY = "join_client_dry_run_only_no_inference_proof"
 POST_CLAIM_BOUNDARY = "join_client_post_only_no_inference_proof"
 LOOP_CLAIM_BOUNDARY = "join_client_heartbeat_loop_only_no_inference_proof"
+JOB_POLL_CLAIM_BOUNDARY = "join_client_job_poll_only_no_inference_proof"
 
 
 def parse_join_url(join_url: str) -> dict[str, str]:
@@ -161,6 +163,67 @@ def run_heartbeat_loop(
     }
 
 
+def _job_url(coordinator: str) -> str:
+    return coordinator.rstrip("/") + "/job"
+
+
+def poll_job(
+    join_url: str,
+    *,
+    peer_id: str,
+    timeout: float = 5.0,
+    urlopen_fn: Callable[..., Any] = urlopen,
+) -> dict[str, Any]:
+    """Poll GET /job?peer_id=X — return the job assignment or null."""
+    join = parse_join_url(join_url)
+    url = _job_url(join["coordinator"]) + f"?peer_id={peer_id}"
+    with urlopen_fn(url, timeout=timeout) as response:
+        job_response = json.loads(response.read().decode("utf-8"))
+    return {
+        "url": url,
+        "peer_id": peer_id,
+        "job_response": job_response,
+        "claim_boundary": JOB_POLL_CLAIM_BOUNDARY,
+    }
+
+
+def execute_job_command(
+    command: str,
+    *,
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Execute a shell command for serving. Does NOT return until the server exits."""
+    start_time = time.time()
+    try:
+        proc = subprocess.run(
+            command,
+            shell=True,
+            cwd=str(cwd) if cwd else None,
+            env={**__import__("os").environ, **(env or {})},
+            capture_output=True,
+            text=True,
+            timeout=None,  # server runs indefinitely; caller controls lifecycle
+        )
+        elapsed = time.time() - start_time
+        return {
+            "command": command,
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout[-2000:] if len(proc.stdout) > 2000 else proc.stdout,
+            "stderr": proc.stderr[-2000:] if len(proc.stderr) > 2000 else proc.stderr,
+            "elapsed_seconds": elapsed,
+            "claim_boundary": JOB_POLL_CLAIM_BOUNDARY,
+        }
+    except Exception as exc:
+        elapsed = time.time() - start_time
+        return {
+            "command": command,
+            "error": str(exc),
+            "elapsed_seconds": elapsed,
+            "claim_boundary": JOB_POLL_CLAIM_BOUNDARY,
+        }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--join-url", required=True)
@@ -171,10 +234,39 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--count", type=int, default=1, help="Number of heartbeats to post; default is one-shot")
     parser.add_argument("--interval-seconds", type=float, default=10.0, help="Seconds to sleep between repeated heartbeats")
     parser.add_argument("--dry-run", action="store_true", help="Print request payload without sending it")
+    parser.add_argument("--poll-job", action="store_true", help="After heartbeat, poll /job for deployment assignment")
+    parser.add_argument("--auto-serve", action="store_true", help="Poll job and auto-execute serve command (--poll-job + execution)")
+    parser.add_argument("--repo-dir", default=None, help="Working directory for auto-serve command execution")
     args = parser.parse_args(argv)
+
+    # Resolve peer_id early
+    capabilities = _load_capabilities(args.capabilities)
+    resolved_peer_id = args.peer_id or capabilities.get("hostname") or capabilities.get("peer_id")
 
     if args.dry_run:
         payload = dry_run_report(args.join_url, capabilities_path=args.capabilities, peer_id=args.peer_id, now=args.now)
+    elif args.auto_serve:
+        # Heartbeat first, then poll job
+        hb = post_heartbeat(
+            args.join_url,
+            capabilities_path=args.capabilities,
+            peer_id=args.peer_id,
+            timeout=args.timeout,
+            now=args.now or int(time.time()),
+        )
+        # Poll for job
+        poll_result = poll_job(args.join_url, peer_id=resolved_peer_id, timeout=args.timeout)
+        job = (poll_result.get("job_response") or {}).get("job")
+        if job and job.get("command"):
+            print(json.dumps({"heartbeat": hb, "poll": poll_result}, indent=2, sort_keys=True), file=sys.stderr)
+            # Auto-execute the serve command
+            exec_result = execute_job_command(job["command"], cwd=args.repo_dir or None)
+            payload = {"auto_serve": True, "heartbeat": hb, "job": job, "execution": exec_result, "claim_boundary": JOB_POLL_CLAIM_BOUNDARY}
+        else:
+            payload = {"auto_serve": True, "heartbeat": hb, "poll": poll_result, "no_job_assigned": True, "claim_boundary": JOB_POLL_CLAIM_BOUNDARY}
+    elif args.poll_job:
+        poll_result = poll_job(args.join_url, peer_id=resolved_peer_id, timeout=args.timeout)
+        payload = poll_result
     elif args.count != 1:
         payload = run_heartbeat_loop(
             args.join_url,
