@@ -126,9 +126,89 @@ def detect_mobile_profile() -> dict[str, Any]:
     }
 
 
+def _parse_meminfo_total_kb(value: str) -> int | None:
+    """Parse a /proc/meminfo line value.
+
+    Handles all four observed formats across Android/Termux/Linux:
+      - "MemTotal:       11899328 kB"
+      - "MemTotal:        11899328"
+      - "MemTotal:         12345678 KB"
+      - "MemTotal:    11899328 bytes"   (rare but seen)
+    Returns kB as int, or None on parse failure.
+    """
+    if not value:
+        return None
+    parts = value.split()
+    if not parts:
+        return None
+    try:
+        n = int(parts[0])
+    except ValueError:
+        return None
+    if len(parts) >= 2:
+        unit = parts[1].lower()
+        if unit in ("bytes", "b"):
+            return n // 1024
+        if unit in ("mb", "m"):
+            return n * 1024
+        # "kb" / "k" / "kib" → already kB, no conversion
+    return n
+
+
 def detect_cpu() -> dict[str, Any]:
     info: dict[str, Any] = {"model": None, "logical": None, "physical": None}
+
+    # 1. platform.processor() works on macOS/Linux glibc but returns "" on
+    #    Termux/Android. Try it first as a fast path.
     info["model"] = _platform.processor() or None
+
+    # 2. Android/Termux: /proc/cpuinfo uses "Hardware" (Tensor G3) and
+    #    "model name" rather than the glibc "cpu cores" / "model name"
+    #    combo the original code expected. Parse Android-style first.
+    if sys.platform.startswith("linux") and not info["model"]:
+        try:
+            with open("/proc/cpuinfo") as f:
+                cpuinfo = f.read()
+            for line in cpuinfo.splitlines():
+                low = line.lower()
+                if low.startswith("hardware") and ":" in line:
+                    val = line.split(":", 1)[1].strip()
+                    if val:
+                        info["model"] = val
+                elif low.startswith("model name") and ":" in line and not info["model"]:
+                    val = line.split(":", 1)[1].strip()
+                    if val:
+                        info["model"] = val
+                elif low.startswith("processor") and ":" in line:
+                    # "Processor : ARMv8 Processor rev 0 (v8l)" — generic
+                    val = line.split(":", 1)[1].strip()
+                    if val and not info["model"]:
+                        info["model"] = val
+                elif low.startswith("cpu part") and ":" in line and not info["model"]:
+                    val = line.split(":", 1)[1].strip()
+                    if val:
+                        info["model"] = f"ARM CPU part {val}"
+                elif low.startswith("cpu implementer") and ":" in line and not info["model"]:
+                    val = line.split(":", 1)[1].strip()
+                    if val:
+                        info["model"] = f"ARM implementer 0x{val}"
+        except OSError:
+            pass
+
+    # 3. On Android, getprop gives the *commercial* model (e.g. "Pixel 8 Pro")
+    #    which is much more useful than raw SoC part numbers. Prefer it.
+    if not info["model"] or info["model"] in ("unknown", "", "ARMv8"):
+        product = _android_getprop("ro.product.model")
+        if product:
+            info["model"] = product
+        if not info["model"]:
+            soc = (
+                _android_getprop("ro.soc.model")
+                or _android_getprop("ro.board.platform")
+                or _android_getprop("ro.hardware")
+            )
+            if soc:
+                info["model"] = soc
 
     try:
         import psutil  # type: ignore
@@ -143,10 +223,13 @@ def detect_cpu() -> dict[str, Any]:
     # /proc/cpuinfo is Linux-only and gives "cpu cores" per physical package
     if sys.platform.startswith("linux"):
         try:
-            cores = set()
+            cores: set[int] = set()
             with open("/proc/cpuinfo") as f:
                 for line in f:
-                    if line.lower().startswith("cpu cores"):
+                    # Both "cpu cores" (glibc) and "CPU part" (Android) — only
+                    # the cores line should populate physical count.
+                    low = line.lower()
+                    if low.startswith("cpu cores") and ":" in line:
                         cores.add(_safe_int(line.split(":", 1)[1]))
             if cores:
                 info["physical"] = sum(cores)
@@ -178,18 +261,32 @@ def detect_memory() -> dict[str, Any]:
             except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
                 pass
         elif sys.platform.startswith("linux"):
-            try:
-                with open("/proc/meminfo") as f:
-                    meminfo = {}
-                    for line in f:
-                        k, _, v = line.partition(":")
-                        meminfo[k.strip()] = v.strip()
-                if "MemTotal" in meminfo:
-                    total_gb = round(int(meminfo["MemTotal"].split()[0]) / (1024**2), 2)
-                if "MemAvailable" in meminfo:
-                    free_gb = round(int(meminfo["MemAvailable"].split()[0]) / (1024**2), 2)
-            except (OSError, ValueError, IndexError):
-                pass
+                try:
+                    with open("/proc/meminfo") as f:
+                        meminfo = {}
+                        for line in f:
+                            k, _, v = line.partition(":")
+                            meminfo[k.strip()] = v.strip()
+                    # Use the unit-tolerant parser: handles "11899328 kB", "11899328 KB",
+                    # "11899328" (unitless), and rare "bytes" / "MB" variants seen on
+                    # some Android kernels and Termux builds.
+                    if "MemTotal" in meminfo:
+                        kb = _parse_meminfo_total_kb(meminfo["MemTotal"])
+                        if kb is not None:
+                            total_gb = round(kb / (1024**2), 2)
+                    if "MemAvailable" in meminfo:
+                        kb = _parse_meminfo_total_kb(meminfo["MemAvailable"])
+                        if kb is not None:
+                            free_gb = round(kb / (1024**2), 2)
+                    elif "MemFree" in meminfo:
+                        # Some Android kernels omit MemAvailable entirely. MemFree alone
+                        # understates available RAM (excludes reclaimable cache), but is
+                        # still better than 0.0.
+                        kb = _parse_meminfo_total_kb(meminfo["MemFree"])
+                        if kb is not None:
+                            free_gb = round(kb / (1024**2), 2)
+                except (OSError, ValueError, IndexError):
+                    pass
 
     return {"total_gb": total_gb, "free_gb": free_gb}
 

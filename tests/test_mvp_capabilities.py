@@ -2690,6 +2690,93 @@ def test_peer_scan_identifies_termux_android(monkeypatch):
     assert profile["cpu_abi"] == "arm64-v8a"
 
 
+def test_meminfo_parser_handles_all_unit_variants():
+    """Regression: Pixel 8 was reporting 0.0 GB RAM because the old parser
+    only handled 'MemTotal: 11899328 kB'. Real-world Android/Termux /proc/meminfo
+    formats include unitless, 'KB', and occasional 'bytes'/'MB' — parser
+    must return kB for all of them, or None on garbage."""
+    from mvp_capabilities import peer_scan
+
+    cases = [
+        ("       11899328 kB", 11899328),
+        ("        11899328", 11899328),
+        ("         12345678 KB", 12345678),
+        ("    11899328 bytes", 11620),       # 11899328 / 1024
+        ("       16384 MB", 16777216),       # 16384 * 1024
+        ("", None),
+        ("garbage", None),
+    ]
+    for raw, expected in cases:
+        assert peer_scan._parse_meminfo_total_kb(raw) == expected, raw
+
+
+def test_detect_cpu_picks_hardware_field_from_android_proc_cpuinfo(monkeypatch):
+    """Regression: Pixel 8 was showing 'unknown'. Termux /proc/cpuinfo uses
+    'Hardware' (Tensor G3 / SM8550) and 'model name' rather than the glibc
+    'cpu cores' the original code parsed."""
+    from mvp_capabilities import peer_scan
+
+    cpuinfo = (
+        "Processor       : AArch64 Processor rev 0 (v8l)\n"
+        "Hardware        : Qualcomm Technologies, Inc SM8550\n"
+        "model name      : ARMv8 Processor rev 0 (v8l)\n"
+        "CPU implementer : 0x41\n"
+        "CPU architecture: 8\n"
+        "CPU variant     : 0x1\n"
+        "CPU part        : 0xd05\n"
+        "CPU revision    : 0\n"
+    )
+
+    fake_fs = {"proc/cpuinfo": cpuinfo, "proc/meminfo": "MemTotal: 11899328 kB\n"}
+
+    def fake_open(path, *a, **kw):
+        from io import StringIO
+        # Strip leading slash so "/proc/cpuinfo" → "proc/cpuinfo" matches our dict
+        key = path.lstrip("/")
+        return StringIO(fake_fs[key])
+
+    monkeypatch.setattr("builtins.open", fake_open)
+    monkeypatch.setattr(peer_scan.sys, "platform", "linux")
+    monkeypatch.setattr(peer_scan._platform, "processor", lambda: "")
+
+    info = peer_scan.detect_cpu()
+    assert info["model"] == "Qualcomm Technologies, Inc SM8550", info
+
+
+def test_detect_memory_handles_termux_kb_and_unitless(monkeypatch):
+    """Pixel 8 was showing 0.0 GB total — the old int(meminfo['MemTotal'].split()[0])
+    path returned 0 when the value was '11899328' (no unit), or threw ValueError
+    on bytes/MB. New parser must produce a sane GB figure."""
+    from mvp_capabilities import peer_scan
+    from io import StringIO
+
+    fake_meminfo = "MemTotal: 11899328 kB\nMemAvailable: 8123456 kB\nBuffers: 12345 kB\n"
+    monkeypatch.setattr("builtins.open", lambda p, *a, **kw: StringIO(fake_meminfo))
+    monkeypatch.setattr(peer_scan.sys, "platform", "linux")
+    # Force ImportError on psutil so the linux /proc/meminfo branch runs
+    monkeypatch.setitem(__import__("sys").modules, "psutil", None)
+
+    info = peer_scan.detect_memory()
+    assert info["total_gb"] == 11.35   # 11899328 / 1024^2
+    assert info["free_gb"] == 7.75
+
+
+def test_detect_memory_falls_back_to_memfree_when_memavailable_missing(monkeypatch):
+    """Some Android kernels omit MemAvailable. MemFree alone understates
+    available RAM, but it's still better than 0.0."""
+    from mvp_capabilities import peer_scan
+    from io import StringIO
+
+    fake_meminfo = "MemTotal: 11899328 kB\nMemFree: 567432 kB\n"
+    monkeypatch.setattr("builtins.open", lambda p, *a, **kw: StringIO(fake_meminfo))
+    monkeypatch.setattr(peer_scan.sys, "platform", "linux")
+    monkeypatch.setitem(__import__("sys").modules, "psutil", None)
+
+    info = peer_scan.detect_memory()
+    assert info["total_gb"] == 11.35
+    assert info["free_gb"] == 0.54  # 567432 / 1024^2 ≈ 0.54
+
+
 def test_explain_route_returns_picked_plus_full_candidate_evidence():
     from mvp_capabilities.route_picker import explain_route, load_registry
 
