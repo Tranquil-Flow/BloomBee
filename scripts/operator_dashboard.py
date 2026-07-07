@@ -839,6 +839,43 @@ python3 scripts/operator_dashboard.py \\
     <p>Anyone on the same WiFi who scans the QR (or opens the share link) sees a one-command join page.
     They paste it into terminal and appear in <strong>Live Swarm</strong> instantly. That's it.</p>
   </div>
+
+  <div class="step" style="border-color:var(--moon);">
+    <h4>Step 4 — <span style="color:var(--moon);">Optional:</span> Stand up the iOS orchestrator</h4>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:10px;line-height:1.5;">
+      <strong>Skip this if you're only onboarding laptops + Android.</strong>
+      iOS needs three extra pieces (gateway + anisette + IPA) because Apple blocks the
+      native Python stack that Android gets via Termux. Run each in a separate terminal.
+    </p>
+
+    <p style="color:var(--moon);font-size:11px;margin-bottom:4px;"><strong>4a. iOS gateway</strong> — bridges iPhone HTTP/JSON drafts to the coordinator</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway
+/opt/homebrew/bin/python3 gateway/server.py --host 0.0.0.0 --port 8432</pre>
+
+    <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4b. Anisette signing</strong> — lets iPhones install the IPA without Apple's $99/yr fee.
+      Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway/anisette
+# Replace the placeholder Dockerfile with the real SideStore anisette-v3 image
+# (see SideStore/SideStore repo for the pinned upstream tag)
+docker build -t bloombee-anisette .
+docker run -d --name anisette --restart unless-stopped \
+  -p 6969:6969 bloombee-anisette
+# Tell donors to enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
+    <p style="color:var(--muted);font-size:10px;margin-top:4px;">⚠️ The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout.</p>
+
+    <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4c. Build + pin the IPA</strong> — one-time per release on a Mac with Xcode 16+</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway
+./scripts/build_ipa.sh
+# → build/BloomBee.ipa, host on any static file server or pinned link</pre>
+
+    <p style="color:var(--muted);font-size:11px;margin-top:10px;">
+      Once all three are running, donors can install the IPA and iPhones will appear in the
+      <strong>Live Swarm</strong> tab with a 📱 badge.
+    </p>
+  </div>
 </div>
 
 <div class="card wide">
@@ -898,89 +935,81 @@ python3 scripts/operator_dashboard.py \\
 </div>
 
 <div class="card">
-  <h3>3b. Onboard a phone (Android or iOS)</h3>
+  <h3>3b. Onboard a Phone (Android or iOS)</h3>
   <div class="step" style="border-color:var(--moon);">
-    <h4>📱 <strong>All phones</strong> contribute as draft peers (speculative decoding)</h4>
+    <h4>📱 <strong>All phones</strong> contribute as <strong>draft peers</strong> (speculative decoding)</h4>
     <p style="color:var(--muted);">Phones can't run the same <code>bloombee.cli.run_server</code> stack that laptops do
     (Android blocks the native libp2p/Hivemind deps, iOS lacks Python). So both phone types run a <strong>lightweight
     local model</strong> and send draft tokens to a gateway. Laptops running the main model <strong>verify</strong> them.
     <strong>This makes inference 2-4× faster for everyone.</strong></p>
-    <p style="color:var(--muted);font-size:11px;margin-top:6px;">
-    <strong>Android phones</strong> already onboard via Step 3 (Termux + Python). They join as <code>draft_peer</code> when the
-    coordinator detects low RAM/CPU. <strong>iPhones</strong> need a different installer (below) because Apple blocks Python.
+  </div>
+
+  <h4 style="margin-top:14px;color:var(--accent);">📲 What happens after the phone is installed</h4>
+  <div class="step">
+    <p style="color:var(--muted);font-size:12px;line-height:1.6;">
+      Once the app/command is running, the phone <strong>auto-registers</strong> with the coordinator (one-time), then
+      sends a heartbeat every ~60s. It shows up in the <strong>Live Swarm</strong> tab with a
+      <span style="background:var(--moon);color:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;">📱</span>
+      badge and a <code>draft_peer</code> role. You don't need to "add" it anywhere — just deploy a model
+      on the <strong>Deploy</strong> tab and drafts start flowing automatically.
     </p>
   </div>
 
-  <h4 style="margin-top:14px;color:var(--moon);">📱 iPhone setup (skip for Android-only)</h4>
+  <h4 style="margin-top:14px;color:var(--moon);">🤖 Android setup</h4>
+  <div class="step">
+    <h4>Pre-requisites (one-time)</h4>
+    <p>Install <strong>Termux</strong> from <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">F-Droid</a> (NOT Play Store). Then in Termux:</p>
+    <pre>pkg update &amp;&amp; pkg install python</pre>
+  </div>
+  <div class="step">
+    <h4>Scan QR → tap link → copy command → paste in Termux</h4>
+    <p style="color:var(--muted);">The landing page auto-detects phones and shows the Termux-specific instructions.
+    One pasteable command. Phone heartbeats every 60s.</p>
+  </div>
 
+  <h4 style="margin-top:18px;color:var(--moon);">🍎 iOS setup</h4>
   <div class="step">
     <h4>Pre-requisites (one-time, on the iPhone)</h4>
     <p>iOS 17+ on iPhone 12 or newer. Free — no Apple Developer account needed.</p>
     <ol style="color:var(--muted);line-height:1.6;font-size:12px;margin-left:20px;">
       <li>Install <strong>SideStore</strong> from <a href="https://sidestore.io" style="color:var(--accent);">sidestore.io</a></li>
-      <li>Enter our anisette server URL in SideStore settings (operator provides this)</li>
+      <li>Enter our anisette server URL in SideStore settings (operator provides this — see Operator Quick Start above)</li>
       <li>Tap our pinned <strong>BloomBee.ipa</strong> install link → "Install"</li>
+      <li>Open the BloomBee app → enter the coordinator URL shown on the QR/share link</li>
     </ol>
+    <p style="color:var(--muted);font-size:11px;margin-top:6px;">
+      ⚠️ <strong>Note:</strong> iOS onboarding requires the operator to stand up the iOS gateway + anisette server first
+      (see Operator Quick Start, Step 4). Until then, iPhones can't connect — but Android phones work fine with just Steps 1-3.
+    </p>
   </div>
-
-  <div class="step">
-    <h4>Operator: stand up the iOS gateway</h4>
-    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">The gateway bridges iPhone HTTP/JSON drafts to BloomBee coordinator. Run on the same Mac as the coordinator:</p>
-    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre>cd ~/Projects/bloombee-ios-gateway
-pip install aiohttp
-python3 gateway/server.py --host 0.0.0.0 --port 8432</pre>
-  </div>
-
-  <div class="step">
-    <h4>Operator: self-hosted anisette signing (no fees, your hardware)</h4>
-    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">Anisette lets iPhones install/refresh the IPA without Apple's $99/yr fee.
-    You can run this on your own machine on the same LAN as the iPhones — no cloud, no VPS required:</p>
-    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre>cd ~/Projects/bloombee-ios-gateway/anisette
-# Replace the placeholder Dockerfile with the real SideStore anisette-v3 image
-# (see SideStore/SideStore repo for the pinned upstream tag)
-docker build -t bloombee-anisette .
-docker run -d --name anisette --restart unless-stopped \
-  -p 6969:6969 bloombee-anisette
-# Donors enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
-    <p style="color:var(--muted);font-size:11px;margin-top:6px;">⚠️ <strong>Note</strong>: The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout. Works on a laptop, RPi, or any always-on box on your LAN. <strong>Self-hosting is the default</strong> — only spin up a VPS if donors are joining from outside your WiFi.</p>
-  </div>
-
-  <div class="step">
-    <h4>Operator: build + pin the IPA</h4>
-    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">Build on a Mac with Xcode 16+ (one-time per release):</p>
-    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre>cd ~/Projects/bloombee-ios-gateway
-./scripts/build_ipa.sh
-# → build/BloomBee.ipa ready for SideStore resigning</pre>
-    <p style="color:var(--muted);font-size:11px;">Host the IPA on any static file server or pinned link. Donors install it through SideStore.</p>
-  </div>
-
   <div class="step">
     <h4>What the iPhone sees</h4>
-    <p style="color:var(--muted);">Once installed: BloomBee app shows coordinator URL, sends install_token,
-    and starts generating drafts. <strong>Weekly refresh</strong> via SideStore (5-second tap on WiFi).</p>
-  </div>
-
-  <div class="info-box" style="margin-top:10px;">
-    <strong>📡 Phone contribution:</strong> Both Android (Termux) and iOS (SideStore+IPA) appear as <code>draft_peer</code>
-    in the Live Swarm tab. The coordinator marks phones with a <span style="background:var(--moon);color:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;">📱</span> badge
-    in the <strong>Live Swarm → Inference Pipeline</strong> view.
+    <p style="color:var(--muted);">Once installed: BloomBee app shows the coordinator URL, sends an install_token on first launch,
+    and starts generating drafts on each request. <strong>Weekly refresh</strong> via SideStore (5-second tap on WiFi).</p>
   </div>
 </div>
 
 <div class="card">
-  <h3>4. Verify & Bootstrap</h3>
+  <h3>4. Verify & Bootstrap <span style="font-size:11px;color:var(--muted);font-weight:400;">— optional CLI escape hatch</span></h3>
+  <p style="color:var(--muted);font-size:12px;line-height:1.5;margin-bottom:12px;">
+    <strong>You don't need to run these commands.</strong> Every piece of state they reveal
+    is already shown live in this dashboard's tabs:
+    <br>• <strong>Live Swarm</strong> tab = <code>/active</code> (connected peers, hardware, model serving status)
+    <br>• <strong>Models</strong> tab = <code>/compatible</code> + best-fit planner
+    <br>• <strong>Deploy</strong> tab = <code>POST /deploy</code> + per-peer <code>GET /job</code>
+    <br>• <strong>Generate</strong> tab = <code>POST /infer</code> + streaming tokens
+    <br>The commands below are for SSH sessions, scripting, or debugging — copy them into any terminal.
+  </p>
   <div class="step">
-    <h4>See who's connected</h4>
+    <h4>See who's connected (raw JSON)</h4>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre>curl -s '{coord_esc}/active?token=*&max_age_seconds=600' | python3 -m json.tool</pre>
+    <pre>curl -s '{coord_esc}/active?token=*&max_age_seconds=60' | python3 -m json.tool</pre>
   </div>
   <div class="step">
-    <h4>Generate a server bootstrap script</h4>
+    <h4>Generate a server bootstrap script (advanced — Deploy tab does this)</h4>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>curl -s "{coord_esc}/bootstrap.sh?model=TinyLlama/TinyLlama-1.1B-Chat-v1.0&peer=YOUR_PEER_ID" | bash</pre>
+    <p style="color:var(--muted);font-size:11px;">For most users, just click <strong>Deploy → Deploy Model</strong> in the Deploy tab — peers auto-poll and self-start.</p>
   </div>
 </div>
 
