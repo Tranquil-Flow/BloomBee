@@ -415,7 +415,7 @@ def _compatible_from_query(
             "source": "compatible_endpoint",
         }
 
-    registry_models = load_registry(registry)
+    registry_models = _registry_with_quantized_variants(load_registry(registry))
     total_free_gb = 0.0
     for p in peers:
         mem = p.get("memory", {})

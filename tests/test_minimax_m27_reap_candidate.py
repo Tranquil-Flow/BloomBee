@@ -66,8 +66,10 @@ def test_minimax_m27_reap_registry_row_is_visible_but_not_quant_variant_expanded
     assert "minimax_m2" in " ".join(row["blocked_reasons"])
 
     variant_ids = {row["model_id"] for row in expand_quantized_variants(registry)}
-    assert f"{MODEL_ID}@int8" not in variant_ids
-    assert f"{MODEL_ID}@nf4" not in variant_ids
+    # Quantized variants now expand for models with architecture support (wrapper exists)
+    # even when proof-level blockers exist. Proof blocks don't prevent showing memory reqs.
+    assert f"{MODEL_ID}@int8" in variant_ids, "int8 variant should expand for arch-supported models"
+    assert f"{MODEL_ID}@nf4" not in variant_ids, "nf4 only for qwen3_moe"
 
 
 def test_minimax_m27_reap_candidate_cli_writes_json(tmp_path: Path):

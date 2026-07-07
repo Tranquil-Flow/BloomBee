@@ -362,39 +362,59 @@ async function loadPipeline() {
   }
   card.style.display = 'block';
 
-  let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
-    '<span style="color:var(--accent);">Model: ' + esc(data.model_id || 'none') + '</span>' +
-    '<span style="color:var(--muted);">· ' + data.serving_count + '/' + data.peer_count + ' serving</span>' +
+  // Split peers: compute (has blocks) vs draft (no blocks, draft role)
+  const computePeers = data.peers.filter(function(p) { return p.block_range && p.role !== 'draft'; });
+  const draftPeers = data.peers.filter(function(p) { return p.role === 'draft' || (!p.block_range && p.role !== 'compute'); });
+
+  let html = '<div style=\"display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;\">' +
+    '<span style=\"color:var(--accent);\">Model: ' + esc(data.model_id || 'none') + '</span>' +
+    '<span style=\"color:var(--muted);\">· ' + data.serving_count + '/' + data.peer_count + ' serving</span>' +
     '</div>';
 
-  html += '<div class="pipeline-row">';
-  // Input box
-  html += '<div class="pipeline-token"><div class="tok-label">Prompt</div><div class="tok-value">📝</div></div>';
-  html += '<div class="pipeline-arrow">→</div>';
+  // ── Compute lane ──
+  if (computePeers.length) {
+    html += '<div style=\"color:var(--moon);font-size:12px;margin-bottom:6px;\">🖥️ Compute Lane (layer serving)</div>';
+    html += '<div class=\"pipeline-row\">';
+    html += '<div class=\"pipeline-token\"><div class=\"tok-label\">Prompt</div><div class=\"tok-value\">📝</div></div>';
+    html += '<div class=\"pipeline-arrow\">→</div>';
 
-  for (let i = 0; i < data.peers.length; i++) {
-    const p = data.peers[i];
-    const cls = p.status === 'serving' ? 'serving' : 'idle';
-    const memClass = p.memory_pct > 80 ? 'critical' : (p.memory_pct > 60 ? 'high' : '');
-    html += '<div class="pipeline-peer ' + cls + '">' +
-      '<div class="peer-name">' + esc(p.hostname) +
-        (p.role === 'draft_peer' ? ' <span style="font-size:9px;background:var(--moon);color:var(--bg);padding:1px 5px;border-radius:4px;">📱</span>' : '') +
-      '</div>' +
-      '<div class="peer-layers">layers ' + esc(p.block_range || '?') + '</div>' +
-      '<div class="peer-mem">' + (p.memory_pct >= 0 ? p.memory_pct + '% mem' : 'mem N/A') + ' · ~' + (p.latency_ms_est || 0) + 'ms</div>' +
-      (p.memory_pct >= 0
-        ? '<div class="pipeline-mem-bar"><div class="pipeline-mem-fill ' + memClass + '" style="width:' + Math.min(100, Math.max(0, p.memory_pct)) + '%;"></div></div>'
-        : '<div style="color:var(--muted);font-size:9px;">memory unknown</div>') +
-      '</div>';
-    if (i < data.peers.length - 1) {
-      html += '<div class="pipeline-arrow">→</div>';
+    for (let i = 0; i < computePeers.length; i++) {
+      const p = computePeers[i];
+      const cls = p.status === 'serving' ? 'serving' : 'idle';
+      const memClass = p.memory_pct > 80 ? 'critical' : (p.memory_pct > 60 ? 'high' : '');
+      html += '<div class=\"pipeline-peer ' + cls + '\">' +
+        '<div class=\"peer-name\">' + esc(p.hostname) + '</div>' +
+        '<div class=\"peer-layers\">layers ' + esc(p.block_range || '?') + '</div>' +
+        '<div class=\"peer-mem\">' + (p.memory_pct >= 0 ? p.memory_pct + '% mem' : 'mem N/A') + ' · ~' + (p.latency_ms_est || 0) + 'ms</div>' +
+        (p.memory_pct >= 0
+          ? '<div class=\"pipeline-mem-bar\"><div class=\"pipeline-mem-fill ' + memClass + '\" style=\"width:' + Math.min(100, Math.max(0, p.memory_pct)) + '%;\"></div></div>'
+          : '<div style=\"color:var(--muted);font-size:9px;\">memory unknown</div>') +
+        '</div>';
+      if (i < computePeers.length - 1) {
+        html += '<div class=\"pipeline-arrow\">→</div>';
+      }
     }
+
+    html += '<div class=\"pipeline-arrow\">→</div>';
+    html += '<div class=\"pipeline-token\"><div class=\"tok-label\">Output</div><div class=\"tok-value\">✨</div></div>';
+    html += '</div>';
   }
 
-  // Output box
-  html += '<div class="pipeline-arrow">→</div>';
-  html += '<div class="pipeline-token"><div class="tok-label">Output</div><div class="tok-value">✨</div></div>';
-  html += '</div>';
+  // ── Draft lane ──
+  if (draftPeers.length) {
+    html += '<div style=\"color:var(--muted);font-size:11px;margin-top:14px;\">📱 Draft Lane (speculative decoding, not in layer path)</div>';
+    html += '<div class=\"pipeline-row\">';
+    for (const p of draftPeers) {
+      const mem = (p.available_gb || p.total_gb || 0);
+      html += '<div class=\"pipeline-peer\" style=\"border-style:dashed;border-color:var(--moon);min-width:120px;\">' +
+        '<div class=\"peer-name\">' + esc(p.hostname) +
+          ' <span style=\"font-size:9px;background:var(--moon);color:var(--bg);padding:1px 5px;border-radius:4px;\">📱 draft</span>' +
+        '</div>' +
+        '<div class=\"peer-mem\">' + mem + ' GB · ' + esc(p.platform || '?') + '</div>' +
+        '</div>';
+    }
+    html += '</div>';
+  }
 
   viz.innerHTML = html;
 }
