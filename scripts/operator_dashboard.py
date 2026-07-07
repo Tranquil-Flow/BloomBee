@@ -545,7 +545,8 @@ function showTab(name) {
   if (name === 'live') refreshAll();
   if (name === 'models') loadCompatible();
   if (name === 'infer') loadInferenceModels();
-  if (name === 'deploy') loadDeployModels();
+  if (name === 'deploy') { loadDeployModels(); refreshDeployJobs(); }
+  if (name !== 'deploy') stopDeployPoll();
 }
 
 async function loadInferenceModels() {
@@ -778,31 +779,54 @@ async function deployModel() {
   const jobsCard = document.getElementById('deploy-jobs-card');
   const jobsEl = document.getElementById('deploy-jobs');
   const modelId = sel.value;
-  if (!modelId) { resultEl.innerHTML = '<span style="color:var(--warn);">Select a model first.</span>'; return; }
-  resultEl.innerHTML = '<div class="loading">Deploying ' + esc(modelId.split('/').pop()) + '...</div>';
+  if (!modelId) { resultEl.innerHTML = '<span style=\"color:var(--warn);\">Select a model first.</span>'; return; }
+  resultEl.innerHTML = '<div class=\"loading\">Deploying ' + esc(modelId.split('/').pop()) + '...</div>';
   try {
     const resp = await fetch(COORDINATOR + '/deploy?model_id=' + encodeURIComponent(modelId) + '&token=*', {method:'POST'});
     const data = await resp.json();
     if (data.error) {
-      resultEl.innerHTML = '<span style="color:var(--fail);">Deploy failed: ' + esc(data.error) + '</span><br><span style="font-size:11px;color:var(--muted);">' + esc(data.plan_summary || '') + '</span>';
+      resultEl.innerHTML = '<span style=\"color:var(--fail);\">Deploy failed: ' + esc(data.error) + '</span><br><span style=\"font-size:11px;color:var(--muted);\">' + esc(data.plan_summary || '') + '</span>';
       return;
     }
     const jobCount = data.peer_count || 0;
-    resultEl.innerHTML = '<span style="color:var(--ok);">Deployed ' + esc(data.model_id) + ' to ' + jobCount + ' peer(s)</span>';
-    if (data.jobs && Object.keys(data.jobs).length) {
-      jobsCard.style.display = 'block';
-      let rows = '';
-      for (const [hostname, job] of Object.entries(data.jobs)) {
-        rows += '<tr><td style="color:var(--accent);font-family:monospace;">' + esc(hostname) + '</td>' +
-          '<td>' + esc(job.block_indices || '-') + '</td>' +
-          '<td style="font-family:monospace;font-size:10px;">' + esc(job.command || '(no command)') + '</td>' +
-          '<td>' + esc(job.status || 'queued') + '</td></tr>';
-      }
-      jobsEl.innerHTML = '<table><thead><tr><th>Hostname</th><th>Blocks</th><th>Command</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    }
+    resultEl.innerHTML = '<span style=\"color:var(--ok);\">Deployed ' + esc(data.model_id) + ' to ' + jobCount + ' peer(s)</span>';
+    // Start live refresh for deploy tab
+    refreshDeployJobs();
+    deployPollInterval = setInterval(refreshDeployJobs, 10000);
   } catch (e) {
-    resultEl.innerHTML = '<span style="color:var(--fail);">Error: ' + esc(e.message) + '</span>';
+    resultEl.innerHTML = '<span style=\"color:var(--fail);\">Error: ' + esc(e.message) + '</span>';
   }
+}
+
+let deployPollInterval = null;
+
+async function refreshDeployJobs() {
+  const jobsCard = document.getElementById('deploy-jobs-card');
+  const jobsEl = document.getElementById('deploy-jobs');
+  try {
+    const data = await fetchJSON(COORDINATOR + '/pipeline');
+    if (!data || !data.peers || !data.peers.length) return;
+    const deployed = data.peers.filter(function(p) { return p.block_range && p.block_range.length > 0; });
+    if (!deployed.length) return;
+    jobsCard.style.display = 'block';
+    let rows = '';
+    for (const p of deployed) {
+      const statusColor = p.status === 'idle' ? 'var(--warn)' : p.status === 'serving' ? 'var(--ok)' : 'var(--muted)';
+      const statusLabel = p.status === 'idle' ? '\u23f3 waiting for peer' : p.status;
+      rows += '<tr>' +
+        '<td style=\"color:var(--accent);font-family:monospace;\">' + esc(p.hostname) + '</td>' +
+        '<td>' + esc(p.block_range) + '</td>' +
+        '<td>' + esc(p.port || '-') + '</td>' +
+        '<td style=\"color:' + statusColor + ';\">' + statusLabel + '</td>' +
+        '<td style=\"font-size:10px;color:var(--muted);\">' + esc(p.available_gb || 0) + '/' + esc(p.total_gb || 0) + ' GB free</td>' +
+        '</tr>';
+    }
+    jobsEl.innerHTML = '<table><thead><tr><th>Hostname</th><th>Blocks</th><th>Port</th><th>Status</th><th>Memory</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  } catch(e) { /* silent */ }
+}
+
+function stopDeployPoll() {
+  if (deployPollInterval) { clearInterval(deployPollInterval); deployPollInterval = null; }
 }
 
 async function pollPeerJob() {
