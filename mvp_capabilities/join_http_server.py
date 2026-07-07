@@ -1610,13 +1610,43 @@ def handle_get(
                     timeout=3,
                     text=True,
                 ).strip()
-                if out:
-                    result["anisette"] = {"ok": True, "port": 6969, "status": out}
-                else:
+                if not out:
                     result["anisette"] = {
                         "ok": False,
                         "reason": "docker container 'anisette' not running — run Step 4b commands",
                     }
+                elif "unhealthy" in out.lower():
+                    # Container is up but its healthcheck is failing — almost
+                    # certainly the placeholder stub. Probe to confirm: send
+                    # a real HTTP request and see if anything answers.
+                    import urllib.request as _ur
+                    try:
+                        r = _ur.urlopen("http://127.0.0.1:6969/", timeout=2)
+                        r.read(64)
+                        # Got *some* response — server is alive, just slow/unhealthy
+                        result["anisette"] = {
+                            "ok": True,
+                            "port": 6969,
+                            "status": out,
+                            "warning": "container reports unhealthy but responds to HTTP",
+                        }
+                    except Exception as probe_exc:
+                        result["anisette"] = {
+                            "ok": False,
+                            "reason": (
+                                f"container up but not serving HTTP ({type(probe_exc).__name__}: "
+                                f"{str(probe_exc)[:80]}). The placeholder Dockerfile only "
+                                f"runs `echo && sleep infinity` and never starts a server. "
+                                f"Rebuild with the real anisette-v3 image: "
+                                f"`docker rm -f bloombee-anisette && "
+                                f"docker run -d --name bloombee-anisette --restart unless-stopped "
+                                f"-p 6969:6969 -e ANISETTE_BIND=0.0.0.0:6969 "
+                                f"ghcr.io/sidestore/anisette-v3:latest`"
+                            ),
+                            "port": 6969,
+                        }
+                else:
+                    result["anisette"] = {"ok": True, "port": 6969, "status": out}
         except Exception:
             result["anisette"] = {
                 "ok": False,
