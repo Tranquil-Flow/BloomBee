@@ -893,11 +893,24 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
 # Tell donors to enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
     <p style="color:var(--muted);font-size:10px;margin-top:4px;">⚠️ The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout.</p>
 
-    <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4c. Build + pin the IPA</strong> — one-time per release on a Mac with Xcode 16+</p>
+    <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4c. Build + pin the IPA</strong> — one-time build, all donors use the same file</p>
+    <p style="color:var(--muted);font-size:10px;margin-bottom:6px;">
+      ⚠️ <strong>Requires full Xcode.app</strong> (NOT just Command Line Tools).
+      The iOS SDK ships inside Xcode.app (~15 GB download from the
+      <a href="https://apps.apple.com/us/app/xcode/id497799835" style="color:var(--accent);">Mac App Store</a>).
+      <br>Check: <code>xcrun --sdk iphoneos --show-sdk-path</code> — if that
+      errors, Xcode.app is missing and the build will fail.
+    </p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
 ./scripts/build_ipa.sh
-# → build/BloomBee.ipa, host on any static file server or pinned link</pre>
+# → build/BloomBee.ipa — host on any static file server or pinned link</pre>
+    <p style="color:var(--muted);font-size:10px;margin-top:4px;">
+      💡 <strong>Don't have Xcode?</strong> Use a pre-built IPA from a collaborator.
+      The IPA is a one-time artifact — every donor installs the same file via
+      SideStore. The build script now exits early with a clear error if the
+      iOS SDK is missing.
+    </p>
 
     <p style="color:var(--muted);font-size:11px;margin-top:10px;">
       Once all three are running, donors can install the IPA and iPhones will appear in the
