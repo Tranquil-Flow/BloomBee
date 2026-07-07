@@ -1271,10 +1271,26 @@ export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
     return html_body.replace("__BSLASH__\n", "\\\n")
 
 
+def _detect_lan_ip() -> str:
+    """Detect the primary LAN IP so QR codes work for other devices on WiFi."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["ipconfig", "getifaddr", "en0"],
+            capture_output=True, text=True, timeout=5,
+        )
+        ip = result.stdout.strip()
+        if ip:
+            return ip
+    except Exception:
+        pass
+    return "localhost"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate operator dashboard HTML")
     parser.add_argument(
-        "--coordinator", default="http://localhost:8787",
+        "--coordinator", default=f"http://{_detect_lan_ip()}:8787",
         help="Default coordinator URL (can be changed in the dashboard)",
     )
     parser.add_argument(
