@@ -930,41 +930,25 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
 </div>
 
 <div class="card">
-  <h3>3. Onboard a Phone (Android)</h3>
-  <div class="step">
-    <h4>Pre-requisites (one-time)</h4>
-    <p>Install <strong>Termux</strong> from <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">F-Droid</a> (NOT Play Store). Then in Termux:</p>
-    <pre>pkg update && pkg install python</pre>
-  </div>
-  <div class="step">
-    <h4>Scan QR → tap link → copy command → paste in Termux</h4>
-    <p style="color:var(--muted);">The landing page auto-detects phones and shows the Termux-specific instructions.
-    One pasteable command. Phone heartbeats every 60s.</p>
+  <h3>📱 Onboard a Phone (3a Android · 3b iOS)</h3>
+  <div class="info-box" style="margin-top:4px;">
+    <strong>Why phones are different from laptops:</strong> Phones can't run the same <code>bloombee.cli.run_server</code>
+    stack that laptops do (Android blocks the native libp2p/Hivemind deps, iOS lacks Python). So both phone types
+    run a <strong>lightweight local model</strong> and send draft tokens to a gateway. Laptops running the main model
+    <strong>verify</strong> them — this makes inference 2-4× faster for everyone.
+    <br><br>
+    <strong>After install:</strong> the phone auto-registers with the coordinator (one-time), then sends a heartbeat
+    every ~60s. It shows up in the <strong>Live Swarm</strong> tab with a
+    <span style="background:var(--moon);color:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;">📱</span>
+    badge and a <code>draft_peer</code> role. You don't need to "add" it anywhere — just deploy a model
+    on the <strong>Deploy</strong> tab and drafts start flowing automatically.
+    <br><br>
+    Pick the right card for your device: <strong>3a</strong> for Android (Termux), <strong>3b</strong> for iOS (SideStore+IPA).
   </div>
 </div>
 
 <div class="card">
-  <h3>3b. Onboard a Phone (Android or iOS)</h3>
-  <div class="step" style="border-color:var(--moon);">
-    <h4>📱 <strong>All phones</strong> contribute as <strong>draft peers</strong> (speculative decoding)</h4>
-    <p style="color:var(--muted);">Phones can't run the same <code>bloombee.cli.run_server</code> stack that laptops do
-    (Android blocks the native libp2p/Hivemind deps, iOS lacks Python). So both phone types run a <strong>lightweight
-    local model</strong> and send draft tokens to a gateway. Laptops running the main model <strong>verify</strong> them.
-    <strong>This makes inference 2-4× faster for everyone.</strong></p>
-  </div>
-
-  <h4 style="margin-top:14px;color:var(--accent);">📲 What happens after the phone is installed</h4>
-  <div class="step">
-    <p style="color:var(--muted);font-size:12px;line-height:1.6;">
-      Once the app/command is running, the phone <strong>auto-registers</strong> with the coordinator (one-time), then
-      sends a heartbeat every ~60s. It shows up in the <strong>Live Swarm</strong> tab with a
-      <span style="background:var(--moon);color:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;">📱</span>
-      badge and a <code>draft_peer</code> role. You don't need to "add" it anywhere — just deploy a model
-      on the <strong>Deploy</strong> tab and drafts start flowing automatically.
-    </p>
-  </div>
-
-  <h4 style="margin-top:14px;color:var(--moon);">🤖 Android setup</h4>
+  <h3>3a. Onboard a Phone (Android)</h3>
   <div class="step">
     <h4>Pre-requisites (one-time)</h4>
     <p>Install <strong>Termux</strong> from <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">F-Droid</a> (NOT Play Store). Then in Termux:</p>
@@ -975,8 +959,10 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
     <p style="color:var(--muted);">The landing page auto-detects phones and shows the Termux-specific instructions.
     One pasteable command. Phone heartbeats every 60s.</p>
   </div>
+</div>
 
-  <h4 style="margin-top:18px;color:var(--moon);">🍎 iOS setup</h4>
+<div class="card">
+  <h3>3b. Onboard a Phone (iOS)</h3>
   <div class="step">
     <h4>Pre-requisites (one-time, on the iPhone)</h4>
     <p>iOS 17+ on iPhone 12 or newer. Free — no Apple Developer account needed.</p>
