@@ -898,11 +898,13 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
       ⚠️ <strong>Requires full Xcode.app</strong> (NOT just Command Line Tools).
       The iOS SDK ships inside Xcode.app (~15 GB download from the
       <a href="https://apps.apple.com/us/app/xcode/id497799835" style="color:var(--accent);">Mac App Store</a>).
-      <br>Check: <code>xcrun --sdk iphoneos --show-sdk-path</code> — if that
-      errors, Xcode.app is missing and the build will fail.
+      <br>Multiple Xcodes installed? Point at the right one:
+      <code>export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer</code>
+      (no <code>sudo</code> needed — <code>DEVELOPER_DIR</code> overrides <code>xcode-select</code> per-session).
     </p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
+export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
 ./scripts/build_ipa.sh
 # → build/BloomBee.ipa — host on any static file server or pinned link</pre>
     <p style="color:var(--muted);font-size:10px;margin-top:4px;">
