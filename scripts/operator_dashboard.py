@@ -758,10 +758,12 @@ document.addEventListener('DOMContentLoaded', () => {
   generateQR();
   updateOperatorCommands();
   checkCoordinator();
+  checkOrchestratorStatus();
   setInterval(() => {
     const liveTab = document.getElementById('tab-live');
-    if (liveTab && liveTab.style.display !== 'none') refreshAll();
-  }, 15000);
+    const runbookTab = document.getElementById('tab-runbook');
+    if ((liveTab && liveTab.style.display !== 'none') || (runbookTab && runbookTab.style.display !== 'none')) refreshAll();
+  }, 30000);
 });
 
 // ── Deploy tab ──
