@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 from pathlib import Path
 
 
@@ -272,11 +273,23 @@ async function refreshAll() {
   checkOrchestratorStatus();
 }
 
+const FIX_COMMANDS = __FIX_COMMANDS__;
+
+function fixStep(key) {
+  const cmd = FIX_COMMANDS[key];
+  if (cmd) { copyText(cmd); }
+  const fixEl = document.getElementById('fix-' + key);
+  if (fixEl) {
+    const btn = fixEl.querySelector('button');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(function(){ btn.textContent = '\ud83d\udd27 Fix'; }, 1500); }
+  }
+}
+
 async function checkOrchestratorStatus() {
   const steps = {
-    gateway: {el: 'status-4a', txt: 'status-text-4a', label: 'iOS gateway'},
-    anisette: {el: 'status-4b', txt: 'status-text-4b', label: 'Anisette'},
-    ipa: {el: 'status-4c', txt: 'status-text-4c', label: 'IPA build'},
+    gateway: {el: 'status-4a', txt: 'status-text-4a', fix: 'fix-4a', label: 'iOS gateway'},
+    anisette: {el: 'status-4b', txt: 'status-text-4b', fix: 'fix-4b', label: 'Anisette'},
+    ipa: {el: 'status-4c', txt: 'status-text-4c', fix: 'fix-4c', label: 'IPA build'},
   };
   try {
     const data = await fetchJSON(COORDINATOR + '/status');
@@ -284,16 +297,20 @@ async function checkOrchestratorStatus() {
     for (const [key, ids] of Object.entries(steps)) {
       const dot = document.getElementById(ids.el);
       const txt = document.getElementById(ids.txt);
+      const fix = document.getElementById(ids.fix);
       const info = data[key];
       if (!dot) continue;
       dot.className = 'step-status';
+      if (fix) fix.innerHTML = '';
       if (info && info.ok) {
         dot.classList.add('ok');
-        const extra = info.version ? ` v${info.version}` : info.status ? ` ${info.status}` : info.size_mb ? ` ${info.size_mb} MB` : '';
-        if (txt) txt.textContent = `✅ ${ids.label}${extra}`;
+        const extra = info.version ? ' v'+info.version : info.status ? ' '+info.status : info.size_mb ? ' '+info.size_mb+' MB' : '';
+        if (txt) txt.textContent = '\u2705 ' + ids.label + extra;
       } else {
         dot.classList.add('fail');
-        if (txt) txt.textContent = `❌ ${ids.label} — ${(info&&info.reason)||'unreachable'}`;
+        const reason = (info&&info.reason)||'unreachable';
+        if (txt) txt.textContent = '\u274c ' + ids.label + ' \u2014 ' + reason;
+        if (fix) fix.innerHTML = '<button class="copy-btn" style="font-size:10px;padding:2px 8px;margin-left:8px;" onclick="fixStep(\''+key+'\')">\ud83d\udd27 Fix</button>';
       }
     }
   } catch(e) {
@@ -829,7 +846,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 def _build_html(coordinator: str) -> str:
     coord_esc = html.escape(coordinator, quote=True)
-    js = JS.replace("__COORDINATOR__", coord_esc)
+    fix_commands = json.dumps({
+        "gateway": "cd ~/Projects/bloombee-ios-gateway\nPYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py --host 0.0.0.0 --port 8432",
+        "anisette": "cd ~/Projects/bloombee-ios-gateway/anisette\ndocker build -t bloombee-anisette .\ndocker rm -f anisette 2>/dev/null || true\ndocker run -d --name anisette --restart unless-stopped -p 6969:6969 bloombee-anisette",
+        "ipa": "cd ~/Projects/bloombee-ios-gateway\nexport DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer\n./scripts/build_ipa.sh",
+    })
+    js = JS.replace("__COORDINATOR__", coord_esc).replace("__FIX_COMMANDS__", fix_commands)
 
     # f-strings treat `\<newline>` as a line continuation and silently eat
     # the backslash, which corrupts the multi-line shell commands shown
@@ -919,7 +941,7 @@ python3 scripts/operator_dashboard.py __BSLASH__
     </p>
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;"><strong>4a. iOS gateway</strong> — bridges iPhone HTTP/JSON drafts to the coordinator</p>
-    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4a"></span><span class="status-text" id="status-text-4a">⏳ checking...</span></p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4a"></span><span class="status-text" id="status-text-4a">⏳ checking...</span><span id="fix-4a"></span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
 PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
@@ -932,7 +954,7 @@ PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4b. Anisette signing</strong> — lets iPhones install the IPA without Apple's $99/yr fee.
       Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
-    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4b"></span><span class="status-text" id="status-text-4b">⏳ checking...</span></p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4b"></span><span class="status-text" id="status-text-4b">⏳ checking...</span><span id="fix-4b"></span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway/anisette
 docker build -t bloombee-anisette .
@@ -951,7 +973,7 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
       <code>export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer</code>
       (no <code>sudo</code> needed — <code>DEVELOPER_DIR</code> overrides <code>xcode-select</code> per-session).
     </p>
-    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4c"></span><span class="status-text" id="status-text-4c">⏳ checking...</span></p>
+    <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4c"></span><span class="status-text" id="status-text-4c">⏳ checking...</span><span id="fix-4c"></span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
 export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
