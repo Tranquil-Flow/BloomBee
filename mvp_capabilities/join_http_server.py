@@ -1588,13 +1588,13 @@ that the main model verifies, making inference 2-4× faster for everyone.
 </div>
 <div class="step">
 <h3>2. Configure anisette</h3>
-<p>In SideStore settings → Anisette URL, enter: <code>{coord_esc.replace("8787", "6969")}</code></p>
+<p>In SideStore settings → Anisette URL, enter: <code>{coord_esc}/servers.json</code></p>
 <p style="color:var(--muted);font-size:10px;margin-top:4px;">(The swarm operator runs the anisette server — they'll provide the exact URL if different.)</p>
 </div>
 <div class="step">
 <h3>3. Install BloomBee</h3>
-<p>Open this link on your iPhone: <a href="https://github.com/tranquil-flow/bloombee-ios-gateway/releases" style="color:var(--accent);">BloomBee.ipa</a> → tap <strong>Install</strong> in SideStore.</p>
-<p style="color:var(--muted);font-size:10px;margin-top:4px;">The operator builds the IPA once — all iPhones use the same file.</p>
+<p>Open this link on your iPhone: <a href="{coord_esc}/bloombee.ipa" style="color:var(--accent);">BloomBee.ipa</a> → tap <strong>Install</strong> in SideStore.</p>
+<p style="color:var(--muted);font-size:10px;margin-top:4px;">The operator builds the IPA once — all iPhones use the same file. Served directly from the coordinator (no GitHub account needed).</p>
 </div>
 <div class="step">
 <h3>4. Connect to the swarm</h3>
@@ -1749,6 +1749,14 @@ def handle_get_text(
             message = f"error: {payload.get('error')}\nclaim_boundary: {payload.get('claim_boundary')}"
             return status, "text/plain; charset=utf-8", _text_bytes(message)
         return status, "text/x-shellscript; charset=utf-8", _text_bytes(str(payload["shell_script"]))
+
+    # Serve the pre-built IPA so iPhone donors can install BloomBee
+    # without needing a GitHub account or public repo.
+    if parsed.path == "/bloombee.ipa":
+        ipa_path = Path.home() / "Projects/bloombee-ios-gateway/build/BloomBee.ipa"
+        if ipa_path.is_file():
+            return 200, "application/octet-stream", ipa_path.read_bytes()
+        return 404, "text/plain; charset=utf-8", _text_bytes("IPA not built yet. Run Step 4c in the operator dashboard.")
 
     return None
 
