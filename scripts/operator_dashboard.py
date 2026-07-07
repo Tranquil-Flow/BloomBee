@@ -176,13 +176,13 @@ function updateOperatorCommands() {
   const cmdCoord = document.getElementById('cmd-coordinator');
   const cmdDash = document.getElementById('cmd-dashboard');
   if (cmdCoord) {
-    cmdCoord.textContent = `cd ~/Projects/hermes-distributed-inference-mvp
+    cmdCoord.textContent = `cd ~/Projects/distributed-inference-mvp
 python3 mvp_capabilities/join_http_server.py \\
   --host 0.0.0.0 --port 8787 \\
   --coordinator "${COORDINATOR}"`;
   }
   if (cmdDash) {
-    cmdDash.textContent = `cd ~/Projects/hermes-distributed-inference-mvp
+    cmdDash.textContent = `cd ~/Projects/distributed-inference-mvp
 python3 scripts/operator_dashboard.py \\
   --coordinator "${COORDINATOR}" \\
   --out .local/operator-dashboard.html && open .local/operator-dashboard.html`;
@@ -288,8 +288,10 @@ async function loadPipeline() {
         (p.role === 'draft_peer' ? ' <span style="font-size:9px;background:var(--moon);color:var(--bg);padding:1px 5px;border-radius:4px;">📱</span>' : '') +
       '</div>' +
       '<div class="peer-layers">layers ' + esc(p.block_range || '?') + '</div>' +
-      '<div class="peer-mem">' + p.memory_pct + '% mem · ~' + p.latency_ms_est + 'ms</div>' +
-      '<div class="pipeline-mem-bar"><div class="pipeline-mem-fill ' + memClass + '" style="width:' + p.memory_pct + '%;"></div></div>' +
+      '<div class="peer-mem">' + (p.memory_pct >= 0 ? p.memory_pct + '% mem' : 'mem N/A') + ' · ~' + (p.latency_ms_est || 0) + 'ms</div>' +
+      (p.memory_pct >= 0
+        ? '<div class="pipeline-mem-bar"><div class="pipeline-mem-fill ' + memClass + '" style="width:' + Math.min(100, Math.max(0, p.memory_pct)) + '%;"></div></div>'
+        : '<div style="color:var(--muted);font-size:9px;">memory unknown</div>') +
       '</div>';
     if (i < data.peers.length - 1) {
       html += '<div class="pipeline-arrow">→</div>';
@@ -767,7 +769,7 @@ def _build_html(coordinator: str) -> str:
   <div class="step">
     <h4>Step 1 — Start the coordinator server</h4>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre id="cmd-coordinator">cd ~/Projects/hermes-distributed-inference-mvp
+    <pre id="cmd-coordinator">cd ~/Projects/distributed-inference-mvp
 python3 mvp_capabilities/join_http_server.py \\
   --host 0.0.0.0 --port 8787 \\
   --coordinator "{coord_esc}"</pre>
@@ -777,7 +779,7 @@ python3 mvp_capabilities/join_http_server.py \\
   <div class="step">
     <h4>Step 2 — Open this dashboard</h4>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre id="cmd-dashboard">cd ~/Projects/hermes-distributed-inference-mvp
+    <pre id="cmd-dashboard">cd ~/Projects/distributed-inference-mvp
 python3 scripts/operator_dashboard.py \\
   --coordinator "{coord_esc}" \\
   --out .local/operator-dashboard.html &amp;&amp; open .local/operator-dashboard.html</pre>

@@ -502,9 +502,19 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
             if jh.lower() == hostname.lower() or hostname.lower().startswith(jh.lower()):
                 job = jd
                 break
-        mem_total = caps.get("memory", {}).get("total_gb", 16)
-        mem_avail = caps.get("memory", {}).get("available_gb", 8)
-        mem_used_pct = int((1 - mem_avail / max(mem_total, 1)) * 100)
+        mem_total = caps.get("memory", {}).get("total_gb", 0) or 0
+        mem_avail = caps.get("memory", {}).get("available_gb", 0) or 0
+        if mem_total > 0:
+            mem_used_pct = max(0, min(100, int((1 - mem_avail / mem_total) * 100)))
+        else:
+            mem_used_pct = -1  # sentinel: unknown
+
+        # Estimate latency: 2.5ms per layer, floor at 0
+        if job:
+            layers = (job.get("end_layer") or 0) - (job.get("start_layer") or 0)
+        else:
+            layers = 0
+        latency_est = max(0, int(layers * 2.5))
 
         peers.append({
             "hostname": hostname,
@@ -518,7 +528,7 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
             "memory_pct": mem_used_pct,
             "total_gb": mem_total,
             "available_gb": mem_avail,
-            "latency_ms_est": (job.get("end_layer", 0) - job.get("start_layer", 0)) * 2.5 if job else 0,
+            "latency_ms_est": latency_est,
             "port": job.get("port") if job else None,
         })
 
