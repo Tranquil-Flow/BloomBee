@@ -886,9 +886,8 @@ PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
       Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway/anisette
-# Replace the placeholder Dockerfile with the real SideStore anisette-v3 image
-# (see SideStore/SideStore repo for the pinned upstream tag)
 docker build -t bloombee-anisette .
+docker rm -f anisette 2>/dev/null || true
 docker run -d --name anisette --restart unless-stopped __BSLASH__
   -p 6969:6969 bloombee-anisette
 # Tell donors to enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
