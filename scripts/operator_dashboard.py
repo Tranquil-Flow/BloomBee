@@ -355,6 +355,78 @@ function showTab(name) {
   const btn = document.querySelector(`nav button[data-tab="${name}"]`);
   if (btn) btn.classList.add('active');
   if (name === 'live') refreshAll();
+  if (name === 'models') loadCompatible();
+}
+
+async function loadCompatible() {
+  const bestEl = document.getElementById('best-model-content');
+  const modelsEl = document.getElementById('models-content');
+  const data = await fetchJSON(COORDINATOR + '/compatible?token=*');
+  if (!data || !data.compatible_models || !data.compatible_models.length) {
+    const msg = data === null
+      ? '<div class="error">Cannot reach coordinator. Check the URL above.</div>'
+      : '<div class="loading">No peers connected. Onboard devices first to see compatible models.</div>';
+    bestEl.innerHTML = msg;
+    modelsEl.innerHTML = '';
+    return;
+  }
+
+  // Best model card
+  const best = data.best_model;
+  if (best) {
+    const moeBadge = best.supports_moe ? '<span class="badge ok" style="font-size:10px;margin-left:4px;">MoE</span>' : '';
+    bestEl.innerHTML = '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">' +
+      '<div style="flex:1;min-width:200px;">' +
+        '<div style="font-size:22px;font-weight:700;color:var(--accent);margin-bottom:4px;">' + esc(best.model_id.split('/').pop()) + moeBadge + '</div>' +
+        '<div style="color:var(--muted);font-size:12px;margin-bottom:8px;">' + esc(best.model_id) + '</div>' +
+        '<div class="stat" style="display:inline-block;margin-right:8px;"><strong>' + (best.params_b || '?') + 'B</strong><span class="label">Params</span></div>' +
+        '<div class="stat" style="display:inline-block;margin-right:8px;"><strong>' + (best.num_layers || '?') + '</strong><span class="label">Layers</span></div>' +
+        '<div class="stat" style="display:inline-block;"><strong>' + (best.hidden_size || '?') + '</strong><span class="label">Hidden</span></div>' +
+      '</div>' +
+      '<div style="text-align:center;">' +
+        '<div style="font-size:28px;font-weight:700;color:var(--ok);">' + (best.required_gb || '?') + ' GB</div>' +
+        '<div style="color:var(--muted);font-size:10px;">required · ' + data.total_free_gb + ' GB free in swarm</div>' +
+        '<div style="margin-top:6px;"><span class="badge ok" style="font-size:11px;padding:4px 10px;">✓ Swarm can host</span></div>' +
+      '</div>' +
+    '</div>';
+  } else {
+    bestEl.innerHTML = '<div class="loading">No model fits the current swarm. Connect more peers.</div>';
+  }
+
+  // All models table
+  let rows = '';
+  const statusOrder = { compatible: 0, single_peer: 1, insufficient: 2 };
+  const sorted = [...data.compatible_models].sort((a, b) => {
+    const sa = statusOrder[a.status] || 3, sb = statusOrder[b.status] || 3;
+    if (sa !== sb) return sa - sb;
+    return (b.params_b || 0) - (a.params_b || 0);
+  });
+  for (const m of sorted) {
+    const statusBadge = m.status === 'compatible'
+      ? '<span class="badge ok">compatible</span>'
+      : m.status === 'single_peer'
+        ? '<span class="badge warn">single peer</span>'
+        : '<span class="badge fail">insufficient</span>';
+    const barPct = m.required_gb > 0 ? Math.min(100, (data.total_free_gb / m.required_gb * 100).toFixed(0)) : 0;
+    const barColor = barPct >= 100 ? 'var(--ok)' : barPct >= 40 ? 'var(--warn)' : 'var(--fail)';
+    const needsBar = m.required_gb > 0
+      ? '<div style="height:3px;background:rgba(42,75,115,.4);border-radius:2px;margin-top:3px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + barPct + '%;background:' + barColor + ';border-radius:2px;min-width:2px;"></div>' +
+        '</div>'
+      : '';
+    rows += '<tr>' +
+      '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(m.model_id.split('/').pop()) + '<br><span style="color:var(--muted);font-size:10px;">' + esc(m.model_id) + '</span></td>' +
+      '<td>' + (m.params_b || '?') + 'B' + (m.active_params_b && m.active_params_b !== m.params_b ? '<br><span style="color:var(--muted);font-size:10px;">' + m.active_params_b + 'B active</span>' : '') + '</td>' +
+      '<td>' + (m.num_layers || '?') + '</td>' +
+      '<td>' + (m.hidden_size || '?') + '</td>' +
+      '<td>' + (m.required_gb || '?') + ' GB' + needsBar + '</td>' +
+      '<td>' + (m.supports_moe ? 'MoE' : 'Dense') + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+    '</tr>';
+  }
+  modelsEl.innerHTML = '<table>' +
+    '<thead><tr><th>Model</th><th>Params</th><th>Layers</th><th>Hidden</th><th>Required</th><th>Arch</th><th>Status</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -408,6 +480,7 @@ def _build_html(coordinator: str) -> str:
   <nav>
     <button data-tab="runbook" class="active" onclick="showTab('runbook')">📖 Onboarding</button>
     <button data-tab="live" onclick="showTab('live')">📡 Live Swarm</button>
+    <button data-tab="models" onclick="showTab('models')">🧠 Models</button>
   </nav>
 </header>
 
@@ -562,6 +635,28 @@ python3 scripts/operator_dashboard.py \\
 <div class="card">
   <h3>🔀 Best Route</h3>
   <div id="route-content"><div class="loading">...</div></div>
+</div>
+</main>
+
+</div>
+
+<!-- ====== MODELS TAB ====== -->
+<div id="tab-models" class="tab-page" style="display:none;">
+
+<main>
+<div class="card wide" style="border-color:var(--accent);">
+  <h3>⭐ Best Model for Current Swarm</h3>
+  <div id="best-model-content"><div class="loading">Loading swarm compatibility...</div></div>
+</div>
+
+<div class="card wide">
+  <h3>🧠 All Compatible Models</h3>
+  <div style="margin-bottom:12px;">
+    <span class="badge ok" style="margin-right:6px;">● compatible</span>
+    <span class="badge warn" style="margin-right:6px;">● single peer</span>
+    <span class="badge fail">● insufficient</span>
+  </div>
+  <div id="models-content"><div class="loading">Loading...</div></div>
 </div>
 </main>
 
