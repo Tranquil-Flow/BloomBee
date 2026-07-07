@@ -462,9 +462,23 @@ function copyShareLink() {
 }
 
 function copyCode(btn) {
-  const pre = btn.closest('.step').querySelector('pre');
+  // Each Copy button is directly followed by its <pre> sibling.
+  let pre = btn.nextElementSibling;
+  // If the button isn't right before the pre (edge case), search its parent.
+  if (!pre || pre.tagName !== 'PRE') {
+    pre = btn.parentElement.querySelector('pre');
+  }
   if (pre) {
-    copyText(pre.textContent);
+    // Strip # comment lines and leading/trailing blank lines so the
+    // pasted command runs cleanly in a shell (macOS zsh has
+    // INTERACTIVE_COMMENTS off by default).
+    const NL = String.fromCharCode(10);
+    const text = pre.textContent
+      .split(NL)
+      .filter(line => !line.match(/^[ \t]*#/))
+      .join(NL)
+      .trim();
+    copyText(text);
     btn.textContent = 'Copied!'; btn.classList.add('copied');
     setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
   }
