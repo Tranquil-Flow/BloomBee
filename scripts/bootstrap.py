@@ -315,13 +315,38 @@ def execute_job_command(
     follower peers keep polling /job until the coordinator substitutes it.
     """
     import threading as _threading
+    import os as _os
 
     coord: str | None = coordinator
     pid: str | None = peer_id
     host = hostname or (peer_id.split("-", 1)[0] if peer_id else "")
-    have_status = bool(coord and pid)
 
-    print(f"   🚀 Executing: {command}", file=sys.stderr)
+    # ── Resolve project root for PYTHONPATH ─────────────────────────
+    # The command may contain "PYTHONPATH=.:src" which assumes cwd is
+    # the project root. If the bootstrap is running from ~/ or /tmp,
+    # ".:src" won't find bloombee. Walk up from the effective cwd to
+    # locate src/bloombee/cli/run_server.py, then set PYTHONPATH so the
+    # subprocess can import bloombee regardless of working directory.
+    effective_cwd = cwd or _os.getcwd()
+    repo_root = effective_cwd
+    for _ in range(6):
+        if (_os.path.isdir(_os.path.join(repo_root, "src", "bloombee", "cli"))
+                and _os.path.isfile(_os.path.join(repo_root, "src", "bloombee", "cli", "run_server.py"))):
+            break
+        parent = _os.path.dirname(repo_root)
+        if parent == repo_root:
+            repo_root = effective_cwd  # give up, fall back to cwd
+            break
+        repo_root = parent
+    resolved_pythonpath = f"{repo_root}:{_os.path.join(repo_root, 'src')}"
+    # Strip any hardcoded PYTHONPATH= prefix from the command itself;
+    # we set it via the subprocess env instead so cwd doesn't matter.
+    import re as _re
+    clean_command = _re.sub(r"^PYTHONPATH=[^ ]+\s+", "", command)
+    have_status = bool(coord and pid)
+    # ────────────────────────────────────────────────────────────────
+
+    print(f"   🚀 Executing: {clean_command}", file=sys.stderr)
 
     if have_status:
         post_peer_status(
@@ -372,13 +397,14 @@ def execute_job_command(
     proc: subprocess.Popen[str] | None = None
     try:
         proc = subprocess.Popen(
-            command,
+            clean_command,
             shell=True,
-            cwd=cwd,
+            cwd=repo_root,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env={**_os.environ, "PYTHONPATH": resolved_pythonpath},
         )
         assert proc.stdout is not None
         for line in proc.stdout:
