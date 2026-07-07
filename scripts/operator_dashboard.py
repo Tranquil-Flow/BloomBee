@@ -357,6 +357,7 @@ function showTab(name) {
   if (name === 'live') refreshAll();
   if (name === 'models') loadCompatible();
   if (name === 'infer') loadInferenceModels();
+  if (name === 'deploy') loadDeployModels();
 }
 
 async function loadInferenceModels() {
@@ -548,7 +549,73 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 15000);
 });
 
-// Re-check coordinator when input changes (debounced)
+// ── Deploy tab ──
+async function loadDeployModels() {
+  const sel = document.getElementById('deploy-model');
+  const data = await fetchJSON(COORDINATOR + '/compatible?token=*');
+  if (!data || !data.compatible_models) {
+    sel.innerHTML = '<option value="">Coordinator unreachable</option>';
+    return;
+  }
+  const runnable = data.compatible_models.filter(m => m.status === 'compatible' || m.status === 'single_peer');
+  if (!runnable.length) {
+    sel.innerHTML = '<option value="">No compatible models</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">-- Select a model --</option>' +
+    runnable.map(m => '<option value="' + esc(m.model_id) + '">' +
+      esc(m.model_id.split('/').pop()) + ' (' + m.params_b + 'B, ' + m.required_gb + 'GB)</option>'
+    ).join('');
+}
+
+async function deployModel() {
+  const sel = document.getElementById('deploy-model');
+  const resultEl = document.getElementById('deploy-result');
+  const jobsCard = document.getElementById('deploy-jobs-card');
+  const jobsEl = document.getElementById('deploy-jobs');
+  const modelId = sel.value;
+  if (!modelId) { resultEl.innerHTML = '<span style="color:var(--warn);">Select a model first.</span>'; return; }
+  resultEl.innerHTML = '<div class="loading">Deploying ' + esc(modelId.split('/').pop()) + '...</div>';
+  try {
+    const resp = await fetch(COORDINATOR + '/deploy?model_id=' + encodeURIComponent(modelId) + '&token=*', {method:'POST'});
+    const data = await resp.json();
+    if (data.error) {
+      resultEl.innerHTML = '<span style="color:var(--fail);">Deploy failed: ' + esc(data.error) + '</span><br><span style="font-size:11px;color:var(--muted);">' + esc(data.plan_summary || '') + '</span>';
+      return;
+    }
+    const jobCount = data.peer_count || 0;
+    resultEl.innerHTML = '<span style="color:var(--ok);">Deployed ' + esc(data.model_id) + ' to ' + jobCount + ' peer(s)</span>';
+    if (data.jobs && Object.keys(data.jobs).length) {
+      jobsCard.style.display = 'block';
+      let rows = '';
+      for (const [hostname, job] of Object.entries(data.jobs)) {
+        rows += '<tr><td style="color:var(--accent);font-family:monospace;">' + esc(hostname) + '</td>' +
+          '<td>' + esc(job.block_indices || '-') + '</td>' +
+          '<td style="font-family:monospace;font-size:10px;">' + esc(job.command || '(no command)') + '</td>' +
+          '<td>' + esc(job.status || 'queued') + '</td></tr>';
+      }
+      jobsEl.innerHTML = '<table><thead><tr><th>Hostname</th><th>Blocks</th><th>Command</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+  } catch (e) {
+    resultEl.innerHTML = '<span style="color:var(--fail);">Error: ' + esc(e.message) + '</span>';
+  }
+}
+
+async function pollPeerJob() {
+  const inp = document.getElementById('job-peer-input');
+  const resultEl = document.getElementById('job-peer-result');
+  const peerId = inp.value.trim();
+  if (!peerId) { resultEl.textContent = 'Enter a peer ID first.'; return; }
+  resultEl.textContent = 'Polling...';
+  try {
+    const resp = await fetch(COORDINATOR + '/job?peer_id=' + encodeURIComponent(peerId));
+    const data = await resp.json();
+    resultEl.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    resultEl.textContent = 'Error: ' + e.message;
+  }
+}
+
 let coordTimer;
 document.addEventListener('DOMContentLoaded', () => {
   const inp = document.getElementById('coord-input');
@@ -591,6 +658,7 @@ def _build_html(coordinator: str) -> str:
     <button data-tab="live" onclick="showTab('live')">📡 Live Swarm</button>
     <button data-tab="models" onclick="showTab('models')">🧠 Models</button>
     <button data-tab="infer" onclick="showTab('infer')">🚀 Generate</button>
+    <button data-tab="deploy" onclick="showTab('deploy')">⚡ Deploy</button>
   </nav>
 </header>
 
@@ -808,6 +876,45 @@ python3 scripts/operator_dashboard.py \\
   <h3>📊 Layer Assignment</h3>
   <p style="color:var(--muted);font-size:12px;margin-bottom:10px;">How layers would be distributed across the swarm for the selected model.</p>
   <div id="infer-plan-content"><div class="loading">Select a model above to see the plan.</div></div>
+</div>
+</main>
+
+</div>
+
+<!-- ====== DEPLOY TAB ====== -->
+<div id="tab-deploy" class="tab-page" style="display:none;">
+
+<main>
+<div class="card wide">
+  <h3>⚡ Zero-Touch Deploy</h3>
+  <p style="color:var(--muted);font-size:12px;margin-bottom:14px;">
+    Select a model and deploy it across all connected peers. Peers will auto-download and start serving.
+  </p>
+
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <select id="deploy-model" style="flex:1;min-width:200px;background:#050e1a;border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;">
+      <option value="">-- Select model --</option>
+    </select>
+    <button id="btn-deploy" onclick="deployModel()" style="background:var(--accent);color:#050e1a;border:none;padding:8px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
+      Deploy
+    </button>
+  </div>
+
+  <div id="deploy-result" style="margin-top:16px;"></div>
+</div>
+
+<div class="card wide" id="deploy-jobs-card" style="display:none;">
+  <h3>📋 Job Assignments</h3>
+  <div id="deploy-jobs"></div>
+</div>
+
+<div class="card wide">
+  <h3>🔍 Check Peer Job</h3>
+  <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <input id="job-peer-input" type="text" placeholder="Peer ID (e.g. evilaptop-abc123)" style="flex:1;background:#050e1a;border:1px solid var(--line);color:var(--accent);padding:6px 10px;border-radius:6px;font-size:12px;font-family:monospace;">
+    <button onclick="pollPeerJob()" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Poll Job</button>
+  </div>
+  <pre id="job-peer-result" style="background:#050e1a;padding:10px;border-radius:8px;font-size:11px;max-height:200px;overflow:auto;"></pre>
 </div>
 </main>
 
