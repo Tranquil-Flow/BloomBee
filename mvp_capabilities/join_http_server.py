@@ -509,6 +509,8 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
         peers.append({
             "hostname": hostname,
             "peer_id": peer_id,
+            "platform": caps.get("platform", "unknown"),
+            "role": caps.get("role", "compute"),
             "block_range": job.get("block_indices", "") if job else "",
             "start_layer": job.get("start_layer") if job else None,
             "end_layer": job.get("end_layer") if job else None,
@@ -652,6 +654,99 @@ def _handle_infer(
             else f"Start servers first: {len(job_hostnames - serving_hostnames)} peer(s) not serving. Run the server_commands on each peer."
         ),
         "claim_boundary": INFER_CLAIM_BOUNDARY,
+    }
+
+
+IOS_CLAIM_BOUNDARY = "ios_peer_coordination_only_no_inference_proof"
+
+
+def _handle_ios_register(
+    body: bytes,
+    *,
+    state_dir: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """POST /ios/register — register an iOS peer as a draft contributor."""
+    try:
+        req = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid json", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    device_model = str(req.get("device_model", "iPhone"))
+    ios_version = str(req.get("ios_version", "unknown"))
+    mlx_model_id = str(req.get("mlx_model_id", "unknown"))
+    peer_id = req.get("peer_id") or f"ios-{device_model.lower().replace(' ', '-')}"
+    token = str(req.get("token", "ios-gateway"))
+
+    capabilities = {
+        "hostname": device_model,
+        "platform": "ios",
+        "ios_version": ios_version,
+        "mlx_model_id": mlx_model_id,
+        "device_model": device_model,
+        "memory": {"total_gb": 6, "available_gb": 4},
+        "gpu": {"available": True, "backend": "ANE", "name": "Apple Neural Engine"},
+        "cpu": {"cores": 6, "model": "arm64e"},
+        "role": "draft_peer",
+        "status": "serving" if req.get("ready", False) else "connected",
+    }
+
+    result = record_heartbeat(
+        state_dir,
+        token=token,
+        peer_id=str(peer_id),
+        capabilities=capabilities,
+    )
+    result["claim_boundary"] = IOS_CLAIM_BOUNDARY
+    return 200, result
+
+
+def _handle_ios_draft(
+    body: bytes,
+    *,
+    state_dir: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """POST /ios/draft — verify draft tokens from an iOS peer.
+
+    Returns accepted/rejected tokens with spec-decode semantics
+    (halt at first rejected token). Currently uses confidence-based
+    mock; real forward pass pending coordinator spine + pruner.
+    """
+    try:
+        req = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid json", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    prompt = str(req.get("prompt", ""))
+    draft_tokens = req.get("draft_tokens", [])
+    confidences = req.get("confidences", [])
+    peer_id = str(req.get("peer_id", "unknown"))
+
+    if not isinstance(draft_tokens, list) or not isinstance(confidences, list):
+        return 400, {"error": "draft_tokens and confidences must be lists",
+                     "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    # Spec-decode verification: accept consecutive tokens with
+    # confidence >= threshold, halt at first rejection.
+    threshold = float(req.get("threshold", 0.45))
+    accepted: list[int] = []
+    rejected: list[int] = []
+    for tok, conf in zip(draft_tokens, confidences):
+        if conf >= threshold:
+            accepted.append(tok)
+        else:
+            rejected.append(tok)
+            break  # halt at first reject per spec-decode semantics
+    score = sum(confidences) / len(confidences) if confidences else 0.0
+
+    return 200, {
+        "accepted": len(accepted),
+        "accepted_tokens": accepted,
+        "rejected_tokens": rejected,
+        "score": score,
+        "peer_id": peer_id,
+        "prompt": prompt[:100],
+        "verifier": "mock_confidence",
+        "claim_boundary": IOS_CLAIM_BOUNDARY,
     }
 
 
@@ -1338,6 +1433,10 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
         return _handle_deploy(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/infer":
         return _handle_infer(body, state_dir=state_dir)
+    if parsed.path == "/ios/register":
+        return _handle_ios_register(body, state_dir=state_dir)
+    if parsed.path == "/ios/draft":
+        return _handle_ios_draft(body, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 

@@ -284,7 +284,9 @@ async function loadPipeline() {
     const cls = p.status === 'serving' ? 'serving' : 'idle';
     const memClass = p.memory_pct > 80 ? 'critical' : (p.memory_pct > 60 ? 'high' : '');
     html += '<div class="pipeline-peer ' + cls + '">' +
-      '<div class="peer-name">' + esc(p.hostname) + '</div>' +
+      '<div class="peer-name">' + esc(p.hostname) +
+        (p.role === 'draft_peer' ? ' <span style="font-size:9px;background:var(--moon);color:var(--bg);padding:1px 5px;border-radius:4px;">📱</span>' : '') +
+      '</div>' +
       '<div class="peer-layers">layers ' + esc(p.block_range || '?') + '</div>' +
       '<div class="peer-mem">' + p.memory_pct + '% mem · ~' + p.latency_ms_est + 'ms</div>' +
       '<div class="pipeline-mem-bar"><div class="pipeline-mem-fill ' + memClass + '" style="width:' + p.memory_pct + '%;"></div></div>' +
