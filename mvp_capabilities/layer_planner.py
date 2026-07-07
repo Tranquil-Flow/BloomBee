@@ -106,32 +106,91 @@ def plan_layer_placement(peers: list[dict[str, Any]], model: dict[str, Any]) -> 
         }
 
     per_layer_required_gb = required_free_gb / num_layers
-    assignments: list[dict[str, Any]] = []
-    next_layer = 0
+    # First pass: compute each peer's capacity (layers it could hold if it
+    # worked alone). Then distribute the model across ALL peers with
+    # non-zero capacity, proportional to capacity, so a 16 GB laptop and
+    # a 48 GB workstation both get a fair slice of the model rather than
+    # the smallest peer greedily eating everything.
     sorted_peers = sorted(peers, key=lambda peer: str(peer.get("hostname") or "unknown"))
-
+    peer_capacity: list[tuple[dict[str, Any], int]] = []
     for peer in sorted_peers:
-        if next_layer >= num_layers:
-            break
-        hostname = str(peer.get("hostname") or "unknown")
         free_gb = round(_peer_free_gb(peer), 4)
         capacity_layers = int(math.floor(free_gb / per_layer_required_gb)) if per_layer_required_gb > 0 else 0
-        if capacity_layers <= 0:
-            continue
-        layer_count = min(capacity_layers, num_layers - next_layer)
-        start_layer = next_layer
-        end_layer = start_layer + layer_count
-        assignments.append(
-            {
-                "hostname": hostname,
-                "start_layer": start_layer,
-                "end_layer": end_layer,
-                "layer_count": layer_count,
-                "free_gb": float(round(free_gb, 2)),
-                "capacity_layers": capacity_layers,
-            }
+        if capacity_layers > 0:
+            peer_capacity.append((peer, capacity_layers))
+
+    total_capacity = sum(c for _, c in peer_capacity)
+    assignments: list[dict[str, Any]] = []
+    next_layer = 0
+    if total_capacity > 0:
+        # Proportional split: each peer gets cap * (num_layers / total_capacity),
+        # capped at its own capacity. Largest-remainder method fills the
+        # rounding deficit so the sum exactly equals num_layers when total
+        # capacity covers the model.
+        raw_shares = [(cap / total_capacity) * num_layers for _, cap in peer_capacity]
+        # Cap each share at the peer's actual capacity so an over-provisioned
+        # peer doesn't end up with more layers than it can fit.
+        capped_shares = [min(int(math.floor(s)), cap) for s, (_, cap) in zip(raw_shares, peer_capacity)]
+        remainders = sorted(
+            enumerate(raw_shares),
+            key=lambda kv: (kv[1] - int(math.floor(kv[1])), -peer_capacity[kv[0]][1]),
+            reverse=True,
         )
-        next_layer = end_layer
+        deficit = num_layers - sum(capped_shares)
+        for idx, _ in remainders[: max(0, deficit)]:
+            # Only top up if the peer still has spare capacity.
+            if capped_shares[idx] < peer_capacity[idx][1]:
+                capped_shares[idx] += 1
+            else:
+                # Find next peer with spare capacity.
+                for jdx, _ in remainders:
+                    if capped_shares[jdx] < peer_capacity[jdx][1]:
+                        capped_shares[jdx] += 1
+                        break
+
+        for (peer, capacity_layers), layer_count in zip(peer_capacity, capped_shares):
+            if layer_count <= 0:
+                continue
+            hostname = str(peer.get("hostname") or "unknown")
+            free_gb = round(_peer_free_gb(peer), 4)
+            start_layer = next_layer
+            end_layer = start_layer + layer_count
+            assignments.append(
+                {
+                    "hostname": hostname,
+                    "start_layer": start_layer,
+                    "end_layer": end_layer,
+                    "layer_count": layer_count,
+                    "free_gb": float(round(free_gb, 2)),
+                    "capacity_layers": capacity_layers,
+                }
+            )
+            next_layer = end_layer
+            if next_layer >= num_layers:
+                break
+
+    # If we still didn't fill all layers (defensive — shouldn't happen given
+    # total_capacity check), top up greedily from largest peer down.
+    if next_layer < num_layers and peer_capacity:
+        for peer, capacity_layers in sorted(peer_capacity, key=lambda pc: -pc[1]):
+            if next_layer >= num_layers:
+                break
+            if any(a["hostname"] == peer.get("hostname") for a in assignments):
+                continue  # already in the plan; skip
+            slot = min(capacity_layers, num_layers - next_layer)
+            if slot <= 0:
+                continue
+            assignments.append(
+                {
+                    "hostname": str(peer.get("hostname") or "unknown"),
+                    "start_layer": next_layer,
+                    "end_layer": next_layer + slot,
+                    "layer_count": slot,
+                    "free_gb": float(round(_peer_free_gb(peer), 2)),
+                    "capacity_layers": capacity_layers,
+                }
+            )
+            next_layer += slot
 
     assigned_layers = next_layer
     missing_layers = max(num_layers - assigned_layers, 0)

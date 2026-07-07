@@ -604,6 +604,7 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
         "serving_count": sum(1 for p in peers if p["status"] == "serving"),
         "peers": peers,
         "deployed_at": deployment.get("created_at"),
+        "peer_statuses": _load_peer_statuses(state_dir, max_age_seconds=600.0),
         "claim_boundary": PIPELINE_CLAIM_BOUNDARY,
     }
 
@@ -825,6 +826,94 @@ def _handle_ios_draft(
 
 def _deployment_path(state_dir: str | Path) -> Path:
     return Path(state_dir).expanduser() / "deployment.json"
+
+
+def _peer_status_dir(state_dir: str | Path) -> Path:
+    return Path(state_dir).expanduser() / "peer_status"
+
+
+def _save_peer_status(state_dir: str | Path, peer_id: str, status: dict[str, Any]) -> None:
+    """Persist a peer's live status (downloading %, loading, serving, error)."""
+    import re as _re
+    safe = _re.sub(r"[^A-Za-z0-9_.-]", "_", peer_id)[:64] or "unknown"
+    d = _peer_status_dir(state_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    payload = dict(status)
+    payload.setdefault("peer_id", peer_id)
+    payload.setdefault("updated_at", time.time())
+    (d / f"{safe}.json").write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _load_peer_statuses(state_dir: str | Path, max_age_seconds: float = 600.0) -> dict[str, dict[str, Any]]:
+    """Return {peer_id: status} for all peer status files updated within max_age_seconds."""
+    import time as _time
+    d = _peer_status_dir(state_dir)
+    if not d.exists():
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    cutoff = _time.time() - max_age_seconds
+    for f in d.glob("*.json"):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if (data.get("updated_at") or 0) < cutoff:
+            continue
+        out[data.get("peer_id") or f.stem] = data
+    return out
+
+
+def _handle_peer_status_post(body: bytes, *, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
+    """POST /peer-status — peer reports live state (downloading %, loading, serving, error)."""
+    try:
+        payload = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return 400, {"error": f"invalid JSON: {e}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    peer_id = payload.get("peer_id") or payload.get("hostname")
+    if not peer_id:
+        return 400, {"error": "missing peer_id", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    status_value = payload.get("status", "unknown")
+    if not isinstance(status_value, str):
+        return 400, {"error": "status must be a string", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    record = {
+        "peer_id": peer_id,
+        "status": status_value,
+        "progress": payload.get("progress"),  # 0-100 float or None
+        "message": payload.get("message"),
+        "job_port": payload.get("job_port"),
+        "model_id": payload.get("model_id"),
+        "updated_at": time.time(),
+    }
+    _save_peer_status(state_dir, peer_id, record)
+    # Also update the heartbeat file's status field so the existing pipeline
+    # snapshot picks it up via caps.get("status").
+    try:
+        from mvp_capabilities.join_coordinator import record_heartbeat  # type: ignore
+        heartbeat_path = Path(state_dir).expanduser() / f"{peer_id}.json"
+        caps_update = {"status": status_value}
+        if "progress" in payload and payload["progress"] is not None:
+            caps_update["download_progress"] = payload["progress"]
+        if payload.get("model_id"):
+            caps_update["serving_model_id"] = payload["model_id"]
+        if heartbeat_path.exists():
+            existing = json.loads(heartbeat_path.read_text(encoding="utf-8"))
+            existing.setdefault("capabilities", {}).update(caps_update)
+            existing["capabilities"]["status"] = status_value
+            existing["timestamp"] = int(time.time())
+            heartbeat_path.write_text(json.dumps(existing, indent=2, sort_keys=True), encoding="utf-8")
+    except Exception:
+        pass  # heartbeat update is best-effort
+    return 200, {"ok": True, "peer_id": peer_id, "status": status_value, "claim_boundary": "peer_status_only_no_inference_proof"}
+
+
+def _handle_peer_status_get(query: dict[str, list[str]], *, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
+    """GET /peer-status?max_age_seconds=N — return all peer statuses for the dashboard."""
+    max_age = _as_int(_first(query, "max_age_seconds"), 600)
+    return 200, {
+        "peer_statuses": _load_peer_statuses(state_dir, max_age_seconds=max_age),
+        "max_age_seconds": max_age,
+        "claim_boundary": "peer_status_only_no_inference_proof",
+    }
 
 
 def _load_deployment(state_dir: str | Path) -> dict[str, Any]:
@@ -1609,6 +1698,8 @@ def handle_get(
         return _handle_job(query, state_dir=state_dir)
     if parsed.path == "/pipeline":
         return 200, _build_pipeline_snapshot(state_dir)
+    if parsed.path == "/peer-status":
+        return _handle_peer_status_get(query, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
@@ -1641,6 +1732,8 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
         return _handle_ios_register(body, state_dir=state_dir)
     if parsed.path == "/ios/draft":
         return _handle_ios_draft(body, state_dir=state_dir)
+    if parsed.path == "/peer-status":
+        return _handle_peer_status_post(body, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 

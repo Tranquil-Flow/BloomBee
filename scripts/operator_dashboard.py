@@ -820,6 +820,33 @@ async function deployModel() {
 
 let deployPollInterval = null;
 
+// status → pill color + label. Keys must match bootstrap.py post_peer_status calls.
+const PEER_STATUS_DISPLAY = {
+  queued:       {color: 'var(--muted)',  label: 'queued'},
+  downloading: {color: 'var(--warn)',   label: 'downloading'},
+  loading:      {color: 'var(--warn)',   label: 'loading'},
+  serving:      {color: 'var(--ok)',     label: 'serving'},
+  error:        {color: '#ff6b6b',       label: 'error'},
+  idle:         {color: 'var(--muted)',  label: '⏳ waiting for peer'},
+};
+
+function renderPeerStatusCell(peerStatus, fallbackStatus) {
+  const st = (peerStatus && peerStatus.status) || fallbackStatus || 'idle';
+  const disp = PEER_STATUS_DISPLAY[st] || {color: 'var(--muted)', label: st};
+  let inner = '<span style="color:' + disp.color + ';">' + disp.label + '</span>';
+  if (peerStatus && typeof peerStatus.progress === 'number') {
+    const pct = Math.max(0, Math.min(100, Math.round(peerStatus.progress)));
+    const barColor = st === 'error' ? '#ff6b6b' : (st === 'serving' ? 'var(--ok)' : 'var(--accent)');
+    inner += '<div style="margin-top:4px;height:6px;background:rgba(125,211,252,.1);border-radius:3px;overflow:hidden;">' +
+      '<div style="width:' + pct + '%;height:100%;background:' + barColor + ';transition:width .4s ease;"></div></div>' +
+      '<div style="font-size:9px;color:var(--muted);margin-top:2px;">' + pct + '%' +
+      (peerStatus.message ? ' · ' + esc(peerStatus.message) : '') + '</div>';
+  } else if (peerStatus && peerStatus.message) {
+    inner += '<div style="font-size:9px;color:var(--muted);margin-top:2px;">' + esc(peerStatus.message) + '</div>';
+  }
+  return inner;
+}
+
 async function refreshDeployJobs() {
   const jobsCard = document.getElementById('deploy-jobs-card');
   const jobsEl = document.getElementById('deploy-jobs');
@@ -829,16 +856,17 @@ async function refreshDeployJobs() {
     const deployed = data.peers.filter(function(p) { return p.block_range && p.block_range.length > 0; });
     if (!deployed.length) return;
     jobsCard.style.display = 'block';
+    const peerStatuses = data.peer_statuses || {};
     let rows = '';
     for (const p of deployed) {
-      const statusColor = p.status === 'idle' ? 'var(--warn)' : p.status === 'serving' ? 'var(--ok)' : 'var(--muted)';
-      const statusLabel = p.status === 'idle' ? '\u23f3 waiting for peer' : p.status;
+      // Match peer_statuses by hostname or peer_id (either key works)
+      const ps = peerStatuses[p.hostname] || peerStatuses[p.peer_id] || null;
       rows += '<tr>' +
-        '<td style=\"color:var(--accent);font-family:monospace;\">' + esc(p.hostname) + '</td>' +
+        '<td style="color:var(--accent);font-family:monospace;">' + esc(p.hostname) + '</td>' +
         '<td>' + esc(p.block_range) + '</td>' +
         '<td>' + esc(p.port || '-') + '</td>' +
-        '<td style=\"color:' + statusColor + ';\">' + statusLabel + '</td>' +
-        '<td style=\"font-size:10px;color:var(--muted);\">' + esc(p.available_gb || 0) + '/' + esc(p.total_gb || 0) + ' GB free</td>' +
+        '<td style="font-size:11px;">' + renderPeerStatusCell(ps, p.status) + '</td>' +
+        '<td style="font-size:10px;color:var(--muted);">' + esc(p.available_gb || 0) + '/' + esc(p.total_gb || 0) + ' GB free</td>' +
         '</tr>';
     }
     jobsEl.innerHTML = '<table><thead><tr><th>Hostname</th><th>Blocks</th><th>Port</th><th>Status</th><th>Memory</th></tr></thead><tbody>' + rows + '</tbody></table>';
