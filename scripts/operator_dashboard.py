@@ -356,6 +356,115 @@ function showTab(name) {
   if (btn) btn.classList.add('active');
   if (name === 'live') refreshAll();
   if (name === 'models') loadCompatible();
+  if (name === 'infer') loadInferenceModels();
+}
+
+async function loadInferenceModels() {
+  const sel = document.getElementById('infer-model');
+  const data = await fetchJSON(COORDINATOR + '/compatible?token=*');
+  if (!data || !data.compatible_models) {
+    sel.innerHTML = '<option value="">Coordinator unreachable</option>';
+    return;
+  }
+  const runnable = data.compatible_models.filter(m => m.status === 'compatible' || m.status === 'single_peer');
+  if (!runnable.length) {
+    sel.innerHTML = '<option value="">No compatible models — connect more peers</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">-- Select a model --</option>' +
+    runnable.map(m => '<option value="' + esc(m.model_id) + '">' +
+      esc(m.model_id.split('/').pop()) + ' (' + m.params_b + 'B' + (m.supports_moe ? ', MoE' : '') + ', ' + m.required_gb + 'GB)</option>'
+    ).join('');
+  sel.onchange = onModelSelect;
+}
+
+function onModelSelect() {
+  const sel = document.getElementById('infer-model');
+  const infoEl = document.getElementById('infer-model-info');
+  const planEl = document.getElementById('infer-plan-content');
+  const val = sel.value;
+  if (!val) { infoEl.innerHTML = ''; planEl.innerHTML = '<div class="loading">Select a model above to see the plan.</div>'; return; }
+  infoEl.innerHTML = 'Model: <strong style="color:var(--accent);">' + esc(val) + '</strong>';
+
+  // Fetch layer plan for selected model
+  fetchJSON(COORDINATOR + '/plan?token=*&model=' + encodeURIComponent(val)).then(data => {
+    if (!data || !data.plan) {
+      planEl.innerHTML = '<div class="loading">No plan available. Need peers connected.</div>';
+      return;
+    }
+    const allocs = data.plan.allocations || data.plan.layers || [];
+    if (!allocs.length) {
+      planEl.innerHTML = '<div class="error">Plan returned no allocations. Try a smaller model or connect more peers.</div>';
+      return;
+    }
+    let rows = '';
+    for (const a of allocs) {
+      rows += '<tr><td>' + esc(a.peer_id || a.node_id || '?') + '</td><td>' + esc(a.layer_range || a.layers || '?') + '</td><td>' + esc(a.role || 'shard') + '</td></tr>';
+    }
+    planEl.innerHTML = '<table><thead><tr><th>Peer</th><th>Layers</th><th>Role</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }).catch(() => {
+    planEl.innerHTML = '<div class="error">Could not load plan from coordinator.</div>';
+  });
+}
+
+async function runInference() {
+  const sel = document.getElementById('infer-model');
+  const prompt = document.getElementById('infer-prompt').value.trim();
+  const btn = document.getElementById('infer-btn');
+  const status = document.getElementById('infer-status');
+  const outSection = document.getElementById('infer-output-section');
+  const outText = document.getElementById('infer-output');
+  const outStats = document.getElementById('infer-stats');
+
+  if (!sel.value || !prompt) {
+    status.textContent = 'Select a model and enter a prompt.';
+    status.style.color = 'var(--warn)';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Generating...';
+  status.textContent = 'Sending request to swarm...'; status.style.color = 'var(--accent)';
+  outSection.style.display = 'block';
+  outText.textContent = 'Generating...'; outStats.textContent = '';
+
+  try {
+    const t0 = performance.now();
+    const resp = await fetch(COORDINATOR + '/infer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_id: sel.value,
+        prompt: prompt,
+        max_tokens: 128,
+      }),
+    });
+    const dt = ((performance.now() - t0) / 1000).toFixed(1);
+
+    if (resp.ok) {
+      const result = await resp.json();
+      outText.textContent = result.output_text || result.text || JSON.stringify(result, null, 2);
+      const tokCount = result.tokens_generated || result.output_tokens || '?';
+      outStats.innerHTML = '<span class="badge ok">' + dt + 's</span> · ' +
+        tokCount + ' tokens · model: ' + esc(sel.value.split('/').pop());
+    } else if (resp.status === 404) {
+      outText.textContent = '⚠️ Inference endpoint is not yet available.\n\nThe /infer endpoint will be built in Phase 4 — the coordinator currently plans but does not execute inference.\n\nOnce built, this UI is ready: it sends {model_id, prompt, max_tokens} to POST /infer and displays the result here.';
+      outStats.innerHTML = '<span class="badge warn">endpoint not built yet</span> · UI wired and ready';
+    } else {
+      const err = await resp.text();
+      throw new Error(err || resp.statusText);
+    }
+  } catch(e) {
+    outText.textContent = '❌ Inference failed: ' + e.message;
+    outStats.innerHTML = '<span class="badge fail">error</span>';
+    status.textContent = 'Failed. Check coordinator.';
+    status.style.color = 'var(--fail)';
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Generate';
+    if (status.style.color !== 'var(--fail)') {
+      status.textContent = 'Done.';
+      status.style.color = 'var(--ok)';
+    }
+  }
 }
 
 async function loadCompatible() {
@@ -481,6 +590,7 @@ def _build_html(coordinator: str) -> str:
     <button data-tab="runbook" class="active" onclick="showTab('runbook')">📖 Onboarding</button>
     <button data-tab="live" onclick="showTab('live')">📡 Live Swarm</button>
     <button data-tab="models" onclick="showTab('models')">🧠 Models</button>
+    <button data-tab="infer" onclick="showTab('infer')">🚀 Generate</button>
   </nav>
 </header>
 
@@ -657,6 +767,47 @@ python3 scripts/operator_dashboard.py \\
     <span class="badge fail">● insufficient</span>
   </div>
   <div id="models-content"><div class="loading">Loading...</div></div>
+</div>
+</main>
+
+</div>
+
+<!-- ====== INFERENCE TAB ====== -->
+<div id="tab-infer" class="tab-page" style="display:none;">
+
+<main>
+<div class="card wide">
+  <h3>🚀 Request Inference</h3>
+  <div class="step" style="margin-bottom:14px;">
+    <h4>1. Select model</h4>
+    <select id="infer-model" style="width:100%;background:#050e1a;border:1px solid var(--line);color:var(--accent);padding:10px;border-radius:8px;font-size:13px;font-family:ui-monospace,monospace;">
+      <option value="">Loading models from swarm...</option>
+    </select>
+    <div id="infer-model-info" style="margin-top:6px;color:var(--muted);font-size:11px;"></div>
+  </div>
+
+  <div class="step" style="margin-bottom:14px;">
+    <h4>2. Enter prompt</h4>
+    <textarea id="infer-prompt" rows="4" placeholder="What would you like the swarm to generate?"
+      style="width:100%;background:#050e1a;border:1px solid var(--line);color:var(--text);padding:10px;border-radius:8px;font-size:13px;font-family:ui-monospace,monospace;resize:vertical;"></textarea>
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+    <button id="infer-btn" onclick="runInference()" style="background:var(--accent);color:var(--bg);border:none;padding:10px 24px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;">⚡ Generate</button>
+    <span id="infer-status" style="color:var(--muted);font-size:12px;"></span>
+  </div>
+
+  <div class="step" id="infer-output-section" style="display:none;">
+    <h4>3. Output</h4>
+    <pre id="infer-output" style="min-height:60px;white-space:pre-wrap;">Waiting for generation...</pre>
+    <div id="infer-stats" style="color:var(--muted);font-size:11px;margin-top:8px;"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>📊 Layer Assignment</h3>
+  <p style="color:var(--muted);font-size:12px;margin-bottom:10px;">How layers would be distributed across the swarm for the selected model.</p>
+  <div id="infer-plan-content"><div class="loading">Select a model above to see the plan.</div></div>
 </div>
 </main>
 
