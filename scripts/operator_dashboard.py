@@ -254,11 +254,55 @@ async function loadRoster() {
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-function refreshAll() {
+async function refreshAll() {
   loadRoster();
   loadPlan();
   loadRoute();
   loadPipeline();
+  loadIosPeers();
+}
+
+async function loadIosPeers() {
+  const card = document.getElementById('ios-peers-card');
+  const el = document.getElementById('ios-peers-content');
+  const data = await fetchJSON(COORDINATOR + '/active?token=*&max_age_seconds=600');
+  if (!data || !data.active_peers) {
+    card.style.display = 'none';
+    return;
+  }
+  const ios = data.active_peers.filter(p =>
+    (p.capabilities && p.capabilities.platform === 'ios') ||
+    (p.capabilities && p.capabilities.role === 'draft_peer')
+  );
+  if (!ios.length) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  let rows = '';
+  for (const p of ios) {
+    const c = p.capabilities || {};
+    const hostname = esc(c.hostname || p.peer_id || '?');
+    const model = esc(c.mlx_model_id || c.mlx_model || 'mlx model unknown');
+    const mem = (c.memory && c.memory.total_gb) || '?';
+    const tok = c.tokens_per_sec_est || c.tok_per_sec || '~40';
+    const ok = p.ok !== false;
+    const age = p.timestamp ? Math.round((Date.now()/1000 - p.timestamp)) : null;
+    const ageStr = age !== null ? `${age}s ago` : '?';
+    rows += `<tr>
+      <td><span class="status-dot ${ok ? 'online' : 'offline'}"></span>${esc(p.peer_id || '?')}</td>
+      <td>${hostname}</td>
+      <td style="font-family:monospace;font-size:10px;">${model}</td>
+      <td>${mem} GB</td>
+      <td>~${tok} tok/s</td>
+      <td>${ageStr}</td>
+      <td><span class="badge ${ok ? 'ok' : 'fail'}">${ok ? 'connected' : 'stale'}</span></td>
+    </tr>`;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Peer ID</th><th>Device</th><th>MLX Model</th><th>RAM</th><th>Speed</th><th>Last seen</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 async function loadPipeline() {
   const card = document.getElementById('pipeline-card');
@@ -820,8 +864,9 @@ python3 scripts/operator_dashboard.py \\
     The QR opens <code id="coord-landing-url">COORDINATOR_URL</code> in the browser — a landing page
     that shows a <strong>single copy-paste command</strong>. Run that command in any terminal
     and the device is connected. No repo clone, no manual setup.<br><br>
-    <strong>Phone users:</strong> Android + <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">Termux from F-Droid</a> (<code>pkg install python</code>).<br>
-    <strong>Laptop users:</strong> Python 3.8+ (pre-installed on macOS/Linux). Nothing else needed.
+    <strong>Laptop users:</strong> Python 3.8+ (pre-installed on macOS/Linux). Nothing else needed.<br>
+    <strong>Android phones:</strong> Install <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">Termux from F-Droid</a> (<code>pkg install python</code>), then paste the command.<br>
+    <strong>iPhone users:</strong> Different flow — see <strong>Step 3b below</strong>. iPhones install a free app via SideStore and contribute as MLX draft peers (speculative decoding).
   </div>
 </div>
 
@@ -846,6 +891,52 @@ python3 scripts/operator_dashboard.py \\
     <h4>Scan QR → tap link → copy command → paste in Termux</h4>
     <p style="color:var(--muted);">The landing page auto-detects phones and shows the Termux-specific instructions.
     One pasteable command. Phone heartbeats every 60s.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h3>3b. Onboard an iPhone (iOS)</h3>
+  <div class="step" style="border-color:var(--moon);">
+    <h4>📱 iPhones are special — they contribute as <strong>draft peers</strong> (speculative decoding)</h4>
+    <p style="color:var(--muted);">iOS can't run libp2p/Hivemind directly, so iPhones run MLX-Swift-LM
+    locally and send draft tokens to the gateway. The main model verifies them on laptops.
+    <strong>This makes inference 2-4× faster for everyone.</strong></p>
+  </div>
+  <div class="step">
+    <h4>Pre-requisites (one-time)</h4>
+    <p>iOS 17+ on iPhone 12 or newer. Free — no Apple Developer account needed.</p>
+    <ol style="color:var(--muted);line-height:1.6;font-size:12px;margin-left:20px;">
+      <li>Install <strong>SideStore</strong> from <a href="https://sidestore.io" style="color:var(--accent);">sidestore.io</a></li>
+      <li>Enter our anisette server URL in SideStore settings (operator provides this)</li>
+      <li>Tap our pinned <strong>BloomBee.ipa</strong> install link → "Install"</li>
+    </ol>
+  </div>
+  <div class="step">
+    <h4>Operator: stand up the iOS gateway</h4>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">The gateway bridges iPhone HTTP/JSON drafts to BloomBee coordinator. Run on the same Mac as the coordinator:</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway
+pip install aiohttp
+python3 gateway/server.py --host 0.0.0.0 --port 8432</pre>
+  </div>
+  <div class="step">
+    <h4>Operator: build + pin the IPA</h4>
+    <p style="color:var(--muted);font-size:11px;margin-bottom:6px;">Build on a Mac with Xcode 16+ (one-time per release):</p>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre>cd ~/Projects/bloombee-ios-gateway
+./scripts/build_ipa.sh
+# → build/BloomBee.ipa ready for SideStore resigning</pre>
+    <p style="color:var(--muted);font-size:11px;">Host the IPA on any static file server or pinned link. Donors install it through SideStore.</p>
+  </div>
+  <div class="step">
+    <h4>What the iPhone sees</h4>
+    <p style="color:var(--muted);">Once installed: BloomBee app shows coordinator URL, sends install_token,
+    and starts generating drafts. <strong>Weekly refresh</strong> via SideStore (5-second tap on WiFi).</p>
+  </div>
+  <div class="info-box" style="margin-top:10px;">
+    <strong>📡 iPhone contribution:</strong> Speculative-decoding draft peer (~40 tok/s on small MLX models).
+    The coordinator marks it with a <span style="background:var(--moon);color:var(--bg);padding:1px 6px;border-radius:4px;font-size:10px;">📱</span> badge
+    in the <strong>Live Swarm → Inference Pipeline</strong> view.
   </div>
 </div>
 
@@ -911,6 +1002,14 @@ python3 scripts/operator_dashboard.py \\
 <div class="card wide" id="pipeline-card" style="display:none;">
   <h3>🔗 Inference Pipeline</h3>
   <div id="pipeline-viz"></div>
+</div>
+
+<div class="card" id="ios-peers-card" style="display:none;">
+  <h3>📱 iOS Draft Peers</h3>
+  <div id="ios-peers-content"><div class="loading">Checking for iOS peers...</div></div>
+  <div class="info-box" style="margin-top:10px;font-size:11px;">
+    <strong>How iPhones contribute:</strong> iPhones can't run BloomBee directly, so they run MLX-Swift-LM locally and send draft tokens here for verification. <strong>Main model on laptops verifies drafts</strong> → 2-4× faster inference. Each peer shows its MLX model + token throughput.
+  </div>
 </div>
 </main>
 
