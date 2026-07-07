@@ -3747,6 +3747,231 @@ def test_join_coordinator_supports_head_for_chrome_compatibility(tmp_path: Path)
         thread.join(timeout=5)
 
 
+def test_deploy_pipeline_end_to_end_smoke(tmp_path: Path):
+    """Full deploy pipeline smoke test against a real coordinator on an
+    ephemeral port: heartbeat 3 peers, POST /deploy, GET /job for each,
+    POST /peer-status state transitions, GET /pipeline reflects everything,
+    POST /deploy/cancel wipes it all cleanly.
+
+    Skipped under sandboxed shells that block socket binding."""
+    import socket
+    from mvp_capabilities.join_http_server import create_server
+
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(("127.0.0.1", 0))
+        probe.close()
+    except (PermissionError, OSError) as exc:
+        pytest.skip(f"sandbox blocks socket bind ({exc.__class__.__name__})")
+
+    state_dir = tmp_path / "smoke-state"
+    state_dir.mkdir()
+
+    server = create_server(
+        ("127.0.0.1", 0),
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:0",
+    )
+    host, port = server.server_address[:2]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def request(method: str, path: str, body: bytes = b"") -> dict:
+        conn = http.client.HTTPConnection(host, port, timeout=5)
+        try:
+            conn.request(method, path, body=body)
+            resp = conn.getresponse()
+            raw = resp.read()
+            try:
+                return {"status": resp.status, "body": json.loads(raw) if raw else {}}
+            except json.JSONDecodeError:
+                return {"status": resp.status, "body": {"raw": raw.decode("utf-8", errors="replace")}}
+        finally:
+            conn.close()
+
+    try:
+        # ── Phase 1: heartbeat 3 fake peers ──
+        peers = [
+            ("DemoLaptop", 16, 10),
+            ("m4pro", 48, 38),
+            ("Astra-Macbook", 8, 5),
+        ]
+        for hostname, total_gb, avail_gb in peers:
+            caps = {
+                "hostname": hostname,
+                "platform": "darwin",
+                "python_version": "3.11.14",
+                "cpu": {"cores": 8, "model": "arm"},
+                "memory": {"total_gb": total_gb, "available_gb": avail_gb},
+                "disk": {"total_gb": 228, "free_gb": 100},
+                "gpu": {"name": "Apple M-series", "available": True},
+                "network": {"local_ip": "127.0.0.1"},
+            }
+            body = json.dumps({"token": "smoke-token", "peer_id": hostname, "capabilities": caps}).encode()
+            r = request("POST", "/heartbeat", body)
+            assert r["status"] == 200, f"heartbeat for {hostname} failed: {r}"
+            assert r["body"]["ok"] is True
+
+        # /active should now show 3 active peers
+        r = request("GET", "/active?token=smoke-token&max_age_seconds=60")
+        assert r["status"] == 200
+        assert len(r["body"]["active_peers"]) == 3, (
+            f"expected 3 active peers, got {len(r['body']['active_peers'])}"
+        )
+
+        # ── Phase 2: POST /deploy for Qwen3-4B ──
+        # 10 GB min fits any peer; 36 layers distributed proportionally.
+        r = request("POST", "/deploy?model_id=Qwen/Qwen3-4B&token=smoke-token")
+        assert r["status"] == 200, f"deploy failed: {r}"
+        body = r["body"]
+        assert body["model_id"] == "Qwen/Qwen3-4B"
+        assert "jobs" in body and len(body["jobs"]) >= 2, (
+            f"expected >=2 peer jobs, got {len(body.get('jobs', {}))}: {body}"
+        )
+        # Each job should have a block_indices and a launch command.
+        for hostname, job in body["jobs"].items():
+            assert job["model_id"] == "Qwen/Qwen3-4B", f"job model mismatch on {hostname}"
+            assert ":" in (job.get("block_indices") or ""), (
+                f"job on {hostname} missing block_indices: {job}"
+            )
+            assert ":" in job.get("command", "") and "run_server" in job["command"], (
+                f"job on {hostname} missing launch command: {job.get('command', '')[:120]}"
+            )
+            assert job["status"] == "queued"
+
+        # Deployment file was written
+        deploy_path = state_dir / "deployment.json"
+        assert deploy_path.exists(), "deployment.json not written by /deploy"
+        on_disk = json.loads(deploy_path.read_text())
+        assert on_disk["model_id"] == "Qwen/Qwen3-4B"
+
+        # ── Phase 3: each peer polls /job and gets the right assignment ──
+        for hostname, _, _ in peers:
+            r = request("GET", f"/job?peer_id={hostname}")
+            assert r["status"] == 200
+            job = r["body"].get("job")
+            assert job is not None, f"peer {hostname} got no job: {r['body']}"
+            assert hostname in body["jobs"], (
+                f"peer {hostname} job assignment doesn't match deploy output"
+            )
+
+        # ── Phase 4: peer progress transitions ──
+        for hostname, _, _ in peers:
+            for status_info in [
+                ("downloading", 25.0, "fetching safetensors"),
+                ("downloading", 80.0, "almost done"),
+                ("loading", 90.0, "loading weights"),
+                ("serving", 100.0, "ready"),
+            ]:
+                status, progress, message = status_info
+                peer_payload = json.dumps({
+                    "peer_id": hostname,
+                    "status": status,
+                    "progress": progress,
+                    "message": message,
+                    "model_id": "Qwen/Qwen3-4B",
+                    "job_port": body["jobs"][hostname]["port"] if hostname in body["jobs"] else None,
+                }).encode()
+                r = request("POST", "/peer-status", peer_payload)
+                assert r["status"] == 200, f"peer-status POST failed: {r}"
+
+        # /pipeline should now show every served peer with status=serving.
+        r = request("GET", "/pipeline")
+        assert r["status"] == 200
+        snap = r["body"]
+        peers_in_pipeline = {p["hostname"]: p for p in snap["peers"]}
+        assert snap["model_id"] == "Qwen/Qwen3-4B"
+        assert snap["serving_count"] == snap["peer_count"] == len(body["jobs"]), (
+            f"serving peer count mismatch: {snap}"
+        )
+        # Each peer's block_range should match the deployment.
+        for hostname, peer in peers_in_pipeline.items():
+            if hostname in body["jobs"]:
+                expected = body["jobs"][hostname]["block_indices"]
+                assert peer["block_range"] == expected, (
+                    f"{hostname}: pipeline block_range={peer['block_range']}, "
+                    f"deploy said {expected}"
+                )
+                assert peer["status"] == "serving", (
+                    f"{hostname} status={peer['status']}; expected serving after transition"
+                )
+
+        # peer_statuses map should have entries for all peers.
+        ps_map = snap["peer_statuses"]
+        assert len(ps_map) >= 3, (
+            f"peer_statuses missing entries: keys={list(ps_map.keys())}"
+        )
+        for hostname, _, _ in peers:
+            key = next((k for k in ps_map if k == hostname or k.startswith(hostname)), None)
+            assert key is not None, (
+                f"peer_status missing for {hostname}; have {list(ps_map.keys())}"
+            )
+            assert ps_map[key]["status"] == "serving"
+            assert ps_map[key]["progress"] == 100.0
+
+        # ── Phase 5: cancel -- everything wipes cleanly ──
+        r = request("POST", "/deploy/cancel")
+        assert r["status"] == 200
+        assert r["body"]["ok"] is True
+        cleared_jobs = r["body"]["cleared_jobs"]
+        assert cleared_jobs == len(body["jobs"]), (
+            f"cancel wiped {cleared_jobs} jobs; expected {len(body['jobs'])}"
+        )
+        assert r["body"]["cleared_peer_statuses"] >= 3, (
+            f"cancel wiped {r['body']['cleared_peer_statuses']} peer statuses; expected >=3"
+        )
+
+        # deployment.json should be gone.
+        assert not deploy_path.exists(), (
+            f"deployment.json still exists after cancel: {deploy_path.exists()}"
+        )
+        # peer_status dir should be empty.
+        ps_dir = state_dir / "peer_status"
+        if ps_dir.exists():
+            leftover = list(ps_dir.glob("*.json"))
+            assert leftover == [], f"peer_status dir not empty after cancel: {leftover}"
+
+        # /job for each peer should now return null (job cleared) but
+        # heartbeat still counts the peer as active.
+        for hostname, _, _ in peers:
+            r = request("GET", f"/job?peer_id={hostname}")
+            assert r["status"] == 200
+            assert r["body"]["job"] is None, (
+                f"peer {hostname} still has a job after cancel: {r['body']}"
+            )
+            # Heartbeats are independent of deployment -- peer still
+            # considered active until they expire (30s window).
+            r = request("GET", "/active?token=smoke-token&max_age_seconds=60")
+            hostnames_active = {
+                hb["capabilities"]["hostname"] for hb in r["body"]["active_peers"]
+            }
+            assert hostname in hostnames_active, (
+                f"peer {hostname} disappeared from /active after cancel; "
+                f"cancel must not touch heartbeats"
+            )
+
+        # /pipeline snapshot now has no block_range for any served peer
+        # (peer_block_range derived from deployment.json which is gone).
+        r = request("GET", "/pipeline")
+        assert r["status"] == 200
+        snap2 = r["body"]
+        assert snap2["model_id"] is None, (
+            f"pipeline model_id should be null after cancel: {snap2['model_id']}"
+        )
+        for p in snap2["peers"]:
+            assert p["block_range"] == "", (
+                f"{p['hostname']} still has block_range after cancel: {p['block_range']}"
+            )
+        # peer_statuses map also cleared (count drops to 0)
+        assert snap2["peer_statuses"] == {}, (
+            f"peer_statuses not cleared after cancel: {snap2['peer_statuses']}"
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_main_exits_zero_when_coordinator_already_running(tmp_path, monkeypatch, capsys):
     """Regression: Step 1 of Operator Quick Start used to crash with a
     stacktrace if the coordinator was already on :8787. Now main() detects

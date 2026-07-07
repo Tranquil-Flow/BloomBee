@@ -932,6 +932,49 @@ def _save_deployment(state_dir: str | Path, deployment: dict[str, Any]) -> None:
     path.write_text(json.dumps(deployment, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def _handle_deploy_cancel(*, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
+    """POST /deploy/cancel -- hard-reset deployment state.
+
+    Wipes deployment.json (so /job returns null for all peers) and the
+    peer_status/ directory (so progress bars reset). Existing BloomBee
+    server processes on peer laptops are NOT killed by this endpoint --
+    once the user clicks Deploy again, fresh jobs are written and peers
+    that re-poll /job will pick up the new commands. Peers that already
+    started the previous plan keep serving until restarted.
+
+    Returns counts of cleared jobs and peer statuses so the dashboard
+    can confirm the cancel took effect.
+    """
+    deploy_path = _deployment_path(state_dir)
+    deployment = _load_deployment(state_dir)
+    job_count = len(deployment.get("jobs") or {})
+
+    cleared_jobs = 0
+    if deploy_path.exists():
+        try:
+            deploy_path.unlink()
+            cleared_jobs = job_count
+        except OSError:
+            pass
+
+    cleared_statuses = 0
+    peer_status_dir = _peer_status_dir(state_dir)
+    if peer_status_dir.exists():
+        for f in peer_status_dir.glob("*.json"):
+            try:
+                f.unlink()
+                cleared_statuses += 1
+            except OSError:
+                pass
+
+    return 200, {
+        "ok": True,
+        "cleared_jobs": cleared_jobs,
+        "cleared_peer_statuses": cleared_statuses,
+        "claim_boundary": DEPLOYMENT_CLAIM_BOUNDARY,
+    }
+
+
 def _handle_deploy(
     query: dict[str, list[str]],
     *,
@@ -1756,6 +1799,8 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
         )
     if parsed.path == "/deploy":
         return _handle_deploy(query, state_dir=state_dir, registry=registry)
+    if parsed.path == "/deploy/cancel":
+        return _handle_deploy_cancel(state_dir=state_dir)
     if parsed.path == "/infer":
         return _handle_infer(body, state_dir=state_dir)
     if parsed.path == "/ios/register":

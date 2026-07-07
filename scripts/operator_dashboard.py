@@ -818,6 +818,50 @@ async function deployModel() {
   }
 }
 
+async function cancelDeploy() {
+  const resultEl = document.getElementById('deploy-result');
+  const btn = document.getElementById('btn-cancel-deploy');
+  // Confirm before nuking -- this clears all in-flight job assignments
+  // and resets every peer's progress bar.
+  const ok = window.confirm('Cancel ALL job assignments?\\n\\n' +
+    '• deployment.json will be wiped\\n' +
+    '• Peer progress bars will reset\\n' +
+    '• Running BloomBee server processes on peer laptops are NOT killed (restart them manually if needed)\\n\\n' +
+    'You can re-deploy the same or a different model after cancelling.');
+  if (!ok) return;
+  btn.disabled = true;
+  btn.textContent = 'Cancelling…';
+  resultEl.innerHTML = '<div class=\"loading\">Cancelling all job assignments…</div>';
+  try {
+    const resp = await fetch(COORDINATOR + '/deploy/cancel', {method:'POST'});
+    const data = await resp.json();
+    if (!data.ok) {
+      resultEl.innerHTML = '<span style=\"color:var(--fail);\">Cancel failed.</span>';
+      btn.disabled = false;
+      btn.textContent = '✕ Cancel All';
+      return;
+    }
+    const jobs = data.cleared_jobs || 0;
+    const statuses = data.cleared_peer_statuses || 0;
+    resultEl.innerHTML = '<span style=\"color:var(--warn);\">⚠ Cancelled ' + jobs + ' job(s) and ' + statuses + ' peer status(es).</span> ' +
+      '<span style=\"color:var(--muted);font-size:11px;\">Re-deploy any time to assign new jobs.</span>';
+    // Stop polling -- nothing to show.
+    if (deployPollInterval) { clearInterval(deployPollInterval); deployPollInterval = null; }
+    // Hide the job assignments card immediately; pipeline viz will refresh on its own.
+    const jobsCard = document.getElementById('deploy-jobs-card');
+    if (jobsCard) jobsCard.style.display = 'none';
+    // Push a fresh pipeline snapshot into the live viz so compute/draft lanes
+    // re-render against the now-empty deployment.
+    await loadPipeline();
+    btn.disabled = false;
+    btn.textContent = '✕ Cancel All';
+  } catch (e) {
+    resultEl.innerHTML = '<span style=\"color:var(--fail);\">Cancel error: ' + esc(e.message) + '</span>';
+    btn.disabled = false;
+    btn.textContent = '✕ Cancel All';
+  }
+}
+
 let deployPollInterval = null;
 
 // status → pill color + label. Keys must match bootstrap.py post_peer_status calls.
@@ -1309,6 +1353,9 @@ export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
     </select>
     <button id="btn-deploy" onclick="deployModel()" style="background:var(--accent);color:#050e1a;border:none;padding:8px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;">
       Deploy
+    </button>
+    <button id="btn-cancel-deploy" onclick="cancelDeploy()" style="background:var(--panel2);border:1px solid var(--fail);color:var(--fail);padding:8px 18px;border-radius:8px;font-weight:600;cursor:pointer;font-size:12px;" title="Clear all job assignments and reset progress bars. Does NOT kill running BloomBee server processes on peer laptops -- restart them manually if needed.">
+      ✕ Cancel All
     </button>
   </div>
 
