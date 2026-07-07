@@ -231,7 +231,12 @@ def _server_command(
     parts = ["PYTHONPATH=.:src"]
     parts.extend(
         [
-            "python -m bloombee.cli.run_server",
+            # macOS no longer ships a bare `python` binary by default.
+            # The QR/bootstrap path is already `python3 ...`, so generated
+            # server commands should use the same portable command. Using
+            # bare `python` caused fresh macOS peers to fail immediately
+            # with exit code 127.
+            "python3 -m bloombee.cli.run_server",
             model_id,
             f"--block_indices {block_range}",
             f"--device {device}",
@@ -265,19 +270,35 @@ def attach_launch_commands(
     """
     updated = dict(plan)
     assignments: list[dict[str, Any]] = []
+    raw_assignments = [dict(item) for item in (plan.get("assignments") or [])]
     seed_hostname: str | None = None
+    if raw_assignments:
+        # The seed peer only bootstraps the private DHT; it does not need
+        # to serve layer 0. Pick the strongest assignment as seed so a
+        # small alphabetically-first laptop does not become the critical
+        # bootstrap node merely because its hostname sorts first.
+        def _seed_rank(item: dict[str, Any]) -> tuple[float, float, int, str]:
+            return (
+                -float(item.get("capacity_layers") or 0),
+                -float(item.get("free_gb") or 0),
+                -int(item.get("layer_count") or 0),
+                str(item.get("hostname") or ""),
+            )
+
+        seed_hostname = str(sorted(raw_assignments, key=_seed_rank)[0].get("hostname") or "peer-1")
     launch_model_id = str(plan.get("base_model_id") or plan.get("model_id"))
     quant_type = plan.get("quant_type")
-    for index, assignment in enumerate(plan.get("assignments") or []):
+    for index, assignment in enumerate(raw_assignments):
         item = dict(assignment)
         hostname = str(item.get("hostname") or f"peer-{index + 1}")
-        if seed_hostname is None:
-            seed_hostname = hostname
         port = base_port + index
         block_range = f"{item['start_layer']}:{item['end_layer']}"
-        initial_peer = None if index == 0 else f"<SEED_MULTIADDR_FROM_{seed_hostname}>"
+        is_seed = hostname == seed_hostname
+        initial_peer = None if is_seed else f"<SEED_MULTIADDR_FROM_{seed_hostname}>"
         item.update(
             {
+                "role": "seed" if is_seed else "follower",
+                "seed_hostname": seed_hostname,
                 "port": port,
                 "block_range": block_range,
                 "launch_command": _server_command(
@@ -303,10 +324,11 @@ def attach_launch_commands(
         "launch_model_id": launch_model_id,
         "route_model_id": plan.get("model_id"),
         "quant_type": quant_type,
+        "seed_hostname": seed_hostname,
     }
     updated["launch_command_notes"] = [
         "Commands are a runbook only; no server was started by the planner.",
-        "Start the first command, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders in --initial_peers.",
+        "Start the seed command first, copy its printed multiaddr, then replace later <SEED_MULTIADDR_FROM_...> placeholders in --initial_peers.",
         "Follower commands use the current run_server --initial_peers CLI flag; BLOOMBEE_INITIAL_PEERS is not read by run_server.py.",
         "Only promote proof gates after direct client evidence verifies finite outputs/gradients.",
     ]

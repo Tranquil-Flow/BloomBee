@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import sys
 import time
@@ -554,6 +555,7 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
     deployment = _load_deployment(state_dir)
     jobs = deployment.get("jobs", {})
     active = load_active_heartbeats(state_dir, token="*", max_age_seconds=300)
+    peer_statuses = _load_peer_statuses(state_dir, max_age_seconds=600.0)
 
     peers: list[dict[str, Any]] = []
     for hb in active:
@@ -579,6 +581,16 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
             layers = 0
         latency_est = max(0, int(layers * 2.5))
 
+        peer_status = peer_statuses.get(hostname) or peer_statuses.get(peer_id)
+        status_value = caps.get("status", hb.get("status"))
+        if isinstance(peer_status, dict) and peer_status.get("status"):
+            status_value = peer_status.get("status")
+        elif job:
+            resolved_job = _job_with_resolved_seed_multiaddr(job, state_dir)
+            status_value = resolved_job.get("status") or job.get("status") or "queued"
+        if not status_value:
+            status_value = "idle"
+
         peers.append({
             "hostname": hostname,
             "peer_id": peer_id,
@@ -587,7 +599,7 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
             "block_range": job.get("block_indices", "") if job else "",
             "start_layer": job.get("start_layer") if job else None,
             "end_layer": job.get("end_layer") if job else None,
-            "status": caps.get("status", hb.get("status", "idle")),
+            "status": status_value,
             "memory_pct": mem_used_pct,
             "total_gb": mem_total,
             "available_gb": mem_avail,
@@ -604,7 +616,9 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
         "serving_count": sum(1 for p in peers if p["status"] == "serving"),
         "peers": peers,
         "deployed_at": deployment.get("created_at"),
-        "peer_statuses": _load_peer_statuses(state_dir, max_age_seconds=600.0),
+        "peer_statuses": peer_statuses,
+        "seed_hostname": deployment.get("seed_hostname"),
+        "seed_multiaddrs": _load_seed_multiaddrs(state_dir),
         "claim_boundary": PIPELINE_CLAIM_BOUNDARY,
     }
 
@@ -832,6 +846,101 @@ def _peer_status_dir(state_dir: str | Path) -> Path:
     return Path(state_dir).expanduser() / "peer_status"
 
 
+def _seed_multiaddrs_path(state_dir: str | Path) -> Path:
+    return Path(state_dir).expanduser() / "seed_multiaddrs.json"
+
+
+def _load_seed_multiaddrs(state_dir: str | Path) -> dict[str, Any]:
+    path = _seed_multiaddrs_path(state_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_seed_multiaddr(
+    state_dir: str | Path,
+    *,
+    hostname: str,
+    peer_id: str | None,
+    multiaddrs: list[str],
+    job_port: int | None = None,
+    model_id: str | None = None,
+) -> dict[str, Any]:
+    path = _seed_multiaddrs_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = _load_seed_multiaddrs(state_dir)
+    clean_multiaddrs = []
+    for addr in multiaddrs:
+        addr = str(addr).strip()
+        if addr and addr not in clean_multiaddrs:
+            clean_multiaddrs.append(addr)
+    record = {
+        "hostname": hostname,
+        "peer_id": peer_id,
+        "multiaddrs": clean_multiaddrs,
+        "multiaddr": clean_multiaddrs[0] if clean_multiaddrs else None,
+        "job_port": job_port,
+        "model_id": model_id,
+        "updated_at": time.time(),
+    }
+    if hostname:
+        data[hostname] = record
+    if peer_id:
+        data[peer_id] = record
+    path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+    return record
+
+
+def _seed_multiaddr_for_host(state_dir: str | Path, hostname: str) -> str | None:
+    data = _load_seed_multiaddrs(state_dir)
+    record = data.get(hostname)
+    if not isinstance(record, dict):
+        return None
+    multiaddr = record.get("multiaddr")
+    if isinstance(multiaddr, str) and multiaddr:
+        return multiaddr
+    multiaddrs = record.get("multiaddrs")
+    if isinstance(multiaddrs, list) and multiaddrs:
+        return str(multiaddrs[0])
+    return None
+
+
+_SEED_PLACEHOLDER_RE = re.compile(r"<SEED_MULTIADDR_FROM_([^>]+)>")
+
+
+def _job_with_resolved_seed_multiaddr(job: dict[str, Any], state_dir: str | Path) -> dict[str, Any]:
+    """Return a job copy with seed placeholders substituted when possible.
+
+    If a follower polls before the seed reports its visible multiaddr, keep
+    the job non-executable by clearing command and marking status
+    waiting_for_seed. Bootstrap keeps heartbeating and polling until the
+    seed multiaddr is available.
+    """
+    out = dict(job)
+    command = str(out.get("command") or "")
+    unresolved: list[str] = []
+    for seed_hostname in _SEED_PLACEHOLDER_RE.findall(command):
+        replacement = _seed_multiaddr_for_host(state_dir, seed_hostname)
+        placeholder = f"<SEED_MULTIADDR_FROM_{seed_hostname}>"
+        if replacement:
+            command = command.replace(placeholder, replacement)
+        else:
+            unresolved.append(placeholder)
+    if unresolved:
+        out["status"] = "waiting_for_seed"
+        out["command"] = ""
+        out["unresolved_placeholders"] = unresolved
+        out["message"] = "waiting for seed peer to publish its libp2p multiaddr"
+        return out
+    out["command"] = command
+    out["unresolved_placeholders"] = []
+    return out
+
+
 def _save_peer_status(state_dir: str | Path, peer_id: str, status: dict[str, Any]) -> None:
     """Persist a peer's live status (downloading %, loading, serving, error)."""
     import re as _re
@@ -916,6 +1025,52 @@ def _handle_peer_status_get(query: dict[str, list[str]], *, state_dir: str | Pat
     }
 
 
+def _handle_seed_multiaddr_post(body: bytes, *, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
+    """POST /seed-multiaddr — seed peer publishes visible libp2p multiaddr(s)."""
+    try:
+        payload = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as e:
+        return 400, {"error": f"invalid JSON: {e}", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    hostname = str(payload.get("hostname") or "").strip()
+    peer_id = str(payload.get("peer_id") or "").strip() or None
+    if not hostname and peer_id:
+        # Resolve peer_id -> hostname from active heartbeat if the caller did
+        # not send hostname explicitly.
+        for hb in load_active_heartbeats(state_dir, token="*", max_age_seconds=300):
+            if hb.get("peer_id") == peer_id:
+                caps = hb.get("capabilities") or {}
+                hostname = str(caps.get("hostname") or "").strip()
+                break
+    raw_multiaddrs = payload.get("multiaddrs")
+    if isinstance(raw_multiaddrs, list):
+        multiaddrs = [str(addr) for addr in raw_multiaddrs]
+    elif payload.get("multiaddr"):
+        multiaddrs = [str(payload.get("multiaddr"))]
+    else:
+        multiaddrs = []
+    multiaddrs = [addr for addr in multiaddrs if "/p2p/" in addr]
+    if not hostname:
+        return 400, {"error": "missing hostname", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    if not multiaddrs:
+        return 400, {"error": "missing valid multiaddr containing /p2p/", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    record = _save_seed_multiaddr(
+        state_dir,
+        hostname=hostname,
+        peer_id=peer_id,
+        multiaddrs=multiaddrs,
+        job_port=_as_int(payload.get("job_port"), 0) or None,
+        model_id=payload.get("model_id"),
+    )
+    return 200, {
+        "ok": True,
+        "hostname": hostname,
+        "peer_id": peer_id,
+        "multiaddr": record.get("multiaddr"),
+        "multiaddrs": record.get("multiaddrs"),
+        "claim_boundary": "seed_multiaddr_only_no_inference_proof",
+    }
+
+
 def _load_deployment(state_dir: str | Path) -> dict[str, Any]:
     path = _deployment_path(state_dir)
     if not path.exists():
@@ -967,10 +1122,20 @@ def _handle_deploy_cancel(*, state_dir: str | Path) -> tuple[int, dict[str, Any]
             except OSError:
                 pass
 
+    cleared_seed_multiaddrs = 0
+    try:
+        _seed_multiaddrs_path(state_dir).unlink()
+        cleared_seed_multiaddrs = 1
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
     return 200, {
         "ok": True,
         "cleared_jobs": cleared_jobs,
         "cleared_peer_statuses": cleared_statuses,
+        "cleared_seed_multiaddrs": cleared_seed_multiaddrs,
         "claim_boundary": DEPLOYMENT_CLAIM_BOUNDARY,
     }
 
@@ -1007,6 +1172,13 @@ def _handle_deploy(
     device = _first(query, "launch_device", "mps") or "mps"
     dtype = _first(query, "launch_dtype", "float16") or "float16"
     base_port = _as_int(_first(query, "base_port"), 31337)
+    # New deployment means any prior seed multiaddr belongs to an old run.
+    try:
+        _seed_multiaddrs_path(state_dir).unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
     plan_with_commands = attach_launch_commands(
         plan, device=device, dtype=dtype, base_port=base_port
     )
@@ -1023,6 +1195,8 @@ def _handle_deploy(
             "port": assignment.get("port"),
             "command": assignment.get("launch_command", ""),
             "status": "queued",
+            "role": assignment.get("role"),
+            "seed_hostname": assignment.get("seed_hostname"),
         }
 
     deployment = {
@@ -1030,6 +1204,7 @@ def _handle_deploy(
         "jobs": jobs,
         "created_at": time.time(),
         "peer_count": len(jobs),
+        "seed_hostname": (plan_with_commands.get("launch_command_defaults") or {}).get("seed_hostname"),
         "claim_boundary": DEPLOYMENT_CLAIM_BOUNDARY,
     }
     _save_deployment(state_dir, deployment)
@@ -1090,11 +1265,14 @@ def _handle_job(
         return 200, {"peer_id": peer_id, "job": None, "deployed_model": deployment.get("model_id"),
                       "claim_boundary": JOB_CLAIM_BOUNDARY}
 
+    job_for_peer = _job_with_resolved_seed_multiaddr(job, state_dir)
     return 200, {
         "peer_id": peer_id,
-        "job": job,
+        "job": job_for_peer,
         "deployed_model": deployment.get("model_id"),
         "deployed_at": deployment.get("created_at"),
+        "seed_hostname": deployment.get("seed_hostname"),
+        "waiting_for_seed_multiaddr": job_for_peer.get("status") == "waiting_for_seed",
         "claim_boundary": JOB_CLAIM_BOUNDARY,
     }
 
@@ -1809,6 +1987,8 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
         return _handle_ios_draft(body, state_dir=state_dir)
     if parsed.path == "/peer-status":
         return _handle_peer_status_post(body, state_dir=state_dir)
+    if parsed.path == "/seed-multiaddr":
+        return _handle_seed_multiaddr_post(body, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 

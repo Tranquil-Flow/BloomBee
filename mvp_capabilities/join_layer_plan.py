@@ -115,8 +115,8 @@ def materialize_launch_readiness(plan: dict[str, Any]) -> dict[str, Any]:
             blocked_by.append("missing_launch_command")
         if placeholders:
             blocked_by.append("unresolved_multiaddr_placeholder")
-        role = "seed" if index == 0 else "follower"
-        if index == 0:
+        role = str(item.get("role") or ("seed" if index == 0 else "follower"))
+        if role == "seed":
             operator_steps.append(f"start seed server {hostname} and capture its announced multiaddr")
         for placeholder in placeholders:
             operator_steps.append(f"replace {placeholder} in {hostname} command before starting it")

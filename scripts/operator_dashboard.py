@@ -867,6 +867,7 @@ let deployPollInterval = null;
 // status → pill color + label. Keys must match bootstrap.py post_peer_status calls.
 const PEER_STATUS_DISPLAY = {
   queued:       {color: 'var(--muted)',  label: 'queued'},
+  waiting_for_seed: {color: 'var(--warn)', label: 'waiting for seed multiaddr'},
   downloading: {color: 'var(--warn)',   label: 'downloading'},
   loading:      {color: 'var(--warn)',   label: 'loading'},
   serving:      {color: 'var(--ok)',     label: 'serving'},

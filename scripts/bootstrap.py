@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import platform as _platform
+import re
 import uuid
 import shutil
 import socket
@@ -135,6 +136,9 @@ def scan_capabilities() -> dict[str, Any]:
         "peer_id": f"{hostname}-{uuid.getnode():x}",
         "platform": sys.platform,
         "python_version": sys.version.split()[0],
+        "python_executable": sys.executable,
+        "has_python": shutil.which("python") is not None,
+        "has_python3": shutil.which("python3") is not None,
         "cpu": {"model": cpu_model, "cores": cpu_cores},
         "memory": {"total_gb": ram_total_gb, "available_gb": ram_available_gb},
         "gpu": gpu_info,
@@ -225,6 +229,53 @@ def post_peer_status(
         pass  # best-effort
 
 
+def post_seed_multiaddr(
+    coordinator: str,
+    *,
+    hostname: str,
+    peer_id: str,
+    multiaddrs: list[str],
+    job_port: int | None = None,
+    model_id: str | None = None,
+) -> None:
+    """POST /seed-multiaddr — publish visible libp2p multiaddrs.
+
+    Best-effort. Followers poll /job until this appears, then coordinator
+    substitutes <SEED_MULTIADDR_FROM_HOST> into their launch command.
+    """
+    payload: dict[str, Any] = {
+        "hostname": hostname,
+        "peer_id": peer_id,
+        "multiaddrs": multiaddrs,
+    }
+    if job_port is not None:
+        payload["job_port"] = int(job_port)
+    if model_id:
+        payload["model_id"] = model_id
+    try:
+        req = Request(
+            f"{coordinator.rstrip('/')}/seed-multiaddr",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(req, timeout=3).read()
+    except Exception:
+        pass
+
+
+_MULTIADDR_RE = re.compile(r"(/(?:ip4|ip6|dns4|dns6|p2p-circuit)[^\\s,'\"\\]]*/p2p/[A-Za-z0-9]+)")
+
+
+def extract_multiaddrs(text: str) -> list[str]:
+    """Extract libp2p multiaddrs from BloomBee/Hivemind log text."""
+    found: list[str] = []
+    for match in _MULTIADDR_RE.findall(text):
+        if match not in found:
+            found.append(match)
+    return found
+
+
 def _heartbeat_status_thread(
     coordinator: str,
     peer_id: str,
@@ -252,22 +303,22 @@ def execute_job_command(
     cwd: str | None = None,
     coordinator: str | None = None,
     peer_id: str | None = None,
+    hostname: str | None = None,
     job_port: int | None = None,
     model_id: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a shell command for serving, posting live status to the
-    coordinator around it (downloading → loading → serving → done/error).
+    """Execute a BloomBee server command and stream status to coordinator.
 
-    The launch command itself blocks while the model is being downloaded
-    and loaded — we can't get exact progress from inside the server, so
-    we estimate: 0% on start, ramped up to 50% over the first 30s of
-    'downloading' phase, then 'loading' for the next 60s, then 'serving'
-    with a background heartbeat thread.
+    Uses Popen (not subprocess.run) so we can read server logs while the
+    long-running server is still alive. As soon as BloomBee prints its
+    visible libp2p multiaddr, the seed peer POSTs it to /seed-multiaddr;
+    follower peers keep polling /job until the coordinator substitutes it.
     """
     import threading as _threading
 
     coord: str | None = coordinator
     pid: str | None = peer_id
+    host = hostname or (peer_id.split("-", 1)[0] if peer_id else "")
     have_status = bool(coord and pid)
 
     print(f"   🚀 Executing: {command}", file=sys.stderr)
@@ -277,14 +328,14 @@ def execute_job_command(
             coord, pid,  # type: ignore[arg-type]
             status="downloading", progress=0.0,
             job_port=job_port, model_id=model_id,
-            message="Model download starting",
+            message="Model download / server startup beginning",
         )
 
     stop_progress = _threading.Event()
+    stop_serving = _threading.Event()
+    serving_thread_started = False
 
     def _progress_pump() -> None:
-        """Fake the progress bar: ramp 0% → 90% over 90s while blocking
-        on the model download/load inside the server process."""
         if not have_status:
             return
         start = time.time()
@@ -298,15 +349,13 @@ def execute_job_command(
                     coord, pid,  # type: ignore[arg-type]
                     status="loading", progress=50.0,
                     job_port=job_port, model_id=model_id,
-                    message="Loading model into memory",
+                    message="Loading model into memory / starting server",
                 )
                 posted_loading = True
-            if posted_loading and elapsed >= 60.0:
-                return
             if not posted_loading:
                 pct = min(45.0, (elapsed / 30.0) * 45.0)
             else:
-                pct = 50.0 + min(40.0, ((elapsed - 30.0) / 30.0) * 40.0)
+                pct = 50.0 + min(40.0, ((elapsed - 30.0) / 60.0) * 40.0)
             post_peer_status(
                 coord, pid,  # type: ignore[arg-type]
                 status=stage, progress=pct,
@@ -314,46 +363,89 @@ def execute_job_command(
             )
             stop_progress.wait(2.0)
 
-    progress_thread = None
     if have_status:
-        progress_thread = _threading.Thread(
-            target=_progress_pump, daemon=True,
-        )
-        progress_thread.start()
+        _threading.Thread(target=_progress_pump, daemon=True).start()
 
-    stop_serving = _threading.Event()
-    if have_status:
-        _threading.Thread(
-            target=_heartbeat_status_thread,
-            args=(coord, pid, job_port, model_id, stop_serving),  # type: ignore[arg-type]
-            daemon=True,
-        ).start()
-
+    output_lines: list[str] = []
+    posted_multiaddrs: set[str] = set()
+    detected_serving = False
+    proc: subprocess.Popen[str] | None = None
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             command,
             shell=True,
             cwd=cwd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            output_lines.append(line)
+            if len(output_lines) > 400:
+                output_lines = output_lines[-400:]
+            # Surface server logs in the peer terminal for operator debugging.
+            print("   │ " + line.rstrip(), file=sys.stderr)
+
+            multiaddrs = extract_multiaddrs(line)
+            new_multiaddrs = [addr for addr in multiaddrs if addr not in posted_multiaddrs]
+            if coord and pid and host and new_multiaddrs:
+                posted_multiaddrs.update(new_multiaddrs)
+                post_seed_multiaddr(
+                    coord,
+                    hostname=host,
+                    peer_id=pid,
+                    multiaddrs=sorted(posted_multiaddrs),
+                    job_port=job_port,
+                    model_id=model_id,
+                )
+                post_peer_status(
+                    coord, pid,
+                    status="loading", progress=90.0,
+                    job_port=job_port, model_id=model_id,
+                    message="published seed multiaddr; followers can start",
+                )
+
+            low = line.lower()
+            if any(marker in low for marker in ("running a server on", "server is running", "serving on", "listening on", "ready to serve")):
+                detected_serving = True
+                stop_progress.set()
+                if have_status:
+                    post_peer_status(
+                        coord, pid,  # type: ignore[arg-type]
+                        status="serving", progress=100.0,
+                        job_port=job_port, model_id=model_id,
+                        message="server is running",
+                    )
+                    if not serving_thread_started:
+                        _threading.Thread(
+                            target=_heartbeat_status_thread,
+                            args=(coord, pid, job_port, model_id, stop_serving),  # type: ignore[arg-type]
+                            daemon=True,
+                        ).start()
+                        serving_thread_started = True
+        return_code = proc.wait()
+    except Exception as exc:
+        stop_progress.set()
+        stop_serving.set()
+        if have_status:
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status="error", progress=None,
+                job_port=job_port, model_id=model_id,
+                message=f"launcher error: {exc}",
+            )
+        return {"command": command, "exit_code": 127, "stdout_tail": "", "stderr_tail": str(exc)}
     finally:
         stop_progress.set()
         stop_serving.set()
 
-    full_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    detected_serving = any(
-        marker in full_output.lower()
-        for marker in ("server is running", "serving on", "listening on", "ready to serve")
-    )
+    full_output = "".join(output_lines)
     if have_status:
-        if proc.returncode == 0 and detected_serving:
-            post_peer_status(
-                coord, pid,  # type: ignore[arg-type]
-                status="serving", progress=100.0,
-                job_port=job_port, model_id=model_id,
-            )
-        elif proc.returncode == 0:
+        if return_code == 0 and detected_serving:
+            post_peer_status(coord, pid, status="serving", progress=100.0, job_port=job_port, model_id=model_id)  # type: ignore[arg-type]
+        elif return_code == 0:
             post_peer_status(
                 coord, pid,  # type: ignore[arg-type]
                 status="serving", progress=100.0,
@@ -365,14 +457,14 @@ def execute_job_command(
                 coord, pid,  # type: ignore[arg-type]
                 status="error", progress=None,
                 job_port=job_port, model_id=model_id,
-                message=f"exit code {proc.returncode}",
+                message=f"exit code {return_code}",
             )
 
     return {
         "command": command,
-        "exit_code": proc.returncode,
-        "stdout_tail": proc.stdout[-2000:] if len(proc.stdout) > 2000 else proc.stdout,
-        "stderr_tail": proc.stderr[-2000:] if len(proc.stderr) > 2000 else proc.stderr,
+        "exit_code": return_code,
+        "stdout_tail": full_output[-2000:],
+        "stderr_tail": "",
     }
 
 
@@ -455,35 +547,44 @@ Examples:
                 if args.auto_serve and not job_executed:
                     poll = poll_job_for_peer(coordinator, capabilities["peer_id"])
                     job = poll.get("job")
+                    if job and job.get("status") == "waiting_for_seed":
+                        if not args.json:
+                            print("   ⏳ Job assigned; waiting for seed multiaddr...", file=sys.stderr)
+                        post_peer_status(
+                            coordinator, capabilities["peer_id"],
+                            status="waiting_for_seed", progress=None,
+                            job_port=job.get("port"),
+                            model_id=poll.get("deployed_model"),
+                            message=job.get("message") or "waiting for seed multiaddr",
+                        )
+                        continue
+                    if job and not job.get("command"):
+                        post_peer_status(
+                            coordinator, capabilities["peer_id"],
+                            status="queued", progress=None,
+                            job_port=job.get("port"),
+                            model_id=poll.get("deployed_model"),
+                            message="job assigned but command not ready yet",
+                        )
+                        continue
                     if job and job.get("command"):
                         cmd = job["command"]
-                        # Defensive: the planner inserts <SEED_MULTIADDR_FROM_...>
-                        # placeholders for non-seed peers. The real multiaddr is
-                        # only known after the seed peer starts, so the
-                        # placeholder must be substituted server-side before the
-                        # command can run. If the operator hasn't provided one,
-                        # report a clear error instead of running a command
-                        # that the shell will choke on (exit 127).
+                        # Defensive fallback for older coordinators: never run
+                        # raw shell placeholders, because <...> is redirection
+                        # syntax and fails as exit 127.
                         if "<SEED_MULTIADDR_FROM_" in cmd or "<PASTE_SERVER_" in cmd:
                             print(
-                                f"\n   ⚠️  Job for {poll.get('deployed_model','?')} has unsubstituted "
-                                f"placeholders in the launch command. This is a known limitation "
-                                f"of the MVP — non-seed peers need a real seed multiaddr which "
-                                f"is only available after the seed peer starts.\n"
-                                f"   Workaround: open the dashboard Deploy tab and run the "
-                                f"command manually after starting DemoLaptop, OR wait for a "
-                                f"future version that auto-substitutes the seed multiaddr.\n"
-                                f"   Skipping auto-execute; will keep heartbeating.",
+                                f"\n   ⏳ Job for {poll.get('deployed_model','?')} still has an unsubstituted "
+                                f"seed multiaddr placeholder; waiting for coordinator substitution.",
                                 file=sys.stderr,
                             )
                             post_peer_status(
                                 coordinator, capabilities["peer_id"],
-                                status="error", progress=None,
+                                status="waiting_for_seed", progress=None,
                                 job_port=job.get("port"),
                                 model_id=poll.get("deployed_model"),
-                                message="launch command has unsubstituted placeholder; manual deploy required",
+                                message="waiting for seed multiaddr substitution",
                             )
-                            job_executed = True  # don't retry every heartbeat
                             continue
                         print(f"\n   📦 Got job for model: {poll.get('deployed_model', '?')}", file=sys.stderr)
                         print(f"   🎯 Assigned: {job.get('role', '?')} {job.get('block_range', '')} port {job.get('port', '?')}", file=sys.stderr)
@@ -491,6 +592,7 @@ Examples:
                             cmd,
                             coordinator=coordinator,
                             peer_id=capabilities["peer_id"],
+                            hostname=capabilities["hostname"],
                             job_port=job.get("port"),
                             model_id=poll.get("deployed_model"),
                         )

@@ -2489,7 +2489,13 @@ def test_layer_planner_can_attach_exact_bloombee_server_commands():
     assert "--block_indices 0:5" in plan["assignments"][0]["launch_command"]
     assert "--block_indices 5:12" in plan["assignments"][1]["launch_command"]
     assert "--dht_prefix demo-prefix" in plan["assignments"][0]["launch_command"]
-    assert "--initial_peers '<SEED_MULTIADDR_FROM_alpha>'" in plan["assignments"][1]["launch_command"]
+    # Strongest peer (bravo: 14GB vs alpha: 10GB) is seed even though it
+    # serves the later layer range. The seed bootstraps DHT; it does not
+    # need to serve layer 0.
+    assert plan["assignments"][0]["role"] == "follower"
+    assert plan["assignments"][1]["role"] == "seed"
+    assert "--initial_peers '<SEED_MULTIADDR_FROM_bravo>'" in plan["assignments"][0]["launch_command"]
+    assert "--new_swarm" in plan["assignments"][1]["launch_command"]
     assert "BLOOMBEE_INITIAL_PEERS" not in plan["assignments"][1]["launch_command"]
 
 
@@ -2512,7 +2518,7 @@ def test_layer_planner_quantized_route_uses_base_model_and_quant_flag():
     assert plan["quant_type"] == "int8"
     assert plan["launch_command_defaults"]["route_model_id"] == "test/TwelveLayer@int8"
     assert plan["launch_command_defaults"]["launch_model_id"] == "test/TwelveLayer"
-    assert "python -m bloombee.cli.run_server test/TwelveLayer " in command
+    assert "python3 -m bloombee.cli.run_server test/TwelveLayer " in command
     assert "test/TwelveLayer@int8" not in command
     assert "--quant_type INT8" in command
     assert "--new_swarm" in command
@@ -2542,9 +2548,9 @@ def test_layer_planner_cli_can_include_launch_commands():
     assert proc.returncode == 0, proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["launch_commands_claim_boundary"] == "launch_commands_only_no_server_started"
-    assert payload["assignments"][0]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
+    assert payload["assignments"][0]["launch_command"].startswith("PYTHONPATH=.:src python3 -m bloombee.cli.run_server")
     assert "--new_swarm" in payload["assignments"][0]["launch_command"]
-    assert payload["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src python -m bloombee.cli.run_server")
+    assert payload["assignments"][1]["launch_command"].startswith("PYTHONPATH=.:src python3 -m bloombee.cli.run_server")
     assert "--initial_peers '<SEED_MULTIADDR_FROM_" in payload["assignments"][1]["launch_command"]
     assert "BLOOMBEE_INITIAL_PEERS" not in payload["assignments"][1]["launch_command"]
 
@@ -3972,6 +3978,119 @@ def test_deploy_pipeline_end_to_end_smoke(tmp_path: Path):
         thread.join(timeout=5)
 
 
+def test_deploy_jobs_wait_for_seed_multiaddr_then_substitute(tmp_path: Path):
+    """Regression for the 3-laptop deploy failure:
+    - generated commands use python3, not bare python (macOS exit 127)
+    - strongest peer becomes seed even if it is not layer 0
+    - followers do not receive raw <SEED_MULTIADDR_FROM_...> shell placeholders
+    - once seed posts its visible multiaddr, follower /job commands are substituted
+    """
+    from mvp_capabilities.join_http_server import handle_get, handle_post
+
+    state_dir = tmp_path / "join-state"
+    peers = [
+        ("Astra-Macbook-abc", "Astra-Macbook", 8),
+        ("demo-laptop", "DemoLaptop", 16),
+        ("m4pro-xyz", "m4pro", 48),
+    ]
+    for peer_id, hostname, gb in peers:
+        status, payload = handle_post(
+            "/heartbeat",
+            body=json.dumps({
+                "token": "moon-token",
+                "peer_id": peer_id,
+                "capabilities": {
+                    "hostname": hostname,
+                    "platform": "darwin",
+                    "python_version": "3.13.3",
+                    "memory": {"total_gb": gb, "available_gb": gb},
+                    "gpu": {"available": True, "backend": "mps"},
+                    "network": {"local_ip": "127.0.0.1"},
+                },
+            }).encode("utf-8"),
+            state_dir=state_dir,
+        )
+        assert status == 200, payload
+
+    status, deploy = handle_post(
+        "/deploy?model_id=Qwen/Qwen3-8B@int8&token=moon-token&max_age_seconds=60",
+        body=b"",
+        state_dir=state_dir,
+        registry=REGISTRY_PATH,
+    )
+    assert status == 200, deploy
+    assert deploy["peer_count"] == 3
+    assert deploy["seed_hostname"] == "m4pro"
+
+    jobs = deploy["jobs"]
+    assert jobs["m4pro"]["role"] == "seed"
+    assert "python3 -m bloombee.cli.run_server Qwen/Qwen3-8B " in jobs["m4pro"]["command"]
+    assert "--new_swarm" in jobs["m4pro"]["command"]
+    assert jobs["Astra-Macbook"]["role"] == "follower"
+    assert "<SEED_MULTIADDR_FROM_m4pro>" in jobs["Astra-Macbook"]["command"]
+
+    status, astra_job = handle_get(
+        "/job?peer_id=Astra-Macbook-abc",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    assert astra_job["waiting_for_seed_multiaddr"] is True
+    assert astra_job["job"]["status"] == "waiting_for_seed"
+    assert astra_job["job"]["command"] == ""
+    assert astra_job["job"]["unresolved_placeholders"] == ["<SEED_MULTIADDR_FROM_m4pro>"]
+
+    status, pipeline_before = handle_get(
+        "/pipeline",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    before = {p["hostname"]: p for p in pipeline_before["peers"]}
+    assert before["Astra-Macbook"]["status"] == "waiting_for_seed"
+    assert before["DemoLaptop"]["status"] == "waiting_for_seed"
+    assert before["m4pro"]["status"] == "queued"
+
+    seed_multiaddr = "/ip4/127.0.0.1/tcp/31339/p2p/12D3KooWm4proseed"
+    status, posted = handle_post(
+        "/seed-multiaddr",
+        body=json.dumps({
+            "hostname": "m4pro",
+            "peer_id": "m4pro-xyz",
+            "multiaddrs": [seed_multiaddr],
+            "job_port": 31339,
+            "model_id": "Qwen/Qwen3-8B@int8",
+        }).encode("utf-8"),
+        state_dir=state_dir,
+    )
+    assert status == 200, posted
+    assert posted["ok"] is True
+
+    status, astra_job = handle_get(
+        "/job?peer_id=Astra-Macbook-abc",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    assert astra_job["waiting_for_seed_multiaddr"] is False
+    assert seed_multiaddr in astra_job["job"]["command"]
+    assert "<SEED_MULTIADDR_FROM_" not in astra_job["job"]["command"]
+    assert "python3 -m bloombee.cli.run_server" in astra_job["job"]["command"]
+
+    status, pipeline_after = handle_get(
+        "/pipeline",
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:8787",
+    )
+    assert status == 200
+    after = {p["hostname"]: p for p in pipeline_after["peers"]}
+    assert after["Astra-Macbook"]["status"] == "queued"
+    assert after["DemoLaptop"]["status"] == "queued"
+    assert after["m4pro"]["status"] == "queued"
+    assert pipeline_after["seed_hostname"] == "m4pro"
+    assert pipeline_after["seed_multiaddrs"]["m4pro"]["multiaddr"] == seed_multiaddr
+
+
 def test_main_exits_zero_when_coordinator_already_running(tmp_path, monkeypatch, capsys):
     """Regression: Step 1 of Operator Quick Start used to crash with a
     stacktrace if the coordinator was already on :8787. Now main() detects
@@ -4444,7 +4563,7 @@ models:
     assert handoff["route_decision"]["serving"]["quant_type"] == "int8"
     assignment = handoff["plan"]["placement"]["assignments"][0]
     assert assignment["block_range"] == "0:48"
-    assert "python -m bloombee.cli.run_server Qwen/Qwen3-30B-A3B " in assignment["launch_command"]
+    assert "python3 -m bloombee.cli.run_server Qwen/Qwen3-30B-A3B " in assignment["launch_command"]
     assert "Qwen/Qwen3-30B-A3B@int8" not in assignment["launch_command"]
     assert "--quant_type INT8" in assignment["launch_command"]
     assert handoff["plan"]["placement"]["launch_command_defaults"]["route_model_id"] == "Qwen/Qwen3-30B-A3B@int8"
