@@ -1951,6 +1951,23 @@ def handle_get(
         return 200, _build_pipeline_snapshot(state_dir)
     if parsed.path == "/peer-status":
         return _handle_peer_status_get(query, state_dir=state_dir)
+    if parsed.path == "/servers.json":
+        # SideStore 0.5.8+ expects a server-list JSON at the URL typed
+        # into Settings → Anisette Servers.  The response must contain a
+        # top-level "servers" array of {name, address} objects.
+        # The user points SideStore at http://<lan-ip>:8787/servers.json
+        # and the coordinator returns this list pointing at the real
+        # anisette server on port 6969.
+        from urllib.parse import urlparse as _up
+        host = (_up(coordinator).hostname or "127.0.0.1") if "://" in coordinator else "127.0.0.1"
+        return 200, {
+            "servers": [
+                {
+                    "name": "BloomBee Local (m4pro)",
+                    "address": f"http://{host}:6969",
+                }
+            ]
+        }
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
