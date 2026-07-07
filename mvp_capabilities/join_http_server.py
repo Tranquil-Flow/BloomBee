@@ -28,6 +28,7 @@ try:
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.layer_planner import attach_launch_commands
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
@@ -44,6 +45,7 @@ except ModuleNotFoundError:  # direct script execution
         record_heartbeat,
     )
     from mvp_capabilities.join_layer_plan import build_join_layer_plan, parse_seed_multiaddr
+    from mvp_capabilities.layer_planner import attach_launch_commands
     from mvp_capabilities.multi_block_proof import build_multi_block_plan
     from mvp_capabilities.multi_request_load_proof import build_multi_request_load_plan
     from mvp_capabilities.proof_orchestrator import HANDOFF_EMBEDDED_SOURCE, build_proof_orchestration_plan
@@ -389,6 +391,241 @@ def _route_from_query(
     payload["inference_proven"] = False
     payload["can_update_proof_status"] = False
     return 200, payload
+
+
+def _compatible_from_query(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """Return all models compatible with the current swarm, ranked by params."""
+    token = _first(query, "token") or "*"
+    active = _active_for_query(query, state_dir=state_dir, token=token)
+    peers = _peers_from_heartbeats(active)
+    if not peers:
+        return 200, {
+            "compatible_models": [],
+            "best_model": None,
+            "peer_count": 0,
+            "total_free_gb": 0.0,
+            "claim_boundary": "compatible_models_only_no_inference_proof",
+            "source": "compatible_endpoint",
+        }
+
+    registry_models = load_registry(registry)
+    total_free_gb = 0.0
+    for p in peers:
+        mem = p.get("memory", {})
+        gb = _as_float(mem.get("free_gb"), 0) or _as_float(mem.get("available_gb"), 0) or _as_float(mem.get("total_gb"), 0)
+        # Also check accelerator VRAM on unified-memory Macs
+        acc = p.get("accelerator", {})
+        if gb == 0 and acc.get("unified_memory"):
+            gb = _as_float(acc.get("vram_free_gb"), 0) or _as_float(mem.get("total_gb"), 0)
+        total_free_gb += gb
+
+    compatible: list[dict[str, Any]] = []
+    best_model: dict[str, Any] | None = None
+    best_score = 0.0
+
+    for model in registry_models:
+        model_id = str(model.get("model_id", ""))
+        if not model_id:
+            continue
+        params_b = _as_float(model.get("params_b"), 0) or _as_float(model.get("active_params_b"), 0)
+        required_gb = _as_float(model.get("recommended_min_free_mem_gb"), 0) or _as_float(model.get("min_total_mem_gb"), 0) or (params_b * 2 + 2)
+        if model.get("architecture_supported") is False and model.get("blocked_reasons"):
+            continue  # only skip models with explicit blocking reasons
+
+        if total_free_gb >= required_gb:
+            status = "compatible"
+        elif any(
+            (_as_float(p.get("memory", {}).get("available_gb"), 0)
+             or _as_float(p.get("memory", {}).get("total_gb"), 0)) >= required_gb
+            for p in peers
+        ):
+            status = "single_peer"
+        else:
+            status = "insufficient"
+
+        num_layers = int(model.get("num_layers", 0))
+        score = params_b
+        entry = {
+            "model_id": model_id,
+            "params_b": params_b,
+            "active_params_b": _as_float(model.get("active_params_b"), 0) or params_b,
+            "num_layers": num_layers,
+            "required_gb": required_gb,
+            "hidden_size": model.get("hidden_size"),
+            "supports_moe": bool(model.get("supports_moe")),
+            "status": status,
+        }
+        if status == "compatible":
+            if score > best_score:
+                best_score = score
+                best_model = entry
+            compatible.insert(0, entry)
+        else:
+            compatible.append(entry)
+
+    return 200, {
+        "compatible_models": compatible,
+        "best_model": best_model,
+        "peer_count": len(peers),
+        "total_free_gb": round(total_free_gb, 1),
+        "claim_boundary": "compatible_models_only_no_inference_proof",
+        "source": "compatible_endpoint",
+    }
+
+
+# ── Deployment state (peer_id → job) ──────────────────────────────────────────
+
+DEPLOYMENT_CLAIM_BOUNDARY = "deployment_plan_only_no_server_started"
+JOB_CLAIM_BOUNDARY = "job_assignment_only_no_server_started"
+
+
+def _deployment_path(state_dir: str | Path) -> Path:
+    return Path(state_dir).expanduser() / "deployment.json"
+
+
+def _load_deployment(state_dir: str | Path) -> dict[str, Any]:
+    path = _deployment_path(state_dir)
+    if not path.exists():
+        return {"model_id": None, "jobs": {}, "created_at": None}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"model_id": None, "jobs": {}, "created_at": None}
+
+
+def _save_deployment(state_dir: str | Path, deployment: dict[str, Any]) -> None:
+    path = _deployment_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(deployment, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _handle_deploy(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    registry: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """POST /deploy — generate plan + assign jobs to all connected peers."""
+    model_id = _first(query, "model_id") or _first(query, "model")
+    if not model_id:
+        return 400, {"error": "missing model_id", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    token = _first(query, "token") or "*"
+
+    # _handle_plan expects "model" in query; inject model_id there
+    query = dict(query, model=[model_id])
+
+    # Generate plan with launch commands
+    plan_status, plan_payload = _handle_plan(query, state_dir=state_dir, registry=registry)
+    if plan_status != 200:
+        return plan_status, plan_payload
+
+    plan = plan_payload.get("placement", {})
+    if not plan.get("supported"):
+        return 409, {
+            "error": "Plan does not cover all layers",
+            "plan_summary": plan.get("reason"),
+            "claim_boundary": DEPLOYMENT_CLAIM_BOUNDARY,
+        }
+
+    # Attach launch commands to the plan
+    device = _first(query, "launch_device", "mps") or "mps"
+    dtype = _first(query, "launch_dtype", "float16") or "float16"
+    base_port = _as_int(_first(query, "base_port"), 31337)
+    plan_with_commands = attach_launch_commands(
+        plan, device=device, dtype=dtype, base_port=base_port
+    )
+
+    # Build deployment state: map hostname → job
+    jobs: dict[str, Any] = {}
+    for assignment in plan_with_commands.get("assignments") or []:
+        hostname = str(assignment.get("hostname") or "unknown")
+        jobs[hostname] = {
+            "model_id": model_id,
+            "block_indices": assignment.get("block_range", ""),
+            "start_layer": assignment.get("start_layer"),
+            "end_layer": assignment.get("end_layer"),
+            "port": assignment.get("port"),
+            "command": assignment.get("launch_command", ""),
+            "status": "queued",
+        }
+
+    deployment = {
+        "model_id": model_id,
+        "jobs": jobs,
+        "created_at": time.time(),
+        "peer_count": len(jobs),
+        "claim_boundary": DEPLOYMENT_CLAIM_BOUNDARY,
+    }
+    _save_deployment(state_dir, deployment)
+
+    return 200, deployment
+
+
+def _match_job_for_peer(peer_id: str, jobs: dict[str, Any], state_dir: str | Path) -> dict[str, Any] | None:
+    """Match a peer_id to a deployment job, using hostname resolution as fallback."""
+    # 1) exact match
+    if peer_id in jobs:
+        return jobs[peer_id]
+
+    # 2) case-insensitive / prefix match
+    peer_lower = peer_id.lower()
+    for key, val in jobs.items():
+        key_lower = key.lower()
+        if peer_lower == key_lower or peer_lower.startswith(key_lower) or key_lower.startswith(peer_lower):
+            return val
+
+    # 3) resolve peer_id → hostname via heartbeat, then match by hostname
+    active = load_active_heartbeats(state_dir, token="*", max_age_seconds=300)
+    for hb in active:
+        if hb.get("peer_id") == peer_id:
+            caps = hb.get("capabilities", {})
+            hostname = str(caps.get("hostname") or "")
+            if hostname and hostname in jobs:
+                return jobs[hostname]
+            # also try case-insensitive hostname match
+            hostname_lower = hostname.lower()
+            for key, val in jobs.items():
+                if key.lower() == hostname_lower:
+                    return val
+
+    return None
+
+
+def _handle_job(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """GET /job?peer_id=X — return this peer's assigned job, or null."""
+    peer_id = _first(query, "peer_id")
+    if not peer_id:
+        return 400, {"error": "missing peer_id", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    deployment = _load_deployment(state_dir)
+    jobs = deployment.get("jobs", {})
+
+    # Match by peer_id (which is hostname-based in our bootstrap).
+    # 1) exact match on peer_id key
+    # 2) case-insensitive / prefix match
+    # 3) resolve peer_id → hostname via heartbeat, then match by hostname
+    job = _match_job_for_peer(peer_id, jobs, state_dir)
+
+    if job is None:
+        return 200, {"peer_id": peer_id, "job": None, "deployed_model": deployment.get("model_id"),
+                      "claim_boundary": JOB_CLAIM_BOUNDARY}
+
+    return 200, {
+        "peer_id": peer_id,
+        "job": job,
+        "deployed_model": deployment.get("model_id"),
+        "deployed_at": deployment.get("created_at"),
+        "claim_boundary": JOB_CLAIM_BOUNDARY,
+    }
 
 
 def _handle_speculative(
@@ -888,6 +1125,8 @@ def handle_get(
         }
     if parsed.path == "/route":
         return _route_from_query(query, state_dir=state_dir, registry=registry)
+    if parsed.path == "/compatible":
+        return _compatible_from_query(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/speculative":
         return _handle_speculative(query, state_dir=state_dir, registry=registry)
     if parsed.path == "/plan":
@@ -896,31 +1135,35 @@ def handle_get(
         return _handle_handoff(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
     if parsed.path == "/proof-orchestration":
         return _handle_proof_orchestration(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
+    if parsed.path == "/job":
+        return _handle_job(query, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
-def handle_post(path: str, *, body: bytes, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
+def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str | Path = DEFAULT_REGISTRY) -> tuple[int, dict[str, Any]]:
     parsed = urlparse(path)
     query = parse_qs(parsed.query)
-    if parsed.path != "/heartbeat":
-        return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
-    try:
-        payload = json.loads(body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return 400, {"error": "invalid json", "claim_boundary": ERROR_CLAIM_BOUNDARY}
-    token = payload.get("token")
-    peer_id = payload.get("peer_id")
-    capabilities = payload.get("capabilities")
-    if not token or not peer_id or not isinstance(capabilities, dict):
-        return 400, {"error": "missing required heartbeat fields", "claim_boundary": ERROR_CLAIM_BOUNDARY}
-    heartbeat_now = payload.get("now") if _as_bool(_first(query, "allow_client_now_for_tests")) else None
-    return 200, record_heartbeat(
-        state_dir,
-        token=str(token),
-        peer_id=str(peer_id),
-        capabilities=capabilities,
-        now=heartbeat_now,
-    )
+    if parsed.path == "/heartbeat":
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return 400, {"error": "invalid json", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        token = payload.get("token")
+        peer_id = payload.get("peer_id")
+        capabilities = payload.get("capabilities")
+        if not token or not peer_id or not isinstance(capabilities, dict):
+            return 400, {"error": "missing required heartbeat fields", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        heartbeat_now = payload.get("now") if _as_bool(_first(query, "allow_client_now_for_tests")) else None
+        return 200, record_heartbeat(
+            state_dir,
+            token=str(token),
+            peer_id=str(peer_id),
+            capabilities=capabilities,
+            now=heartbeat_now,
+        )
+    if parsed.path == "/deploy":
+        return _handle_deploy(query, state_dir=state_dir, registry=registry)
+    return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
 class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
@@ -1012,7 +1255,7 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._send_error_json(400, "invalid content length")
             return
-        status, payload = handle_post(self.path, body=self.rfile.read(length), state_dir=self.server.state_dir)
+        status, payload = handle_post(self.path, body=self.rfile.read(length), state_dir=self.server.state_dir, registry=self.server.registry)
         self._send_json(status, payload)
 
 
