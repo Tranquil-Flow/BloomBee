@@ -860,7 +860,13 @@ python3 scripts/operator_dashboard.py __BSLASH__
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;"><strong>4a. iOS gateway</strong> — bridges iPhone HTTP/JSON drafts to the coordinator</p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre>cd ~/Projects/bloombee-ios-gateway
-/opt/homebrew/bin/python3 gateway/server.py --host 0.0.0.0 --port 8432</pre>
+PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
+  --host 0.0.0.0 --port 8432</pre>
+    <p style="color:var(--muted);font-size:10px;margin-top:4px;">
+      ℹ️ Gateway is idempotent — re-running while it's already up prints
+      <code>ALREADY RUNNING</code> and exits 0. <code>PYTHONPATH=.</code> required so
+      <code>gateway.bloombee_adapter</code> imports cleanly.
+    </p>
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4b. Anisette signing</strong> — lets iPhones install the IPA without Apple's $99/yr fee.
       Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
