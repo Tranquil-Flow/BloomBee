@@ -1175,7 +1175,10 @@ docker run -d --name anisette --restart unless-stopped __BSLASH__
 </body>
 </html>"""
     # Restore literal backslash-newline in shell commands (see comment above).
-    return html_body.replace("__BSLASH__", "\\\n")
+    # The placeholder spans the line break so we don't end up with a blank
+    # line between the `\` and the continuation argument (e.g. `\` + blank
+    # line + `--host` makes zsh treat `--host` as a separate command).
+    return html_body.replace("__BSLASH__\n", "\\\n")
 
 
 def main() -> None:
