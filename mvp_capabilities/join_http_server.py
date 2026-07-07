@@ -482,6 +482,101 @@ def _compatible_from_query(
 
 DEPLOYMENT_CLAIM_BOUNDARY = "deployment_plan_only_no_server_started"
 JOB_CLAIM_BOUNDARY = "job_assignment_only_no_server_started"
+INFER_CLAIM_BOUNDARY = "inference_coordination_only_no_actual_inference"
+
+
+def _handle_infer(
+    body: bytes,
+    *,
+    state_dir: str | Path,
+) -> tuple[int, dict[str, Any]]:
+    """POST /infer — check deployment readiness and return inference plan."""
+    try:
+        req = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return 400, {"error": "invalid json", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    model_id = req.get("model_id") or req.get("model")
+    prompt = req.get("prompt", "")
+    max_tokens = req.get("max_tokens", 128)
+
+    if not model_id:
+        return 400, {"error": "missing model_id", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+    if not prompt:
+        return 400, {"error": "missing prompt", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+
+    deployment = _load_deployment(state_dir)
+    jobs = deployment.get("jobs", {})
+
+    if not jobs:
+        return 409, {
+            "error": "No deployment found. Deploy a model first via POST /deploy.",
+            "claim_boundary": INFER_CLAIM_BOUNDARY,
+        }
+
+    deployed_model = deployment.get("model_id")
+    if deployed_model != model_id:
+        return 409, {
+            "error": f"Deployed model is '{deployed_model}', requested '{model_id}'. Deploy the requested model first.",
+            "claim_boundary": INFER_CLAIM_BOUNDARY,
+        }
+
+    # Check which peers are serving (via heartbeat status)
+    active = load_active_heartbeats(state_dir, token="*", max_age_seconds=300)
+    serving_peers: list[dict[str, Any]] = []
+    all_peers: list[dict[str, Any]] = []
+    for hb in active:
+        peer_id = str(hb.get("peer_id", ""))
+        caps = hb.get("capabilities", {})
+        hostname = str(caps.get("hostname", peer_id))
+        status = caps.get("status", hb.get("status", "unknown"))
+        all_peers.append({"peer_id": peer_id, "hostname": hostname, "status": status})
+        if status == "serving":
+            serving_peers.append({"peer_id": peer_id, "hostname": hostname})
+
+    job_hostnames = set(jobs.keys())
+    serving_hostnames = {p["hostname"] for p in serving_peers}
+    ready = job_hostnames.issubset(serving_hostnames)
+
+    # Build inference run command
+    commands: list[str] = []
+    for job_hostname, job in jobs.items():
+        cmd = job.get("command", "")
+        if cmd:
+            commands.append(f"# On {job_hostname}:\n{cmd}")
+
+    inference_cmd = (
+        "python scripts/direct_remote_call.py \\\n"
+        f"  --model {model_id} \\\n"
+        f'  --prompt "{prompt[:100]}"\n'
+        "# (requires BloomBee venv with torch + hivemind)"
+    )
+
+    return 200, {
+        "ready": ready,
+        "model_id": model_id,
+        "prompt": prompt[:200],
+        "max_tokens": max_tokens,
+        "peer_count": len(jobs),
+        "serving_count": len(serving_peers),
+        "peers": all_peers,
+        "deployed_jobs": {
+            hostname: {
+                "block_indices": job.get("block_indices"),
+                "status": job.get("status"),
+                "command": job.get("command", ""),
+            }
+            for hostname, job in jobs.items()
+        },
+        "inference_command": inference_cmd if ready else None,
+        "server_commands": commands if not ready else None,
+        "next_step": (
+            "All peers serving — run the inference_command on the coordinator machine."
+            if ready
+            else f"Start servers first: {len(job_hostnames - serving_hostnames)} peer(s) not serving. Run the server_commands on each peer."
+        ),
+        "claim_boundary": INFER_CLAIM_BOUNDARY,
+    }
 
 
 def _deployment_path(state_dir: str | Path) -> Path:
@@ -1163,6 +1258,8 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
         )
     if parsed.path == "/deploy":
         return _handle_deploy(query, state_dir=state_dir, registry=registry)
+    if parsed.path == "/infer":
+        return _handle_infer(body, state_dir=state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 

@@ -443,13 +443,27 @@ async function runInference() {
 
     if (resp.ok) {
       const result = await resp.json();
-      outText.textContent = result.output_text || result.text || JSON.stringify(result, null, 2);
+      if (result.ready) {
+        outText.textContent = '✓ Swarm ready for inference!\n\n' +
+          result.serving_count + '/' + result.peer_count + ' peers serving\n\n' +
+          'Run command:\n' + (result.inference_command || '(no command)');
+        outStats.innerHTML = '<span class="badge ok">ready</span> · ' +
+          result.serving_count + ' peers serving · model: ' + esc(sel.value.split('/').pop());
+      } else {
+        outText.textContent = '⚠️ Swarm not ready for inference.\n\n' +
+          result.serving_count + '/' + result.peer_count + ' peers serving.\n\n' +
+          'Next step: ' + (result.next_step || 'Start servers first.') + '\n\n' +
+          'Server commands:\n' + (result.server_commands || []).join('\n\n');
+        outStats.innerHTML = '<span class="badge warn">not ready</span> · ' +
+          result.serving_count + '/' + result.peer_count + ' serving';
+      }
       const tokCount = result.tokens_generated || result.output_tokens || '?';
-      outStats.innerHTML = '<span class="badge ok">' + dt + 's</span> · ' +
-        tokCount + ' tokens · model: ' + esc(sel.value.split('/').pop());
-    } else if (resp.status === 404) {
-      outText.textContent = '⚠️ Inference endpoint is not yet available.\n\nThe /infer endpoint will be built in Phase 4 — the coordinator currently plans but does not execute inference.\n\nOnce built, this UI is ready: it sends {model_id, prompt, max_tokens} to POST /infer and displays the result here.';
-      outStats.innerHTML = '<span class="badge warn">endpoint not built yet</span> · UI wired and ready';
+    } else if (resp.status === 409 || resp.status === 400) {
+      const err = await resp.json();
+      outText.textContent = '⚠️ ' + (err.error || 'Cannot infer');
+      if (err.next_step) outText.textContent += '\n\n' + err.next_step;
+      if (err.server_commands) outText.textContent += '\n\nServer commands:\n' + err.server_commands.join('\n\n');
+      outStats.innerHTML = '<span class="badge warn">' + (err.error || 'not ready') + '</span>';
     } else {
       const err = await resp.text();
       throw new Error(err || resp.statusText);
