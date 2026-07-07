@@ -1365,6 +1365,9 @@ def handle_get(
             for path in sorted(Path(state_dir).expanduser().glob("*.json")):
                 try:
                     payload = json.loads(path.read_text(encoding="utf-8"))
+                    # Skip non-heartbeat files (deployment.json, etc.)
+                    if "peer_id" not in payload and "timestamp" not in payload:
+                        continue
                     age = (now or int(time.time())) - int(payload.get("timestamp", 0))
                     if 0 <= age <= max_age:
                         all_peers.append(payload)
