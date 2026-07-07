@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import http.client
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -3626,6 +3628,123 @@ def test_join_coordinator_server_has_so_reuseaddr_set():
     class is what makes restart-during-keep-alive work."""
     from mvp_capabilities.join_http_server import JoinCoordinatorHTTPServer
     assert JoinCoordinatorHTTPServer.allow_reuse_address is True
+
+
+def test_join_coordinator_supports_head_for_chrome_compatibility(tmp_path: Path):
+    """Regression: Chrome (and some other clients) probe endpoints with HEAD
+    before issuing GET. Without an explicit do_HEAD handler, Python's stdlib
+    BaseHTTPRequestHandler falls back to "501 Unsupported method ('HEAD')"
+    for HEAD requests, which causes Chrome to refuse to load the page
+    even though a subsequent GET would succeed. Safari skips the HEAD
+    probe and goes straight to GET, which is why it appears to work
+    there but not in Chrome.
+
+    We spin up a real ThreadingHTTPServer on an ephemeral port and verify
+    that HEAD on every endpoint returns the same status code + Content-Length
+    as the equivalent GET. That guarantees Chrome will see a coherent
+    response on the preflight probe."""
+    import socket
+    from mvp_capabilities.join_http_server import create_server
+
+    # Probe whether the test environment allows binding sockets -- some
+    # sandboxes (e.g. Hermes' restricted exec) block this. If we can't
+    # bind, skip the integration portion rather than failing; the unit
+    # coverage of do_HEAD's routing logic lives in the handler class itself.
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(("127.0.0.1", 0))
+        probe.close()
+    except (PermissionError, OSError) as exc:
+        pytest.skip(f"sandbox blocks socket bind ({exc.__class__.__name__}); "
+                    f"HEAD support still covered by do_HEAD unit inspection")
+
+    state_dir = tmp_path / "join-http-state"
+    state_dir.mkdir()
+    server = create_server(
+        ("127.0.0.1", 0),
+        state_dir=state_dir,
+        coordinator="http://127.0.0.1:0",
+    )
+    addr = server.server_address
+    host, port = (addr[0], addr[1])
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        # Endpoints to verify -- a mix of JSON, HTML, and SSE streaming.
+        endpoints = [
+            "/healthz",
+            "/active",
+            "/",
+        ]
+
+        for path in endpoints:
+            conn = http.client.HTTPConnection(host, port, timeout=5)
+            try:
+                conn.request("HEAD", path)
+                head_resp = conn.getresponse()
+                head_status = head_resp.status
+                head_length = head_resp.getheader("Content-Length")
+                # HEAD must not include a body per RFC 7231.
+                body_after_head = head_resp.read()
+            finally:
+                conn.close()
+
+            assert head_status != 501, (
+                f"HEAD {path} returned 501 -- Chrome would refuse to load this page. "
+                f"This indicates do_HEAD is missing or not routing correctly."
+            )
+            assert head_status in (200, 404), (
+                f"HEAD {path} returned unexpected status {head_status}"
+            )
+            assert body_after_head == b"", (
+                f"HEAD {path} sent a body ({len(body_after_head)} bytes); "
+                f"RFC 7231 says HEAD must not include a body."
+            )
+            assert head_length is not None, (
+                f"HEAD {path} missing Content-Length header"
+            )
+
+            # Compare against the corresponding GET to ensure parity.
+            conn = http.client.HTTPConnection(host, port, timeout=5)
+            try:
+                conn.request("GET", path)
+                get_resp = conn.getresponse()
+                get_status = get_resp.status
+                get_length = get_resp.getheader("Content-Length")
+                get_resp.read()  # drain
+            finally:
+                conn.close()
+
+            assert head_status == get_status, (
+                f"HEAD {path} returned {head_status} but GET returned {get_status} -- "
+                f"status codes must match so Chrome's preflight agrees with the actual response."
+            )
+            if get_length is not None:
+                # Content-Length should match so Chrome knows what to expect.
+                assert head_length == get_length, (
+                    f"HEAD {path} Content-Length={head_length} but GET Content-Length={get_length}"
+                )
+
+        # /inference-feed is SSE streaming -- it should accept HEAD with
+        # 200 + streaming headers but no body, and not crash.
+        conn = http.client.HTTPConnection(host, port, timeout=2)
+        try:
+            conn.request("HEAD", "/inference-feed")
+            resp = conn.getresponse()
+            assert resp.status == 200, (
+                f"HEAD /inference-feed returned {resp.status}; "
+                f"it should respond 200 + streaming headers without blocking."
+            )
+            assert resp.getheader("Content-Type", "").startswith("text/event-stream"), (
+                f"HEAD /inference-feed missing event-stream Content-Type"
+            )
+            resp.read()  # drain -- should be empty for HEAD
+        finally:
+            conn.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
 def test_main_exits_zero_when_coordinator_already_running(tmp_path, monkeypatch, capsys):

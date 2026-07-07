@@ -1838,6 +1838,61 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def do_HEAD(self) -> None:  # noqa: N802 - stdlib API
+        # Chrome (and some other clients) issue a HEAD request before GET
+        # to probe the endpoint. Without this handler, Python's stdlib
+        # falls back to "501 Unsupported method ('HEAD')" and Chrome
+        # refuses to load the page even though a subsequent GET would
+        # succeed. Safari happens to skip the HEAD probe and goes
+        # straight to GET, which is why it works while Chrome doesn't.
+        #
+        # We mirror do_GET's routing logic so every endpoint supports
+        # HEAD automatically, but we only emit headers -- no body.
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+
+        # SSE streaming endpoint has no meaningful HEAD semantics;
+        # respond with 200 + streaming headers so the client knows
+        # the path is reachable, then close.
+        if parsed.path == "/inference-feed":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            return
+
+        text_response = handle_get_text(
+            self.path,
+            state_dir=self.server.state_dir,
+            coordinator=self.server.coordinator,
+            registry=self.server.registry,
+        )
+        if text_response is not None:
+            status, content_type, body = text_response
+            self.send_response(status)
+            self._send_cors_headers()
+            self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return
+        status, payload = handle_get(
+            self.path,
+            state_dir=self.server.state_dir,
+            coordinator=self.server.coordinator,
+            registry=self.server.registry,
+            started_at=getattr(self.server, "started_at", None),
+        )
+        body_bytes = _json_bytes(payload)
+        self.send_response(status)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body_bytes)))
+        self.end_headers()
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib API
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
