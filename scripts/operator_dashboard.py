@@ -456,8 +456,10 @@ function generateQR(url) {
   renderQR(landingUrl, 'live');
   if (input) input.value = landingUrl;
   if (linkBox) linkBox.style.display = 'block';
-  document.getElementById('offer-url').textContent = landingUrl;
-  document.getElementById('offer-expires').textContent = 'no expiry';
+  const offerUrlEl = document.getElementById('offer-url');
+  if (offerUrlEl) offerUrlEl.textContent = landingUrl;
+  const offerExpiresEl = document.getElementById('offer-expires');
+  if (offerExpiresEl) offerExpiresEl.textContent = 'no expiry';
 
   // Update the info box URL
   const landingEl = document.getElementById('coord-landing-url');
@@ -755,10 +757,10 @@ async function loadCompatible() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  generateQR();
-  updateOperatorCommands();
-  checkCoordinator();
-  checkOrchestratorStatus();
+  try { generateQR(); } catch(e) { console.error('generateQR failed:', e); }
+  try { updateOperatorCommands(); } catch(e) { console.error('updateOperatorCommands failed:', e); }
+  try { checkCoordinator(); } catch(e) { console.error('checkCoordinator failed:', e); }
+  try { checkOrchestratorStatus(); } catch(e) { console.error('checkOrchestratorStatus failed:', e); }
   setInterval(() => {
     const liveTab = document.getElementById('tab-live');
     const runbookTab = document.getElementById('tab-runbook');
