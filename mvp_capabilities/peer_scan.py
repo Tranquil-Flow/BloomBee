@@ -246,9 +246,13 @@ def detect_memory() -> dict[str, Any]:
         import psutil  # type: ignore
 
         vm = psutil.virtual_memory()
-        total_gb = round(vm.total / (1024**3), 2)
-        free_gb = round(vm.available / (1024**3), 2)
+        total_gb = round(vm.total / (1024**3), 2) if vm.total > 0 else None
+        free_gb = round(vm.available / (1024**3), 2) if vm.available > 0 else None
     except ImportError:
+        pass
+
+    # Platform-specific fallbacks when psutil returns 0 or is unavailable
+    if total_gb is None or total_gb == 0:
         if sys.platform == "darwin":
             try:
                 out = subprocess.run(
@@ -261,32 +265,32 @@ def detect_memory() -> dict[str, Any]:
             except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
                 pass
         elif sys.platform.startswith("linux"):
-                try:
-                    with open("/proc/meminfo") as f:
-                        meminfo = {}
-                        for line in f:
-                            k, _, v = line.partition(":")
-                            meminfo[k.strip()] = v.strip()
-                    # Use the unit-tolerant parser: handles "11899328 kB", "11899328 KB",
-                    # "11899328" (unitless), and rare "bytes" / "MB" variants seen on
-                    # some Android kernels and Termux builds.
-                    if "MemTotal" in meminfo:
-                        kb = _parse_meminfo_total_kb(meminfo["MemTotal"])
-                        if kb is not None:
-                            total_gb = round(kb / (1024**2), 2)
-                    if "MemAvailable" in meminfo:
-                        kb = _parse_meminfo_total_kb(meminfo["MemAvailable"])
-                        if kb is not None:
-                            free_gb = round(kb / (1024**2), 2)
-                    elif "MemFree" in meminfo:
-                        # Some Android kernels omit MemAvailable entirely. MemFree alone
-                        # understates available RAM (excludes reclaimable cache), but is
-                        # still better than 0.0.
-                        kb = _parse_meminfo_total_kb(meminfo["MemFree"])
-                        if kb is not None:
-                            free_gb = round(kb / (1024**2), 2)
-                except (OSError, ValueError, IndexError):
-                    pass
+            try:
+                with open("/proc/meminfo") as f:
+                    meminfo = {}
+                    for line in f:
+                        k, _, v = line.partition(":")
+                        meminfo[k.strip()] = v.strip()
+                # Use the unit-tolerant parser: handles "11899328 kB", "11899328 KB",
+                # "11899328" (unitless), and rare "bytes" / "MB" variants seen on
+                # some Android kernels and Termux builds.
+                if "MemTotal" in meminfo:
+                    kb = _parse_meminfo_total_kb(meminfo["MemTotal"])
+                    if kb is not None:
+                        total_gb = round(kb / (1024**2), 2)
+                if "MemAvailable" in meminfo:
+                    kb = _parse_meminfo_total_kb(meminfo["MemAvailable"])
+                    if kb is not None:
+                        free_gb = round(kb / (1024**2), 2)
+                elif "MemFree" in meminfo:
+                    # Some Android kernels omit MemAvailable entirely. MemFree alone
+                    # understates available RAM (excludes reclaimable cache), but is
+                    # still better than 0.0.
+                    kb = _parse_meminfo_total_kb(meminfo["MemFree"])
+                    if kb is not None:
+                        free_gb = round(kb / (1024**2), 2)
+            except (OSError, ValueError, IndexError):
+                pass
 
     return {"total_gb": total_gb, "free_gb": free_gb}
 

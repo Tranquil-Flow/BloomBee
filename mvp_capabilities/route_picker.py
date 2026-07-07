@@ -226,7 +226,11 @@ def expand_quantized_variants(registry: list[dict[str, Any]]) -> list[dict[str, 
         annotated = _annotate_architecture_support(dict(model))
         if annotated.get("architecture_supported") is False:
             continue
-        if annotated.get("blocked_reasons"):
+        # Only skip models with architecture-level blocks (no wrapper registered),
+        # not proof-level ones. Proof failures shouldn't prevent showing quantized
+        # memory requirements.
+        arch_blocks = [r for r in (annotated.get("blocked_reasons") or []) if "no bloom bee block wrapper registered" in r.lower()]
+        if arch_blocks:
             continue
         if _quant_type_for(annotated):
             continue  # already a quantized variant; do not stack suffixes

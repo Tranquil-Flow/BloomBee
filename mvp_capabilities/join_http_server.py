@@ -227,11 +227,12 @@ def build_bootstrap_runbook(
             'mkdir -p "$(dirname "$CAP_PATH")"',
             "",
             'python mvp_capabilities/peer_scan.py --out "$CAP_PATH"',
-            "python mvp_capabilities/join_client.py "
+            f"python mvp_capabilities/join_client.py "
             f"--join-url {shlex.quote(join_url)} "
             '--capabilities "$CAP_PATH" '
             f"--count {bounded_count} "
-            f"--interval-seconds {interval_text}",
+            f"--interval-seconds {interval_text} "
+            "--auto-serve",
             "",
         ]
     )
@@ -521,7 +522,7 @@ def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
             "hostname": hostname,
             "peer_id": peer_id,
             "platform": caps.get("platform", "unknown"),
-            "role": caps.get("role", "compute"),
+            "role": "draft" if mem_total == 0 else caps.get("role", "compute"),
             "block_range": job.get("block_indices", "") if job else "",
             "start_layer": job.get("start_layer") if job else None,
             "end_layer": job.get("end_layer") if job else None,
