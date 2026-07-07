@@ -200,6 +200,67 @@ def _shell_number(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else str(value)
 
 
+def _detect_lan_ip() -> str | None:
+    """Return the primary LAN IPv4 address, or None if detection fails.
+
+    Used when binding on 0.0.0.0 so the public coordinator URL (page,
+    QR code, join offers) points at an address browsers can actually
+    reach instead of the non-routable 0.0.0.0 bind address.
+    """
+    import socket as _socket
+    import subprocess as _sp
+    # macOS: ipconfig getifaddr en0 is the most reliable en0 path
+    if _socket.gethostname().endswith(".local") or _sys_platform() == "darwin":
+        try:
+            out = _sp.check_output(
+                ["ipconfig", "getifaddr", "en0"],
+                timeout=2, text=True, stderr=_sp.DEVNULL,
+            ).strip()
+            if out and _looks_like_ipv4(out):
+                return out
+        except Exception:
+            pass
+    # Linux: hostname -I (multiple IPs possible; take first IPv4)
+    try:
+        out = _sp.check_output(
+            ["hostname", "-I"], timeout=2, text=True, stderr=_sp.DEVNULL,
+        ).strip()
+        for token in out.split():
+            if _looks_like_ipv4(token):
+                return token
+    except Exception:
+        pass
+    # Cross-platform fallback: open a UDP socket and read the route address.
+    # We don't actually send anything — just let the kernel pick the iface.
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+        if ip and _looks_like_ipv4(ip) and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+    return None
+
+
+def _sys_platform() -> str:
+    import sys as _sys
+    return _sys.platform
+
+
+def _looks_like_ipv4(s: str) -> bool:
+    parts = s.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(p) <= 255 for p in parts)
+    except ValueError:
+        return False
+
+
 def build_bootstrap_runbook(
     *,
     coordinator: str,
@@ -1773,6 +1834,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--coordinator", default=None, help="Public coordinator URL embedded in join offers")
     parser.add_argument("--registry", default=str(DEFAULT_REGISTRY), help="Model registry for /plan endpoint")
     args = parser.parse_args(argv)
+
+    # If binding on a non-routable address (0.0.0.0, ::) and no explicit
+    # --coordinator was given, auto-detect the LAN IP so the page/offer/QR
+    # point at an address the browser can actually reach.
+    if not args.coordinator and args.host in ("0.0.0.0", "", "::"):
+        lan_ip = _detect_lan_ip()
+        args.coordinator = f"http://{lan_ip}:{args.port}" if lan_ip else f"http://127.0.0.1:{args.port}"
 
     coordinator = args.coordinator or f"http://{args.host}:{args.port}"
 
