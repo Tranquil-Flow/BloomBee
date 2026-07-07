@@ -12,6 +12,7 @@ import argparse
 import json
 import shlex
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -611,6 +612,188 @@ def _bootstrap_from_query(query: dict[str, list[str]], *, coordinator: str) -> t
     )
 
 
+def _landing_html(coordinator: str) -> str:
+    """Return the HTML landing page served at GET /."""
+    coord_esc = coordinator.rstrip("/")
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join BloomBee Swarm</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+:root{{color-scheme:dark;--bg:#07111f;--panel:#0d1b2f;--line:#2a4b73;--text:#e9f3ff;--muted:#95acc8;--ok:#58d68d;--accent:#7dd3fc;--moon:#b9ccff}}
+*{{box-sizing:border-box;margin:0}}
+body{{font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:radial-gradient(circle at 20% -10%,#233e73 0,transparent 34%),var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 16px}}
+.card{{background:linear-gradient(180deg,rgba(18,39,68,.96),rgba(13,27,47,.96));border:1px solid var(--line);border-radius:18px;padding:32px;max-width:580px;width:100%;box-shadow:0 14px 40px rgba(0,0,0,.28);text-align:center}}
+h1{{font-size:26px;margin-bottom:6px;letter-spacing:-.03em}}
+h2{{color:var(--moon);font-size:14px;font-weight:400;margin-bottom:20px}}
+.step{{background:rgba(7,17,31,.6);border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0;text-align:left}}
+.step h3{{color:var(--accent);margin-bottom:6px;font-size:13px}}
+.step p{{color:var(--muted);font-size:12px;line-height:1.5}}
+pre{{background:#050e1a;color:#d7e5ff;border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;font-size:12px;line-height:1.6;margin:6px 0;font-family:ui-monospace,Menlo,monospace;text-align:left;white-space:pre-wrap;word-break:break-all}}
+.copy-btn{{display:inline-block;background:var(--accent);color:var(--bg);border:none;padding:10px 24px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;margin-top:8px;transition:all .15s}}
+.copy-btn:hover{{opacity:.85;transform:scale(1.03)}}
+.copy-btn.copied{{background:var(--ok)}}
+.tabs{{display:flex;gap:6px;margin:12px 0;justify-content:center}}
+.tabs button{{background:rgba(185,204,255,.1);border:1px solid var(--line);color:var(--muted);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}}
+.tabs button.active{{background:rgba(125,211,252,.18);color:var(--accent);border-color:var(--accent)}}
+.tab{{display:none}}
+.tab.active{{display:block}}
+.note{{color:var(--muted);font-size:11px;margin-top:12px;padding:8px 12px;background:rgba(247,201,72,.06);border:1px solid rgba(247,201,72,.15);border-radius:8px}}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>🌙 Join the BloomBee Swarm</h1>
+<h2 id="coord">Coordinator: {coord_esc}</h2>
+
+<div class="step">
+<h3>📱 Scan to open this page on your phone</h3>
+<p>Or open <code id="coord-url-text">{coord_esc}/</code> directly. The QR keeps this page so anyone can scan it again to onboard the next person.</p>
+<div id="qr" style="display:flex;justify-content:center;margin:10px 0"></div>
+</div>
+
+<div class="step">
+<h3>📋 One command to join</h3>
+<p>Open a terminal and run:</p>
+<pre id="cmd">Loading join offer...</pre>
+<button class="copy-btn" onclick="copyCmd()">📋 Copy to clipboard</button>
+</div>
+
+<div class="tabs">
+<button class="active" onclick="showTab('any')">💻 Laptop</button>
+<button onclick="showTab('phone')">📱 Android Phone</button>
+</div>
+
+<div class="tab active" id="tab-any">
+<p style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px;">
+<strong>Requirements:</strong> Python 3.8+ (pre-installed on macOS/Linux).
+The command downloads a self-contained script — no pip, no clone, no setup.
+</p>
+</div>
+
+<div class="tab" id="tab-phone">
+<div class="step">
+<h3>1. Install Termux</h3>
+<p>Get <strong>Termux</strong> from <a href="https://f-droid.org/packages/com.termux/" style="color:var(--accent);">F-Droid</a> (NOT Play Store). Open it and run:</p>
+<pre>pkg update && pkg install python</pre>
+</div>
+<div class="step">
+<h3>2. Run the join command</h3>
+<p>Copy and paste the command above into Termux:</p>
+<pre id="cmd-phone">Loading...</pre>
+</div>
+</div>
+
+<div class="note">
+⚠️ <strong>What this does:</strong> Scans your hardware, registers with the swarm,
+and heartbeats to stay active. No models run yet, no files accessed.
+Press Ctrl+C to disconnect.<br><br>
+<strong>📱 iOS / iPhone:</strong> iPhones cannot join as inference peers (no background Python, no Termux).
+Android devices can join via Termux. iPhones can still view the dashboard.
+</div>
+
+<div class="step" style="margin-top:18px">
+<h3>🐝 Live swarm <span id="peer-count" style="color:var(--ok);font-weight:700">…</span></h3>
+<div id="roster" style="font-size:12px;color:var(--muted);line-height:1.6;text-align:left">Loading…</div>
+</div>
+</div>
+
+<script>
+const C = "{coord_esc}";
+const LANDING = C + "/";
+async function init() {{
+  // Render QR pointing at this landing page (so the next person can scan)
+  try {{
+    new QRCode(document.getElementById('qr'), {{
+      text: LANDING,
+      width: 200, height: 200,
+      colorDark: '#07111f', colorLight: '#e9f3ff',
+      correctLevel: QRCode.CorrectLevel.M,
+    }});
+  }} catch(e) {{ document.getElementById('qr').textContent = '(QR library unavailable offline)'; }}
+
+  // Build the join command
+  try {{
+    const r = await fetch(C + "/offer");
+    const d = await r.json();
+    const cmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 30`;
+    const phoneCmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 60`;
+    document.getElementById('cmd').textContent = cmd;
+    document.getElementById('cmd-phone').textContent = phoneCmd;
+  }} catch(e) {{
+    document.getElementById('cmd').textContent = 'Coordinator unreachable. Check the URL and try again.';
+  }}
+
+  // Live roster
+  refreshRoster();
+  setInterval(refreshRoster, 8000);
+}}
+async function refreshRoster() {{
+  const el = document.getElementById('roster');
+  const cnt = document.getElementById('peer-count');
+  try {{
+    const r = await fetch(C + "/active?max_age_seconds=60");
+    const d = await r.json();
+    const peers = d.active_peers || [];
+    cnt.textContent = `(${{peers.length}} connected)`;
+    if (peers.length === 0) {{
+      el.innerHTML = '<em>No peers yet — be the first to scan and join!</em>';
+      return;
+    }}
+    el.innerHTML = peers.map(p => {{
+      const cap = p.capabilities || {{}};
+      const gpu = cap.gpu || {{}};
+      const cpu = cap.cpu || {{}};
+      const mem = cap.memory || {{}};
+      const icon = gpu.available ? '🎮' : '🖥️';
+      const gpuname = gpu.name || 'cpu-only';
+      return `<div style="padding:6px 0;border-bottom:1px solid rgba(42,75,115,.4)">
+        ${{icon}} <strong style="color:var(--text)">${{cap.hostname || p.peer_id}}</strong>
+        <span style="color:var(--muted)"> · ${{cap.platform || '?'}} · ${{cpu.cores || '?'}} cores · ${{mem.total_gb || '?'}}GB · ${{gpuname}}</span>
+      </div>`;
+    }}).join('');
+  }} catch(e) {{
+    cnt.textContent = '(offline)';
+    el.innerHTML = '<em>Cannot reach coordinator.</em>';
+  }}
+}}
+function copyCmd() {{
+  const t = document.getElementById('cmd').textContent;
+  if(!t.startsWith('curl')) return;
+  copyText(t);
+  const b = document.querySelector('.copy-btn');
+  if(b){{b.textContent='✅ Copied! Paste in terminal.';b.classList.add('copied');setTimeout(()=>{{b.textContent='📋 Copy to clipboard';b.classList.remove('copied')}},2500);}}
+}}
+function copyText(text) {{
+  // navigator.clipboard only works on HTTPS/localhost — fallback for HTTP LAN
+  if(navigator.clipboard && window.isSecureContext) {{
+    navigator.clipboard.writeText(text).catch(()=>fallbackCopy(text));
+  }} else {{
+    fallbackCopy(text);
+  }}
+}}
+function fallbackCopy(text) {{
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try {{ document.execCommand('copy'); }} catch(e) {{}}
+  document.body.removeChild(ta);
+}}
+function showTab(n) {{
+  document.querySelectorAll('.tabs button,.tab').forEach(e=>e.classList.remove('active'));
+  document.querySelector(`.tabs button:nth-child(${{n==='any'?1:2}})`).classList.add('active');
+  document.getElementById('tab-'+n).classList.add('active');
+}}
+if(/Android|iPhone|iPad/i.test(navigator.userAgent)) showTab('phone');
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>"""
+
+
 def handle_get_text(
     path: str,
     *,
@@ -618,17 +801,35 @@ def handle_get_text(
     coordinator: str,
     registry: str | Path = DEFAULT_REGISTRY,
 ) -> tuple[int, str, bytes] | None:
-    """Return plain-text endpoint responses for shell-friendly join flows."""
-    del state_dir, registry  # reserved for parity with handle_get and future text routes
+    """Return plain-text / HTML endpoint responses."""
     parsed = urlparse(path)
     query = parse_qs(parsed.query)
-    if parsed.path != "/bootstrap.sh":
-        return None
-    status, payload = _bootstrap_from_query(query, coordinator=coordinator)
-    if status != 200:
-        message = f"error: {payload.get('error')}\nclaim_boundary: {payload.get('claim_boundary')}"
-        return status, "text/plain; charset=utf-8", _text_bytes(message)
-    return status, "text/x-shellscript; charset=utf-8", _text_bytes(str(payload["shell_script"]))
+
+    # ── GET / — landing page ─────────────────────────────────────────────
+    if parsed.path == "/":
+        return 200, "text/html; charset=utf-8", _text_bytes(_landing_html(coordinator))
+
+    # ── GET /bootstrap.py — self-contained join script ────────────────────
+    if parsed.path == "/bootstrap.py":
+        script_path = Path(__file__).resolve().parent.parent / "scripts" / "bootstrap.py"
+        if script_path.exists():
+            return 200, "text/x-python; charset=utf-8", script_path.read_bytes()
+        # Fallback: use mvp_capabilities path
+        alt_path = Path(__file__).resolve().parent.parent / "mvp_capabilities" / "bootstrap.py"
+        if alt_path.exists():
+            return 200, "text/x-python; charset=utf-8", alt_path.read_bytes()
+        return 404, "text/plain; charset=utf-8", _text_bytes("bootstrap.py not found")
+
+    # ── GET /bootstrap.sh — shell script bootstrap ────────────────────────
+    if parsed.path == "/bootstrap.sh":
+        del state_dir, registry
+        status, payload = _bootstrap_from_query(query, coordinator=coordinator)
+        if status != 200:
+            message = f"error: {payload.get('error')}\nclaim_boundary: {payload.get('claim_boundary')}"
+            return status, "text/plain; charset=utf-8", _text_bytes(message)
+        return status, "text/x-shellscript; charset=utf-8", _text_bytes(str(payload["shell_script"]))
+
+    return None
 
 
 def handle_get(
@@ -652,11 +853,36 @@ def handle_get(
     if parsed.path == "/bootstrap":
         return _bootstrap_from_query(query, coordinator=coordinator)
     if parsed.path == "/active":
-        token = _first(query, "token")
-        if not token:
-            return 400, {"error": "missing token", "claim_boundary": ERROR_CLAIM_BOUNDARY}
+        token = _first(query, "token") or "*"
+        if token == "*":
+            # Return all active peers regardless of token
+            all_peers = []
+            now = _as_int(_first(query, "now"), 0) or None
+            max_age = _as_int(_first(query, "max_age_seconds"), 30)
+            for path in sorted(Path(state_dir).expanduser().glob("*.json")):
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    age = (now or int(time.time())) - int(payload.get("timestamp", 0))
+                    if 0 <= age <= max_age:
+                        all_peers.append(payload)
+                    elif age > max_age:
+                        # Clean expired heartbeat files
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
+                except (OSError, json.JSONDecodeError, ValueError):
+                    try:
+                        path.unlink()
+                    except OSError:
+                        pass
+                    continue
+            return 200, {
+                "active_peers": all_peers,
+                "claim_boundary": "heartbeat_roster_only_no_inference_proof",
+            }
         return 200, {
-            "token": token,
+            "token": token[:8] + "...",
             "active_peers": _active_for_query(query, state_dir=state_dir, token=token),
             "claim_boundary": "heartbeat_roster_only_no_inference_proof",
         }
@@ -720,11 +946,25 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         # Keep tests/docs clean and avoid recording peer/token tuples in logs.
         return
 
+    def _send_cors_headers(self) -> None:
+        """Allow the standalone dashboard HTML to poll this coordinator.
+
+        The operator dashboard is intentionally generated as a local static HTML
+        file, often opened via ``file://`` or a tiny local static server. Browser
+        fetches from that page to ``http://<LAN_IP>:8787`` are cross-origin, so
+        the coordinator must emit permissive CORS headers for this room-scale
+        onboarding demo.
+        """
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
         body = _json_bytes(payload)
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        self._send_cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -733,12 +973,19 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
+        self._send_cors_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def _send_error_json(self, status: int, message: str) -> None:
         self._send_json(status, {"error": message, "claim_boundary": ERROR_CLAIM_BOUNDARY})
+
+    def do_OPTIONS(self) -> None:  # noqa: N802 - stdlib API
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib API
         text_response = handle_get_text(
@@ -812,6 +1059,23 @@ def main(argv: list[str] | None = None) -> int:
             },
             sort_keys=True,
         ),
+        flush=True,
+    )
+    print(
+        f"\n{'='*60}\n"
+        f"  🌙  BloomBee Coordinator is LIVE\n"
+        f"  {'─'*40}\n"
+        f"  Dashboard  → {coordinator}/\n"
+        f"  Health     → {coordinator}/healthz\n"
+        f"  Swarm API  → {coordinator}/active\n"
+        f"\n"
+        f"  Open the operator dashboard for QR onboarding:\n"
+        f"  python3 scripts/operator_dashboard.py \\\n"
+        f"    --coordinator \"{coordinator}\" \\\n"
+        f"    --out .local/operator-dashboard.html && open .local/operator-dashboard.html\n"
+        f"\n"
+        f"  Press Ctrl+C to stop.\n"
+        f"{'='*60}\n",
         flush=True,
     )
     try:

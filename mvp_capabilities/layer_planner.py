@@ -47,12 +47,32 @@ def _as_int(value: Any, default: int = 0) -> int:
 
 
 def _peer_free_gb(peer: dict[str, Any]) -> float:
+    """Estimate peer capacity in GB.
+
+    Reads from multiple historical capability shapes so heartbeats from
+    different clients all feed into the planner. Preference order:
+
+      1. ``memory.free_gb`` — explicit free RAM field (Linux ``/proc/meminfo``)
+      2. ``memory.available_gb`` — what psutil reports as available
+      3. ``memory.total_gb`` — assume the model owns the full system RAM
+      4. ``accelerator.vram_free_gb`` — discrete GPU VRAM
+      5. ``disk.free_gb`` — last-resort model-on-disk (works only for the
+         small models this MVP tests with; planner still flags unsupported
+         when even this is below the model requirement)
+    """
     memory = peer.get("memory") or {}
     accelerator = peer.get("accelerator") or {}
-    free = memory.get("free_gb")
-    if free is None and accelerator.get("unified_memory"):
-        free = accelerator.get("vram_free_gb")
-    return _as_float(free)
+    disk = peer.get("disk") or {}
+    for field in ("free_gb", "available_gb", "total_gb"):
+        v = memory.get(field)
+        if v is not None:
+            return _as_float(v)
+    if accelerator.get("vram_free_gb") is not None:
+        return _as_float(accelerator.get("vram_free_gb"))
+    v = disk.get("free_gb")
+    if v is not None:
+        return _as_float(v)
+    return 0.0
 
 
 def _model_required_gb(model: dict[str, Any]) -> float:

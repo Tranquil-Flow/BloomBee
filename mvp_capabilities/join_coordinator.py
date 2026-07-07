@@ -88,7 +88,7 @@ def load_active_heartbeats(
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if payload.get("token") != token:
+        if token != "*" and payload.get("token") != token:
             continue
         try:
             age = cutoff_now - int(payload.get("timestamp"))
