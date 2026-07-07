@@ -1351,11 +1351,23 @@ def handle_get(
     state_dir: str | Path,
     coordinator: str,
     registry: str | Path = DEFAULT_REGISTRY,
+    started_at: float | None = None,
 ) -> tuple[int, dict[str, Any]]:
     parsed = urlparse(path)
     query = parse_qs(parsed.query)
     if parsed.path == "/healthz":
-        return 200, {"ok": True, "claim_boundary": HEALTH_CLAIM_BOUNDARY}
+        body: dict[str, Any] = {
+            "ok": True,
+            "status": "live",
+            "claim_boundary": HEALTH_CLAIM_BOUNDARY,
+            "coordinator": coordinator,
+            "state_dir": str(Path(state_dir).expanduser()),
+            "registry": str(Path(registry).expanduser()),
+        }
+        if started_at is not None:
+            body["uptime_seconds"] = round(time.time() - started_at, 1)
+            body["started_at"] = started_at
+        return 200, body
     if parsed.path == "/offer":
         return 200, create_join_offer(
             coordinator=_first(query, "coordinator", coordinator) or coordinator,
@@ -1454,6 +1466,11 @@ def handle_post(path: str, *, body: bytes, state_dir: str | Path, registry: str 
 
 
 class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
+    # Allow restart while a previous instance is still in TIME_WAIT.
+    # Without this, a quick restart after Ctrl+C fails with
+    # "OSError: [Errno 48] Address already in use" for ~30-60s.
+    allow_reuse_address = True
+
     def __init__(
         self,
         server_address: tuple[str, int],
@@ -1467,6 +1484,8 @@ class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
         self.state_dir = Path(state_dir).expanduser()
         self.coordinator = coordinator
         self.registry = Path(registry).expanduser()
+        # Wall-clock start time used by /healthz for uptime reporting.
+        self.started_at = time.time()
 
 
 class JoinCoordinatorHandler(BaseHTTPRequestHandler):
@@ -1550,6 +1569,7 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
             state_dir=self.server.state_dir,
             coordinator=self.server.coordinator,
             registry=self.server.registry,
+            started_at=getattr(self.server, "started_at", None),
         )
         self._send_json(status, payload)
 
@@ -1579,6 +1599,54 @@ def create_server(
     )
 
 
+def _probe_existing_coordinator(host: str, port: int, timeout_s: float = 1.0) -> dict | None:
+    """If something is already listening on host:port, return its /healthz JSON.
+
+    Returns:
+      - None if nothing is listening
+      - {"_not_bloombee": True, ...} if a non-BloomBee HTTP server answers /healthz
+        with anything other than a 200 + ok=true response
+      - dict of the /healthz JSON if it looks like a BloomBee coordinator
+
+    Used by main() to detect "already running" before bind() raises OSError.
+    """
+    import socket as _socket
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError, HTTPError
+
+    try:
+        with _socket.create_connection((host, port), timeout=timeout_s):
+            pass
+    except (OSError, _socket.timeout):
+        return None
+
+    for scheme in ("http", "https"):
+        try:
+            req = Request(f"{scheme}://{host}:{port}/healthz", method="GET")
+            with urlopen(req, timeout=timeout_s) as r:
+                if r.status == 200:
+                    body = r.read().decode("utf-8", "replace")
+                    try:
+                        data = json.loads(body)
+                    except json.JSONDecodeError:
+                        return {"_not_bloombee": True, "_raw": body[:200]}
+                    # A BloomBee coordinator /healthz returns ok=true and includes
+                    # the coordinator URL. Other services that happen to have
+                    # /healthz returning JSON (Prometheus exporters, etc.) won't
+                    # match this signature.
+                    if data.get("ok") and (data.get("coordinator") or data.get("status")):
+                        return data
+                    return {"_not_bloombee": True, "_raw": body[:200]}
+        except HTTPError as e:
+            # 404 / 401 / 405 → something is listening but it's not a
+            # BloomBee coordinator (or it's a BloomBee on a different port
+            # space). Either way, don't try to bind.
+            return {"_not_bloombee": True, "_http_status": e.code}
+        except (URLError, OSError):
+            continue
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
@@ -1589,7 +1657,81 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     coordinator = args.coordinator or f"http://{args.host}:{args.port}"
-    server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator, registry=args.registry)
+
+    # Pre-flight: if a coordinator is already running here, tell the user
+    # (don't fail with a cryptic OSError, and don't double-bind).
+    existing = _probe_existing_coordinator(args.host, args.port)
+    if existing and not existing.get("_not_bloombee"):
+        # BloomBee coordinator is live — same or different state dir is fine,
+        # but warn if state dirs differ so user doesn't accidentally serve
+        # two unrelated heartbeats under the same port.
+        existing_state = existing.get("state_dir", "")
+        local_state = str(Path(args.state_dir).expanduser())
+        same_state = existing_state == local_state
+        print(
+            f"\n{'='*60}\n"
+            f"  🌙  BloomBee Coordinator is ALREADY RUNNING on "
+            f"{args.host}:{args.port}\n"
+            f"  {'─'*40}\n"
+            f"  Dashboard  → {coordinator}/\n"
+            f"  Health     → {coordinator}/healthz\n"
+            f"  Swarm API  → {coordinator}/active\n"
+            f"  Status     → {existing.get('status', '?')} · uptime={existing.get('uptime_seconds', '?')}s\n",
+            flush=True,
+        )
+        if same_state:
+            print(
+                f"  Same state dir as running instance ({existing_state}).\n"
+                f"  No need to start another one — your existing coordinator will\n"
+                f"  pick up new peer heartbeats automatically.\n\n"
+                f"  If you intended to restart it: Ctrl+C the running instance first,\n"
+                f"  then re-run this command.\n"
+                f"{'='*60}\n",
+                flush=True,
+            )
+        else:
+            print(
+                f"  ⚠️  Running instance uses a different state dir ({existing_state!r}).\n"
+                f"  Starting a new coordinator here would fail with EADDRINUSE.\n"
+                f"  Either: (a) use the running instance, or (b) pick a different --port.\n"
+                f"{'='*60}\n",
+                flush=True,
+            )
+        return 0
+    if existing and existing.get("_not_bloombee"):
+        # Something else is on the port and isn't a BloomBee coordinator.
+        # Bail cleanly instead of trying to bind (which would either fail
+        # with EADDRINUSE, or worse, silently take over someone else's port).
+        print(
+            f"\n{'='*60}\n"
+            f"  ❌  Port {args.port} is in use by a non-BloomBee service.\n"
+            f"  {'─'*40}\n"
+            f"  To fix: re-run with a different --port, e.g. --port 8788\n"
+            f"  To find what holds it:  lsof -i :{args.port}\n"
+            f"{'='*60}\n",
+            file=sys.stderr, flush=True,
+        )
+        return 3
+
+    try:
+        server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator, registry=args.registry)
+    except OSError as e:
+        if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
+            # Race: probe said free, but bind() lost the race. Give a clean hint.
+            print(
+                f"\n{'='*60}\n"
+                f"  ❌  Port {args.port} is already in use.\n"
+                f"  {'─'*40}\n"
+                f"  Likely a BloomBee coordinator is already running here, or\n"
+                f"  another service holds the port. To fix:\n\n"
+                f"    1. Find what's listening:   lsof -i :{args.port}\n"
+                f"    2. Use a different port:   re-run with --port 8788\n"
+                f"    3. Verify the existing one: curl {coordinator}/healthz\n"
+                f"{'='*60}\n",
+                file=sys.stderr, flush=True,
+            )
+            return 2
+        raise
     print(
         json.dumps(
             {

@@ -3516,7 +3516,15 @@ def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
 
     status, health = handle_get("/healthz", state_dir=state_dir, coordinator="http://127.0.0.1:8787")
     assert status == 200
-    assert health == {"ok": True, "claim_boundary": "coordinator_health_only_no_inference_proof"}
+    # /healthz now exposes state_dir, coordinator URL, and uptime so the
+    # pre-flight probe in main() can detect "already running" cleanly.
+    assert health["ok"] is True
+    assert health["status"] == "live"
+    assert health["coordinator"] == "http://127.0.0.1:8787"
+    assert health["state_dir"] == str(Path(state_dir).expanduser())
+    assert health["claim_boundary"] == "coordinator_health_only_no_inference_proof"
+    # uptime is only set when started_at is passed (live server), not in unit tests.
+    assert "uptime_seconds" not in health
 
     status, offer = handle_get(
         "/offer?token=moon-token&ttl_seconds=120",
@@ -3544,6 +3552,140 @@ def test_join_http_server_health_offer_heartbeat_and_active(tmp_path: Path):
     assert status == 200
     assert active["claim_boundary"] == "heartbeat_roster_only_no_inference_proof"
     assert [peer["peer_id"] for peer in active["active_peers"]] == ["fresh-peer"]
+
+
+def test_probe_returns_none_when_port_is_free(monkeypatch):
+    """Pre-flight probe should return None if nothing's listening."""
+    from mvp_capabilities.join_http_server import _probe_existing_coordinator
+    import socket
+
+    # Force connect() to fail with ConnectionRefused (port not in use)
+    def fake_connect(addr, timeout=1.0):
+        raise ConnectionRefusedError("nothing listening")
+    monkeypatch.setattr(socket, "create_connection", fake_connect)
+
+    assert _probe_existing_coordinator("127.0.0.1", 65535) is None
+
+
+def test_probe_returns_healthz_dict_for_bloombee_coordinator(monkeypatch):
+    """When a BloomBee coordinator is running, probe returns its /healthz dict."""
+    from mvp_capabilities.join_http_server import _probe_existing_coordinator
+    import socket
+    from io import BytesIO
+
+    fake_health = json.dumps({
+        "ok": True, "status": "live",
+        "coordinator": "http://127.0.0.1:8787",
+        "state_dir": ".local/join-state",
+        "claim_boundary": "coordinator_health_only_no_inference_proof",
+        "uptime_seconds": 42.5,
+    }).encode()
+
+    class FakeResp:
+        status = 200
+        def __init__(self): self._buf = BytesIO(fake_health)
+        def read(self): return self._buf.getvalue()
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+
+    monkeypatch.setattr(socket, "create_connection",
+                        lambda addr, timeout=1.0: type("S", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})())
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=1.0: FakeResp())
+
+    result = _probe_existing_coordinator("127.0.0.1", 8787)
+    assert result is not None
+    assert result["ok"] is True
+    assert result["coordinator"] == "http://127.0.0.1:8787"
+    assert result["uptime_seconds"] == 42.5
+
+
+def test_probe_returns_not_bloombee_on_http_error(monkeypatch):
+    """When something else listens but returns 404 on /healthz, probe should
+    return _not_bloombee so main() bails cleanly instead of trying to bind."""
+    from mvp_capabilities.join_http_server import _probe_existing_coordinator
+    import socket
+    from urllib.error import HTTPError
+
+    monkeypatch.setattr(socket, "create_connection",
+                        lambda addr, timeout=1.0: type("S", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})())
+    def fake_urlopen(req, timeout=1.0):
+        from email.message import Message
+        hdrs = Message()
+        raise HTTPError(req.full_url, 404, "Not Found", hdrs, None)
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = _probe_existing_coordinator("127.0.0.1", 8789)
+    assert result is not None
+    assert result["_not_bloombee"] is True
+    assert result["_http_status"] == 404
+
+
+def test_join_coordinator_server_has_so_reuseaddr_set():
+    """Without SO_REUSEADDR, a quick restart after Ctrl+C raises OSError 48
+    for ~30-60s (TIME_WAIT). Setting allow_reuse_address=True on the server
+    class is what makes restart-during-keep-alive work."""
+    from mvp_capabilities.join_http_server import JoinCoordinatorHTTPServer
+    assert JoinCoordinatorHTTPServer.allow_reuse_address is True
+
+
+def test_main_exits_zero_when_coordinator_already_running(tmp_path, monkeypatch, capsys):
+    """Regression: Step 1 of Operator Quick Start used to crash with a
+    stacktrace if the coordinator was already on :8787. Now main() detects
+    the running instance via /healthz probe and exits 0 with a friendly
+    message instead."""
+    import socket
+    from io import BytesIO
+    from mvp_capabilities import join_http_server
+
+    state_dir = tmp_path / "already-running-state"
+    fake_health = json.dumps({
+        "ok": True, "status": "live",
+        "coordinator": "http://127.0.0.1:8800",
+        "state_dir": str(state_dir.expanduser()),
+        "claim_boundary": "coordinator_health_only_no_inference_proof",
+        "uptime_seconds": 99.9,
+    }).encode()
+
+    class FakeResp:
+        status = 200
+        def read(self): return fake_health
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+
+    monkeypatch.setattr(socket, "create_connection",
+                        lambda addr, timeout=1.0: type("S", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})())
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=1.0: FakeResp())
+
+    rc = join_http_server.main(["--host", "127.0.0.1", "--port", "8800",
+                                "--coordinator", "http://127.0.0.1:8800",
+                                "--state-dir", str(state_dir)])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "ALREADY RUNNING" in out
+    assert "uptime" in out.lower() or "99" in out
+
+
+def test_main_exits_three_when_port_held_by_non_bloombee(tmp_path, monkeypatch, capsys):
+    """Regression: if a non-BloomBee HTTP server holds the port, main()
+    should exit cleanly with a clear error message (exit 3) instead of
+    crashing with a stack trace."""
+    import socket
+    from urllib.error import HTTPError
+    from mvp_capabilities import join_http_server
+
+    state_dir = tmp_path / "non-bloombee-state"
+    monkeypatch.setattr(socket, "create_connection",
+                        lambda addr, timeout=1.0: type("S", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})())
+    def fake_urlopen(req, timeout=1.0):
+        raise HTTPError(req.full_url, 404, "Not Found", {}, None)
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    rc = join_http_server.main(["--host", "127.0.0.1", "--port", "8801",
+                                "--coordinator", "http://127.0.0.1:8801",
+                                "--state-dir", str(state_dir)])
+    assert rc == 3
+    err = capsys.readouterr().err
+    assert "non-BloomBee service" in err or "non-BloomBee" in err
 
 
 def test_join_http_server_bounds_offer_ttl_and_ignores_heartbeat_client_now(tmp_path: Path, monkeypatch):

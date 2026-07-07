@@ -770,7 +770,11 @@ def _build_html(coordinator: str) -> str:
     coord_esc = html.escape(coordinator, quote=True)
     js = JS.replace("__COORDINATOR__", coord_esc)
 
-    return f"""<!DOCTYPE html>
+    # f-strings treat `\<newline>` as a line continuation and silently eat
+    # the backslash, which corrupts the multi-line shell commands shown
+    # in the dashboard (Step 1, Step 2, Step 4a). Use a placeholder that
+    # survives f-string interpolation, then swap it back to a literal `\<newline>`.
+    html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -814,21 +818,26 @@ def _build_html(coordinator: str) -> str:
   </p>
 
   <div class="step">
-    <h4>Step 1 — Start the coordinator server</h4>
-    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre id="cmd-coordinator">cd ~/Projects/distributed-inference-mvp
-python3 mvp_capabilities/join_http_server.py \\
-  --host 0.0.0.0 --port 8787 \\
+  <h4>Step 1 — Start the coordinator server</h4>
+  <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+  <pre id="cmd-coordinator">cd ~/Projects/distributed-inference-mvp
+python3 mvp_capabilities/join_http_server.py __BSLASH__
+  --host 0.0.0.0 --port 8787 __BSLASH__
   --coordinator "{coord_esc}"</pre>
-    <p>Pure stdlib, no venv needed. <strong>Leave this terminal open.</strong></p>
-  </div>
+  <p>Pure stdlib, no venv needed. <strong>Leave this terminal open.</strong><br>
+  <span style="color:var(--muted);font-size:11px;">
+  If you re-run this while a coordinator is already alive, it'll print
+  <strong>"ALREADY RUNNING"</strong> and exit cleanly instead of crashing with
+  <code>Address already in use</code>. To restart: Ctrl+C the running one first.
+  </span></p>
+</div>
 
   <div class="step">
     <h4>Step 2 — Open this dashboard</h4>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre id="cmd-dashboard">cd ~/Projects/distributed-inference-mvp
-python3 scripts/operator_dashboard.py \\
-  --coordinator "{coord_esc}" \\
+python3 scripts/operator_dashboard.py __BSLASH__
+  --coordinator "{coord_esc}" __BSLASH__
   --out .local/operator-dashboard.html &amp;&amp; open .local/operator-dashboard.html</pre>
     <p>Generates this HTML file and opens it. <strong>Bookmark it.</strong><br>
     <span style="color:var(--muted);font-size:10px;">Already generated? Just run: <code>open .local/operator-dashboard.html</code></span></p>
@@ -860,7 +869,7 @@ python3 scripts/operator_dashboard.py \\
 # Replace the placeholder Dockerfile with the real SideStore anisette-v3 image
 # (see SideStore/SideStore repo for the pinned upstream tag)
 docker build -t bloombee-anisette .
-docker run -d --name anisette --restart unless-stopped \
+docker run -d --name anisette --restart unless-stopped __BSLASH__
   -p 6969:6969 bloombee-anisette
 # Tell donors to enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
     <p style="color:var(--muted);font-size:10px;margin-top:4px;">⚠️ The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout.</p>
@@ -1179,6 +1188,8 @@ docker run -d --name anisette --restart unless-stopped \
 <script>{js}</script>
 </body>
 </html>"""
+    # Restore literal backslash-newline in shell commands (see comment above).
+    return html_body.replace("__BSLASH__", "\\\n")
 
 
 def main() -> None:
