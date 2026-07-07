@@ -1012,13 +1012,12 @@ PYTHONPATH=. /opt/homebrew/bin/python3 gateway/server.py __BSLASH__
       Self-hosted on this Mac on the same LAN — <strong>no VPS needed</strong> unless donors are on a different network.</p>
     <p style="margin:0 0 6px 0;"><span class="step-status pending" id="status-4b"></span><span class="status-text" id="status-text-4b">⏳ checking...</span></p>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre>cd ~/Projects/bloombee-ios-gateway/anisette
-docker build -t bloombee-anisette .
-docker rm -f anisette 2>/dev/null || true
+    <pre>docker rm -f anisette 2>/dev/null || true
 docker run -d --name anisette --restart unless-stopped __BSLASH__
-  -p 6969:6969 bloombee-anisette
+  -p 6969:6969 -v anisette_data:/home/Alcoholic/.config/anisette-v3/lib/ __BSLASH__
+  dadoum/anisette-v3-server
 # Tell donors to enter http://YOUR_LAN_IP:6969 in SideStore settings</pre>
-    <p style="color:var(--muted);font-size:10px;margin-top:4px;">⚠️ The included <code>Dockerfile</code> is a placeholder — pin the real upstream image from SideStore/SideStore before donor rollout.</p>
+    <p style="color:var(--muted);font-size:10px;margin-top:4px;">Uses the official SideStore-recommended <code>dadoum/anisette-v3-server</code> image (Docker Hub). The named volume <code>anisette_data</code> persists Apple ID session cookies across restarts so donors don't have to re-authenticate every reboot.</p>
 
     <p style="color:var(--moon);font-size:11px;margin-bottom:4px;margin-top:10px;"><strong>4c. Build + pin the IPA</strong> — one-time build, all donors use the same file</p>
     <p style="color:var(--muted);font-size:10px;margin-bottom:6px;">

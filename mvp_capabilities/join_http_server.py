@@ -1635,13 +1635,13 @@ def handle_get(
                             "ok": False,
                             "reason": (
                                 f"container up but not serving HTTP ({type(probe_exc).__name__}: "
-                                f"{str(probe_exc)[:80]}). The placeholder Dockerfile only "
-                                f"runs `echo && sleep infinity` and never starts a server. "
-                                f"Rebuild with the real anisette-v3 image: "
+                                f"{str(probe_exc)[:80]}). The container is up but the "
+                                f"image running inside it doesn't actually serve HTTP. "
+                                f"Pull and run the real SideStore-recommended image: "
                                 f"`docker rm -f bloombee-anisette && "
                                 f"docker run -d --name bloombee-anisette --restart unless-stopped "
-                                f"-p 6969:6969 -e ANISETTE_BIND=0.0.0.0:6969 "
-                                f"ghcr.io/sidestore/anisette-v3:latest`"
+                                f"-p 6969:6969 -v anisette_data:/home/Alcoholic/.config/anisette-v3/lib/ "
+                                f"dadoum/anisette-v3-server`"
                             ),
                             "port": 6969,
                         }
