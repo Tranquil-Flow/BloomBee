@@ -177,6 +177,7 @@ cython_debug/
 
 bloombee-env/*
 bootstrap*
+!scripts/bootstrap.py
 
 # local caches
 cache/

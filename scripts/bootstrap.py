@@ -1,0 +1,508 @@
+#!/usr/bin/env python3
+"""Self-contained bootstrap script for joining a BloomBee distributed inference swarm.
+
+No dependencies outside Python stdlib. Run this on any machine to:
+  1. Scan hardware capabilities (CPU, RAM, GPU, disk, network)
+  2. Send a heartbeat to the coordinator with those capabilities
+  3. Keep heartbeating to stay in the active roster
+
+Usage:
+  # From a join URL (scan the QR):
+  python3 bootstrap.py --join-url "bloombee://join?coordinator=http%3A%2F%2F192.168.1.100%3A8787&token=abc123"
+
+  # Download and run in one command:
+  curl -s http://COORDINATOR:8787/bootstrap.py | python3 - --join-url "bloombee://join?..."
+
+  # Keep heartbeating every 30 seconds:
+  python3 bootstrap.py --join-url "..." --loop --interval 30
+
+The script is intentionally dependency-free — pure Python stdlib.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform as _platform
+import uuid
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
+
+
+# ── peer scan ────────────────────────────────────────────────────────────────
+
+def scan_capabilities() -> dict[str, Any]:
+    """Detect hardware capabilities of this machine. No ML deps required."""
+    hostname = socket.gethostname().split(".")[0]
+    # Android/Termux often returns 'localhost' — try to get real device name
+    if hostname in ("", "localhost", "127.0.0.1", "::1"):
+        try:
+            out = subprocess.run(["getprop", "ro.product.model"], capture_output=True, text=True, timeout=2)
+            if out.returncode == 0 and out.stdout.strip():
+                hostname = out.stdout.strip().replace(" ", "-")
+        except Exception:
+            pass
+    if hostname in ("", "localhost", "127.0.0.1", "::1"):
+        hostname = f"android-{uuid.getnode():x}"[:24]
+
+    # CPU
+    cpu_model = _platform.processor() or "unknown"
+    cpu_cores = os.cpu_count() or 1
+
+    # RAM
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        ram_total_gb = round(mem.total / (1024**3), 1)
+        ram_available_gb = round(mem.available / (1024**3), 1)
+    except ImportError:
+        # Fallback: sysctl on macOS, /proc/meminfo on Linux, free command on Android
+        ram_total_gb = 0.0
+        ram_available_gb = 0.0
+        try:
+            if sys.platform == "darwin":
+                out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=3)
+                ram_total_gb = round(int(out.stdout.strip()) / (1024**3), 1)
+            elif sys.platform == "linux":
+                try:
+                    with open("/proc/meminfo") as f:
+                        for line in f:
+                            if "MemTotal" in line:
+                                ram_total_gb = round(int(line.split()[1]) / (1024**2), 1)
+                                break
+                except (OSError, PermissionError):
+                    pass
+                # /proc/meminfo failed? Try 'free' command (works on Termux)
+                if not ram_total_gb:
+                    try:
+                        out = subprocess.run(["free", "-b"], capture_output=True, text=True, timeout=3)
+                        for line in out.stdout.split("\n"):
+                            if line.startswith("Mem:"):
+                                parts = line.split()
+                                if len(parts) >= 2:
+                                    ram_total_gb = round(int(parts[1]) / (1024**3), 1)
+                                break
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if not ram_total_gb:
+            print("   ⚠️  Could not detect RAM — reporting 0 GB", file=sys.stderr)
+        ram_available_gb = ram_total_gb  # best guess
+
+    # GPU
+    gpu_info: dict[str, Any] = {"available": False, "name": "none"}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            gpu_info = {"available": True, "name": torch.cuda.get_device_name(0), "backend": "cuda"}
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            gpu_info = {"available": True, "name": "Apple Metal (MPS)", "backend": "mps"}
+    except ImportError:
+        pass
+
+    # Disk
+    disk_total_gb = 0
+    disk_free_gb = 0
+    try:
+        usage = shutil.disk_usage(Path.home())
+        disk_total_gb = round(usage.total / (1024**3), 1)
+        disk_free_gb = round(usage.free / (1024**3), 1)
+    except Exception:
+        pass
+
+    # Network — detect local IP
+    local_ip = "127.0.0.1"
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.1)
+        s.connect(("1.1.1.1", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        pass
+
+    return {
+        "hostname": hostname,
+        "peer_id": f"{hostname}-{uuid.getnode():x}",
+        "platform": sys.platform,
+        "python_version": sys.version.split()[0],
+        "cpu": {"model": cpu_model, "cores": cpu_cores},
+        "memory": {"total_gb": ram_total_gb, "available_gb": ram_available_gb},
+        "gpu": gpu_info,
+        "disk": {"total_gb": disk_total_gb, "free_gb": disk_free_gb},
+        "network": {"local_ip": local_ip},
+        "scanned_at": int(time.time()),
+    }
+
+
+# ── join client ───────────────────────────────────────────────────────────────
+
+def parse_join_url(join_url: str) -> dict[str, str]:
+    """Parse a bloombee://join?... URL into {coordinator, token}."""
+    parsed = urlparse(join_url)
+    query = parse_qs(parsed.query)
+    coordinator = (query.get("coordinator") or [None])[0]
+    token = (query.get("token") or [None])[0]
+    if not coordinator or not token:
+        raise ValueError(f"Invalid join URL — missing coordinator or token: {join_url}")
+    return {"coordinator": coordinator, "token": token}
+
+
+def send_heartbeat(coordinator: str, token: str, capabilities: dict[str, Any]) -> dict[str, Any]:
+    """POST a heartbeat to the coordinator. Returns the response JSON."""
+    payload = json.dumps({
+        "token": token,
+        "peer_id": capabilities["peer_id"],
+        "capabilities": capabilities,
+    }, sort_keys=True).encode("utf-8")
+
+    url = coordinator.rstrip("/") + "/heartbeat"
+    req = Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+
+    try:
+        with urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ── auto-serve ───────────────────────────────────────────────────────────────
+
+def poll_job_for_peer(coordinator: str, peer_id: str, *, timeout: float = 5.0) -> dict[str, Any]:
+    """GET /job?peer_id=X — returns job dict or {'job': None}."""
+    url = f"{coordinator.rstrip('/')}/job?peer_id={peer_id}"
+    req = Request(url)
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return {"ok": False, "error": str(e), "job": None}
+
+
+def post_peer_status(
+    coordinator: str,
+    peer_id: str,
+    *,
+    status: str,
+    progress: float | None = None,
+    message: str | None = None,
+    job_port: int | None = None,
+    model_id: str | None = None,
+) -> None:
+    """POST /peer-status — report live state to the coordinator.
+
+    Best-effort: any network error is swallowed so a flaky status channel
+    doesn't kill the server. The coordinator reads this to drive the
+    dashboard progress bar / status pills.
+    """
+    payload = {"peer_id": peer_id, "status": status}
+    if progress is not None:
+        payload["progress"] = float(progress)
+    if message:
+        payload["message"] = message
+    if job_port is not None:
+        payload["job_port"] = int(job_port)
+    if model_id:
+        payload["model_id"] = model_id
+    try:
+        req = Request(
+            f"{coordinator.rstrip('/')}/peer-status",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(req, timeout=3).read()
+    except Exception:
+        pass  # best-effort
+
+
+def _heartbeat_status_thread(
+    coordinator: str,
+    peer_id: str,
+    job_port: int | None,
+    model_id: str | None,
+    stop_event,
+) -> None:
+    """Background thread: re-posts status: 'serving' every 4s while the
+    server runs, so the dashboard sees a fresh timestamp."""
+    while not stop_event.is_set():
+        post_peer_status(
+            coordinator,
+            peer_id,
+            status="serving",
+            progress=100.0,
+            job_port=job_port,
+            model_id=model_id,
+        )
+        stop_event.wait(4.0)
+
+
+def execute_job_command(
+    command: str,
+    *,
+    cwd: str | None = None,
+    coordinator: str | None = None,
+    peer_id: str | None = None,
+    job_port: int | None = None,
+    model_id: str | None = None,
+) -> dict[str, Any]:
+    """Execute a shell command for serving, posting live status to the
+    coordinator around it (downloading → loading → serving → done/error).
+
+    The launch command itself blocks while the model is being downloaded
+    and loaded — we can't get exact progress from inside the server, so
+    we estimate: 0% on start, ramped up to 50% over the first 30s of
+    'downloading' phase, then 'loading' for the next 60s, then 'serving'
+    with a background heartbeat thread.
+    """
+    import threading as _threading
+
+    coord: str | None = coordinator
+    pid: str | None = peer_id
+    have_status = bool(coord and pid)
+
+    print(f"   🚀 Executing: {command}", file=sys.stderr)
+
+    if have_status:
+        post_peer_status(
+            coord, pid,  # type: ignore[arg-type]
+            status="downloading", progress=0.0,
+            job_port=job_port, model_id=model_id,
+            message="Model download starting",
+        )
+
+    stop_progress = _threading.Event()
+
+    def _progress_pump() -> None:
+        """Fake the progress bar: ramp 0% → 90% over 90s while blocking
+        on the model download/load inside the server process."""
+        if not have_status:
+            return
+        start = time.time()
+        stage = "downloading"
+        posted_loading = False
+        while not stop_progress.is_set():
+            elapsed = time.time() - start
+            if not posted_loading and elapsed >= 30.0:
+                stage = "loading"
+                post_peer_status(
+                    coord, pid,  # type: ignore[arg-type]
+                    status="loading", progress=50.0,
+                    job_port=job_port, model_id=model_id,
+                    message="Loading model into memory",
+                )
+                posted_loading = True
+            if posted_loading and elapsed >= 60.0:
+                return
+            if not posted_loading:
+                pct = min(45.0, (elapsed / 30.0) * 45.0)
+            else:
+                pct = 50.0 + min(40.0, ((elapsed - 30.0) / 30.0) * 40.0)
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status=stage, progress=pct,
+                job_port=job_port, model_id=model_id,
+            )
+            stop_progress.wait(2.0)
+
+    progress_thread = None
+    if have_status:
+        progress_thread = _threading.Thread(
+            target=_progress_pump, daemon=True,
+        )
+        progress_thread.start()
+
+    stop_serving = _threading.Event()
+    if have_status:
+        _threading.Thread(
+            target=_heartbeat_status_thread,
+            args=(coord, pid, job_port, model_id, stop_serving),  # type: ignore[arg-type]
+            daemon=True,
+        ).start()
+
+    try:
+        proc = subprocess.run(
+            command,
+            shell=True,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        stop_progress.set()
+        stop_serving.set()
+
+    full_output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    detected_serving = any(
+        marker in full_output.lower()
+        for marker in ("server is running", "serving on", "listening on", "ready to serve")
+    )
+    if have_status:
+        if proc.returncode == 0 and detected_serving:
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status="serving", progress=100.0,
+                job_port=job_port, model_id=model_id,
+            )
+        elif proc.returncode == 0:
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status="serving", progress=100.0,
+                job_port=job_port, model_id=model_id,
+                message="(launcher exited; server may still be running in background)",
+            )
+        else:
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status="error", progress=None,
+                job_port=job_port, model_id=model_id,
+                message=f"exit code {proc.returncode}",
+            )
+
+    return {
+        "command": command,
+        "exit_code": proc.returncode,
+        "stdout_tail": proc.stdout[-2000:] if len(proc.stdout) > 2000 else proc.stdout,
+        "stderr_tail": proc.stderr[-2000:] if len(proc.stderr) > 2000 else proc.stderr,
+    }
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="BloomBee distributed inference — bootstrap & join",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python3 bootstrap.py --join-url "bloombee://join?coordinator=http%3A%2F%2F192.168.1.100%3A8787&token=abc123"
+  python3 bootstrap.py --join-url "bloombee://join?..." --loop --interval 30
+  python3 bootstrap.py --join-url "bloombee://join?..." --scan-only
+        """,
+    )
+    parser.add_argument("--join-url", required=True, help="Join URL from QR code or share link")
+    parser.add_argument("--loop", action="store_true", help="Keep sending heartbeats")
+    parser.add_argument("--interval", type=int, default=30, help="Seconds between heartbeats (default: 30)")
+    parser.add_argument("--scan-only", action="store_true", help="Only scan capabilities, don't join")
+    parser.add_argument("--json", action="store_true", help="Output JSON instead of human-readable")
+    parser.add_argument("--auto-serve", action="store_true",
+                        help="After heartbeat, poll /job for a deployment assignment and execute it. "
+                             "Used with --loop for zero-touch deploy.")
+    args = parser.parse_args()
+
+    # Step 1: Scan
+    if not args.json:
+        print("🔍 Scanning hardware capabilities...", file=sys.stderr)
+    capabilities = scan_capabilities()
+
+    if args.json:
+        print(json.dumps(capabilities, indent=2))
+    else:
+        print(f"   Hostname: {capabilities['hostname']}", file=sys.stderr)
+        print(f"   Peer ID:  {capabilities['peer_id']}", file=sys.stderr)
+        print(f"   CPU:      {capabilities['cpu']['model']} ({capabilities['cpu']['cores']} cores)", file=sys.stderr)
+        print(f"   RAM:      {capabilities['memory']['total_gb']} GB", file=sys.stderr)
+        print(f"   GPU:      {capabilities['gpu']['name']}", file=sys.stderr)
+        print(f"   Platform: {capabilities['platform']}", file=sys.stderr)
+
+    if args.scan_only:
+        return
+
+    # Step 2: Parse join URL
+    join = parse_join_url(args.join_url)
+    coordinator = join["coordinator"]
+    token = join["token"]
+
+    if not args.json:
+        print(f"\n🔗 Joining swarm at {coordinator}...", file=sys.stderr)
+
+    # Step 3: Send initial heartbeat
+    response = send_heartbeat(coordinator, token, capabilities)
+    if response.get("ok"):
+        if not args.json:
+            print(f"   ✅ Connected! Peer '{capabilities['peer_id']}' registered.", file=sys.stderr)
+    else:
+        error = response.get("error", "unknown error")
+        print(f"   ❌ Failed to join: {error}", file=sys.stderr)
+        if not args.loop:
+            sys.exit(1)
+
+    # Step 4: Loop
+    if args.loop:
+        if not args.json:
+            extra = " + auto-serve" if args.auto_serve else ""
+            print(f"   💓 Heartbeating every {args.interval}s{extra}... (Ctrl+C to stop)", file=sys.stderr)
+        job_executed = False
+        try:
+            while True:
+                time.sleep(args.interval)
+                capabilities["scanned_at"] = int(time.time())
+                response = send_heartbeat(coordinator, token, capabilities)
+                if not args.json:
+                    status = "✅" if response.get("ok") else "❌"
+                    print(f"   {status} Heartbeat at {time.strftime('%H:%M:%S')}", file=sys.stderr)
+
+                # Auto-serve: poll for a deployment job and execute it
+                if args.auto_serve and not job_executed:
+                    poll = poll_job_for_peer(coordinator, capabilities["peer_id"])
+                    job = poll.get("job")
+                    if job and job.get("command"):
+                        cmd = job["command"]
+                        # Defensive: the planner inserts <SEED_MULTIADDR_FROM_...>
+                        # placeholders for non-seed peers. The real multiaddr is
+                        # only known after the seed peer starts, so the
+                        # placeholder must be substituted server-side before the
+                        # command can run. If the operator hasn't provided one,
+                        # report a clear error instead of running a command
+                        # that the shell will choke on (exit 127).
+                        if "<SEED_MULTIADDR_FROM_" in cmd or "<PASTE_SERVER_" in cmd:
+                            print(
+                                f"\n   ⚠️  Job for {poll.get('deployed_model','?')} has unsubstituted "
+                                f"placeholders in the launch command. This is a known limitation "
+                                f"of the MVP — non-seed peers need a real seed multiaddr which "
+                                f"is only available after the seed peer starts.\n"
+                                f"   Workaround: open the dashboard Deploy tab and run the "
+                                f"command manually after starting DemoLaptop, OR wait for a "
+                                f"future version that auto-substitutes the seed multiaddr.\n"
+                                f"   Skipping auto-execute; will keep heartbeating.",
+                                file=sys.stderr,
+                            )
+                            post_peer_status(
+                                coordinator, capabilities["peer_id"],
+                                status="error", progress=None,
+                                job_port=job.get("port"),
+                                model_id=poll.get("deployed_model"),
+                                message="launch command has unsubstituted placeholder; manual deploy required",
+                            )
+                            job_executed = True  # don't retry every heartbeat
+                            continue
+                        print(f"\n   📦 Got job for model: {poll.get('deployed_model', '?')}", file=sys.stderr)
+                        print(f"   🎯 Assigned: {job.get('role', '?')} {job.get('block_range', '')} port {job.get('port', '?')}", file=sys.stderr)
+                        result = execute_job_command(
+                            cmd,
+                            coordinator=coordinator,
+                            peer_id=capabilities["peer_id"],
+                            job_port=job.get("port"),
+                            model_id=poll.get("deployed_model"),
+                        )
+                        print(f"   🏁 Server exited with code {result.get('exit_code')}", file=sys.stderr)
+                        job_executed = True  # only run once per session
+        except KeyboardInterrupt:
+            if not args.json:
+                print("\n👋 Disconnected.", file=sys.stderr)
+
+    if args.json:
+        print(json.dumps({"ok": True, "peer_id": capabilities["peer_id"], "coordinator": coordinator}))
+
+
+if __name__ == "__main__":
+    main()
