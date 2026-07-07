@@ -1058,7 +1058,7 @@ export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
     <p>iOS 17+ on iPhone 12 or newer. Free — no Apple Developer account needed.</p>
     <ol style="color:var(--muted);line-height:1.6;font-size:12px;margin-left:20px;">
       <li>Install <strong>SideStore</strong> from <a href="https://sidestore.io" style="color:var(--accent);">sidestore.io</a></li>
-      <li>Enter our anisette server URL in SideStore settings (operator provides this — see Operator Quick Start above)</li>
+      <li>In SideStore settings → Anisette URL, enter: <code>http://<em>this-machine-ip</em>:6969</code> (the anisette server runs on the same Mac as the coordinator — get the exact IP from Step 4b above)</li>
       <li>Tap our pinned <strong>BloomBee.ipa</strong> install link → "Install"</li>
       <li>Open the BloomBee app → enter the coordinator URL shown on the QR/share link</li>
     </ol>
