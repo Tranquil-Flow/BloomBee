@@ -483,6 +483,82 @@ def _compatible_from_query(
 DEPLOYMENT_CLAIM_BOUNDARY = "deployment_plan_only_no_server_started"
 JOB_CLAIM_BOUNDARY = "job_assignment_only_no_server_started"
 INFER_CLAIM_BOUNDARY = "inference_coordination_only_no_actual_inference"
+PIPELINE_CLAIM_BOUNDARY = "pipeline_visualization_only_no_inference_proof"
+
+
+def _build_pipeline_snapshot(state_dir: str | Path) -> dict[str, Any]:
+    """Build a pipeline visualization snapshot from deployment + heartbeats."""
+    deployment = _load_deployment(state_dir)
+    jobs = deployment.get("jobs", {})
+    active = load_active_heartbeats(state_dir, token="*", max_age_seconds=300)
+
+    peers: list[dict[str, Any]] = []
+    for hb in active:
+        caps = hb.get("capabilities", {})
+        peer_id = str(hb.get("peer_id", ""))
+        hostname = str(caps.get("hostname", peer_id))
+        job = None
+        for jh, jd in jobs.items():
+            if jh.lower() == hostname.lower() or hostname.lower().startswith(jh.lower()):
+                job = jd
+                break
+        mem_total = caps.get("memory", {}).get("total_gb", 16)
+        mem_avail = caps.get("memory", {}).get("available_gb", 8)
+        mem_used_pct = int((1 - mem_avail / max(mem_total, 1)) * 100)
+
+        peers.append({
+            "hostname": hostname,
+            "peer_id": peer_id,
+            "block_range": job.get("block_indices", "") if job else "",
+            "start_layer": job.get("start_layer") if job else None,
+            "end_layer": job.get("end_layer") if job else None,
+            "status": caps.get("status", hb.get("status", "idle")),
+            "memory_pct": mem_used_pct,
+            "total_gb": mem_total,
+            "available_gb": mem_avail,
+            "latency_ms_est": (job.get("end_layer", 0) - job.get("start_layer", 0)) * 2.5 if job else 0,
+            "port": job.get("port") if job else None,
+        })
+
+    # Sort by start_layer
+    peers.sort(key=lambda p: p.get("start_layer") or 0)
+
+    return {
+        "model_id": deployment.get("model_id"),
+        "peer_count": len(jobs),
+        "serving_count": sum(1 for p in peers if p["status"] == "serving"),
+        "peers": peers,
+        "deployed_at": deployment.get("created_at"),
+        "claim_boundary": PIPELINE_CLAIM_BOUNDARY,
+    }
+
+
+def _handle_inference_feed(
+    query: dict[str, list[str]],
+    *,
+    state_dir: str | Path,
+    wfile,
+) -> None:
+    """GET /inference-feed — SSE stream of pipeline state."""
+    import time as _time
+    run_id = _first(query, "run_id") or "pipeline"
+    interval = max(1, _as_int(_first(query, "interval"), 2))
+
+    def _write_sse(event: str, data: str) -> None:
+        msg = f"event: {event}\ndata: {data}\n\n"
+        wfile.write(msg.encode("utf-8"))
+        wfile.flush()
+
+    snapshot = _build_pipeline_snapshot(state_dir)
+    _write_sse("snapshot", json.dumps(snapshot))
+
+    for _ in range(60):  # max 2 min of streaming
+        snapshot = _build_pipeline_snapshot(state_dir)
+        for peer in snapshot.get("peers", []):
+            peer["_ts"] = _time.time()
+            _write_sse("peer_update", json.dumps(peer))
+        _write_sse("heartbeat", json.dumps({"run_id": run_id, "ts": _time.time()}))
+        _time.sleep(interval)
 
 
 def _handle_infer(
@@ -1232,6 +1308,8 @@ def handle_get(
         return _handle_proof_orchestration(query, state_dir=state_dir, coordinator=coordinator, registry=registry)
     if parsed.path == "/job":
         return _handle_job(query, state_dir=state_dir)
+    if parsed.path == "/pipeline":
+        return 200, _build_pipeline_snapshot(state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
@@ -1328,6 +1406,23 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib API
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+
+        # SSE streaming endpoint
+        if parsed.path == "/inference-feed":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            try:
+                _handle_inference_feed(query, state_dir=self.server.state_dir, wfile=self.wfile)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
+
         text_response = handle_get_text(
             self.path,
             state_dir=self.server.state_dir,

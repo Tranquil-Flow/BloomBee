@@ -124,6 +124,39 @@ th { color: #bad0f3; background: rgba(7,17,31,.55); font-size: 10px; text-transf
   main { grid-template-columns: 1fr; padding: 14px; }
   header { padding: 14px; }
 }
+/* Pipeline visualization */
+.pipeline-row {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0;
+  flex-wrap: wrap; font-size: 11px;
+}
+.pipeline-peer {
+  background: var(--panel2); border: 2px solid var(--line);
+  border-radius: 12px; padding: 12px 16px; min-width: 160px;
+  text-align: center; transition: border-color .3s;
+}
+.pipeline-peer.serving { border-color: var(--ok); }
+.pipeline-peer.idle { border-color: var(--warn); opacity: .7; }
+.pipeline-peer .peer-name { font-weight: 700; color: var(--accent); font-size: 12px; }
+.pipeline-peer .peer-layers { color: var(--muted); margin: 4px 0; }
+.pipeline-peer .peer-mem { color: var(--moon); font-size: 10px; }
+.pipeline-arrow { color: var(--accent); font-size: 24px; font-weight: 700; }
+.pipeline-mem-bar {
+  height: 6px; background: var(--line); border-radius: 3px;
+  margin-top: 6px; overflow: hidden;
+}
+.pipeline-mem-fill {
+  height: 100%; border-radius: 3px; transition: width .5s;
+  background: var(--accent);
+}
+.pipeline-mem-fill.high { background: var(--warn); }
+.pipeline-mem-fill.critical { background: var(--fail); }
+.pipeline-token {
+  background: var(--panel2); border: 1px solid var(--ok);
+  border-radius: 8px; padding: 8px 14px; text-align: center;
+  min-width: 100px;
+}
+.pipeline-token .tok-label { color: var(--muted); font-size: 10px; }
+.pipeline-token .tok-value { color: var(--ok); font-size: 14px; font-weight: 700; }
 """
 
 JS = r"""
@@ -225,6 +258,48 @@ function refreshAll() {
   loadRoster();
   loadPlan();
   loadRoute();
+  loadPipeline();
+}
+async function loadPipeline() {
+  const card = document.getElementById('pipeline-card');
+  const viz = document.getElementById('pipeline-viz');
+  const data = await fetchJSON(COORDINATOR + '/pipeline');
+  if (!data || !data.peers || !data.peers.length) {
+    card.style.display = 'none'; return;
+  }
+  card.style.display = 'block';
+
+  let html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+    '<span style="color:var(--accent);">Model: ' + esc(data.model_id || 'none') + '</span>' +
+    '<span style="color:var(--muted);">· ' + data.serving_count + '/' + data.peer_count + ' serving</span>' +
+    '</div>';
+
+  html += '<div class="pipeline-row">';
+  // Input box
+  html += '<div class="pipeline-token"><div class="tok-label">Prompt</div><div class="tok-value">📝</div></div>';
+  html += '<div class="pipeline-arrow">→</div>';
+
+  for (let i = 0; i < data.peers.length; i++) {
+    const p = data.peers[i];
+    const cls = p.status === 'serving' ? 'serving' : 'idle';
+    const memClass = p.memory_pct > 80 ? 'critical' : (p.memory_pct > 60 ? 'high' : '');
+    html += '<div class="pipeline-peer ' + cls + '">' +
+      '<div class="peer-name">' + esc(p.hostname) + '</div>' +
+      '<div class="peer-layers">layers ' + esc(p.block_range || '?') + '</div>' +
+      '<div class="peer-mem">' + p.memory_pct + '% mem · ~' + p.latency_ms_est + 'ms</div>' +
+      '<div class="pipeline-mem-bar"><div class="pipeline-mem-fill ' + memClass + '" style="width:' + p.memory_pct + '%;"></div></div>' +
+      '</div>';
+    if (i < data.peers.length - 1) {
+      html += '<div class="pipeline-arrow">→</div>';
+    }
+  }
+
+  // Output box
+  html += '<div class="pipeline-arrow">→</div>';
+  html += '<div class="pipeline-token"><div class="tok-label">Output</div><div class="tok-value">✨</div></div>';
+  html += '</div>';
+
+  viz.innerHTML = html;
 }
 async function loadPlan() {
   const el = document.getElementById('plan-content');
@@ -824,9 +899,14 @@ python3 scripts/operator_dashboard.py \\
   <div id="plan-content"><div class="loading">...</div></div>
 </div>
 
-<div class="card">
+<div class="card wide">
   <h3>🔀 Best Route</h3>
   <div id="route-content"><div class="loading">...</div></div>
+</div>
+
+<div class="card wide" id="pipeline-card" style="display:none;">
+  <h3>🔗 Inference Pipeline</h3>
+  <div id="pipeline-viz"></div>
 </div>
 </main>
 
