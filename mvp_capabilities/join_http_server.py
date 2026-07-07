@@ -1265,8 +1265,8 @@ async function init() {{
   try {{
     const r = await fetch(C + "/offer");
     const d = await r.json();
-    const cmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 30`;
-    const phoneCmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 60`;
+    const cmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 30 --auto-serve`;
+    const phoneCmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 60 --auto-serve`;
     document.getElementById('cmd').textContent = cmd;
     document.getElementById('cmd-phone').textContent = phoneCmd;
   }} catch(e) {{
