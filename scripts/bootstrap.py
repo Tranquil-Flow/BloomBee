@@ -312,13 +312,73 @@ def is_server_ready_line(line: str) -> bool:
     return bool(_SERVER_READY_RE.search(line.rstrip()))
 
 
-def model_weights_cached(model_id: str, cache_dir: "str | Path | None" = None) -> bool:
+def _shards_needed_for_layers(
+    model_id: str,
+    start_layer: int,
+    end_layer: int,
+    is_first_peer: bool = False,
+    is_last_peer: bool = False,
+    cache_dir: "str | Path | None" = None,
+    timeout: int = 10,
+) -> list[str]:
+    """Return the list of safetensors shard filenames needed to cover
+    ``[start_layer, end_layer)`` of ``model_id``.
+
+    Uses the model's ``model.safetensors.index.json`` to map each layer to
+    its shard. First/last peers also get the non-layer shards (embeddings,
+    lm_head, layer norms) needed at pipeline boundaries. Falls back to an
+    empty list if the index is unavailable.
+    """
+    if cache_dir is None:
+        hf_home = os.environ.get("HF_HOME")
+        cache_dir = Path(hf_home) / "hub" if hf_home else Path.home() / ".cache" / "huggingface" / "hub"
+    cache_dir = Path(cache_dir)
+    model_dir = cache_dir / ("models--" + model_id.replace("/", "--"))
+    if not model_dir.is_dir():
+        return []
+    # The index is small — just load it locally rather than hitting HF
+    for index_file in model_dir.rglob("model.safetensors.index.json"):
+        try:
+            data = json.loads(index_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        weight_map = data.get("weight_map", {})
+        needed: set[str] = set()
+        for key, filename in weight_map.items():
+            if "model.layers." in key:
+                try:
+                    layer_num = int(key.split("model.layers.")[1].split(".")[0])
+                    if start_layer <= layer_num < end_layer:
+                        needed.add(filename)
+                except (ValueError, IndexError):
+                    pass
+            elif is_first_peer or is_last_peer:
+                # Embeddings, lm_head, final layer_norm live outside the
+                # transformer block range; first peer needs embeddings,
+                # last peer needs lm_head.
+                if is_first_peer and ("embed" in key.lower() or "wte" in key.lower()):
+                    needed.add(filename)
+                elif is_last_peer and ("lm_head" in key.lower() or "embed_out" in key.lower()):
+                    needed.add(filename)
+        return sorted(needed)
+    return []
+
+
+def model_weights_cached(
+    model_id: str,
+    cache_dir: "str | Path | None" = None,
+    required_shards: "list[str] | None" = None,
+) -> bool:
     """Return True iff the HF cache holds real weight files for ``model_id``.
 
     A config-only cache entry (just ``config.json`` / tokenizer / a bare
     ``*.index.json``) is NOT enough — the server would hang for a long time
     downloading the actual shards. Preflighting this lets the bootstrap fail
     fast with an actionable message instead of appearing to "serve" forever.
+
+    If ``required_shards`` is provided, only those specific shard files are
+    checked (matches the peer's assigned layer range). Otherwise any
+    safetensors/.bin file in the cache counts.
     """
     if cache_dir is None:
         hf_home = os.environ.get("HF_HOME")
@@ -328,6 +388,22 @@ def model_weights_cached(model_id: str, cache_dir: "str | Path | None" = None) -
     model_dir = cache_dir / ("models--" + model_id.replace("/", "--"))
     if not model_dir.is_dir():
         return False
+
+    if required_shards:
+        # Per-shard preflight: check each specific shard exists and is non-empty
+        for shard_name in required_shards:
+            # Shards can be in snapshots/<hash>/<filename> or in blobs/
+            found = False
+            for path in model_dir.rglob(shard_name):
+                try:
+                    if path.stat().st_size > 0:
+                        found = True
+                        break
+                except OSError:
+                    continue
+            if not found:
+                return False
+        return True
 
     for pattern in ("*.safetensors", "*.bin"):
         for weight_file in model_dir.rglob(pattern):
@@ -448,12 +524,45 @@ def execute_job_command(
     # pulling ~GBs of shards; the old flow then reported that stuck server
     # as "serving" the instant it printed its multiaddr. Fail fast with an
     # actionable message instead of hanging while masquerading as green.
-    if model_id and not model_weights_cached(model_id):
-        msg = (
-            f"Model weights for '{model_id}' are not downloaded (HF cache has "
-            f"config only). Pre-download them on this machine before serving: "
-            f"huggingface-cli download {model_id}"
-        )
+    # When the job specifies a block range, we check only the shards that
+    # cover those layers — not the full model. This is the per-shard
+    # download flow: each peer pre-fetches only its assigned layers.
+    preflight_shards: list[str] | None = None
+    preflight_block_range: str | None = None
+    if model_id and job_port:
+        # Try to derive the block range from the job's command line
+        for token in clean_command.split():
+            if ":" in token and token.replace(":", "").isdigit():
+                preflight_block_range = token
+                break
+    if model_id and preflight_block_range:
+        try:
+            start_str, end_str = preflight_block_range.split(":", 1)
+            start, end = int(start_str), int(end_str)
+            preflight_shards = _shards_needed_for_layers(
+                model_id, start, end,
+                is_first_peer=(start == 0),
+                is_last_peer=False,  # conservative; can refine later
+            )
+        except (ValueError, AttributeError):
+            pass
+    if model_id and not model_weights_cached(
+        model_id, required_shards=preflight_shards
+    ):
+        if preflight_shards:
+            shard_list = " ".join(preflight_shards)
+            msg = (
+                f"Model weights for '{model_id}' layers {preflight_block_range} "
+                f"are not downloaded (HF cache missing required shards). "
+                f"Pre-download only the shards you need on this machine:\n"
+                f"  huggingface-cli download {model_id} {shard_list}"
+            )
+        else:
+            msg = (
+                f"Model weights for '{model_id}' are not downloaded (HF cache has "
+                f"config only). Pre-download them on this machine before serving: "
+                f"huggingface-cli download {model_id}"
+            )
         print(f"   ❌ {msg}", file=sys.stderr)
         if have_status:
             post_peer_status(
@@ -468,6 +577,7 @@ def execute_job_command(
             "stdout_tail": "",
             "stderr_tail": msg,
             "weights_missing": True,
+            "required_shards": preflight_shards or [],
         }
 
     if have_status:
