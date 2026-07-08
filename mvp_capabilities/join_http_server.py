@@ -1783,6 +1783,95 @@ def handle_get_text(
     return None
 
 
+def _weights_needed(state_dir: str | Path) -> dict[str, Any]:
+    """GET /weights-needed — per-peer download commands for model shards.
+
+    Reads the current deployment, fetches the safetensors index from HF,
+    and maps each peer's assigned layer range to the specific .safetensors
+    shard files it needs. Returns copy-paste ``huggingface-cli download``
+    commands so peers can pre-fetch only their layers.
+    """
+    deployment = _load_deployment(state_dir)
+    jobs = deployment.get("jobs", {})
+    model_id = deployment.get("model_id")
+    if not model_id or not jobs:
+        return {
+            "ok": False,
+            "error": "No active deployment. Deploy a model first.",
+            "claim_boundary": "weight_provisioning_only_no_inference_proof",
+        }
+
+    # Fetch the safetensors index from HuggingFace
+    index_url = f"https://huggingface.co/{model_id}/resolve/main/model.safetensors.index.json"
+    try:
+        with urllib.request.urlopen(index_url, timeout=15) as resp:
+            index_data = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": f"Failed to fetch safetensors index: {exc}",
+            "model_id": model_id,
+            "claim_boundary": "weight_provisioning_only_no_inference_proof",
+        }
+
+    weight_map = index_data.get("weight_map", {})
+    # Map layer number → set of shard filenames
+    layer_to_shards: dict[int, set[str]] = {}
+    for key, filename in weight_map.items():
+        if "model.layers." in key:
+            try:
+                layer_num = int(key.split("model.layers.")[1].split(".")[0])
+                layer_to_shards.setdefault(layer_num, set()).add(filename)
+            except (ValueError, IndexError):
+                pass
+
+    # Also collect non-layer shards (embeddings, lm_head, etc.) needed
+    # by the first and last peers
+    non_layer_shards: set[str] = set()
+    for key, filename in weight_map.items():
+        if "model.layers." not in key:
+            non_layer_shards.add(filename)
+
+    per_peer: dict[str, dict[str, Any]] = {}
+    for hostname, job in sorted(jobs.items()):
+        start = job.get("start_layer")
+        end = job.get("end_layer")
+        if start is None or end is None:
+            per_peer[hostname] = {
+                "layer_range": "?",
+                "shards": [],
+                "command": "# Layer range unknown — download the full model\n"
+                           f"huggingface-cli download {model_id}",
+            }
+            continue
+
+        shards: set[str] = set()
+        for layer in range(int(start), int(end)):
+            shards.update(layer_to_shards.get(layer, set()))
+
+        # First peer also needs embedding shards; last peer needs lm_head shards
+        all_peers = sorted(jobs.keys())
+        if hostname == all_peers[0]:
+            shards.update(non_layer_shards)
+        elif hostname == all_peers[-1]:
+            shards.update(non_layer_shards)
+
+        shard_list = sorted(shards)
+        cmd = f"huggingface-cli download {model_id} " + " ".join(shard_list)
+        per_peer[hostname] = {
+            "layer_range": f"{start}:{end}",
+            "shards": shard_list,
+            "command": cmd,
+        }
+
+    return {
+        "ok": True,
+        "model_id": model_id,
+        "peers": per_peer,
+        "claim_boundary": "weight_provisioning_only_no_inference_proof",
+    }
+
+
 def handle_get(
     path: str,
     *,
@@ -1998,6 +2087,8 @@ def handle_get(
                 }
             ]
         }
+    if parsed.path == "/weights-needed":
+        return 200, _weights_needed(state_dir)
     return 404, {"error": "not found", "claim_boundary": ERROR_CLAIM_BOUNDARY}
 
 
