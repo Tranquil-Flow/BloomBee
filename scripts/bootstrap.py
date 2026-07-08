@@ -568,6 +568,33 @@ def execute_job_command(
         download_args = [model_id] + (preflight_shards or [])
         download_cmd = f"hf download {' '.join(download_args)}"
 
+        # Clear stale HF lock/incomplete state from a prior killed downloader.
+        # HuggingFace Hub uses file locks to coordinate concurrent writers;
+        # when a downloader is killed (timeout, xet stall, OOM), the lock
+        # file lingers and blocks subsequent resumes. Removing it is safe —
+        # the .incomplete file is the real "what's been downloaded so far"
+        # state and `hf download` will resume from it.
+        hf_home = _os.environ.get("HF_HOME") or str(Path.home() / ".cache" / "huggingface")
+        hub_root = Path(hf_home) / "hub" / ("models--" + model_id.replace("/", "--"))
+        try:
+            locks_dir = hub_root / ".locks"
+            if locks_dir.is_dir():
+                for lock in locks_dir.iterdir():
+                    try:
+                        lock.unlink()
+                    except OSError:
+                        pass
+                print(f"   🧹 cleared stale HF locks in {locks_dir}", file=sys.stderr)
+            for inc in hub_root.rglob("*.incomplete"):
+                # Leave .incomplete files alone — those ARE the resume state.
+                # We only printed them so the operator can see what's partial.
+                sz = inc.stat().st_size if inc.exists() else 0
+                print(f"   📌 partial shard resume: {inc.name} ({sz/1e6:.1f} MB)", file=sys.stderr)
+        except OSError as exc:
+            # Don't fail the bootstrap over a permission glitch — the
+            # download attempt itself will surface any real issue.
+            print(f"   ⚠️  lock-scan skipped: {exc}", file=sys.stderr)
+
         if have_status:
             post_peer_status(
                 coord, pid,
@@ -584,11 +611,49 @@ def execute_job_command(
             dl_env = dict(_os.environ)
             if _os.path.isfile(venv_python):
                 dl_env["PATH"] = f"{_os.path.dirname(venv_python)}:{dl_env.get('PATH', '')}"
-            result = _sp.run(
+            # Disable hf_xet: the xet endpoint regularly stalls on multi-GB
+            # shards (the Evis-2026-07-08 incident: 161 MB / 4 GB then frozen
+            # for 17 min). The plain HTTP path is slower per MB but never
+            # wedges and `.incomplete` files survive restarts either way.
+            dl_env.setdefault("HF_HUB_DISABLE_XET", "1")
+            # Run with idle-killing: if no new stdout for 5 min, assume the
+            # download is wedged and kill it. Total wall-clock cap is 30 min
+            # so the heartbeat loop eventually picks up the failure.
+            IDLE_TIMEOUT_S = 300
+            TOTAL_TIMEOUT_S = 1800
+            proc = _sp.Popen(
                 ["hf", "download"] + download_args,
-                capture_output=True, text=True, timeout=900,
-                env=dl_env,
+                stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
+                env=dl_env, bufsize=1,
             )
+            assert proc.stdout is not None
+            last_io = time.time()
+            while True:
+                line = proc.stdout.readline()
+                if line:
+                    last_io = time.time()
+                    print("   │ " + line.rstrip(), file=sys.stderr)
+                    continue
+                if proc.poll() is not None:
+                    break
+                if time.time() - last_io > IDLE_TIMEOUT_S:
+                    proc.kill()
+                    raise TimeoutError(
+                        f"no progress for {IDLE_TIMEOUT_S}s — likely xet/HTTP stall"
+                    )
+                if time.time() - dl_start > TOTAL_TIMEOUT_S:
+                    proc.kill()
+                    raise TimeoutError(f"download exceeded {TOTAL_TIMEOUT_S}s budget")
+                time.sleep(1.0)
+            proc.stdout.close()
+            return_code = proc.wait()
+            # Build a result-like object with .returncode / .stderr for the
+            # error-handling branch below (stdlib's Popen has no .stderr
+            # once stdout=stderr is merged; echo return code).
+            class _Result:  # noqa: D401 — local shim
+                returncode = return_code
+                stderr = ""
+            result = _Result()
             dl_duration = time.time() - dl_start
         except Exception as exc:
             dl_duration = time.time() - dl_start
@@ -793,11 +858,18 @@ def execute_job_command(
         if return_code == 0 and detected_serving:
             post_peer_status(coord, pid, status="serving", progress=100.0, job_port=job_port, model_id=model_id)  # type: ignore[arg-type]
         elif return_code == 0:
+            # Launcher exited cleanly but hivemind never printed its "Started"
+            # marker — the server is not actually serving. Reporting "serving"
+            # would lie to the dashboard (this was the Evis false-positive bug).
             post_peer_status(
                 coord, pid,  # type: ignore[arg-type]
-                status="serving", progress=100.0,
+                status="error", progress=None,
                 job_port=job_port, model_id=model_id,
-                message="(launcher exited; server may still be running in background)",
+                message=(
+                    "server exited without 'Started' marker — "
+                    "check stdout above; HF cache may be partial. "
+                    "Try: HF_HUB_DISABLE_XET=1 to bypass xet stalls."
+                ),
             )
         else:
             post_peer_status(
