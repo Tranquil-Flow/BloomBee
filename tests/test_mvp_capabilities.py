@@ -3798,7 +3798,7 @@ def test_deploy_pipeline_end_to_end_smoke(tmp_path: Path):
     try:
         # ── Phase 1: heartbeat 3 fake peers ──
         peers = [
-            ("DemoLaptop", 16, 10),
+            ("Demo-Mac", 16, 10),
             ("m4pro", 48, 38),
             ("Astra-Macbook", 8, 5),
         ]
