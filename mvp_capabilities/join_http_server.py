@@ -715,17 +715,21 @@ def _handle_infer(
     seed_addrs = _load_seed_multiaddrs(state_dir)
     server_str = ""
     addrs = None
+    addr_list = None
     if seed_addrs:
         # Use the first external (non-loopback) multiaddr
-        for hostname, addrs in seed_addrs.items():
-            for addr in addrs:
+        for hostname, record in seed_addrs.items():
+            addr_list = record.get("multiaddrs") or []
+            if isinstance(addr_list, str):
+                addr_list = [addr_list]
+            for addr in addr_list:
                 if "127.0.0.1" not in addr and "::1" not in addr:
                     server_str = addr
                     break
             if server_str:
                 break
-        if not server_str and addrs:
-            server_str = next(iter(addrs), "")
+        if not server_str and addr_list:
+            server_str = addr_list[0] if isinstance(addr_list, list) else str(addr_list)
 
     inference_cmd = (
         f"cd ~/Projects/distributed-inference-mvp && .venv/bin/python scripts/direct_remote_call.py \\\n"
