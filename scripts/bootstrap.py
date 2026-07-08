@@ -343,6 +343,14 @@ def execute_job_command(
     # we set it via the subprocess env instead so cwd doesn't matter.
     import re as _re
     clean_command = _re.sub(r"^PYTHONPATH=[^ ]+\s+", "", command)
+    # Detect the virtualenv Python so dependencies (hivemind, torch,
+    # transformers) are importable. Falls back to the python3 on PATH.
+    venv_python = _os.path.join(repo_root, ".venv", "bin", "python")
+    if not _os.path.isfile(venv_python):
+        venv_python = _os.path.join(repo_root, ".venv", "bin", "python3")
+    if _os.path.isfile(venv_python):
+        clean_command = clean_command.replace("python3 ", f"{venv_python} ", 1)
+        clean_command = clean_command.replace("python ", f"{venv_python} ", 1)
     have_status = bool(coord and pid)
     # ────────────────────────────────────────────────────────────────
 
@@ -404,7 +412,12 @@ def execute_job_command(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            env={**_os.environ, "PYTHONPATH": resolved_pythonpath},
+            env={
+                **_os.environ,
+                "PYTHONPATH": resolved_pythonpath,
+                "PATH": f"{_os.path.join(repo_root, '.venv', 'bin')}:{_os.environ.get('PATH', '')}",
+                "VIRTUAL_ENV": _os.path.join(repo_root, ".venv"),
+            },
         )
         assert proc.stdout is not None
         for line in proc.stdout:
