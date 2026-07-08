@@ -735,8 +735,9 @@ def _handle_infer(
         f"cd ~/Projects/distributed-inference-mvp && .venv/bin/python scripts/direct_remote_call.py \\\n"
         f"  --model {model_id} \\\n"
         + (f'  --server-maddr "{server_str}" \\\n' if server_str else "  # (no seed multiaddr available yet)\n")
-        + f'  --prompt "{prompt[:100]}"\n'
-        "# Run from any machine with the BloomBee venv (torch + hivemind installed)"
+        + "  --block-range 0:1\n"
+        "# Transport probe — verifies the distributed pipeline works.\n"
+        "# For text generation: use .venv/bin/python -c \"from bloombee.client import RemoteSequential; ...\""
     )
 
     return 200, {
