@@ -329,9 +329,26 @@ def execute_job_command(
     # subprocess can import bloombee regardless of working directory.
     effective_cwd = cwd or _os.getcwd()
     repo_root = effective_cwd
+    found = False
     for _ in range(6):
         if (_os.path.isdir(_os.path.join(repo_root, "src", "bloombee", "cli"))
                 and _os.path.isfile(_os.path.join(repo_root, "src", "bloombee", "cli", "run_server.py"))):
+            found = True
+            break
+        # Also check immediate subdirectories at this level, so if the
+        # bootstrap is run from ~/Projects (parent of the actual repo) we
+        # still discover ~/Projects/distributed-inference-mvp.
+        try:
+            for entry in _os.listdir(repo_root):
+                sub = _os.path.join(repo_root, entry)
+                if _os.path.isdir(sub) and _os.path.isdir(_os.path.join(sub, "src", "bloombee", "cli")):
+                    if _os.path.isfile(_os.path.join(sub, "src", "bloombee", "cli", "run_server.py")):
+                        repo_root = sub
+                        found = True
+                        break
+        except PermissionError:
+            pass
+        if found:
             break
         parent = _os.path.dirname(repo_root)
         if parent == repo_root:
