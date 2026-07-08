@@ -59,6 +59,17 @@ def record_heartbeat(
     capabilities: dict[str, Any],
     now: int | None = None,
 ) -> dict[str, Any]:
+    # Block the "DemoLaptop" ghost — stale curl loops on the coordinator
+    # machine that send hardcoded heartbeats with a fake hostname.  The
+    # real peer on that machine is Evis-MacBook-Pro.
+    hostname = str(capabilities.get("hostname") or "").lower()
+    if peer_id.lower() == "demo-laptop" or hostname == "demolaptop":
+        return {
+            "ok": False,
+            "error": "blocked: demo-laptop is a duplicate of Evis-MacBook-Pro. "
+                     "Kill stale bootstrap processes and use the real hostname.",
+            "claim_boundary": "heartbeat_only_no_inference_proof",
+        }
     timestamp = _now_seconds() if now is None else int(now)
     payload = {
         "ok": True,

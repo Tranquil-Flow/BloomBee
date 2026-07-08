@@ -3990,7 +3990,7 @@ def test_deploy_jobs_wait_for_seed_multiaddr_then_substitute(tmp_path: Path):
     state_dir = tmp_path / "join-state"
     peers = [
         ("Astra-Macbook-abc", "Astra-Macbook", 8),
-        ("demo-laptop", "DemoLaptop", 16),
+        ("demo-mac", "Demo-Mac", 16),
         ("m4pro-xyz", "m4pro", 48),
     ]
     for peer_id, hostname, gb in peers:
