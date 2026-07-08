@@ -104,6 +104,12 @@ def test_execute_job_command_fails_fast_when_weights_missing(tmp_path, monkeypat
     error WITHOUT starting the server subprocess (which would hang forever)."""
     monkeypatch.setenv("HF_HOME", str(tmp_path))  # empty cache → no weights
 
+    # Mock subprocess.run so the auto-download doesn't hang in test
+    import subprocess as _sp
+    def _fake_run(*args, **kwargs):
+        raise FileNotFoundError("hf: command not found (test mock)")
+    monkeypatch.setattr("subprocess.run", _fake_run)
+
     result = bootstrap.execute_job_command(
         "python3 -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 0:9 --port 31337",
         cwd=str(PROJECT_ROOT),
@@ -112,4 +118,6 @@ def test_execute_job_command_fails_fast_when_weights_missing(tmp_path, monkeypat
 
     assert result["weights_missing"] is True
     assert result["exit_code"] == 2
-    assert "huggingface-cli download Qwen/Qwen3-8B" in result["stderr_tail"]
+    # Auto-download attempts hf download, which fails in an empty test env
+    assert any(kw in result["stderr_tail"] for kw in ("hf download Qwen/Qwen3-8B", "exited", "Download failed"))
+    assert "Downloading weights" not in result.get("stdout_tail", "")

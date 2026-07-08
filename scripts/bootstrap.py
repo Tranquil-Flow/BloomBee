@@ -549,36 +549,103 @@ def execute_job_command(
     if model_id and not model_weights_cached(
         model_id, required_shards=preflight_shards
     ):
-        if preflight_shards:
-            shard_list = " ".join(preflight_shards)
-            msg = (
-                f"Model weights for '{model_id}' layers {preflight_block_range} "
-                f"are not downloaded (HF cache missing required shards). "
-                f"Pre-download only the shards you need on this machine:\n"
-                f"  huggingface-cli download {model_id} {shard_list}"
-            )
-        else:
-            msg = (
-                f"Model weights for '{model_id}' are not downloaded (HF cache has "
-                f"config only). Pre-download them on this machine before serving: "
-                f"huggingface-cli download {model_id}"
-            )
-        print(f"   ❌ {msg}", file=sys.stderr)
+        # ── Auto-download missing shards (zero-touch) ──
+        # Instead of exiting with an error, download the required
+        # shards automatically and then proceed to launch the server.
+        shard_list = " ".join(preflight_shards) if preflight_shards else ""
+        download_args = [model_id] + (preflight_shards or [])
+        download_cmd = f"hf download {' '.join(download_args)}"
+
         if have_status:
             post_peer_status(
-                coord, pid,  # type: ignore[arg-type]
-                status="error", progress=None,
+                coord, pid,
+                status="downloading", progress=5.0,
                 job_port=job_port, model_id=model_id,
-                message=msg,
+                message=f"Auto-downloading {len(preflight_shards or [])} shard(s) for layers {preflight_block_range or 'all'}...",
             )
-        return {
-            "command": command,
-            "exit_code": 2,
-            "stdout_tail": "",
-            "stderr_tail": msg,
-            "weights_missing": True,
-            "required_shards": preflight_shards or [],
-        }
+
+        print(f"   📥 Downloading weights: {download_cmd}", file=sys.stderr)
+        dl_start = time.time()
+        try:
+            import subprocess as _sp
+            # Use the same venv-aware environment as the server subprocess
+            dl_env = dict(_os.environ)
+            if _os.path.isfile(venv_python):
+                dl_env["PATH"] = f"{_os.path.dirname(venv_python)}:{dl_env.get('PATH', '')}"
+            result = _sp.run(
+                ["hf", "download"] + download_args,
+                capture_output=True, text=True, timeout=900,
+                env=dl_env,
+            )
+            dl_duration = time.time() - dl_start
+        except Exception as exc:
+            dl_duration = time.time() - dl_start
+            msg = f"Download failed after {dl_duration:.0f}s: {exc}"
+            print(f"   ❌ {msg}", file=sys.stderr)
+            if have_status:
+                post_peer_status(
+                    coord, pid,
+                    status="error", progress=None,
+                    job_port=job_port, model_id=model_id,
+                    message=msg,
+                )
+            return {
+                "command": command, "exit_code": 2,
+                "stdout_tail": "", "stderr_tail": msg,
+                "weights_missing": True,
+                "required_shards": preflight_shards or [],
+            }
+
+        if result.returncode != 0:
+            msg = (
+                f"huggingface-cli exited with code {result.returncode} "
+                f"after {dl_duration:.0f}s\n"
+                f"stderr: {(result.stderr or '')[:200]}"
+            )
+            print(f"   ❌ {msg}", file=sys.stderr)
+            if have_status:
+                post_peer_status(
+                    coord, pid,
+                    status="error", progress=None,
+                    job_port=job_port, model_id=model_id,
+                    message=msg,
+                )
+            return {
+                "command": command, "exit_code": 2,
+                "stdout_tail": "", "stderr_tail": msg,
+                "weights_missing": True,
+                "required_shards": preflight_shards or [],
+            }
+
+        print(f"   ✅ Weights downloaded in {dl_duration:.0f}s", file=sys.stderr)
+        if have_status:
+            post_peer_status(
+                coord, pid,
+                status="loading", progress=20.0,
+                job_port=job_port, model_id=model_id,
+                message=f"Downloaded {len(preflight_shards or [])} shards in {dl_duration:.0f}s; launching server...",
+            )
+
+        # Verify the shards are now cached — if still missing, something is wrong
+        if not model_weights_cached(model_id, required_shards=preflight_shards):
+            msg = (
+                f"Weights downloaded but still not found in HF cache. "
+                f"Check HF_HOME / disk space."
+            )
+            print(f"   ❌ {msg}", file=sys.stderr)
+            if have_status:
+                post_peer_status(
+                    coord, pid,
+                    status="error", progress=None,
+                    job_port=job_port, model_id=model_id,
+                    message=msg,
+                )
+            return {
+                "command": command, "exit_code": 2,
+                "stdout_tail": "", "stderr_tail": msg,
+                "weights_missing": True,
+                "required_shards": preflight_shards or [],
+            }
 
     if have_status:
         post_peer_status(

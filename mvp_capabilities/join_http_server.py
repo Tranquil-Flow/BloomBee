@@ -1841,7 +1841,7 @@ def _weights_needed(state_dir: str | Path) -> dict[str, Any]:
                 "layer_range": "?",
                 "shards": [],
                 "command": "# Layer range unknown — download the full model\n"
-                           f"huggingface-cli download {model_id}",
+                           f"hf download {model_id}",
             }
             continue
 
@@ -1857,7 +1857,7 @@ def _weights_needed(state_dir: str | Path) -> dict[str, Any]:
             shards.update(non_layer_shards)
 
         shard_list = sorted(shards)
-        cmd = f"huggingface-cli download {model_id} " + " ".join(shard_list)
+        cmd = f"hf download {model_id} " + " ".join(shard_list)
         per_peer[hostname] = {
             "layer_range": f"{start}:{end}",
             "shards": shard_list,
