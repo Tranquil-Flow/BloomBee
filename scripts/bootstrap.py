@@ -276,6 +276,51 @@ def extract_multiaddrs(text: str) -> list[str]:
     return found
 
 
+# The hivemind Runtime logs exactly "Started" immediately after it sets the
+# `ready` event ("set iff server is currently running and ready to accept
+# batches"). That is the ONLY authoritative readiness signal: it fires *after*
+# every block's weights are loaded. Earlier lines like "Running a server on
+# ..." (server prints its multiaddr) and "Announced that blocks ... are
+# joining" happen before weights load — treating them as "serving" is the bug
+# that showed stuck, still-downloading peers as green on the dashboard.
+_SERVER_READY_RE = re.compile(r"(?:^|\])\s*Started\s*$")
+
+
+def is_server_ready_line(line: str) -> bool:
+    """True only when a server log line proves the server finished loading its
+    blocks and is ready to serve requests (hivemind Runtime's "Started")."""
+    return bool(_SERVER_READY_RE.search(line.rstrip()))
+
+
+def model_weights_cached(model_id: str, cache_dir: "str | Path | None" = None) -> bool:
+    """Return True iff the HF cache holds real weight files for ``model_id``.
+
+    A config-only cache entry (just ``config.json`` / tokenizer / a bare
+    ``*.index.json``) is NOT enough — the server would hang for a long time
+    downloading the actual shards. Preflighting this lets the bootstrap fail
+    fast with an actionable message instead of appearing to "serve" forever.
+    """
+    if cache_dir is None:
+        hf_home = os.environ.get("HF_HOME")
+        cache_dir = Path(hf_home) / "hub" if hf_home else Path.home() / ".cache" / "huggingface" / "hub"
+    cache_dir = Path(cache_dir)
+
+    model_dir = cache_dir / ("models--" + model_id.replace("/", "--"))
+    if not model_dir.is_dir():
+        return False
+
+    for pattern in ("*.safetensors", "*.bin"):
+        for weight_file in model_dir.rglob(pattern):
+            # rglob("*.safetensors") never matches "*.safetensors.index.json"
+            # (that ends in .json), so any hit here is a real weight file.
+            try:
+                if weight_file.stat().st_size > 0:  # stat() follows symlinks (HF blobs)
+                    return True
+            except OSError:
+                continue
+    return False
+
+
 def _heartbeat_status_thread(
     coordinator: str,
     peer_id: str,
@@ -378,6 +423,33 @@ def execute_job_command(
 
     print(f"   🚀 Executing: {clean_command}", file=sys.stderr)
 
+    # ── Preflight: the model weights must actually be in the HF cache ─
+    # A config-only cache entry makes run_server hang for a long time
+    # pulling ~GBs of shards; the old flow then reported that stuck server
+    # as "serving" the instant it printed its multiaddr. Fail fast with an
+    # actionable message instead of hanging while masquerading as green.
+    if model_id and not model_weights_cached(model_id):
+        msg = (
+            f"Model weights for '{model_id}' are not downloaded (HF cache has "
+            f"config only). Pre-download them on this machine before serving: "
+            f"huggingface-cli download {model_id}"
+        )
+        print(f"   ❌ {msg}", file=sys.stderr)
+        if have_status:
+            post_peer_status(
+                coord, pid,  # type: ignore[arg-type]
+                status="error", progress=None,
+                job_port=job_port, model_id=model_id,
+                message=msg,
+            )
+        return {
+            "command": command,
+            "exit_code": 2,
+            "stdout_tail": "",
+            "stderr_tail": msg,
+            "weights_missing": True,
+        }
+
     if have_status:
         post_peer_status(
             coord, pid,  # type: ignore[arg-type]
@@ -468,8 +540,13 @@ def execute_job_command(
                     message="published seed multiaddr; followers can start",
                 )
 
-            low = line.lower()
-            if any(marker in low for marker in ("running a server on", "server is running", "serving on", "listening on", "ready to serve")):
+            # Only flip to "serving" on the real readiness marker (hivemind
+            # Runtime's "Started"), which fires AFTER every block's weights
+            # are loaded — not on "Running a server on ..." (printed before
+            # weight load), which used to mask stuck, still-downloading peers
+            # as green. The multiaddr POST above still fires early (status
+            # "loading") so followers can start bootstrapping meanwhile.
+            if is_server_ready_line(line):
                 detected_serving = True
                 stop_progress.set()
                 if have_status:
