@@ -4048,7 +4048,7 @@ def test_deploy_jobs_wait_for_seed_multiaddr_then_substitute(tmp_path: Path):
     assert status == 200
     before = {p["hostname"]: p for p in pipeline_before["peers"]}
     assert before["Astra-Macbook"]["status"] == "waiting_for_seed"
-    assert before["DemoLaptop"]["status"] == "waiting_for_seed"
+    assert before["Demo-Mac"]["status"] == "waiting_for_seed"
     assert before["m4pro"]["status"] == "queued"
 
     seed_multiaddr = "/ip4/127.0.0.1/tcp/31339/p2p/12D3KooWm4proseed"
@@ -4085,7 +4085,7 @@ def test_deploy_jobs_wait_for_seed_multiaddr_then_substitute(tmp_path: Path):
     assert status == 200
     after = {p["hostname"]: p for p in pipeline_after["peers"]}
     assert after["Astra-Macbook"]["status"] == "queued"
-    assert after["DemoLaptop"]["status"] == "queued"
+    assert after["Demo-Mac"]["status"] == "queued"
     assert after["m4pro"]["status"] == "queued"
     assert pipeline_after["seed_hostname"] == "m4pro"
     assert pipeline_after["seed_multiaddrs"]["m4pro"]["multiaddr"] == seed_multiaddr
