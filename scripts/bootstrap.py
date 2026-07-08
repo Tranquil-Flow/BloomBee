@@ -266,6 +266,26 @@ def post_seed_multiaddr(
 
 _MULTIADDR_RE = re.compile(r"(/(?:ip4|ip6|dns4|dns6|p2p-circuit)[^\s,'\"\]]*/p2p/[A-Za-z0-9]+)")
 
+_LAN_RE = re.compile(r"/(?:ip4/(?:192\.168\.|10\.|172\.(?:1[6-9]|2\d|3[01])\.)[^/]+|ip6/(?:fc|fd)[^/]+)")
+
+
+def _sort_multiaddrs_lan_first(addrs: list[str]) -> list[str]:
+    """Sort multiaddrs so LAN addresses come first, Tailscale/overlay second,
+    loopback last. This ensures followers on the physical LAN get a reachable
+    bootstrap peer instead of a Tailscale-only address."""
+    def _key(addr: str) -> tuple[int, str]:
+        if _LAN_RE.search(addr):  # RFC 1918 / RFC 4193 (LAN / Unique Local)
+            return (0, addr)
+        if "/ip4/100." in addr or "/ip4/10." in addr and "private" not in addr:
+            return (1, addr)  # Tailscale / CGNAT overlay
+        if "127.0.0.1" in addr or "::1" in addr:
+            return (3, addr)  # loopback
+        if "/ip4/" in addr and any(addr.startswith(f"/ip4/{p}") for p in ("192.168.", "10.")):
+            return (0, addr)
+        return (2, addr)
+
+    return sorted(addrs, key=_key)
+
 
 def extract_multiaddrs(text: str) -> list[str]:
     """Extract libp2p multiaddrs from BloomBee/Hivemind log text."""
@@ -529,7 +549,7 @@ def execute_job_command(
                     coord,
                     hostname=host,
                     peer_id=pid,
-                    multiaddrs=sorted(posted_multiaddrs),
+                    multiaddrs=_sort_multiaddrs_lan_first(list(posted_multiaddrs)),
                     job_port=job_port,
                     model_id=model_id,
                 )
