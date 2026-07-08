@@ -349,8 +349,13 @@ def execute_job_command(
     if not _os.path.isfile(venv_python):
         venv_python = _os.path.join(repo_root, ".venv", "bin", "python3")
     if _os.path.isfile(venv_python):
-        clean_command = clean_command.replace("python3 ", f"{venv_python} ", 1)
-        clean_command = clean_command.replace("python ", f"{venv_python} ", 1)
+        # Replace 'python3' first; only try bare 'python' if 'python3'
+        # wasn't in the command, to avoid double-replacing the venv path
+        # (e.g. .../venv/bin/python → .../venv/bin/.../venv/bin/python).
+        if "python3 " in clean_command:
+            clean_command = clean_command.replace("python3 ", f"{venv_python} ", 1)
+        elif "python " in clean_command:
+            clean_command = clean_command.replace("python ", f"{venv_python} ", 1)
     have_status = bool(coord and pid)
     # ────────────────────────────────────────────────────────────────
 
