@@ -264,7 +264,7 @@ def post_seed_multiaddr(
         pass
 
 
-_MULTIADDR_RE = re.compile(r"(/(?:ip4|ip6|dns4|dns6|p2p-circuit)[^\\s,'\"\\]]*/p2p/[A-Za-z0-9]+)")
+_MULTIADDR_RE = re.compile(r"(/(?:ip4|ip6|dns4|dns6|p2p-circuit)[^\s,'\"\]]*/p2p/[A-Za-z0-9]+)")
 
 
 def extract_multiaddrs(text: str) -> list[str]:
