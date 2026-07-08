@@ -571,21 +571,22 @@ function showTab(name) {
 
 async function loadInferenceModels() {
   const sel = document.getElementById('infer-model');
-  const data = await fetchJSON(COORDINATOR + '/compatible?token=*');
-  if (!data || !data.compatible_models) {
+  // Only show the currently deployed model — not all registered models
+  try {
+    const pipeline = await fetchJSON(COORDINATOR + '/pipeline');
+    const deployedModel = pipeline && pipeline.model_id;
+    if (!deployedModel) {
+      sel.innerHTML = '<option value="">Deploy a model first (use Deploy tab)</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="' + esc(deployedModel) + '">' +
+      esc(deployedModel.split('/').pop()) + ' (deployed)</option>';
+    sel.value = deployedModel;
+    sel.onchange = onModelSelect;
+    onModelSelect();  // auto-fetch plan
+  } catch (e) {
     sel.innerHTML = '<option value="">Coordinator unreachable</option>';
-    return;
   }
-  const runnable = data.compatible_models.filter(m => m.status === 'compatible' || m.status === 'single_peer');
-  if (!runnable.length) {
-    sel.innerHTML = '<option value="">No compatible models — connect more peers</option>';
-    return;
-  }
-  sel.innerHTML = '<option value="">-- Select a model --</option>' +
-    runnable.map(m => '<option value="' + esc(m.model_id) + '">' +
-      esc(m.model_id.split('/').pop()) + ' (' + m.params_b + 'B' + (m.supports_moe ? ', MoE' : '') + ', ' + m.required_gb + 'GB)</option>'
-    ).join('');
-  sel.onchange = onModelSelect;
 }
 
 function onModelSelect() {
