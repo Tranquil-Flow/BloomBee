@@ -711,11 +711,28 @@ def _handle_infer(
         if cmd:
             commands.append(f"# On {job_hostname}:\n{cmd}")
 
+    # Build inference run command with actual multiaddrs
+    seed_addrs = _load_seed_multiaddrs(state_dir)
+    server_str = ""
+    addrs = None
+    if seed_addrs:
+        # Use the first external (non-loopback) multiaddr
+        for hostname, addrs in seed_addrs.items():
+            for addr in addrs:
+                if "127.0.0.1" not in addr and "::1" not in addr:
+                    server_str = addr
+                    break
+            if server_str:
+                break
+        if not server_str and addrs:
+            server_str = next(iter(addrs), "")
+
     inference_cmd = (
-        "python scripts/direct_remote_call.py \\\n"
+        f"cd ~/Projects/distributed-inference-mvp && .venv/bin/python scripts/direct_remote_call.py \\\n"
         f"  --model {model_id} \\\n"
-        f'  --prompt "{prompt[:100]}"\n'
-        "# (requires BloomBee venv with torch + hivemind)"
+        + (f'  --server-maddr "{server_str}" \\\n' if server_str else "  # (no seed multiaddr available yet)\n")
+        + f'  --prompt "{prompt[:100]}"\n'
+        "# Run from any machine with the BloomBee venv (torch + hivemind installed)"
     )
 
     return 200, {
