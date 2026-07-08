@@ -2156,6 +2156,59 @@ class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
 class JoinCoordinatorHandler(BaseHTTPRequestHandler):
     server: JoinCoordinatorHTTPServer
 
+    # Speak HTTP/1.1 so urllib-based clients (the bootstrap) can keep-alive
+    # without hitting "Remote end closed connection without response". Without
+    # this, BaseHTTPRequestHandler defaults to HTTP/1.0 and closes the
+    # connection after every response, which urllib 1.1 clients interpret as
+    # a dropped socket on the next request that reuses it.
+    protocol_version = "HTTP/1.1"
+
+    def parse_request(self) -> bool:  # type: ignore[override]
+        """Accept absolute-URI request lines (``POST http://host/path HTTP/1.1``)
+        that urllib sends by default when the URL is fully qualified.
+
+        The stdlib ``BaseHTTPRequestHandler.parse_request`` only recognises
+        origin-form requests (``POST /path HTTP/1.1``) and silently drops
+        anything else — which looks like a closed connection to clients.
+        Strip the scheme+authority prefix so the path lines up with the
+        routes registered in ``do_GET`` / ``do_POST``.
+        """
+        # First try the normal parse. If it fails because the request line
+        # had an absolute URI, strip it and retry exactly once.
+        if super().parse_request():
+            return True
+        # Reset just enough state to retry; BaseHTTPRequestHandler exposes
+        # raw_requestline + command/path/version that parse_request populates.
+        raw = getattr(self, "raw_requestline", b"")
+        if not raw:
+            return False
+        try:
+            first_line = raw.decode("iso-8859-1").rstrip("\r\n")
+        except UnicodeDecodeError:
+            return False
+        parts = first_line.split(" ")
+        if len(parts) != 3:
+            return False
+        method, target, version = parts
+        if not target.startswith(("http://", "https://")):
+            return False
+        # target like "http://192.168.178.48:8787/heartbeat" → "/heartbeat"
+        from urllib.parse import urlparse
+        parsed = urlparse(target)
+        stripped = parsed.path or "/"
+        if parsed.query:
+            stripped = f"{stripped}?{parsed.query}"
+        new_first = f"{method} {stripped} {version}".encode("iso-8859-1")
+        self.raw_requestline = new_first
+        # Reset the cached attributes populated by parse_request's failure path.
+        for attr in ("command", "path", "request_version", "headers"):
+            if attr in self.__dict__:
+                try:
+                    delattr(self, attr)
+                except AttributeError:
+                    pass
+        return super().parse_request()
+
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - stdlib signature
         # Keep tests/docs clean and avoid recording peer/token tuples in logs.
         return

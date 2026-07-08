@@ -35,7 +35,7 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, install_opener, urlopen
 
 
 # ── peer scan ────────────────────────────────────────────────────────────────
@@ -159,6 +159,18 @@ def parse_join_url(join_url: str) -> dict[str, str]:
     if not coordinator or not token:
         raise ValueError(f"Invalid join URL — missing coordinator or token: {join_url}")
     return {"coordinator": coordinator, "token": token}
+
+
+# Install a global proxy-bypassing opener. The bootstrap is meant to talk
+# directly to the LAN coordinator (port 8787) — NOT through any HTTP proxy
+# the user happens to have set in their environment (mitmproxy, corporate
+# proxies, etc.). urllib's default opener respects HTTP_PROXY even for LAN
+# addresses because proxy_bypass() only does hostname matching, not CIDR.
+# Without this, requests are routed through the proxy, which then rewrites
+# the request line to absolute-URI form and the bootstrap sees
+# "Remote end closed connection without response" on every heartbeat.
+_proxy_bypass_opener = build_opener(ProxyHandler({}))
+install_opener(_proxy_bypass_opener)
 
 
 def send_heartbeat(coordinator: str, token: str, capabilities: dict[str, Any]) -> dict[str, Any]:
