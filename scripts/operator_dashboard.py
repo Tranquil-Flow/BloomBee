@@ -901,6 +901,7 @@ async function refreshDeployJobs() {
     const deployed = data.peers.filter(function(p) { return p.block_range && p.block_range.length > 0; });
     if (!deployed.length) return;
     jobsCard.style.display = 'block';
+    loadWeightsNeeded();
     const peerStatuses = data.peer_statuses || {};
     let rows = '';
     for (const p of deployed) {
@@ -935,6 +936,45 @@ async function pollPeerJob() {
   } catch (e) {
     resultEl.textContent = 'Error: ' + e.message;
   }
+}
+
+async function loadWeightsNeeded() {
+  const card = document.getElementById('weights-card');
+  const el = document.getElementById('weights-content');
+  try {
+    const data = await fetchJSON(COORDINATOR + '/weights-needed');
+    if (!data || !data.ok || !data.peers) { card.style.display = 'none'; return; }
+    const peers = data.peers;
+    let html = '<table style="width:100%;font-size:11px;border-collapse:collapse;">' +
+      '<tr style="color:var(--muted);border-bottom:1px solid var(--line);">' +
+      '<th style="text-align:left;padding:4px 8px;">Peer</th>' +
+      '<th style="text-align:left;padding:4px 8px;">Layers</th>' +
+      '<th style="text-align:left;padding:4px 8px;">Shards</th>' +
+      '<th style="text-align:right;padding:4px 8px;"></th></tr>';
+    for (const [hostname, info] of Object.entries(peers)) {
+      const cmd = info.command || '';
+      const escaped = JSON.stringify(cmd);
+      html += '<tr style="border-bottom:1px solid rgba(125,211,252,.05);">' +
+        '<td style="padding:6px 8px;color:var(--accent);font-weight:600;">' + esc(hostname) + '</td>' +
+        '<td style="padding:6px 8px;color:var(--text);">' + esc(info.layer_range || '?') + '</td>' +
+        '<td style="padding:6px 8px;color:var(--muted);font-size:10px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc((info.shards || []).join(' ')) + '</td>' +
+        '<td style="padding:6px 8px;text-align:right;"><button onclick="copyCodeDirect(this,' + escaped + ')" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:2px 10px;border-radius:5px;cursor:pointer;font-size:10px;">📋 Copy</button></td>' +
+        '</tr>';
+    }
+    html += '</table>';
+    el.innerHTML = html;
+    card.style.display = 'block';
+  } catch (e) {
+    card.style.display = 'none';
+  }
+}
+
+function copyCodeDirect(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(function() { btn.textContent = orig; }, 2000);
+  }).catch(function() {});
 }
 
 let coordTimer;
@@ -1366,6 +1406,14 @@ export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
 <div class="card wide" id="deploy-jobs-card" style="display:none;">
   <h3>📋 Job Assignments</h3>
   <div id="deploy-jobs"></div>
+</div>
+
+<div class="card wide" id="weights-card" style="display:none;">
+  <h3>📦 Download Weights</h3>
+  <p style="color:var(--muted);font-size:11px;margin-bottom:10px;">
+    Each peer only needs specific .safetensors shards covering its layer range. Copy the command and run it on each peer machine before deploying.
+  </p>
+  <div id="weights-content"></div>
 </div>
 
 <div class="card wide">
