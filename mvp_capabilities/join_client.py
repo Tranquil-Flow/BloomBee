@@ -18,6 +18,9 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
+
+JOIN_COORDINATOR_FALLBACK_PREFIX = "coordinator_"
+
 REQUEST_CLAIM_BOUNDARY = "join_client_request_only_no_inference_proof"
 DRY_RUN_CLAIM_BOUNDARY = "join_client_dry_run_only_no_inference_proof"
 POST_CLAIM_BOUNDARY = "join_client_post_only_no_inference_proof"
@@ -25,14 +28,29 @@ LOOP_CLAIM_BOUNDARY = "join_client_heartbeat_loop_only_no_inference_proof"
 JOB_POLL_CLAIM_BOUNDARY = "join_client_job_poll_only_no_inference_proof"
 
 
-def parse_join_url(join_url: str) -> dict[str, str]:
+def parse_join_url(join_url: str) -> dict[str, Any]:
     parsed = urlparse(join_url)
     query = parse_qs(parsed.query)
     coordinator = (query.get("coordinator") or [None])[0]
     token = (query.get("token") or [None])[0]
     if parsed.scheme != "bloombee" or parsed.netloc != "join" or not coordinator or not token:
         raise ValueError("join URL must include coordinator and token")
-    return {"coordinator": coordinator, "token": token}
+
+    coordinators = [coordinator]
+    indexed_candidates: list[tuple[int, str]] = []
+    for key, values in query.items():
+        if not key.startswith(JOIN_COORDINATOR_FALLBACK_PREFIX) or not values:
+            continue
+        suffix = key[len(JOIN_COORDINATOR_FALLBACK_PREFIX):]
+        if not suffix.isdigit():
+            continue
+        indexed_candidates.append((int(suffix), values[0]))
+    seen = {coordinator}
+    for _, candidate in sorted(indexed_candidates):
+        if candidate and candidate not in seen:
+            coordinators.append(candidate)
+            seen.add(candidate)
+    return {"coordinator": coordinator, "coordinators": coordinators, "token": token}
 
 
 def _load_capabilities(path: str | Path) -> dict[str, Any]:

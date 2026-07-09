@@ -3419,8 +3419,40 @@ def test_join_offer_builds_shareable_link_with_expiry():
     assert offer["created_at"] == 1_000
     assert offer["expires_at"] == 1_120
     assert offer["coordinator"] == "http://m4pro.local:8787"
+    assert offer["coordinator_urls"] == ["http://m4pro.local:8787"]
     assert offer["join_url"] == "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    assert offer["join_urls"] == ["bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"]
     assert offer["claim_boundary"] == "link_offer_only_no_inference_proof"
+
+
+def test_join_offer_encodes_ranked_multi_ip_fallbacks_in_single_url():
+    from urllib.parse import parse_qs, urlparse
+
+    from mvp_capabilities.join_coordinator import create_join_offer
+
+    offer = create_join_offer(
+        coordinator="http://192.168.178.48:8787",
+        coordinator_urls=[
+            "http://192.168.178.48:8787",
+            "http://10.0.5.5:8787",
+            "http://172.20.10.2:8787",
+        ],
+        token="moon-token",
+        now=1_000,
+        ttl_seconds=120,
+    )
+
+    assert offer["coordinator"] == "http://192.168.178.48:8787"
+    assert offer["coordinator_urls"] == [
+        "http://192.168.178.48:8787",
+        "http://10.0.5.5:8787",
+        "http://172.20.10.2:8787",
+    ]
+    query = parse_qs(urlparse(offer["join_url"]).query)
+    assert query["coordinator"] == ["http://192.168.178.48:8787"]
+    assert query["coordinator_2"] == ["http://10.0.5.5:8787"]
+    assert query["coordinator_3"] == ["http://172.20.10.2:8787"]
+    assert query["token"] == ["moon-token"]
 
 
 def test_join_heartbeat_state_filters_stale_and_wrong_token_peers(tmp_path: Path):
@@ -6706,7 +6738,7 @@ def test_join_client_parses_join_url_and_builds_heartbeat_request(tmp_path: Path
     payload = build_heartbeat_payload(join, capabilities_path=capabilities_path, now=1_000)
     request = build_heartbeat_request(join, payload)
 
-    assert join == {"coordinator": "http://m4pro.local:8787", "token": "moon-token"}
+    assert join == {"coordinator": "http://m4pro.local:8787", "coordinators": ["http://m4pro.local:8787"], "token": "moon-token"}
     assert payload["token"] == "moon-token"
     assert payload["peer_id"] == "fresh-peer"
     assert payload["capabilities"]["memory"]["free_gb"] == 20
@@ -6715,6 +6747,26 @@ def test_join_client_parses_join_url_and_builds_heartbeat_request(tmp_path: Path
     assert request.get_method() == "POST"
     assert request.headers["Content-type"] == "application/json"
     assert json.loads(request.data.decode("utf-8"))["peer_id"] == "fresh-peer"
+
+
+def test_join_client_parses_ranked_coordinator_fallbacks():
+    from mvp_capabilities.join_client import parse_join_url
+
+    join = parse_join_url(
+        "bloombee://join?"
+        "coordinator=http%3A%2F%2F192.168.178.48%3A8787"
+        "&token=moon-token"
+        "&coordinator_2=http%3A%2F%2F10.0.5.5%3A8787"
+        "&coordinator_3=http%3A%2F%2F172.20.10.2%3A8787"
+    )
+
+    assert join["coordinator"] == "http://192.168.178.48:8787"
+    assert join["coordinators"] == [
+        "http://192.168.178.48:8787",
+        "http://10.0.5.5:8787",
+        "http://172.20.10.2:8787",
+    ]
+    assert join["token"] == "moon-token"
 
 
 def test_join_client_rejects_malformed_join_url():

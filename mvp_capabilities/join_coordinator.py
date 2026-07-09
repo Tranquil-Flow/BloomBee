@@ -31,17 +31,55 @@ def create_join_offer(
     token: str | None = None,
     now: int | None = None,
     ttl_seconds: int = 600,
+    coordinator_urls: list[str] | None = None,
 ) -> dict[str, Any]:
+    """Build a shareable join offer.
+
+    The offer carries ONE ``coordinator`` URL — the *primary*, which is
+    what every existing caller (``bootstrap.py`` etc.) tries first.
+    Newer bootstrap callers should also read ``coordinator_urls`` and try
+    each one in order: this is how the system survives a coordinator
+    whose en0 IP changed between QR-scan and follower's bootstrap run.
+
+    Both fields stay populated even if only the legacy single-coordinator
+    API path is used; in that case ``coordinator_urls == [coordinator]``.
+    """
     created_at = _now_seconds() if now is None else int(now)
     token = token or secrets.token_urlsafe(24)
-    query = urlencode({"coordinator": coordinator, "token": token})
+    # If callers passed an explicit list, use it while still forcing the
+    # explicit `coordinator` argument to remain the primary URL.
+    urls = list(coordinator_urls) if coordinator_urls else [coordinator]
+    if coordinator in urls:
+        urls = [coordinator] + [u for u in urls if u != coordinator]
+    else:
+        urls = [coordinator] + urls
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    urls = [u for u in urls if not (u in seen or seen.add(u))]
+    # Encode the entire ranked list into ONE join URL using numbered
+    # ``coordinator_2``, ``coordinator_3`` query parameters. The bootstrap's
+    # ``parse_join_url`` reads them in numeric order and ``pick_reachable_
+    # coordinator`` probes each in turn. Keeping everything in a single
+    # URL means QR codes, iMessage paste, and clipboard round-trips all
+    # carry the full candidate set, with no caller-side rejoining logic.
+    query_pairs: list[tuple[str, str]] = [("coordinator", urls[0]), ("token", token)]
+    for i, url in enumerate(urls[1:], start=2):
+        query_pairs.append((f"coordinator_{i}", url))
+    primary_url = f"bloombee://join?{urlencode(query_pairs)}"
     return {
-        "coordinator": coordinator,
+        "coordinator": urls[0],
+        "coordinator_urls": urls,
         "token": token,
         "created_at": created_at,
         "expires_at": created_at + int(ttl_seconds),
         "ttl_seconds": int(ttl_seconds),
-        "join_url": f"bloombee://join?{query}",
+        "join_url": primary_url,
+        # join_urls retained for backwards compatibility — values match
+        # the legacy single-coordinator shape per candidate.
+        "join_urls": [
+            f"bloombee://join?{urlencode([('coordinator', u), ('token', token)])}"
+            for u in urls
+        ],
         "claim_boundary": CLAIM_BOUNDARY,
     }
 

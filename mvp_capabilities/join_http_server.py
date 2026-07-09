@@ -207,32 +207,112 @@ def _detect_lan_ip() -> str | None:
     Used when binding on 0.0.0.0 so the public coordinator URL (page,
     QR code, join offers) points at an address browsers can actually
     reach instead of the non-routable 0.0.0.0 bind address.
+
+    Delegates to :func:`_detect_lan_ips` and returns the head of the
+    ranked candidate list. Kept as a thin shim so all existing
+    callers continue to behave exactly as before.
+    """
+    ips = _detect_lan_ips()
+    return ips[0] if ips else None
+
+
+def _detect_lan_ips() -> list[str]:
+    """Return a ranked list of candidate coordinator IPv4 addresses.
+
+    Ordering priority (highest first):
+
+    1. **macOS en0** (WiFi). This is the primary interface on every
+       Mac laptop. If the user is on home wifi, this is the right
+       address and the peer on the same AP will route to it.
+    2. **macOS bridge100 / iPhone USB-tether bridge**. When Evis is
+       sharing internet to m4pro (or vice versa) over USB, the
+       bridge interface carries the peer-to-peer link that bypasses
+       AP isolation — addresses look like ``192.168.x.x``.
+    3. **Other local private addresses** that aren't en0/bridge100 —
+       hotspot/tether/VLAN/VM nets. Often wrong but harmless as
+       fallback when the peer can probe them quickly.
+    4. **Cross-platform UDP-route fallback** (the kernel's choice
+       of source IP for an 8.8.8.0 packet). Last resort.
+
+    Tailscale/utun CGNAT addresses (100.64.0.0/10) are intentionally
+    excluded here: this MVP is constrained to same-wifi / local-network
+    routing, so the coordinator should not silently escape through a
+    mesh VPN even if one happens to be installed.
+
+    Returns a list of dotted-quad IPv4 strings in priority order. May
+    be empty if detection fails entirely.
     """
     import socket as _socket
     import subprocess as _sp
-    # macOS: ipconfig getifaddr en0 is the most reliable en0 path
-    if _socket.gethostname().endswith(".local") or _sys_platform() == "darwin":
+
+    ranked: list[str] = []  # ordered, deduplicated
+
+    def _maybe_add(ip: str) -> None:
+        if not ip or not _looks_like_ipv4(ip) or ip.startswith("127."):
+            return
+        if _is_tailscale_cgnat_ipv4(ip):
+            return
+        if ip not in ranked:
+            ranked.append(ip)
+
+    is_macos = _sys_platform() == "darwin"
+
+    if is_macos:
+        # 1. WiFi (en0) — primary, almost always right on a laptop.
         try:
             out = _sp.check_output(
                 ["ipconfig", "getifaddr", "en0"],
                 timeout=2, text=True, stderr=_sp.DEVNULL,
             ).strip()
-            if out and _looks_like_ipv4(out):
-                return out
+            if out:
+                _maybe_add(out)
         except Exception:
             pass
-    # Linux: hostname -I (multiple IPs possible; take first IPv4)
-    try:
-        out = _sp.check_output(
-            ["hostname", "-I"], timeout=2, text=True, stderr=_sp.DEVNULL,
-        ).strip()
-        for token in out.split():
-            if _looks_like_ipv4(token):
-                return token
-    except Exception:
-        pass
-    # Cross-platform fallback: open a UDP socket and read the route address.
-    # We don't actually send anything — just let the kernel pick the iface.
+
+        # 2. iPhone USB-tether bridge — only if present, and NOT
+        # matching en0 (Apple duplicates routes if both exist).
+        # Common interface names: bridge100 (USB), en5, en6, en7...
+        # We pull every "bridge" / "en*" / "awdl" candidate via
+        # ifconfig and let the dedup+rank sort them out below.
+        try:
+            out = _sp.check_output(
+                ["ifconfig"], timeout=2, text=True, stderr=_sp.DEVNULL
+            ).strip()
+            # Pull every "inet " line and the interface it's on. We
+            # use a regex: '<ifname>: flags=...' followed by
+            # 'inet x.x.x.x'. macOS bundles both per interface.
+            import re as _re
+            current_if = None
+            for line in out.splitlines():
+                m_if = _re.match(r"^([a-z][a-z0-9]+): flags=", line)
+                if m_if:
+                    current_if = m_if.group(1)
+                    continue
+                m_inet = _re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)", line)
+                if m_inet and current_if:
+                    ip = m_inet.group(1)
+                    # Prefer bridge/USB-tether interfaces (non-en0)
+                    # by ranking them right after en0.
+                    if current_if.startswith("bridge"):
+                        _maybe_add(ip)
+                    elif current_if.startswith("en") and current_if != "en0":
+                        _maybe_add(ip)
+        except Exception:
+            pass
+    else:
+        # Linux: hostname -I returns all configured addresses.
+        try:
+            out = _sp.check_output(
+                ["hostname", "-I"], timeout=2, text=True, stderr=_sp.DEVNULL,
+            ).strip()
+            for token in out.split():
+                _maybe_add(token)
+        except Exception:
+            pass
+
+    # Cross-platform fallback: kernel's choice of source IP for a
+    # packet to a public address. Done LAST so it acts purely as
+    # safety net rather than overriding the ranked local candidates.
     try:
         s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
         try:
@@ -240,11 +320,21 @@ def _detect_lan_ip() -> str | None:
             ip = s.getsockname()[0]
         finally:
             s.close()
-        if ip and _looks_like_ipv4(ip) and not ip.startswith("127."):
-            return ip
+        _maybe_add(ip)
     except Exception:
         pass
-    return None
+
+    return ranked
+
+
+def _is_tailscale_cgnat_ipv4(ip: str) -> bool:
+    parts = ip.split(".")
+    try:
+        first = int(parts[0])
+        second = int(parts[1])
+    except (ValueError, IndexError):
+        return False
+    return first == 100 and 64 <= second <= 127
 
 
 def _sys_platform() -> str:
@@ -1879,6 +1969,7 @@ def handle_get(
     coordinator: str,
     registry: str | Path = DEFAULT_REGISTRY,
     started_at: float | None = None,
+    coordinator_urls: list[str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     parsed = urlparse(path)
     query = parse_qs(parsed.query)
@@ -1891,6 +1982,14 @@ def handle_get(
             "state_dir": str(Path(state_dir).expanduser()),
             "registry": str(Path(registry).expanduser()),
         }
+        # If the server has a list of candidate coordinator URLs (multi-IP
+        # / hostile-network awareness), expose them on /healthz so the
+        # dashboard and the bootstrap can see what's available without an
+        # extra round-trip to /offer. Backwards-compatible: absent here
+        # means the legacy single-coordinator mode.
+        server_urls = coordinator_urls
+        if server_urls:
+            body["coordinator_urls"] = list(server_urls)
         if started_at is not None:
             body["uptime_seconds"] = round(time.time() - started_at, 1)
             body["started_at"] = started_at
@@ -2007,11 +2106,22 @@ def handle_get(
         )
         return 200, result
     if parsed.path == "/offer":
+        # Pass the full candidate list to the offer so the bootstrap can
+        # fall through to a second/third candidate when en0's IP changes
+        # between QR scan and follower's bootstrap run (the coffee-shop-
+        # wifi case). If the caller didn't provide a list, we synthesize
+        # [primary] only — same behaviour as the pre-patch version.
+        urls = list(coordinator_urls) if coordinator_urls else None
+        if urls is None or not urls:
+            fallback = _first(query, "coordinator", coordinator) or coordinator
+            urls = [fallback]
+        primary_override = _first(query, "coordinator", coordinator) or coordinator
         return 200, create_join_offer(
-            coordinator=_first(query, "coordinator", coordinator) or coordinator,
+            coordinator=primary_override,
             token=_first(query, "token"),
             ttl_seconds=_bounded_offer_ttl_seconds(_first(query, "ttl_seconds")),
             now=_as_int(_first(query, "now"), 0) or None,
+            coordinator_urls=urls,
         )
     if parsed.path == "/bootstrap":
         return _bootstrap_from_query(query, coordinator=coordinator)
@@ -2144,10 +2254,26 @@ class JoinCoordinatorHTTPServer(ThreadingHTTPServer):
         state_dir: str | Path,
         coordinator: str,
         registry: str | Path = DEFAULT_REGISTRY,
+        coordinator_urls: list[str] | None = None,
     ):
         super().__init__(server_address, RequestHandlerClass)
         self.state_dir = Path(state_dir).expanduser()
         self.coordinator = coordinator
+        # All ranked candidate coordinator URLs for /offer. The primary
+        # `coordinator` is always the first element; defaults to [coordinator]
+        # if the caller didn't supply a richer list. The bootstrap tries
+        # them in order until one answers /healthz, which is what survives
+        # the coffee-shop-wifi case where en0's IP changed between the
+        # QR scan and the follower's bootstrap run.
+        self.coordinator_urls = (
+            list(coordinator_urls) if coordinator_urls else [coordinator]
+        )
+        # Guarantee the primary URL is first regardless of caller ordering.
+        if coordinator not in self.coordinator_urls:
+            self.coordinator_urls.insert(0, coordinator)
+        elif self.coordinator_urls[0] != coordinator:
+            self.coordinator_urls.remove(coordinator)
+            self.coordinator_urls.insert(0, coordinator)
         self.registry = Path(registry).expanduser()
         # Wall-clock start time used by /healthz for uptime reporting.
         self.started_at = time.time()
@@ -2300,6 +2426,7 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
             coordinator=self.server.coordinator,
             registry=self.server.registry,
             started_at=getattr(self.server, "started_at", None),
+            coordinator_urls=getattr(self.server, "coordinator_urls", None),
         )
         body_bytes = _json_bytes(payload)
         self.send_response(status)
@@ -2343,6 +2470,7 @@ class JoinCoordinatorHandler(BaseHTTPRequestHandler):
             coordinator=self.server.coordinator,
             registry=self.server.registry,
             started_at=getattr(self.server, "started_at", None),
+            coordinator_urls=getattr(self.server, "coordinator_urls", None),
         )
         self._send_json(status, payload)
 
@@ -2362,12 +2490,14 @@ def create_server(
     state_dir: str | Path = DEFAULT_STATE_DIR,
     coordinator: str,
     registry: str | Path = DEFAULT_REGISTRY,
+    coordinator_urls: list[str] | None = None,
 ) -> JoinCoordinatorHTTPServer:
     return JoinCoordinatorHTTPServer(
         address,
         JoinCoordinatorHandler,
         state_dir=state_dir,
         coordinator=coordinator,
+        coordinator_urls=coordinator_urls,
         registry=registry,
     )
 
@@ -2431,12 +2561,29 @@ def main(argv: list[str] | None = None) -> int:
 
     # If binding on a non-routable address (0.0.0.0, ::) and no explicit
     # --coordinator was given, auto-detect the LAN IP so the page/offer/QR
-    # point at an address the browser can actually reach.
+    # point at an address the browser can actually reach. We capture the
+    # *full* ranked candidate list — every non-loopback local-network IP
+    # this Mac currently has — and bake it into /offer so a follower's
+    # bootstrap can try each in turn. This does NOT bypass AP isolation
+    # and it cannot predict a future IP after switching wifi; it fixes the
+    # common same-session case where en0/bridge/tether/VM candidates exist
+    # simultaneously and the first advertised address is not the one the
+    # peer can route to.
     if not args.coordinator and args.host in ("0.0.0.0", "", "::"):
-        lan_ip = _detect_lan_ip()
-        args.coordinator = f"http://{lan_ip}:{args.port}" if lan_ip else f"http://127.0.0.1:{args.port}"
+        lan_ips = _detect_lan_ips()
+        if lan_ips:
+            args.coordinator = f"http://{lan_ips[0]}:{args.port}"
+            args.coordinator_urls = [f"http://{ip}:{args.port}" for ip in lan_ips]
+        else:
+            args.coordinator = f"http://127.0.0.1:{args.port}"
+            args.coordinator_urls = [args.coordinator]
+    elif getattr(args, "coordinator_urls", None) is None:
+        # --coordinator was passed explicitly — candidates degenerate to
+        # just that one URL. Keeps the offer shape consistent.
+        args.coordinator_urls = [args.coordinator or f"http://{args.host}:{args.port}"]
 
     coordinator = args.coordinator or f"http://{args.host}:{args.port}"
+    coordinator_urls = getattr(args, "coordinator_urls", None) or [coordinator]  # belt-and-braces
 
     # Pre-flight: if a coordinator is already running here, tell the user
     # (don't fail with a cryptic OSError, and don't double-bind).
@@ -2494,7 +2641,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     try:
-        server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator, registry=args.registry)
+        server = create_server((args.host, args.port), state_dir=args.state_dir, coordinator=coordinator, registry=args.registry, coordinator_urls=coordinator_urls)
     except OSError as e:
         if getattr(e, "errno", None) == 48 or "Address already in use" in str(e):
             # Race: probe said free, but bind() lost the race. Give a clean hint.

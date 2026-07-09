@@ -151,14 +151,78 @@ def scan_capabilities() -> dict[str, Any]:
 # ── join client ───────────────────────────────────────────────────────────────
 
 def parse_join_url(join_url: str) -> dict[str, str]:
-    """Parse a bloombee://join?... URL into {coordinator, token}."""
+    """Parse a bloombee://join?... URL into {coordinator, token, coordinators}.
+
+    The single primary ``coordinator`` is preserved as-is for backwards
+    compatibility. Any numbered ``coordinator_2`` / ``coordinator_3`` /
+    ``..._N`` query parameters are collected in ``coordinators`` (extra
+    candidates the bootstrap should try if the primary is unreachable) —
+    this is how the offer endpoint signals "the QR has multiple URLs,
+    try each one". Multi-IP offers use this so a peer whose en0 IP has
+    changed (e.g. from home LAN to coffee-shop wifi) still finds the
+    coordinator.
+
+    Reserved join-URL parameter names:
+        coordinator, token, coordinator_2 .. coordinator_N
+    All other parameters are ignored for now.
+    """
     parsed = urlparse(join_url)
     query = parse_qs(parsed.query)
-    coordinator = (query.get("coordinator") or [None])[0]
+    primary = (query.get("coordinator") or [None])[0]
     token = (query.get("token") or [None])[0]
-    if not coordinator or not token:
+    if not primary or not token:
         raise ValueError(f"Invalid join URL — missing coordinator or token: {join_url}")
-    return {"coordinator": coordinator, "token": token}
+    # Collect numbered fallbacks in numeric order (coordinator_2, _3, ...).
+    # We deliberately don't wildcard-match "coordinator_*" because we
+    # want stable, reviewable behaviour.
+    extras: list[str] = []
+    indexed_extras: list[tuple[int, str]] = []
+    for key, values in query.items():
+        if key.startswith("coordinator_") and key[len("coordinator_"):].isdigit():
+            for val in values:
+                if val:
+                    indexed_extras.append((int(key[len("coordinator_"):]), val))
+    for _, val in sorted(indexed_extras):
+        if val not in extras and val != primary:
+            extras.append(val)
+    return {
+        "coordinator": primary,
+        "coordinators": [primary] + extras,
+        "token": token,
+    }
+
+
+def pick_reachable_coordinator(
+    candidates: list[str],
+    *,
+    timeout_seconds: float = 1.5,
+) -> str | None:
+    """Return the first candidate whose ``/healthz`` answers 200, or None.
+
+    This is a connectivity probe, not a security check — we just hit the
+    well-known health endpoint and time out aggressively so the bootstrap
+    doesn't spend forever on the wrong URL when the right one is 30 ms
+    further down the list. Used by ``main()`` when ``coordinators`` has
+    more than one entry: the join URL from a multi-IP offer should try
+    them in priority order.
+
+    Stdlib-only; relies on the bootstrap's earlier ``install_proxy_bypass``
+    call so all probes go direct, not through any system HTTP_PROXY.
+    """
+    import urllib.request as _ur
+    import urllib.error as _ue
+    for url in candidates:
+        try:
+            req = _ur.Request(url.rstrip("/") + "/healthz", method="GET")
+            with _ur.urlopen(req, timeout=timeout_seconds) as resp:
+                # Any 2xx counts as reachable. We don't parse the body —
+                # we only care that the TCP + HTTP round-trip succeeded,
+                # which is enough to know the URL is routable.
+                if 200 <= getattr(resp, "status", 200) < 300:
+                    return url
+        except (OSError, _ue.URLError, _ue.HTTPError, TimeoutError):
+            continue
+    return None
 
 
 # Install a global proxy-bypassing opener. The bootstrap is meant to talk
@@ -928,13 +992,31 @@ Examples:
     if args.scan_only:
         return
 
-    # Step 2: Parse join URL
+    # Step 2: Parse join URL. The join URL may carry multiple candidate
+    # coordinator URLs (coordinator, coordinator_2, coordinator_3, ...) —
+    # the offer endpoint emits these for /hotspot-wifi and /stale-QR
+    # robustness. We probe each candidate and use the first reachable one
+    # as the actual coordinator.
     join = parse_join_url(args.join_url)
-    coordinator = join["coordinator"]
+    candidates = join.get("coordinators") or [join["coordinator"]]
     token = join["token"]
 
-    if not args.json:
-        print(f"\n🔗 Joining swarm at {coordinator}...", file=sys.stderr)
+    if len(candidates) > 1 and not args.json:
+        print(f"\n🔗 Joining swarm ({len(candidates)} candidate URL{'s' if len(candidates) != 1 else ''}):", file=sys.stderr)
+        for i, url in enumerate(candidates, 1):
+            print(f"     [{i}] {url}", file=sys.stderr)
+    elif not args.json:
+        print(f"\n🔗 Joining swarm at {candidates[0]}...", file=sys.stderr)
+
+    # Probe for reachability. Fast (1.5 s timeout each), so a peer with
+    # three candidates spends at most ~5 s here before falling back or
+    # giving up. If only one candidate is present this is a single
+    # round-trip to the same host.
+    reachable = pick_reachable_coordinator(candidates) or candidates[0]
+    if reachable != candidates[0]:
+        if not args.json:
+            print(f"   ↪ primary {candidates[0]} unreachable, using {reachable}", file=sys.stderr)
+    coordinator = reachable
 
     # Step 3: Send initial heartbeat
     response = send_heartbeat(coordinator, token, capabilities)

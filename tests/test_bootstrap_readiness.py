@@ -53,6 +53,35 @@ def test_lowercase_computation_started_is_not_ready():
     assert bootstrap.is_server_ready_line(line) is False
 
 
+# ── parse_join_url: multi-IP fallback candidates ─────────────────────────────
+
+
+def test_parse_join_url_preserves_legacy_single_coordinator():
+    join = bootstrap.parse_join_url(
+        "bloombee://join?coordinator=http%3A%2F%2Fm4pro.local%3A8787&token=moon-token"
+    )
+    assert join["coordinator"] == "http://m4pro.local:8787"
+    assert join["coordinators"] == ["http://m4pro.local:8787"]
+    assert join["token"] == "moon-token"
+
+
+def test_parse_join_url_collects_ranked_coordinator_fallbacks():
+    join = bootstrap.parse_join_url(
+        "bloombee://join?"
+        "coordinator=http%3A%2F%2F192.168.178.48%3A8787"
+        "&token=moon-token"
+        "&coordinator_2=http%3A%2F%2F10.0.5.5%3A8787"
+        "&coordinator_3=http%3A%2F%2F172.20.10.2%3A8787"
+    )
+    assert join["coordinator"] == "http://192.168.178.48:8787"
+    assert join["coordinators"] == [
+        "http://192.168.178.48:8787",
+        "http://10.0.5.5:8787",
+        "http://172.20.10.2:8787",
+    ]
+    assert join["token"] == "moon-token"
+
+
 # ── model_weights_cached: preflight so we fail fast instead of hanging ────────
 
 def _make_snapshot(tmp_path, model_id):
