@@ -205,13 +205,37 @@ def poll_job(
     }
 
 
+def _bootstrap_executor():
+    """Return scripts.bootstrap.execute_job_command when importable, else None.
+
+    The bootstrap executor is the maintained auto-serve path: weight-cache
+    preflight, per-shard auto-download with stall killing, live /peer-status
+    reporting, seed-multiaddr publishing, and readiness gating on hivemind's
+    "Started" marker. join_client (the repo-clone path) must behave like the
+    QR path, so it delegates instead of duplicating that logic.
+    """
+    try:
+        import sys as _sys
+        repo_root = Path(__file__).resolve().parents[1]
+        if str(repo_root) not in _sys.path:
+            _sys.path.insert(0, str(repo_root))
+        from scripts.bootstrap import execute_job_command as _exec  # type: ignore
+        return _exec
+    except Exception:
+        return None
+
+
 def execute_job_command(
     command: str,
     *,
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Execute a shell command for serving. Does NOT return until the server exits."""
+    """Execute a shell command for serving. Does NOT return until the server exits.
+
+    Fallback path only — main() prefers the bootstrap executor via
+    ``_bootstrap_executor()`` so repo-clone peers get the same preflight and
+    status reporting as QR peers."""
     start_time = time.time()
     try:
         proc = subprocess.run(
@@ -274,11 +298,29 @@ def main(argv: list[str] | None = None) -> int:
         )
         # Poll for job
         poll_result = poll_job(args.join_url, peer_id=resolved_peer_id, timeout=args.timeout)
-        job = (poll_result.get("job_response") or {}).get("job")
+        job_response = poll_result.get("job_response") or {}
+        job = job_response.get("job")
         if job and job.get("command"):
             print(json.dumps({"heartbeat": hb, "poll": poll_result}, indent=2, sort_keys=True), file=sys.stderr)
-            # Auto-execute the serve command
-            exec_result = execute_job_command(job["command"], cwd=args.repo_dir or None)
+            # Auto-execute the serve command — prefer the bootstrap executor
+            # (preflight + per-shard download + live status) so this path
+            # behaves exactly like the QR bootstrap.
+            bootstrap_exec = _bootstrap_executor()
+            if bootstrap_exec is not None:
+                join = parse_join_url(args.join_url)
+                exec_result = bootstrap_exec(
+                    job["command"],
+                    cwd=args.repo_dir or None,
+                    coordinator=join["coordinator"],
+                    peer_id=str(resolved_peer_id),
+                    hostname=str(capabilities.get("hostname") or resolved_peer_id),
+                    job_port=job.get("port"),
+                    model_id=job_response.get("deployed_model"),
+                    block_range=job.get("block_indices") or job.get("block_range"),
+                    num_layers=job.get("num_layers"),
+                )
+            else:
+                exec_result = execute_job_command(job["command"], cwd=args.repo_dir or None)
             payload = {"auto_serve": True, "heartbeat": hb, "job": job, "execution": exec_result, "claim_boundary": JOB_POLL_CLAIM_BOUNDARY}
         else:
             payload = {"auto_serve": True, "heartbeat": hb, "poll": poll_result, "no_job_assigned": True, "claim_boundary": JOB_POLL_CLAIM_BOUNDARY}

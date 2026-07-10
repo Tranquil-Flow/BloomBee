@@ -130,14 +130,18 @@ def test_empty_weight_file_does_not_count(tmp_path):
 
 def test_execute_job_command_fails_fast_when_weights_missing(tmp_path, monkeypatch):
     """With no weights in the (empty) HF cache, the launcher must return an
-    error WITHOUT starting the server subprocess (which would hang forever)."""
+    error WITHOUT starting the server subprocess (which would hang forever).
+
+    ``_run_hf_download`` is patched out — the earlier version of this test
+    patched ``subprocess.run`` while the code used ``Popen``, so the test
+    silently kicked off a REAL 16 GB `hf download` on machines with the hf
+    CLI installed.
+    """
     monkeypatch.setenv("HF_HOME", str(tmp_path))  # empty cache → no weights
 
-    # Mock subprocess.run so the auto-download doesn't hang in test
-    import subprocess as _sp
-    def _fake_run(*args, **kwargs):
+    def _fake_download(*args, **kwargs):
         raise FileNotFoundError("hf: command not found (test mock)")
-    monkeypatch.setattr("subprocess.run", _fake_run)
+    monkeypatch.setattr(bootstrap, "_run_hf_download", _fake_download)
 
     result = bootstrap.execute_job_command(
         "python3 -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 0:9 --port 31337",
@@ -165,11 +169,13 @@ def test_execute_job_command_does_not_post_serving_when_started_missing(tmp_path
     Popen -> return 0 -> no 'Started' line -> result.exit_code == 0 and
     no weights_missing flag, while leaving the calling contract intact.
     """
-    monkeypatch.setenv("HF_HOME", str(tmp_path))  # empty cache
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
 
-    # Pretend weights ARE present so the auto-download branch is skipped
-    # and the Popen path runs to a clean 0 exit without 'Started'.
-    snapshot_dir = tmp_path / "models--Qwen--Qwen3-8B" / "snapshots" / "abc"
+    # Weights ARE present so the auto-download branch is skipped and the
+    # Popen path runs to a clean 0 exit without 'Started'. HF_HOME resolves
+    # to <HF_HOME>/hub — writing to tmp_path directly (as an earlier version
+    # of this test did) makes the preflight think the cache is empty.
+    snapshot_dir = tmp_path / "hub" / "models--Qwen--Qwen3-8B" / "snapshots" / "abc"
     snapshot_dir.mkdir(parents=True)
     (snapshot_dir / "model-00001-of-00005.safetensors").write_bytes(b"\x00" * 4096)
     (snapshot_dir / "model-00002-of-00005.safetensors").write_bytes(b"\x00" * 4096)
@@ -208,3 +214,186 @@ def test_execute_job_command_does_not_post_serving_when_started_missing(tmp_path
     # StringIO. The fix in bootstrap.py:797-808 is to post 'error' in
     # this exact (rc=0, no 'Started') case; full integration assertion
     # requires network, which we skip here.
+    assert result.get("detected_serving") is False
+
+
+# ── per-shard preflight: layer→shard mapping and pipeline position ───────────
+
+_INDEX_JSON = (
+    '{"weight_map": {'
+    '"model.embed_tokens.weight": "model-00001-of-00005.safetensors",'
+    '"model.layers.0.self_attn.q_proj.weight": "model-00001-of-00005.safetensors",'
+    '"model.layers.8.mlp.up_proj.weight": "model-00002-of-00005.safetensors",'
+    '"model.layers.20.mlp.up_proj.weight": "model-00003-of-00005.safetensors",'
+    '"model.layers.35.mlp.up_proj.weight": "model-00005-of-00005.safetensors",'
+    '"lm_head.weight": "model-00005-of-00005.safetensors",'
+    '"model.norm.weight": "model-00005-of-00005.safetensors"'
+    '}}'
+)
+
+
+def _write_index(tmp_path, model_id="Qwen/Qwen3-8B"):
+    d = tmp_path / "hub" / ("models--" + model_id.replace("/", "--")) / "snapshots" / "abc"
+    d.mkdir(parents=True)
+    (d / "model.safetensors.index.json").write_text(_INDEX_JSON, encoding="utf-8")
+    return d
+
+
+def test_shards_for_last_peer_include_lm_head(tmp_path):
+    """The last pipeline peer (end == num_layers) must prefetch the shard
+    holding lm_head/final-norm — otherwise the server self-downloads it at
+    load time through the unguarded in-process HF path."""
+    _write_index(tmp_path)
+    shards = bootstrap._shards_needed_for_layers(
+        "Qwen/Qwen3-8B", 20, 36,
+        is_first_peer=False, is_last_peer=True,
+        cache_dir=tmp_path / "hub",
+    )
+    assert "model-00005-of-00005.safetensors" in shards
+    assert "model-00003-of-00005.safetensors" in shards
+    assert "model-00001-of-00005.safetensors" not in shards
+
+
+def test_shards_for_middle_peer_exclude_boundary_files(tmp_path):
+    _write_index(tmp_path)
+    shards = bootstrap._shards_needed_for_layers(
+        "Qwen/Qwen3-8B", 8, 9,
+        is_first_peer=False, is_last_peer=False,
+        cache_dir=tmp_path / "hub",
+    )
+    assert shards == ["model-00002-of-00005.safetensors"]
+
+
+def test_execute_job_command_prefetches_metadata_on_cold_cache(tmp_path, monkeypatch):
+    """Cold cache: no index → the bootstrap must download the *.json metadata
+    FIRST, recompute the layer→shard map, and then download only the shards
+    for its block range — not the whole model. (The full-model fallback was
+    why 16 GB downloads blew the timeout on every fresh peer.)"""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+
+    calls: list[list[str]] = []
+
+    def _fake_download(download_args, **kwargs):
+        calls.append(list(download_args))
+        if "--include" in download_args:
+            _write_index(tmp_path)  # metadata fetch materializes the index
+            return 0
+        raise TimeoutError("no progress for 300s — simulated stall")
+
+    monkeypatch.setattr(bootstrap, "_run_hf_download", _fake_download)
+
+    result = bootstrap.execute_job_command(
+        "python3 -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 20:36 --port 31338",
+        cwd=str(PROJECT_ROOT),
+        model_id="Qwen/Qwen3-8B",
+        block_range="20:36",
+        num_layers=36,
+    )
+
+    assert result["weights_missing"] is True
+    assert calls[0] == ["Qwen/Qwen3-8B", "--include", "*.json"]
+    # Second call: ONLY the shards covering layers 20..36 (+ lm_head shard)
+    assert calls[1] == [
+        "Qwen/Qwen3-8B",
+        "model-00003-of-00005.safetensors",
+        "model-00005-of-00005.safetensors",
+    ]
+    assert result["required_shards"] == [
+        "model-00003-of-00005.safetensors",
+        "model-00005-of-00005.safetensors",
+    ]
+
+
+def test_execute_job_command_block_range_param_no_download_when_shards_cached(tmp_path, monkeypatch):
+    """block_range/num_layers come from the job payload (no port required —
+    the old code silently skipped per-shard preflight when job_port was
+    None). With the needed shards cached, no download may be attempted."""
+    monkeypatch.setenv("HF_HOME", str(tmp_path))
+    d = _write_index(tmp_path)
+    (d / "model-00002-of-00005.safetensors").write_bytes(b"\x00" * 4096)
+
+    def _no_download(*args, **kwargs):
+        raise AssertionError("download must not run when required shards are cached")
+    monkeypatch.setattr(bootstrap, "_run_hf_download", _no_download)
+
+    import subprocess as _sp
+    class _FakeProc:
+        stdout = __import__("io").StringIO("")
+        def poll(self): return 0
+        def wait(self, *a, **kw): return 0
+        def kill(self): pass
+        def __init__(self, *a, **kw): pass
+    monkeypatch.setattr(_sp, "Popen", lambda *a, **kw: _FakeProc())
+
+    result = bootstrap.execute_job_command(
+        "python3 -m bloombee.cli.run_server Qwen/Qwen3-8B --block_indices 8:9 --port 31339",
+        cwd=str(PROJECT_ROOT),
+        model_id="Qwen/Qwen3-8B",
+        block_range="8:9",
+        num_layers=36,
+    )
+    assert result.get("weights_missing") is not True
+    assert result["exit_code"] == 0
+
+
+# ── _run_hf_download: stall killer must fire on a silent pipe ─────────────────
+
+def test_run_hf_download_idle_kills_silent_pipe(monkeypatch):
+    """A stalled connection produces ZERO output. The old inline loop blocked
+    forever in readline() and never reached its timeout checks — the exact
+    failure it was written to prevent. The queue-based runner must kill the
+    process and raise TimeoutError."""
+    import io
+    import threading
+
+    killed = threading.Event()
+    release = threading.Event()
+
+    class _SilentStdout:
+        def __iter__(self):
+            release.wait(timeout=30)  # block like a stalled download
+            return iter(())
+
+    class _StuckProc:
+        stdout = _SilentStdout()
+        def poll(self): return None
+        def wait(self, *a, **kw): return -9
+        def kill(self):
+            killed.set()
+            release.set()
+
+    import subprocess as _sp
+    monkeypatch.setattr(_sp, "Popen", lambda *a, **kw: _StuckProc())
+
+    import pytest
+    with pytest.raises(TimeoutError, match="no progress"):
+        bootstrap._run_hf_download(
+            ["some/model"], env={}, idle_timeout_s=2, total_timeout_s=60,
+        )
+    assert killed.is_set()
+
+
+def test_run_hf_download_falls_back_to_huggingface_cli(monkeypatch):
+    """Older installs ship `huggingface-cli`, not `hf` — the runner must fall
+    back instead of failing the whole deploy."""
+    import io
+    spawned: list[str] = []
+
+    class _OkProc:
+        stdout = io.StringIO("downloaded\n")
+        def poll(self): return 0
+        def wait(self, *a, **kw): return 0
+        def kill(self): pass
+
+    def _fake_popen(argv, **kwargs):
+        spawned.append(argv[0])
+        if argv[0] == "hf":
+            raise FileNotFoundError("hf not on PATH")
+        return _OkProc()
+
+    import subprocess as _sp
+    monkeypatch.setattr(_sp, "Popen", _fake_popen)
+
+    rc = bootstrap._run_hf_download(["some/model"], env={})
+    assert rc == 0
+    assert spawned == ["hf", "huggingface-cli"]

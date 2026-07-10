@@ -440,6 +440,118 @@ def _shards_needed_for_layers(
     return []
 
 
+def _hf_hub_cache_dir(cache_dir: "str | Path | None" = None) -> Path:
+    """Resolve the HF hub cache root (respects HF_HOME)."""
+    if cache_dir is not None:
+        return Path(cache_dir)
+    hf_home = os.environ.get("HF_HOME")
+    return Path(hf_home) / "hub" if hf_home else Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def _model_index_cached(model_id: str, cache_dir: "str | Path | None" = None) -> bool:
+    """True iff model.safetensors.index.json for ``model_id`` is in the HF cache.
+
+    Without the index we cannot map layers to shards, so a cold-cache peer
+    would fall back to downloading the ENTIRE model instead of just its
+    assigned layers. The fix is to fetch the (tiny) metadata files first,
+    then compute the per-layer shard list.
+    """
+    model_dir = _hf_hub_cache_dir(cache_dir) / ("models--" + model_id.replace("/", "--"))
+    if not model_dir.is_dir():
+        return False
+    return any(model_dir.rglob("model.safetensors.index.json"))
+
+
+def _run_hf_download(
+    download_args: list[str],
+    *,
+    env: dict[str, str],
+    idle_timeout_s: int = 300,
+    total_timeout_s: int = 1800,
+    on_tick=None,
+) -> int:
+    """Run ``hf download <args>`` with idle-kill + wall-clock budget.
+
+    - Kills the process when stdout is silent for ``idle_timeout_s`` (the
+      xet/HTTP mid-stream stall signature) or after ``total_timeout_s``.
+    - Falls back to ``huggingface-cli download`` when the newer ``hf``
+      entry point is not installed.
+    - Calls ``on_tick(elapsed_seconds)`` roughly every 10s so the caller can
+      keep the coordinator heartbeat/status fresh during multi-GB downloads.
+
+    Returns the process exit code; raises TimeoutError on stall/budget kill.
+
+    The stdout is drained by a background thread into a queue. This matters:
+    a blocking ``readline()`` in the main loop never returns while a stalled
+    connection produces zero bytes, so the idle/total timeout checks after it
+    would be unreachable in exactly the situation they exist for.
+    """
+    import queue as _queue
+    import subprocess as _sp
+    import threading as _threading
+
+    start = time.time()
+    try:
+        proc = _sp.Popen(
+            ["hf", "download"] + download_args,
+            stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
+            env=env, bufsize=1,
+        )
+    except FileNotFoundError:
+        # Older huggingface_hub installs ship `huggingface-cli`, not `hf`.
+        proc = _sp.Popen(
+            ["huggingface-cli", "download"] + download_args,
+            stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
+            env=env, bufsize=1,
+        )
+    assert proc.stdout is not None
+    lines: "_queue.Queue[str | None]" = _queue.Queue()
+
+    def _pump() -> None:
+        try:
+            for raw in proc.stdout:  # universal newlines: \r progress → lines
+                lines.put(raw)
+        except (OSError, ValueError):
+            pass
+        lines.put(None)  # EOF sentinel
+
+    _threading.Thread(target=_pump, daemon=True).start()
+
+    last_io = time.time()
+    last_tick = time.time()
+    eof = False
+    while not eof:
+        try:
+            item = lines.get(timeout=1.0)
+        except _queue.Empty:
+            item = ""
+        now = time.time()
+        if on_tick is not None and now - last_tick >= 10.0:
+            last_tick = now
+            try:
+                on_tick(now - start)
+            except Exception:
+                pass
+        if item is None:
+            eof = True
+            continue
+        if item:
+            last_io = now
+            text = item.rstrip()
+            if text:
+                print("   │ " + text, file=sys.stderr)
+            continue
+        if now - last_io > idle_timeout_s:
+            proc.kill()
+            raise TimeoutError(
+                f"no progress for {idle_timeout_s}s — likely xet/HTTP stall"
+            )
+        if now - start > total_timeout_s:
+            proc.kill()
+            raise TimeoutError(f"download exceeded {total_timeout_s}s budget")
+    return proc.wait()
+
+
 def model_weights_cached(
     model_id: str,
     cache_dir: "str | Path | None" = None,
@@ -523,6 +635,8 @@ def execute_job_command(
     hostname: str | None = None,
     job_port: int | None = None,
     model_id: str | None = None,
+    block_range: str | None = None,
+    num_layers: int | None = None,
 ) -> dict[str, Any]:
     """Execute a BloomBee server command and stream status to coordinator.
 
@@ -604,24 +718,60 @@ def execute_job_command(
     # cover those layers — not the full model. This is the per-shard
     # download flow: each peer pre-fetches only its assigned layers.
     preflight_shards: list[str] | None = None
-    preflight_block_range: str | None = None
-    if model_id and job_port:
-        # Try to derive the block range from the job's command line
+    preflight_block_range: str | None = block_range
+    if model_id and not preflight_block_range:
+        # Fallback for older coordinators that don't send block_indices in
+        # the job payload: derive the range from the command line itself.
         for token in clean_command.split():
             if ":" in token and token.replace(":", "").isdigit():
                 preflight_block_range = token
                 break
+    start: int | None = None
+    end: int | None = None
     if model_id and preflight_block_range:
         try:
             start_str, end_str = preflight_block_range.split(":", 1)
             start, end = int(start_str), int(end_str)
-            preflight_shards = _shards_needed_for_layers(
-                model_id, start, end,
-                is_first_peer=(start == 0),
-                is_last_peer=False,  # conservative; can refine later
-            )
         except (ValueError, AttributeError):
-            pass
+            start = end = None
+    # Prepare the download environment once — the metadata prefetch and the
+    # shard download both need the venv PATH and the xet kill-switch.
+    dl_env = dict(_os.environ)
+    if _os.path.isfile(venv_python):
+        dl_env["PATH"] = f"{_os.path.dirname(venv_python)}:{dl_env.get('PATH', '')}"
+    # Disable hf_xet: the xet endpoint regularly stalls on multi-GB shards
+    # (the Evis-2026-07-08 incident: 161 MB / 4 GB then frozen for 17 min).
+    # The plain HTTP path is slower per MB but never wedges and
+    # `.incomplete` files survive restarts either way.
+    dl_env.setdefault("HF_HUB_DISABLE_XET", "1")
+    if model_id and start is not None and end is not None:
+        # On a cold cache the safetensors index isn't local yet, so the
+        # layer→shard mapping is empty and the peer would fall back to a
+        # full-model download. Fetch the small metadata files (config,
+        # tokenizer, index — all *.json) first, then compute the shard list.
+        if not _model_index_cached(model_id):
+            print(f"   📄 Fetching model metadata (*.json) for {model_id}...", file=sys.stderr)
+            if have_status:
+                post_peer_status(
+                    coord, pid,
+                    status="downloading", progress=2.0,
+                    job_port=job_port, model_id=model_id,
+                    message="fetching model metadata (config/tokenizer/index)",
+                )
+            try:
+                _run_hf_download(
+                    [model_id, "--include", "*.json"],
+                    env=dl_env, idle_timeout_s=120, total_timeout_s=300,
+                )
+            except Exception as exc:
+                # Non-fatal: single-file models have no index, and the shard
+                # download / server launch will surface real network errors.
+                print(f"   ⚠️  metadata prefetch failed: {exc}", file=sys.stderr)
+        preflight_shards = _shards_needed_for_layers(
+            model_id, start, end,
+            is_first_peer=(start == 0),
+            is_last_peer=(num_layers is not None and end == int(num_layers)),
+        )
     if model_id and not model_weights_cached(
         model_id, required_shards=preflight_shards
     ):
@@ -669,51 +819,40 @@ def execute_job_command(
 
         print(f"   📥 Downloading weights: {download_cmd}", file=sys.stderr)
         dl_start = time.time()
+
+        def _download_tick(elapsed: float) -> None:
+            # Keeps the coordinator's roster fresh during multi-GB downloads:
+            # /peer-status posts also refresh the heartbeat timestamp, so the
+            # peer doesn't fall off the dashboard while its main loop is
+            # blocked inside this download.
+            if have_status:
+                post_peer_status(
+                    coord, pid,
+                    status="downloading",
+                    progress=min(18.0, 5.0 + elapsed / 60.0),
+                    job_port=job_port, model_id=model_id,
+                    message=f"downloading weights... {elapsed:.0f}s elapsed",
+                )
+
         try:
-            import subprocess as _sp
-            # Use the same venv-aware environment as the server subprocess
-            dl_env = dict(_os.environ)
-            if _os.path.isfile(venv_python):
-                dl_env["PATH"] = f"{_os.path.dirname(venv_python)}:{dl_env.get('PATH', '')}"
-            # Disable hf_xet: the xet endpoint regularly stalls on multi-GB
-            # shards (the Evis-2026-07-08 incident: 161 MB / 4 GB then frozen
-            # for 17 min). The plain HTTP path is slower per MB but never
-            # wedges and `.incomplete` files survive restarts either way.
-            dl_env.setdefault("HF_HUB_DISABLE_XET", "1")
-            # Run with idle-killing: if no new stdout for 5 min, assume the
-            # download is wedged and kill it. Total wall-clock cap is 30 min
-            # so the heartbeat loop eventually picks up the failure.
+            # Idle-kill after 5 silent minutes (stall signature); wall-clock
+            # budget scales with how much we actually have to fetch — a
+            # full-model fallback gets a bigger budget than two shards.
             IDLE_TIMEOUT_S = 300
-            TOTAL_TIMEOUT_S = 1800
-            proc = _sp.Popen(
-                ["hf", "download"] + download_args,
-                stdout=_sp.PIPE, stderr=_sp.STDOUT, text=True,
-                env=dl_env, bufsize=1,
+            if preflight_shards:
+                TOTAL_TIMEOUT_S = 900 + 900 * len(preflight_shards)
+            else:
+                TOTAL_TIMEOUT_S = 3600
+            return_code = _run_hf_download(
+                download_args,
+                env=dl_env,
+                idle_timeout_s=IDLE_TIMEOUT_S,
+                total_timeout_s=TOTAL_TIMEOUT_S,
+                on_tick=_download_tick,
             )
-            assert proc.stdout is not None
-            last_io = time.time()
-            while True:
-                line = proc.stdout.readline()
-                if line:
-                    last_io = time.time()
-                    print("   │ " + line.rstrip(), file=sys.stderr)
-                    continue
-                if proc.poll() is not None:
-                    break
-                if time.time() - last_io > IDLE_TIMEOUT_S:
-                    proc.kill()
-                    raise TimeoutError(
-                        f"no progress for {IDLE_TIMEOUT_S}s — likely xet/HTTP stall"
-                    )
-                if time.time() - dl_start > TOTAL_TIMEOUT_S:
-                    proc.kill()
-                    raise TimeoutError(f"download exceeded {TOTAL_TIMEOUT_S}s budget")
-                time.sleep(1.0)
-            proc.stdout.close()
-            return_code = proc.wait()
             # Build a result-like object with .returncode / .stderr for the
-            # error-handling branch below (stdlib's Popen has no .stderr
-            # once stdout=stderr is merged; echo return code).
+            # error-handling branch below (stdout/stderr are merged and
+            # already echoed line-by-line above).
             class _Result:  # noqa: D401 — local shim
                 returncode = return_code
                 stderr = ""
@@ -849,6 +988,11 @@ def execute_job_command(
                 "PYTHONPATH": resolved_pythonpath,
                 "PATH": f"{_os.path.join(repo_root, '.venv', 'bin')}:{_os.environ.get('PATH', '')}",
                 "VIRTUAL_ENV": _os.path.join(repo_root, ".venv"),
+                # The server self-downloads any shard the preflight missed
+                # (bloombee.server.from_pretrained → huggingface_hub). That
+                # in-process download has no idle-killer, so make sure it
+                # never takes the stall-prone xet path.
+                "HF_HUB_DISABLE_XET": _os.environ.get("HF_HUB_DISABLE_XET", "1"),
             },
         )
         assert proc.stdout is not None
@@ -946,6 +1090,7 @@ def execute_job_command(
     return {
         "command": command,
         "exit_code": return_code,
+        "detected_serving": detected_serving,
         "stdout_tail": full_output[-2000:],
         "stderr_tail": "",
     }
@@ -1034,7 +1179,14 @@ Examples:
         if not args.json:
             extra = " + auto-serve" if args.auto_serve else ""
             print(f"   💓 Heartbeating every {args.interval}s{extra}... (Ctrl+C to stop)", file=sys.stderr)
-        job_executed = False
+        # Retry accounting per deployment: keyed by the deployment's
+        # created_at timestamp so a re-deploy from the dashboard resets the
+        # budget automatically (the old `job_executed` boolean permanently
+        # disabled auto-serve after ONE attempt — a single transient download
+        # failure meant a human had to restart the bootstrap, and a re-deploy
+        # was never picked up at all).
+        MAX_JOB_ATTEMPTS = 3
+        job_attempts: dict[str, int] = {}
         try:
             while True:
                 time.sleep(args.interval)
@@ -1045,7 +1197,7 @@ Examples:
                     print(f"   {status} Heartbeat at {time.strftime('%H:%M:%S')}", file=sys.stderr)
 
                 # Auto-serve: poll for a deployment job and execute it
-                if args.auto_serve and not job_executed:
+                if args.auto_serve:
                     poll = poll_job_for_peer(coordinator, capabilities["peer_id"])
                     job = poll.get("job")
                     if job and job.get("status") == "waiting_for_seed":
@@ -1070,6 +1222,12 @@ Examples:
                         continue
                     if job and job.get("command"):
                         cmd = job["command"]
+                        deploy_key = str(poll.get("deployed_at") or poll.get("deployed_model") or "default")
+                        attempts = job_attempts.get(deploy_key, 0)
+                        if attempts >= MAX_JOB_ATTEMPTS:
+                            # Budget exhausted for THIS deployment; a fresh
+                            # Deploy click (new created_at) resets it.
+                            continue
                         # Defensive fallback for older coordinators: never run
                         # raw shell placeholders, because <...> is redirection
                         # syntax and fails as exit 127.
@@ -1088,7 +1246,13 @@ Examples:
                             )
                             continue
                         print(f"\n   📦 Got job for model: {poll.get('deployed_model', '?')}", file=sys.stderr)
-                        print(f"   🎯 Assigned: {job.get('role', '?')} {job.get('block_range', '')} port {job.get('port', '?')}", file=sys.stderr)
+                        print(
+                            f"   🎯 Assigned: {job.get('role', '?')} "
+                            f"{job.get('block_indices') or job.get('block_range', '')} "
+                            f"port {job.get('port', '?')} (attempt {attempts + 1}/{MAX_JOB_ATTEMPTS})",
+                            file=sys.stderr,
+                        )
+                        job_attempts[deploy_key] = attempts + 1
                         result = execute_job_command(
                             cmd,
                             coordinator=coordinator,
@@ -1096,9 +1260,16 @@ Examples:
                             hostname=capabilities["hostname"],
                             job_port=job.get("port"),
                             model_id=poll.get("deployed_model"),
+                            block_range=job.get("block_indices") or job.get("block_range"),
+                            num_layers=job.get("num_layers"),
                         )
                         print(f"   🏁 Server exited with code {result.get('exit_code')}", file=sys.stderr)
-                        job_executed = True  # only run once per session
+                        if job_attempts.get(deploy_key, 0) >= MAX_JOB_ATTEMPTS:
+                            print(
+                                f"   🛑 {MAX_JOB_ATTEMPTS} attempts used for this deployment; "
+                                "waiting for a new Deploy before retrying.",
+                                file=sys.stderr,
+                            )
         except KeyboardInterrupt:
             if not args.json:
                 print("\n👋 Disconnected.", file=sys.stderr)

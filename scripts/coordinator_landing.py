@@ -150,8 +150,8 @@ async function loadJoinOffer() {
     const resp = await fetch(COORDINATOR + "/offer");
     const data = await resp.json();
     currentJoinUrl = data.join_url;
-    const cmd = `curl -s ${BOOTSTRAP_URL} | python3 - --join-url "${currentJoinUrl}" --loop --interval 30`;
-    const phoneCmd = `curl -s ${BOOTSTRAP_URL} | python3 - --join-url "${currentJoinUrl}" --loop --interval 60`;
+    const cmd = `curl -s ${BOOTSTRAP_URL} | python3 - --join-url "${currentJoinUrl}" --loop --interval 15 --auto-serve`;
+    const phoneCmd = `curl -s ${BOOTSTRAP_URL} | python3 - --join-url "${currentJoinUrl}" --loop --interval 60 --auto-serve`;
     document.getElementById('join-command').textContent = cmd;
     document.getElementById('join-command-phone').textContent = phoneCmd;
     document.getElementById('coordinator-display').textContent = 'Coordinator: ' + COORDINATOR;

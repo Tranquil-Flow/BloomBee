@@ -1266,6 +1266,12 @@ def _handle_deploy(
 
     # _handle_plan expects "model" in query; inject model_id there
     query = dict(query, model=[model_id])
+    # Planning uses active heartbeats. The QR bootstrap heartbeats every
+    # 15-30s, so the planner's default 30s window races the heartbeat
+    # interval: a peer whose last beat is 31s old silently vanishes from
+    # the deployment plan. Give Deploy a more generous window by default
+    # (explicit query values still win).
+    query.setdefault("max_age_seconds", ["90"])
 
     # Generate plan with launch commands
     plan_status, plan_payload = _handle_plan(query, state_dir=state_dir, registry=registry)
@@ -1291,19 +1297,38 @@ def _handle_deploy(
         pass
     except OSError:
         pass
+    # Stale peer statuses from the previous run (serving/error) would make
+    # the dashboard and /infer readiness lie about THIS deployment — reset
+    # them the same way /deploy/cancel does.
+    status_dir = _peer_status_dir(state_dir)
+    if status_dir.exists():
+        for stale in status_dir.glob("*.json"):
+            try:
+                stale.unlink()
+            except OSError:
+                pass
     plan_with_commands = attach_launch_commands(
         plan, device=device, dtype=dtype, base_port=base_port
     )
 
     # Build deployment state: map hostname → job
+    num_layers = _as_int(str(plan_with_commands.get("num_layers") or ""), 0) or None
     jobs: dict[str, Any] = {}
     for assignment in plan_with_commands.get("assignments") or []:
         hostname = str(assignment.get("hostname") or "unknown")
+        start_layer = assignment.get("start_layer")
+        end_layer = assignment.get("end_layer")
         jobs[hostname] = {
             "model_id": model_id,
             "block_indices": assignment.get("block_range", ""),
-            "start_layer": assignment.get("start_layer"),
-            "end_layer": assignment.get("end_layer"),
+            "start_layer": start_layer,
+            "end_layer": end_layer,
+            # Pipeline-position facts the peer can't derive locally: the
+            # bootstrap needs num_layers to know whether its range ends the
+            # pipeline (→ prefetch lm_head/embedding shards for its layers).
+            "num_layers": num_layers,
+            "is_first": start_layer == 0,
+            "is_last": bool(num_layers) and end_layer == num_layers,
             "port": assignment.get("port"),
             "command": assignment.get("launch_command", ""),
             "status": "queued",
@@ -1748,7 +1773,7 @@ async function init() {{
   try {{
     const r = await fetch(C + "/offer");
     const d = await r.json();
-    const cmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 30 --auto-serve`;
+    const cmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 15 --auto-serve`;
     const phoneCmd = `curl -s ${{C}}/bootstrap.py | python3 - --join-url "${{d.join_url}}" --loop --interval 60 --auto-serve`;
     document.getElementById('cmd').textContent = cmd;
     document.getElementById('cmd-phone').textContent = phoneCmd;
@@ -1922,6 +1947,19 @@ def _weights_needed(state_dir: str | Path) -> dict[str, Any]:
         if "model.layers." not in key:
             non_layer_shards.add(filename)
 
+    # Pipeline boundaries are defined by layer order, NOT hostname sort
+    # order: the peer serving layer 0 is "first", the peer whose range ends
+    # highest is "last". (An earlier version used sorted(jobs.keys()), which
+    # handed the embedding/lm_head shards to whichever hostname happened to
+    # sort alphabetically first/last.)
+    ranged = {
+        h: (int(j["start_layer"]), int(j["end_layer"]))
+        for h, j in jobs.items()
+        if j.get("start_layer") is not None and j.get("end_layer") is not None
+    }
+    first_host = min(ranged, key=lambda h: ranged[h][0]) if ranged else None
+    last_host = max(ranged, key=lambda h: ranged[h][1]) if ranged else None
+
     per_peer: dict[str, dict[str, Any]] = {}
     for hostname, job in sorted(jobs.items()):
         start = job.get("start_layer")
@@ -1940,10 +1978,7 @@ def _weights_needed(state_dir: str | Path) -> dict[str, Any]:
             shards.update(layer_to_shards.get(layer, set()))
 
         # First peer also needs embedding shards; last peer needs lm_head shards
-        all_peers = sorted(jobs.keys())
-        if hostname == all_peers[0]:
-            shards.update(non_layer_shards)
-        elif hostname == all_peers[-1]:
+        if hostname == first_host or hostname == last_host:
             shards.update(non_layer_shards)
 
         shard_list = sorted(shards)
@@ -2141,8 +2176,13 @@ def handle_get(
                     age = (now or int(time.time())) - int(payload.get("timestamp", 0))
                     if 0 <= age <= max_age:
                         all_peers.append(payload)
-                    elif age > max_age:
-                        # Clean expired heartbeat files
+                    elif age > max(3600, max_age):
+                        # Retention cleanup only — a peer that is merely
+                        # *quiet* (mid-download, its main loop blocked) must
+                        # not have its heartbeat file deleted the moment it
+                        # crosses the display threshold; deleting at max_age
+                        # made peers vanish from the roster and broke
+                        # peer_id→hostname job matching mid-deploy.
                         try:
                             path.unlink()
                         except OSError:
