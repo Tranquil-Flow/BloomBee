@@ -19,8 +19,10 @@ from pathlib import Path
 from mvp_capabilities.join_coordinator import record_heartbeat
 from mvp_capabilities.join_http_server import (
     _handle_deploy,
+    _handle_peer_status_post,
     _peer_status_dir,
     _weights_needed,
+    build_bootstrap_runbook,
     handle_get,
 )
 from mvp_capabilities.route_picker import DEFAULT_REGISTRY
@@ -136,6 +138,49 @@ def test_active_wildcard_keeps_quiet_heartbeats_on_disk(tmp_path):
     assert "quiet-peer" not in peer_ids  # not displayed…
     assert quiet.exists()                # …but retained on disk
     assert not ancient.exists()          # >1h old → cleaned up
+
+
+def test_deploy_scrubs_stale_serving_from_heartbeat_capabilities(tmp_path):
+    """/peer-status cross-updates the heartbeat file's capabilities. /infer
+    and the pipeline snapshot read that field as fallback, so a re-deploy
+    must scrub it — otherwise the previous run's "serving" makes the new
+    deployment look ready before any server started."""
+    _register_peer(tmp_path, "Evis-MacBook-Pro")
+    _register_peer(tmp_path, "m4pro")
+
+    status, _ = _handle_peer_status_post(
+        json.dumps({
+            "peer_id": "Evis-MacBook-Pro-abc123",
+            "status": "serving",
+            "progress": 100.0,
+            "model_id": MODEL_ID,
+        }).encode("utf-8"),
+        state_dir=tmp_path,
+    )
+    assert status == 200
+    hb_file = tmp_path / "Evis-MacBook-Pro-abc123.json"
+    caps = json.loads(hb_file.read_text(encoding="utf-8"))["capabilities"]
+    assert caps["status"] == "serving"  # cross-update landed
+
+    _deploy(tmp_path)
+
+    caps = json.loads(hb_file.read_text(encoding="utf-8"))["capabilities"]
+    assert "status" not in caps
+    assert "download_progress" not in caps
+    assert "serving_model_id" not in caps
+
+
+def test_bootstrap_runbook_uses_python3(tmp_path):
+    """Stock macOS ships python3 but no bare `python` — a runbook that says
+    `python ...` fails with command-not-found on exactly the machines the
+    QR flow targets."""
+    runbook = build_bootstrap_runbook(
+        coordinator="http://127.0.0.1:8787", token="*",
+    )
+    script = runbook["shell_script"]
+    assert "python3 mvp_capabilities/peer_scan.py" in script
+    assert "python3 mvp_capabilities/join_client.py" in script
+    assert "\npython mvp_capabilities" not in script
 
 
 def test_weights_needed_boundary_shards_follow_layer_order(tmp_path, monkeypatch):

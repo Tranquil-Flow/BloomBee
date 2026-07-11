@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -242,7 +243,7 @@ def execute_job_command(
             command,
             shell=True,
             cwd=str(cwd) if cwd else None,
-            env={**__import__("os").environ, **(env or {})},
+            env={**os.environ, **(env or {})},
             capture_output=True,
             text=True,
             timeout=None,  # server runs indefinitely; caller controls lifecycle

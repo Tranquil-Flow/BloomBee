@@ -373,6 +373,38 @@ def test_run_hf_download_idle_kills_silent_pipe(monkeypatch):
     assert killed.is_set()
 
 
+def test_run_hf_download_total_budget_kills_chatty_download(monkeypatch):
+    """The wall-clock budget must fire even while output keeps flowing. A
+    dial-up-speed download prints progress lines forever, so a budget check
+    that only runs on quiet ticks (the earlier bug) never triggers."""
+    import threading
+    import time as _time
+
+    killed = threading.Event()
+
+    class _ChattyStdout:
+        def __iter__(self):
+            while not killed.is_set():
+                _time.sleep(0.05)
+                yield "Downloading model-00001.safetensors:   1%\n"
+
+    class _CrawlingProc:
+        stdout = _ChattyStdout()
+        def poll(self): return None
+        def wait(self, *a, **kw): return -9
+        def kill(self): killed.set()
+
+    import subprocess as _sp
+    monkeypatch.setattr(_sp, "Popen", lambda *a, **kw: _CrawlingProc())
+
+    import pytest
+    with pytest.raises(TimeoutError, match="budget"):
+        bootstrap._run_hf_download(
+            ["some/model"], env={}, idle_timeout_s=60, total_timeout_s=1,
+        )
+    assert killed.is_set()
+
+
 def test_run_hf_download_falls_back_to_huggingface_cli(monkeypatch):
     """Older installs ship `huggingface-cli`, not `hf` — the runner must fall
     back instead of failing the whole deploy."""

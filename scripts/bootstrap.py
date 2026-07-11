@@ -352,12 +352,10 @@ def _sort_multiaddrs_lan_first(addrs: list[str]) -> list[str]:
     def _key(addr: str) -> tuple[int, str]:
         if _LAN_RE.search(addr):  # RFC 1918 / RFC 4193 (LAN / Unique Local)
             return (0, addr)
-        if "/ip4/100." in addr or "/ip4/10." in addr and "private" not in addr:
+        if "/ip4/100." in addr:
             return (1, addr)  # Tailscale / CGNAT overlay
         if "127.0.0.1" in addr or "::1" in addr:
             return (3, addr)  # loopback
-        if "/ip4/" in addr and any(addr.startswith(f"/ip4/{p}") for p in ("192.168.", "10.")):
-            return (0, addr)
         return (2, addr)
 
     return sorted(addrs, key=_key)
@@ -517,6 +515,14 @@ def _run_hf_download(
 
     _threading.Thread(target=_pump, daemon=True).start()
 
+    def _kill_and_raise(reason: str) -> None:
+        proc.kill()
+        try:
+            proc.wait(timeout=10)  # reap — the retry loop must not stack zombies
+        except Exception:
+            pass
+        raise TimeoutError(reason)
+
     last_io = time.time()
     last_tick = time.time()
     eof = False
@@ -535,6 +541,11 @@ def _run_hf_download(
         if item is None:
             eof = True
             continue
+        # The wall-clock budget applies even while output is flowing — a
+        # download crawling along at dial-up pace keeps printing progress
+        # lines and must still be bounded.
+        if now - start > total_timeout_s:
+            _kill_and_raise(f"download exceeded {total_timeout_s}s budget")
         if item:
             last_io = now
             text = item.rstrip()
@@ -542,13 +553,9 @@ def _run_hf_download(
                 print("   │ " + text, file=sys.stderr)
             continue
         if now - last_io > idle_timeout_s:
-            proc.kill()
-            raise TimeoutError(
+            _kill_and_raise(
                 f"no progress for {idle_timeout_s}s — likely xet/HTTP stall"
             )
-        if now - start > total_timeout_s:
-            proc.kill()
-            raise TimeoutError(f"download exceeded {total_timeout_s}s budget")
     return proc.wait()
 
 
@@ -772,6 +779,7 @@ def execute_job_command(
             is_first_peer=(start == 0),
             is_last_peer=(num_layers is not None and end == int(num_layers)),
         )
+    did_download = False
     if model_id and not model_weights_cached(
         model_id, required_shards=preflight_shards
     ):
@@ -843,20 +851,13 @@ def execute_job_command(
                 TOTAL_TIMEOUT_S = 900 + 900 * len(preflight_shards)
             else:
                 TOTAL_TIMEOUT_S = 3600
-            return_code = _run_hf_download(
+            download_rc = _run_hf_download(
                 download_args,
                 env=dl_env,
                 idle_timeout_s=IDLE_TIMEOUT_S,
                 total_timeout_s=TOTAL_TIMEOUT_S,
                 on_tick=_download_tick,
             )
-            # Build a result-like object with .returncode / .stderr for the
-            # error-handling branch below (stdout/stderr are merged and
-            # already echoed line-by-line above).
-            class _Result:  # noqa: D401 — local shim
-                returncode = return_code
-                stderr = ""
-            result = _Result()
             dl_duration = time.time() - dl_start
         except Exception as exc:
             dl_duration = time.time() - dl_start
@@ -876,11 +877,10 @@ def execute_job_command(
                 "required_shards": preflight_shards or [],
             }
 
-        if result.returncode != 0:
+        if download_rc != 0:
             msg = (
-                f"huggingface-cli exited with code {result.returncode} "
-                f"after {dl_duration:.0f}s\n"
-                f"stderr: {(result.stderr or '')[:200]}"
+                f"weight download exited with code {download_rc} "
+                f"after {dl_duration:.0f}s — see download log lines above"
             )
             print(f"   ❌ {msg}", file=sys.stderr)
             if have_status:
@@ -926,8 +926,13 @@ def execute_job_command(
                 "weights_missing": True,
                 "required_shards": preflight_shards or [],
             }
+        did_download = True
 
-    if have_status:
+    if have_status and not did_download:
+        # Weights were already cached — the run starts at the download
+        # stage from the dashboard's point of view. When the preflight just
+        # downloaded them, skip this: resetting to "downloading 0%" right
+        # after posting "loading 20%" walks the progress bar backwards.
         post_peer_status(
             coord, pid,  # type: ignore[arg-type]
             status="downloading", progress=0.0,
@@ -943,8 +948,10 @@ def execute_job_command(
         if not have_status:
             return
         start = time.time()
-        stage = "downloading"
-        posted_loading = False
+        # If the preflight just fetched the shards there is nothing left to
+        # download — the synthetic progress starts at the loading stage.
+        stage = "loading" if did_download else "downloading"
+        posted_loading = did_download
         while not stop_progress.is_set():
             elapsed = time.time() - start
             if not posted_loading and elapsed >= 30.0:

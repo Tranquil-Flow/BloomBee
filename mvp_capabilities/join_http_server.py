@@ -378,8 +378,8 @@ def build_bootstrap_runbook(
             'CAP_PATH="${BLOOMBEE_CAPABILITIES_PATH:-$HOME/.bloombee/capabilities/$(hostname -s).json}"',
             'mkdir -p "$(dirname "$CAP_PATH")"',
             "",
-            'python mvp_capabilities/peer_scan.py --out "$CAP_PATH"',
-            f"python mvp_capabilities/join_client.py "
+            'python3 mvp_capabilities/peer_scan.py --out "$CAP_PATH"',
+            f"python3 mvp_capabilities/join_client.py "
             f"--join-url {shlex.quote(join_url)} "
             '--capabilities "$CAP_PATH" '
             f"--count {bounded_count} "
@@ -1199,6 +1199,46 @@ def _save_deployment(state_dir: str | Path, deployment: dict[str, Any]) -> None:
     path.write_text(json.dumps(deployment, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def _reset_peer_runtime_state(state_dir: str | Path) -> int:
+    """Clear per-run peer state before a new deployment (or after a cancel).
+
+    Removes peer_status/*.json AND scrubs the status fields that the
+    /peer-status cross-update stamped into heartbeat capabilities. The
+    heartbeat scrub matters: /infer readiness and the pipeline snapshot fall
+    back to capabilities["status"], so a leftover "serving" from the previous
+    run would report readiness the new deployment hasn't earned.
+
+    Returns the number of peer_status files removed.
+    """
+    cleared = 0
+    status_dir = _peer_status_dir(state_dir)
+    if status_dir.exists():
+        for f in status_dir.glob("*.json"):
+            try:
+                f.unlink()
+                cleared += 1
+            except OSError:
+                pass
+    for hb_file in Path(state_dir).expanduser().glob("*.json"):
+        try:
+            payload = json.loads(hb_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        caps = payload.get("capabilities")
+        if "peer_id" not in payload or not isinstance(caps, dict):
+            continue  # deployment.json / seed_multiaddrs.json, not a heartbeat
+        stale = [k for k in ("status", "download_progress", "serving_model_id") if k in caps]
+        if not stale:
+            continue
+        for key in stale:
+            caps.pop(key, None)
+        try:
+            hb_file.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        except OSError:
+            pass
+    return cleared
+
+
 def _handle_deploy_cancel(*, state_dir: str | Path) -> tuple[int, dict[str, Any]]:
     """POST /deploy/cancel -- hard-reset deployment state.
 
@@ -1224,15 +1264,7 @@ def _handle_deploy_cancel(*, state_dir: str | Path) -> tuple[int, dict[str, Any]
         except OSError:
             pass
 
-    cleared_statuses = 0
-    peer_status_dir = _peer_status_dir(state_dir)
-    if peer_status_dir.exists():
-        for f in peer_status_dir.glob("*.json"):
-            try:
-                f.unlink()
-                cleared_statuses += 1
-            except OSError:
-                pass
+    cleared_statuses = _reset_peer_runtime_state(state_dir)
 
     cleared_seed_multiaddrs = 0
     try:
@@ -1300,13 +1332,7 @@ def _handle_deploy(
     # Stale peer statuses from the previous run (serving/error) would make
     # the dashboard and /infer readiness lie about THIS deployment — reset
     # them the same way /deploy/cancel does.
-    status_dir = _peer_status_dir(state_dir)
-    if status_dir.exists():
-        for stale in status_dir.glob("*.json"):
-            try:
-                stale.unlink()
-            except OSError:
-                pass
+    _reset_peer_runtime_state(state_dir)
     plan_with_commands = attach_launch_commands(
         plan, device=device, dtype=dtype, base_port=base_port
     )
